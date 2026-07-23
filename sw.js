@@ -1,8 +1,11 @@
 // App-shell cache. Bump VERSION on every deploy that changes app files.
-const VERSION = 'chanda-v3.4.0';
+const VERSION = 'chanda-v3.5.0';
+// config.js is intentionally NOT precached — it carries the live backend URL
+// and is served network-first (no-store) by the fetch handler so it can never
+// be stale. Precaching it here would risk baking in a stale copy at install.
 const ASSETS = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest', 'icons/icon.svg',
-  'js/config.js', 'js/i18n.js', 'js/numparse.js', 'js/aggregate.js', 'js/db.js',
+  'js/i18n.js', 'js/numparse.js', 'js/aggregate.js', 'js/db.js',
   'js/auth.js', 'js/voice.js', 'js/sync.js', 'js/app.js',
 ];
 
@@ -29,7 +32,10 @@ self.addEventListener('fetch', function (e) {
   // first (refresh the cache on success) so a device that cached an older
   // config can't get stuck on an empty SCRIPT_URL; falls back to cache offline.
   if (url.pathname.endsWith('/config.js') || url.pathname.endsWith('js/config.js')) {
-    e.respondWith(fetch(e.request).then(function (resp) {
+    // no-store: bypass the browser HTTP cache too (GitHub Pages sends
+    // max-age=600), otherwise "network-first" would still hand back a stale
+    // config from disk cache for up to 10 min. Always hit the origin online.
+    e.respondWith(fetch(e.request, { cache: 'no-store' }).then(function (resp) {
       const copy = resp.clone();
       caches.open(VERSION).then(function (c) { c.put(e.request, copy); });
       return resp;

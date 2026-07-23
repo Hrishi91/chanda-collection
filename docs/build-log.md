@@ -235,3 +235,18 @@
   so both `window.CONFIG` reads resolve. One line, fixes auth + sync.
 - sw → chanda-v3.4.0. 71 tests pass. The network-first + auto-reload
   fixes from v3.3.0 stay (still correct); this is the actual unblocker.
+- Proven live via the app's own code path: with the deployed config.js
+  loaded, window.CONFIG is set and Auth.login('__nope__') returns
+  'bad-login' (reaches backend), not 'not-configured'.
+
+## 2026-07-23 — Harden: config.js no-store, drop from precache (v3.5.0)
+
+- Follow-up gap found while verifying: SW "network-first" for config.js
+  used plain fetch(e.request), which still reads the browser HTTP disk
+  cache (GitHub Pages sends max-age=600) — so a returning device could get
+  a stale config for up to 10 min. New collectors (no cache) were fine.
+- Hardened sw.js: config.js fetched with { cache: 'no-store' } (bypass
+  HTTP cache, always hit origin online; cache copy kept only as offline
+  fallback), and config.js removed from the precache ASSETS list so a
+  stale copy is never baked in at install time.
+- sw → chanda-v3.5.0. 71 tests pass; sw.js node --check clean.
