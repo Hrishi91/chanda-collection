@@ -783,3 +783,9 @@
   detail opens with zero network fetch. 105 unit tests pass.
 - **Redeploy needed**: `pull` replaces `parties`/`partyPayments` — Hrishi must
   redeploy Code.gs (New deployment → new URL → rebake config.js).
+
+## config.js — rebaked SCRIPT_URL for the pull-down deployment (AKfycbwY…)
+
+- New Apps Script deployment carries the `pull` action; probed live from a
+  browser origin → `{"ok":false,"error":"bad-token"}` (action reached
+  requireUser_, so `pull` is deployed — not "unknown action").
