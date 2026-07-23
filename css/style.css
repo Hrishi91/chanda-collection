@@ -63,6 +63,7 @@ button.ghost {
 }
 button.big { padding: 15px 22px; font-size: 17px; }
 button.block { display: block; width: 100%; margin: 8px 0; }
+button.back-bar { margin: 0 0 12px; padding: 8px 14px; font-size: 14px; }
 .flow-title { font-weight: 700; font-size: 16px; margin-bottom: 12px; color: var(--sub); }
 .chat { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .bubble { max-width: 85%; padding: 11px 15px; border-radius: 16px; font-size: 16px; line-height: 1.45; }

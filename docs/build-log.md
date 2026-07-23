@@ -307,3 +307,17 @@
 - sync.js: `resp.savedIds.length` → `(resp.savedIds || []).length` so a
   malformed server response can't throw during a sync.
 - sw → chanda-v3.7.0. 71 tests pass; app.js + sync.js node --check clean.
+
+## 2026-07-23 — UX: back button on drill-in screens (v3.8.0)
+
+- Hrishi: "there is no back options". The drill-in screens (party detail,
+  admin panel, cashier confirm) are not bottom-nav tabs, so once you were
+  in them the only way out was guessing a nav tab — and on the admin/
+  cashier loading + error states there was no way back at all.
+- Added a reusable `backBar(toView)` (← পেছনে / ← Back) shown at the top of:
+  party detail → খাতা (list), admin panel → settings, cashier confirm →
+  home. Included in those screens' loading AND error states too, so a
+  failed network load never strands the user. New CSS `.back-bar`.
+- Verified in browser: party back → list; admin back → settings even when
+  listUsers errors (fake token). 71 tests pass; app.js node --check clean.
+- sw → chanda-v3.8.0.

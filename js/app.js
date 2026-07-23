@@ -28,6 +28,15 @@
     setTimeout(function () { el.classList.remove('show'); setTimeout(function () { el.remove(); }, 300); }, 2200);
   }
   function todayISO() { return new Date().toISOString().slice(0, 10); }
+  // Back button for drill-in screens (party/admin/cashier) that aren't a
+  // bottom-nav tab, so users aren't stranded without an obvious way back.
+  function backBar(toView, params) {
+    setTimeout(function () {
+      const b = document.getElementById('back-bar');
+      if (b) b.onclick = function () { navigate(toView, params); };
+    }, 0);
+    return '<button class="ghost back-bar" id="back-bar">← ' + esc(t('back')) + '</button>';
+  }
 
   // ---------- header / nav ----------
   function updateBadge() {
@@ -484,7 +493,7 @@
         .sort(function (a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
       const paid = pays.reduce(function (a, x) { return a + Number(x.amount || 0); }, 0);
       const due = (Number(p.pledged) || 0) - paid;
-      $view().innerHTML =
+      $view().innerHTML = backBar('list') +
         '<div class="card"><div class="card-title">' + esc(p.name) + '</div>' +
         '<div class="row-sub">' + esc(t('type_' + p.type)) +
         (p.side ? ' • ' + esc(t('side_' + p.side)) : '') + (p.owner ? ' • ' + esc(p.owner) : '') +
@@ -632,8 +641,8 @@
   }
 
   function renderCashier() {
-    if (!Auth.isCashier()) { $view().innerHTML = '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
-    $view().innerHTML = '<div class="empty">' + esc(t('loading')) + '</div>';
+    if (!Auth.isCashier()) { $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
+    $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('loading')) + '</div>';
     Auth.call('pendingHandovers', { token: Auth.token(), year: Settings.get('year') }).then(function (resp) {
       const mine = resp.handovers || [];
       const pending = mine.filter(function (h) { return h.status !== 'confirmed'; });
@@ -647,7 +656,7 @@
           (withBtn ? '<div style="flex-basis:100%;margin-top:8px"><button class="primary" data-hid="' +
             esc(h.id) + '">' + esc(t('confirm_receive')) + '</button></div>' : '') + '</div>';
       }
-      $view().innerHTML = '<div class="flow-title">' + esc(t('confirm_handover')) + '</div>' +
+      $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('confirm_handover')) + '</div>' +
         '<div class="section">' + esc(t('pending_handovers')) + ' (' + pending.length + ')</div>' +
         (pending.length ? pending.map(function (h) { return card(h, true); }).join('')
                         : '<div class="empty">' + esc(t('none_here')) + '</div>') +
@@ -663,7 +672,7 @@
         };
       });
     }).catch(function () {
-      $view().innerHTML = '<div class="empty">' + esc(t('needs_net')) + '</div>';
+      $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('needs_net')) + '</div>';
     });
   }
 
@@ -926,7 +935,7 @@
       .catch(function (e) { toast(errMsg(e)); });
   }
   function renderAdmin() {
-    $view().innerHTML = '<div class="empty">' + esc(t('loading')) + '</div>';
+    $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(t('loading')) + '</div>';
     Promise.all([
       Auth.call('listUsers', { token: Auth.token() }),
       Auth.call('listSubjects', { token: Auth.token() }).catch(function () { return { subjects: [] }; }),
@@ -979,7 +988,7 @@
         (subjects.length ? '<div class="chips" style="margin-top:10px">' + subjects.map(function (s) {
           return '<button class="chip" data-subj-del="' + esc(s.id) + '">' + esc(s.name) + ' ✕</button>';
         }).join('') + '</div>' : '<div class="empty">' + esc(t('no_subjects')) + '</div>') + '</div>';
-      $view().innerHTML = '<div class="flow-title">' + esc(t('admin_panel')) + '</div>' +
+      $view().innerHTML = backBar('settings') + '<div class="flow-title">' + esc(t('admin_panel')) + '</div>' +
         '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
         subjectsCard +
         section('pending_users', groups.pending) +
@@ -1021,7 +1030,7 @@
           adminAction('setReports', { userId: uid, reports: set });
         };
       });
-    }).catch(function (e) { $view().innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>'; });
+    }).catch(function (e) { $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(errMsg(e)) + '</div>'; });
   }
 
   // ---------- router ----------
