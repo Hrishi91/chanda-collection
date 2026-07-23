@@ -236,9 +236,99 @@
              anomalies: anomalies };
   }
 
+  // Central report payloads — client mirror of Code.gs computeReport_ so every
+  // report renders from the local pull snapshot (one aggregation path, no extra
+  // round-trip, works offline). Shapes MUST match the server versions because
+  // reportHTML() renders them unchanged.
+  const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'expenses', 'daily'];
+  function computeReport(id, data) {
+    const d = activeData(data);
+    const money = (d.payments || []).concat(d.daily || []);
+    if (id === 'overview') {
+      const byType = { shop: { count: 0, pledged: 0, paid: 0 },
+                       person: { count: 0, pledged: 0, paid: 0 },
+                       member: { count: 0, pledged: 0, paid: 0 } };
+      const paidBy = {};
+      (d.payments || []).forEach(function (p) { paidBy[p.partyId] = (paidBy[p.partyId] || 0) + (Number(p.amount) || 0); });
+      (d.parties || []).forEach(function (p) {
+        const b = byType[p.type]; if (!b) return;
+        b.count++; b.pledged += Number(p.pledged) || 0; b.paid += paidBy[p.id] || 0;
+      });
+      const dailyByType = { road: 0, toto: 0, bus: 0 };
+      (d.daily || []).forEach(function (r) { if (r.type in dailyByType) dailyByType[r.type] += Number(r.amount) || 0; });
+      let cash = 0, upi = 0;
+      money.forEach(function (r) {
+        if (isCashOnly(r)) cash += Number(r.amount) || 0;
+        else { cash += Number(r.cashAmount) || 0; upi += Number(r.upiAmount) || 0; }
+      });
+      const totalPledged = byType.shop.pledged + byType.person.pledged + byType.member.pledged;
+      const totalPaid = byType.shop.paid + byType.person.paid + byType.member.paid;
+      const totalColl = sum(money, function (r) { return r.amount; });
+      const totalExp = sum(d.expenses, function (r) { return r.amount; });
+      return { totalCollection: totalColl, totalExpense: totalExp, inHand: totalColl - totalExp,
+               totalPledged: totalPledged, totalDue: totalPledged - totalPaid,
+               totalCash: cash, totalUpi: upi, byType: byType, dailyByType: dailyByType };
+    }
+    if (id === 'dues') {
+      const paid = {};
+      (d.payments || []).forEach(function (p) { paid[p.partyId] = (paid[p.partyId] || 0) + (Number(p.amount) || 0); });
+      const rows = (d.parties || []).map(function (p) {
+        const pd = paid[p.id] || 0;
+        return { name: p.name, type: p.type, side: p.side, owner: p.owner,
+                 pledged: Number(p.pledged) || 0, paid: pd, due: (Number(p.pledged) || 0) - pd };
+      }).filter(function (r) { return r.due > 0; })
+        .sort(function (a, b) { return b.due - a.due; });
+      return { rows: rows, totalDue: sum(rows, function (r) { return r.due; }) };
+    }
+    if (id === 'inhand') return { rows: inHandRows(d) };
+    if (id === 'collectors') {
+      const tot = {}, nameBy = {};
+      money.forEach(function (r) { const k = ck(r); if (r.collector) nameBy[k] = r.collector; tot[k] = (tot[k] || 0) + (Number(r.amount) || 0); });
+      const rows = Object.keys(tot).map(function (k) { return { collector: nameBy[k] || k, total: tot[k] }; })
+        .sort(function (a, b) { return b.total - a.total; });
+      return { rows: rows };
+    }
+    if (id === 'expenses') {
+      const rows = (d.expenses || []).map(function (e) {
+        return { date: e.date, subject: e.subject || '—', desc: e.desc,
+                 amount: Number(e.amount) || 0, spentBy: e.spentBy, source: e.source };
+      }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+      const subAgg = {};
+      rows.forEach(function (r) {
+        const s = r.subject || '—';
+        if (!subAgg[s]) subAgg[s] = { subject: s, total: 0, count: 0 };
+        subAgg[s].total += r.amount; subAgg[s].count += 1;
+      });
+      const bySubject = Object.keys(subAgg).map(function (k) { return subAgg[k]; })
+        .sort(function (a, b) { return b.total - a.total; });
+      return { rows: rows, bySubject: bySubject, total: sum(rows, function (r) { return r.amount; }) };
+    }
+    if (id === 'daily') {
+      const agg = {};
+      (d.daily || []).forEach(function (r) { const k = r.date + '|' + r.type; agg[k] = (agg[k] || 0) + (Number(r.amount) || 0); });
+      const rows = Object.keys(agg).map(function (k) {
+        const p = k.split('|');
+        return { date: p[0], type: p[1], amount: agg[k] };
+      }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+      const byType = { road: 0, toto: 0, bus: 0 };
+      (d.daily || []).forEach(function (r) { if (r.type in byType) byType[r.type] += Number(r.amount) || 0; });
+      return { rows: rows, byType: byType };
+    }
+    throw new Error('unknown report');
+  }
+  // Which central reports this user may see — mirror of allowedReports_.
+  function allowedReports(user) {
+    if (!user) return [];
+    if (user.role === 'admin') return REPORT_IDS.slice();
+    const granted = String(user.reports || '').split(',').filter(Boolean);
+    if (Number(user.cashier) === 1 && granted.indexOf('inhand') < 0) granted.push('inhand');
+    return granted.filter(function (r) { return REPORT_IDS.indexOf(r) >= 0; });
+  }
+
   const api = { computeTotals: computeTotals, duesList: duesList,
                 inHandRows: inHandRows, personalSummary: personalSummary,
-                reconcile: reconcile };
+                reconcile: reconcile, computeReport: computeReport,
+                allowedReports: allowedReports, REPORT_IDS: REPORT_IDS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
 })();

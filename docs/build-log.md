@@ -805,3 +805,26 @@
   TEXTAREA is focused, so typing in the khata search isn't interrupted either.
 - Verified live: focus + typed value retained through a background pull, no
   loading flash, filter still correct. 105 tests pass.
+
+## v3.37.0 — Reports render from the pull snapshot (one aggregation path)
+
+- Reports were the last screens still doing per-view server calls
+  (`reportList` / `report` / `myReport`). Now they compute client-side from
+  the local pull snapshot (`viewData()`), same as khata/party/find.
+- `Aggregate.js`: added `computeReport(id, data)` + `allowedReports(user)` —
+  exact mirrors of Code.gs `computeReport_` / `allowedReports_`. Report payload
+  shapes are identical, so `reportHTML()` renders them unchanged.
+- `app.js`: `renderReport` shows the permission-gated picker locally (no
+  round-trip); `loadMySummary` uses `Aggregate.personalSummary`; `loadReport`
+  uses `Aggregate.computeReport`. Dropped the now-dead `reportCache` /
+  `mySummaryCache`.
+- Verified live against the backend: overview/dues/inhand/collectors/expenses
+  are byte-identical server vs client; `daily` matched on every value and
+  differed only in date *format* (Sheet stores day-cells as Dates → pull
+  serialises them as UTC ISO).
+- Added `fmtDate()` and applied it to every date display (daily/expenses
+  reports, party history, my-entries, handovers) so a Sheet-round-tripped ISO
+  ("2026-07-23T18:30Z") renders as its IST day ("2026-07-24") instead of a raw
+  timestamp. Fixes a display regression the snapshot path would otherwise show.
+- Code.gs unchanged (server report actions kept as-is) → no redeploy needed.
+  105 tests pass.

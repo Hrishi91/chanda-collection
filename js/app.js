@@ -33,6 +33,18 @@
   function todayISO() {
     return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
   }
+  // Display a date as a clean IST day (YYYY-MM-DD), whatever the stored form:
+  // a plain "2026-07-24", an ISO round-tripped through the Sheet
+  // ("2026-07-23T18:30:00.000Z" = 24 Jul IST), or a Date.toString(). Falls back
+  // to the raw string if unparseable, so it never blanks a value.
+  function fmtDate(v) {
+    if (!v) return '';
+    const s = String(v);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;          // already a plain day
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return s;
+    return new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  }
   // Back button for drill-in screens (party/admin/cashier) that aren't a
   // bottom-nav tab, so users aren't stranded without an obvious way back.
   function backBar(toView, params) {
@@ -768,7 +780,7 @@
       (sorted.length ? sorted.map(function (x) {
         const isVoid = voidedOf[x.id] !== undefined;
         const reason = isVoid && voidedOf[x.id] !== '✓' ? ': ' + esc(voidedOf[x.id]) : '';
-        return '<div class="row' + (isVoid ? ' voided' : '') + '"><div>' + esc(x.date || (x.createdAt || '').slice(0, 10)) +
+        return '<div class="row' + (isVoid ? ' voided' : '') + '"><div>' + esc(fmtDate(x.date || x.createdAt)) +
           '<div class="row-sub">' + esc(x.collector || '') + (x.note ? ' • ' + esc(x.note) : '') +
           (isVoid ? ' • <span class="void-tag">' + esc(t('voided_label')) + reason + '</span>' : '') + '</div></div>' +
           '<b>' + fmtMoney(x.amount) + '</b>' +
@@ -863,7 +875,7 @@
           (canVoid(r) ? '<button class="chip void-btn" data-vd="' + it.store + '|' + esc(r.id) + '">' + esc(t('void_btn')) + '</button>'
                       : '<button class="chip void-btn" data-fl="' + it.store + '|' + esc(r.id) + '">' + esc(t('flag_btn')) + '</button>');
         return '<div class="row' + (isVoid ? ' voided' : '') + '" style="cursor:default"><div style="flex:1 1 60%"><b>' +
-          esc(entrySummary(it.store, r)) + '</b><div class="row-sub">' + esc(r.date || (r.createdAt || '').slice(0, 10)) + tag + '</div></div>' +
+          esc(entrySummary(it.store, r)) + '</b><div class="row-sub">' + esc(fmtDate(r.date || r.createdAt)) + tag + '</div></div>' +
           action + '</div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>';
       $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('my_entries_title')) + '</div>' +
@@ -982,7 +994,7 @@
         '<div class="card"><div class="card-title">' + esc(t('my_expenses')) + ' — ' + fmtMoney(d.expenseTotal) + '</div>' +
         d.expenses.map(function (e) {
           return '<div class="row" style="cursor:default"><div><b>' + esc(e.desc) + '</b><div class="row-sub">' +
-            esc(e.date) + '</div></div><b>' + fmtMoney(e.amount) + '</b></div>';
+            esc(fmtDate(e.date)) + '</div></div><b>' + fmtMoney(e.amount) + '</b></div>';
         }).join('') + '</div>' : '');
   }
   function reportCollectorsHTML(d) {
@@ -1006,7 +1018,7 @@
       (rows.length ? rows.map(function (r) {
         return '<div class="row" style="cursor:default"><div><b>' + esc(r.subject || '—') + '</b>' +
           (r.desc ? ' <span class="row-sub">— ' + esc(r.desc) + '</span>' : '') +
-          '<div class="row-sub">' + esc(r.date) + (r.spentBy ? ' • ' + esc(r.spentBy) : '') +
+          '<div class="row-sub">' + esc(fmtDate(r.date)) + (r.spentBy ? ' • ' + esc(r.spentBy) : '') +
           (r.source === 'collection' ? ' • ' + esc(t('coll_expense')) : '') + '</div></div>' +
           '<b>' + fmtMoney(r.amount) + '</b></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
@@ -1018,7 +1030,7 @@
       '<div><span>' + esc(t('type_toto')) + '</span><b>' + fmtMoney(bt.toto) + '</b></div>' +
       '<div><span>' + esc(t('type_bus')) + '</span><b>' + fmtMoney(bt.bus) + '</b></div></div>' +
       (rows.length ? rows.map(function (r) {
-        return '<div class="row" style="cursor:default"><div>' + esc(r.date) + ' • ' +
+        return '<div class="row" style="cursor:default"><div>' + esc(fmtDate(r.date)) + ' • ' +
           esc(t('type_' + r.type)) + '</div><b>' + fmtMoney(r.amount) + '</b></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
   }
@@ -1042,7 +1054,7 @@
         .sort(function (a, b) { return String(b.confirmedAt).localeCompare(String(a.confirmedAt)); }).slice(0, 15);
       function card(h, withBtn) {
         return '<div class="row" style="flex-wrap:wrap;cursor:default"><div><b>' + esc(h.from) + '</b>' +
-          '<div class="row-sub">' + esc(h.date) + (h.note ? ' • ' + esc(h.note) : '') +
+          '<div class="row-sub">' + esc(fmtDate(h.date)) + (h.note ? ' • ' + esc(h.note) : '') +
           ' • ' + esc(t('cash')) + ' ' + fmtMoney(h.cashAmount) + ' + UPI ' + fmtMoney(h.upiAmount) + '</div></div>' +
           '<b>' + fmtMoney(h.amount) + '</b>' +
           (withBtn ? '<div style="flex-basis:100%;margin-top:8px"><button class="primary" data-hid="' +
@@ -1069,36 +1081,22 @@
   }
 
   function renderReport() {
-    // personal "my summary" (server-truth online; device-local fallback) —
-    // everyone always sees their own, no permission needed
+    // Everything renders from the local pull snapshot (viewData) via Aggregate —
+    // one aggregation path, instant, offline-capable, no per-report round-trip.
     $view().innerHTML = '<div id="my-summary"><div class="empty">' + esc(t('loading')) + '</div></div>' +
       '<div class="section">' + esc(t('central_reports')) + '</div>' +
-      '<div id="report-picker"><div class="empty">' + esc(t('loading')) + '</div></div>' +
+      '<div id="report-picker"></div>' +
       '<div id="report-body"></div>';
     loadMySummary();
-    const fallback = function () { showReportButtons(myReports()); };
-    if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {
-      Auth.call('reportList', { token: Auth.token() })
-        .then(function (resp) { showReportButtons(resp.reports || []); })
-        .catch(fallback);
-    } else fallback();
+    showReportButtons(myReports());   // permission list is local — no round-trip
   }
-  const mySummaryCache = {}; // {year: server payload}
   function loadMySummary() {
-    const el = document.getElementById('my-summary');
-    const year = Settings.get('year');
-    if (mySummaryCache[year]) el.innerHTML = mySummaryHTML(mySummaryCache[year], false); // instant
-    const deviceFallback = function () {
-      if (mySummaryCache[year]) return; // keep the cached cross-device figure
-      DB.allData().then(function (data) {
-        el.innerHTML = mySummaryHTML(Aggregate.personalSummary(data, Settings.get('collectorUsername') || Settings.get('collectorName')), true);
-      });
-    };
-    if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {
-      Auth.call('myReport', { token: Auth.token(), year: year })
-        .then(function (resp) { mySummaryCache[year] = resp.data; el.innerHTML = mySummaryHTML(resp.data, false); })
-        .catch(deviceFallback);
-    } else deviceFallback();
+    const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
+    viewData().then(function (data) {
+      const el = document.getElementById('my-summary');
+      if (!el) return; // view changed while computing
+      el.innerHTML = mySummaryHTML(Aggregate.personalSummary(data, ident), false);
+    });
   }
   function showReportButtons(ids) {
     const picker = document.getElementById('report-picker');
@@ -1118,15 +1116,13 @@
       };
     });
   }
-  const reportCache = {}; // {id|year: payload} — show last result instantly, refresh in bg
   function loadReport(id) {
-    const body = document.getElementById('report-body');
-    const key = id + '|' + Settings.get('year');
-    if (reportCache[key]) body.innerHTML = reportHTML(id, reportCache[key]);          // instant
-    else body.innerHTML = '<div class="empty">' + esc(t('loading')) + '</div>';
-    Auth.call('report', { token: Auth.token(), id: id, year: Settings.get('year') })
-      .then(function (resp) { reportCache[key] = resp.data; body.innerHTML = reportHTML(id, resp.data); })
-      .catch(function (e) { if (!reportCache[key]) body.innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>'; });
+    viewData().then(function (data) {
+      const body = document.getElementById('report-body');
+      if (!body) return; // view changed while computing
+      try { body.innerHTML = reportHTML(id, Aggregate.computeReport(id, data)); }
+      catch (e) { body.innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>'; }
+    });
   }
 
   function renderSettings() {
