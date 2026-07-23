@@ -797,6 +797,11 @@
     const key = 'err_' + (code === 'year_not_approved' ? 'year' : code);
     return I18N[key] ? t(key) : t('err_network');
   }
+  const USERNAME_RE = /^[a-z0-9._-]{3,20}$/;
+  function authError(msg) {
+    const el = document.getElementById('auth-err');
+    if (el) { el.textContent = msg || ''; el.style.display = msg ? 'block' : 'none'; }
+  }
   function langChips(rerender) {
     setTimeout(function () {
       document.querySelectorAll('[data-l]').forEach(function (b) {
@@ -819,6 +824,7 @@
       '<input id="lg-user" autocapitalize="none" autocomplete="username"></div>' +
       '<div class="field"><label>' + esc(t('password')) + '</label>' +
       '<input id="lg-pw" type="password" autocomplete="current-password"></div>' +
+      '<div id="auth-err" class="auth-err" style="display:none"></div>' +
       '<button id="lg-btn" class="primary big block">' + esc(t('login_btn')) + '</button>' +
       '<button id="lg-reg" class="ghost block">' + esc(t('no_account_register')) + '</button>' +
       '<button id="lg-forgot" class="ghost block">' + esc(t('forgot_link')) + '</button>' +
@@ -827,11 +833,14 @@
     document.getElementById('lg-reg').onclick = function () { authView = 'register'; renderAuth(); };
     document.getElementById('lg-forgot').onclick = function () { authView = 'forgot'; renderAuth(); };
     document.getElementById('lg-btn').onclick = function () {
+      authError('');
+      const user = document.getElementById('lg-user').value.trim();
+      const pw = document.getElementById('lg-pw').value;
+      if (!user || !pw) { authError(t('fill_all')); return; }
       const btn = this; btn.disabled = true;
-      Auth.login(document.getElementById('lg-user').value.trim(),
-                 document.getElementById('lg-pw').value)
+      Auth.login(user, pw)
         .then(function () { navigate('home'); autoSync(); })
-        .catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
+        .catch(function (e) { btn.disabled = false; authError(errMsg(e)); });
     };
   }
   function renderRegister() {
@@ -839,27 +848,43 @@
       langChips(renderRegister) +
       '<div class="field"><label>' + esc(t('full_name')) + '</label><input id="rg-name"></div>' +
       '<div class="field"><label>' + esc(t('username')) + '</label>' +
-      '<input id="rg-user" autocapitalize="none"></div>' +
+      '<input id="rg-user" autocapitalize="none" autocorrect="off" spellcheck="false">' +
+      '<div class="hint" id="rg-user-hint">' + esc(t('username_rule')) + '</div></div>' +
       '<div class="field"><label>' + esc(t('q_phone')) + '</label><input id="rg-phone" inputmode="tel"></div>' +
-      '<div class="field"><label>' + esc(t('password')) + '</label><input id="rg-pw" type="password"></div>' +
+      '<div class="field"><label>' + esc(t('password')) + '</label><input id="rg-pw" type="password">' +
+      '<div class="hint">' + esc(t('password_rule')) + '</div></div>' +
       '<div class="field"><label>' + esc(t('confirm_password')) + '</label><input id="rg-pw2" type="password"></div>' +
+      '<div id="auth-err" class="auth-err" style="display:none"></div>' +
       '<button id="rg-btn" class="primary big block">' + esc(t('register_btn')) + '</button>' +
       '<button id="rg-back" class="ghost block">' + esc(t('back_to_login')) + '</button></div>';
     document.getElementById('rg-back').onclick = function () { authView = 'login'; renderAuth(); };
+    // live username feedback as they type
+    const userEl = document.getElementById('rg-user'), hint = document.getElementById('rg-user-hint');
+    userEl.oninput = function () {
+      const v = userEl.value.trim();
+      if (!v) { hint.textContent = t('username_rule'); hint.className = 'hint'; }
+      else if (USERNAME_RE.test(v)) { hint.textContent = t('username_ok'); hint.className = 'hint ok-hint'; }
+      else { hint.textContent = t('username_rule'); hint.className = 'hint err-hint'; }
+    };
     document.getElementById('rg-btn').onclick = function () {
+      authError('');
+      const name = document.getElementById('rg-name').value.trim();
+      const username = userEl.value.trim();
       const pw = document.getElementById('rg-pw').value;
-      if (pw !== document.getElementById('rg-pw2').value) { toast(t('pw_mismatch')); return; }
+      const pw2 = document.getElementById('rg-pw2').value;
+      // client-side checks with clear, persistent messages
+      if (!name) { authError(t('fill_all')); return; }
+      if (!USERNAME_RE.test(username)) { authError(t('err_bad_username')); return; }
+      if (pw.length < 4) { authError(t('err_bad_input')); return; }
+      if (pw !== pw2) { authError(t('pw_mismatch')); return; }
       const btn = this; btn.disabled = true;
-      Auth.register({
-        name: document.getElementById('rg-name').value.trim(),
-        username: document.getElementById('rg-user').value.trim(),
-        phone: document.getElementById('rg-phone').value.trim(),
-        password: pw,
+      Auth.register({ name: name, username: username,
+        phone: document.getElementById('rg-phone').value.trim(), password: pw,
       }).then(function (resp) {
         if (resp && resp.first) { authView = 'login'; toast(t('reg_admin_msg')); }
         else authView = 'regdone';
         renderAuth();
-      }).catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
+      }).catch(function (e) { btn.disabled = false; authError(errMsg(e)); });
     };
   }
   function renderAuthMsg() {

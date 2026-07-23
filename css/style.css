@@ -82,6 +82,13 @@ button.block { display: block; width: 100%; margin: 8px 0; }
 .mic.rec { background: var(--red); border-color: var(--red); animation: pulse 1s infinite; }
 @keyframes pulse { 50% { opacity: .6; } }
 .hint { color: var(--sub); font-size: 13px; margin: 8px 4px; min-height: 18px; }
+.hint.ok-hint { color: var(--green); font-weight: 600; }
+.hint.err-hint { color: var(--red); font-weight: 600; }
+.auth-err {
+  background: #fdecea; color: var(--red); border: 1px solid #f5c6c2;
+  border-radius: 10px; padding: 10px 14px; font-size: 14px; font-weight: 600;
+  margin: 6px 0 10px; text-align: left; line-height: 1.4;
+}
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 12px; }
 .chips.center { justify-content: center; }
 .chip {

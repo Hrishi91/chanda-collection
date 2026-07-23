@@ -139,6 +139,10 @@ const I18N = {
   err_network: { bn: 'Internet/সার্ভার সমস্যা — আবার চেষ্টা করো', en: 'Network/server problem — try again' },
   err_not_configured: { bn: 'Sync URL সেট হয়নি (Settings)', en: 'Sync URL not set (Settings)' },
   login_needs_net: { bn: 'লগইনের জন্য internet লাগবে', en: 'Login needs internet' },
+  username_rule: { bn: '৩–২০টি ইংরেজি ছোট অক্ষর/সংখ্যা — capital, বাংলা বা space নয়', en: '3–20 lowercase letters/digits — no capitals, spaces, or non-English' },
+  password_rule: { bn: 'কমপক্ষে ৪ অক্ষর', en: 'At least 4 characters' },
+  username_ok: { bn: '✓ ঠিক আছে', en: '✓ Looks good' },
+  fill_all: { bn: 'সব ঘর ভরো', en: 'Fill every field' },
   // --- money modes & handover ---
   q_mode: { bn: 'কীভাবে দিল?', en: 'Payment mode?' },
   mode_cash: { bn: '💵 নগদ', en: '💵 Cash' },

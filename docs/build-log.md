@@ -183,3 +183,16 @@
   and a POST login-probe round-trips as JSON (text/plain POST, no
   preflight, redirect handled). Next: Hrishi runs setup() (creates the
   7 tabs) then registers as the first user → auto-admin.
+
+## 2026-07-23 — Clearer auth validation (Hrishi feedback)
+
+- Registration errors were only fleeting toasts and the username rule
+  wasn't shown, so users got stuck. Now: username rule as a hint under
+  the field with LIVE colour feedback (green ✓ valid / red rule on bad
+  input), a "min 4 chars" hint under password, and a persistent red
+  inline error box (auth-err) for all login/register failures.
+  Client-side checks fire before the round-trip (name required, bad
+  username, short password, mismatch); login errors moved from toast to
+  the inline box. sw → chanda-v3.2.0.
+- Verified in browser: "Hrishi Babu" → red rule; "hrishi" → green ✓;
+  mismatched passwords → persistent inline error box.
