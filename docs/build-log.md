@@ -273,3 +273,27 @@
   report-gating consistent, no other `window.X &&` guard bugs remain
   (grep-verified: only CONFIG + Settings were affected, both fixed).
 - sw → chanda-v3.6.0. 71 tests pass; db.js + app.js node --check clean.
+
+## 2026-07-23 — END-TO-END sync verified against the REAL backend
+
+- Long-standing gap (Hrishi: "have you checked data saves to the Sheet?"):
+  every prior test used IndexedDB + a mock, never a real token → real Sheet.
+  Cause it was never verified: the window.CONFIG bug meant no UI login had
+  ever succeeded, so no valid token, so `push` never ran → Sheet was empty.
+- Hrishi logged in as admin (hrishi91) and shared his session token; drove
+  the real backend from the browser (token auth, not password) and proved:
+  - **push → Sheet**: a party + payment landed in Parties/Payments; server
+    stamped collector = hrishikesh mahato from the token; cash/UPI split
+    (400/200) persisted. Read straight back via `dump`.
+  - **upsert-by-uuid**: re-push of the same party id (pledged 1000→1200)
+    kept the row count at 1 and updated in place — 10-phone retry-safe.
+  - **server report `overview`**: collection 600 / pledged 1200 / due 600 /
+    cash 400 / upi 200 — server math correct.
+  - **handover confirm cycle**: push pending handover → `confirmHandover`
+    flipped status to 'confirmed', confirmedBy stamped.
+  - **expense subject CRUD**: add → list → remove all worked.
+  - **myReport**: collected 600 + received 500 = inHand 1100. Correct.
+- Users sheet now holds only hrishi91 (admin); the zz_probe_del junk row was
+  removed by Hrishi. Test data left in the Sheet (SYNC TEST দোকান party +
+  its payment, and the Ramu→hrishikesh handover) is Hrishi's to clear.
+  Token was shared in chat once — re-login rotates/invalidates it.

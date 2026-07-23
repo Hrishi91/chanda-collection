@@ -17,10 +17,14 @@
 - [x] ~~Central report view~~ (2026-07-23)
 - [x] ~~JSON export/import backup~~ (2026-07-23)
 - [x] ~~Setup + collector guides~~ (2026-07-23)
-- [ ] GitHub repo + Pages deploy (**needs Hrishi's ok — public repo**)
-- [ ] END-TO-END sync test against real Apps Script deployment
-      (blocked on Hrishi doing setup-google.md steps)
+- [x] ~~GitHub repo + Pages deploy~~ (2026-07-23, live at
+      hrishi91.github.io/chanda-collection)
+- [x] ~~END-TO-END sync test against real Apps Script deployment~~
+      (2026-07-23: push→Sheet, upsert dedup, server reports, handover
+      confirm, subject CRUD, myReport all verified with a real admin token)
 - [ ] Real-phone smoke test: install, mic permission, bn voice entry
+- [ ] Clean up test data left in the Sheet (SYNC TEST দোকান + its payment,
+      Ramu→hrishikesh handover) — Hrishi to delete
 
 ## P0.5 — v2: users, roles, money handling (Hrishi, 2026-07-23)
 
