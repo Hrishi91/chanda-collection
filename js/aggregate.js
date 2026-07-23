@@ -148,8 +148,66 @@
       .sort(function (a, b) { return b.due - a.due; });
   }
 
+  // Data-integrity check: the money must always reconcile, and structural
+  // anomalies (that would cause disputes) are surfaced. Handovers are internal
+  // transfers, so across everyone they net out — hence the invariant:
+  //   Σ (cash in hand)  ===  total collected − total expenses.
+  function reconcile(data) {
+    const parties = data.parties || [], payments = data.payments || [];
+    const daily = data.daily || [], expenses = data.expenses || [];
+    const money = payments.concat(daily);
+    const totalCollected = sum(money, function (r) { return r.amount; });
+    const totalExpenses = sum(expenses, function (e) { return e.amount; });
+    const rows = inHandRows(data);
+    const totalInHand = rows.reduce(function (a, r) { return a + r.inHand; }, 0);
+    const expected = totalCollected - totalExpenses;
+    const anomalies = [];
+
+    if (Math.round(totalInHand) !== Math.round(expected)) {
+      anomalies.push({ type: 'unbalanced', totalInHand: totalInHand, expected: expected,
+                       diff: totalInHand - expected });
+    }
+    // payment whose party no longer exists
+    const partyIds = {};
+    parties.forEach(function (p) { partyIds[p.id] = 1; });
+    const paidByParty = {};
+    payments.forEach(function (p) {
+      paidByParty[p.partyId] = (paidByParty[p.partyId] || 0) + (Number(p.amount) || 0);
+      if (p.partyId && !partyIds[p.partyId]) {
+        anomalies.push({ type: 'orphan_payment', id: p.id, partyId: p.partyId, amount: Number(p.amount) || 0 });
+      }
+    });
+    // party paid more than pledged
+    parties.forEach(function (p) {
+      const paid = paidByParty[p.id] || 0;
+      if (paid > (Number(p.pledged) || 0)) {
+        anomalies.push({ type: 'overpaid', party: p.name, pledged: Number(p.pledged) || 0, paid: paid });
+      }
+    });
+    // handed over more than held
+    rows.forEach(function (r) {
+      if (r.inHand < 0) anomalies.push({ type: 'negative_inhand', collector: r.collector, inHand: r.inHand });
+    });
+    // same id appearing twice in a store (would double-count)
+    ['parties', 'payments', 'daily', 'expenses', 'handovers'].forEach(function (store) {
+      const seen = {};
+      (data[store] || []).forEach(function (r) {
+        if (r && r.id != null) {
+          if (seen[r.id]) anomalies.push({ type: 'duplicate_id', store: store, id: r.id });
+          seen[r.id] = 1;
+        }
+      });
+    });
+
+    return { totalCollected: totalCollected, totalExpenses: totalExpenses,
+             totalInHand: totalInHand, expected: expected,
+             balanced: !anomalies.some(function (a) { return a.type === 'unbalanced'; }),
+             anomalies: anomalies };
+  }
+
   const api = { computeTotals: computeTotals, duesList: duesList,
-                inHandRows: inHandRows, personalSummary: personalSummary };
+                inHandRows: inHandRows, personalSummary: personalSummary,
+                reconcile: reconcile };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
 })();

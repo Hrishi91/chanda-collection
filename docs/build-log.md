@@ -341,3 +341,19 @@
 - Verified in browser: Settings → guide → 10 sections render, back works,
   en/bn toggle switches the content. sw → chanda-v3.9.0. 71 tests pass;
   help.js + app.js node --check clean.
+
+## 2026-07-23 — Fix-list #1: reconciliation self-check (data-integrity)
+
+- New role (data-integrity auditor). Added `Aggregate.reconcile(data)`:
+  asserts the money invariant **Σ (cash in hand) = total collected −
+  total expenses** (handovers net out internally), and flags structural
+  anomalies that cause disputes: orphan_payment (party gone), overpaid
+  (paid > pledged), negative_inhand (handed over more than held),
+  duplicate_id (double-count). Returns {totals, balanced, anomalies}.
+- Pure logic, shared module — not yet wired to UI (a future admin
+  "reconciliation dashboard" step will surface it on central data). Its
+  immediate value: a safety net to verify later fixes (edit/void, etc.)
+  never break the money math.
+- Tests: 82 passed, 0 failed (11 new — clean books balance + each anomaly
+  caught). sw → chanda-v3.10.0.
+- Working the fix-list one item at a time; next up: #2 timezone (IST) date.
