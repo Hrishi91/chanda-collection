@@ -3,3 +3,5 @@ node_modules/
 *.log
 # never commit real deployment secrets
 secrets.local.*
+# local paste-copy of Code.gs for the Apps Script editor (source of truth is apps-script/Code.gs)
+Code-gs-copy.txt
