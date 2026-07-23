@@ -3,9 +3,8 @@
  *
  * Deploy: Extensions → Apps Script in the target Google Sheet, paste this
  * file, run setup() once, then Deploy → Web app (execute as Me, access:
- * Anyone). After the FIRST user registers from the app, run
- * makeAdmin('their-username') once to bootstrap the admin.
- * Full steps: docs/user-guide/setup-google.md
+ * Anyone). The FIRST person to register from the app auto-becomes the
+ * admin — no extra step. Full steps: docs/user-guide/setup-google.md
  *
  * Protocol: every call is a POST with text/plain JSON (no CORS
  * preflight). All data actions need a login token; admin actions need

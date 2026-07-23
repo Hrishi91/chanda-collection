@@ -172,3 +172,4 @@
   deploys the Apps Script and we bake the /exec URL into js/config.js.
 - Verified server + browser: 1st register→admin/approved, 2nd→pending;
   browser register→login→role admin. 71 tests pass.
+- Cleanup: dropped the stale makeAdmin note from Code.gs header comment.
