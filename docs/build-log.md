@@ -518,3 +518,19 @@
   is blocked on cancel (count stays 1) and added on confirm (count 2).
   99 tests pass. sw → chanda-v3.19.0.
 - Next: #10 speed (debounce autoSync + report cache + optimistic UI).
+
+## 2026-07-23 — Fix-list #10: speed (debounce sync + report cache)
+
+- autoSync() debounced ~1s so a burst of entries (bulk-shop) coalesces
+  into one push instead of a round-trip per save; retries the tail if a
+  sync was mid-flight (fixes entries saved during an in-flight sync being
+  stranded until the next trigger). Also syncs pending on app-return.
+- Report + My-summary results cached client-side (per id/year); reopening
+  a report shows the last figures instantly and refreshes in the
+  background — masks the 1–3s Apps Script latency.
+- Client-only. Verified live: reopening the overview report shows the
+  cached ₹1,234 immediately (before the mocked server delay). 99 tests
+  pass. sw → chanda-v3.20.0.
+- ✅ Fix-list #1–#10 complete (+ notifications). Pending: the batched
+  Code.gs redeploy (#3 voids, #4 identity, #5 logout, #6 password,
+  notifications) + Hrishi clearing test data.

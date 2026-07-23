@@ -55,9 +55,19 @@
       b.title = n ? n + t('unsynced_n') : t('all_synced');
     });
   }
+  // Debounced so a burst of entries (e.g. bulk-shop mode) coalesces into one
+  // sync ~1s after the last save instead of a round-trip per entry.
+  let syncTimer = null;
   function autoSync() {
     if (!Sync.configured()) return;
-    Sync.syncNow().then(function (r) { if (r.ok && r.sent) toast('☁️ Sync: ' + r.sent); updateBadge(); });
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(function () {
+      Sync.syncNow().then(function (r) {
+        if (r.ok && r.sent) toast('☁️ Sync: ' + r.sent);
+        updateBadge();
+        if (r.reason === 'busy') autoSync(); // a sync was in flight — retry the tail
+      });
+    }, 1000);
   }
 
   // ---------- in-app notifications ----------
@@ -116,6 +126,7 @@
   const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party'];
   function onAppFocus() {
     checkNotifications();
+    autoSync(); // push anything still pending when the user returns
     if (Auth.loggedIn() && !flowState && REFRESHABLE.indexOf(current.view) >= 0) render();
   }
   function startNotifPolling() {
@@ -834,16 +845,20 @@
         .catch(fallback);
     } else fallback();
   }
+  const mySummaryCache = {}; // {year: server payload}
   function loadMySummary() {
     const el = document.getElementById('my-summary');
+    const year = Settings.get('year');
+    if (mySummaryCache[year]) el.innerHTML = mySummaryHTML(mySummaryCache[year], false); // instant
     const deviceFallback = function () {
+      if (mySummaryCache[year]) return; // keep the cached cross-device figure
       DB.allData().then(function (data) {
         el.innerHTML = mySummaryHTML(Aggregate.personalSummary(data, Settings.get('collectorUsername') || Settings.get('collectorName')), true);
       });
     };
     if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {
-      Auth.call('myReport', { token: Auth.token(), year: Settings.get('year') })
-        .then(function (resp) { el.innerHTML = mySummaryHTML(resp.data, false); })
+      Auth.call('myReport', { token: Auth.token(), year: year })
+        .then(function (resp) { mySummaryCache[year] = resp.data; el.innerHTML = mySummaryHTML(resp.data, false); })
         .catch(deviceFallback);
     } else deviceFallback();
   }
@@ -865,12 +880,15 @@
       };
     });
   }
+  const reportCache = {}; // {id|year: payload} — show last result instantly, refresh in bg
   function loadReport(id) {
     const body = document.getElementById('report-body');
-    body.innerHTML = '<div class="empty">' + esc(t('loading')) + '</div>';
+    const key = id + '|' + Settings.get('year');
+    if (reportCache[key]) body.innerHTML = reportHTML(id, reportCache[key]);          // instant
+    else body.innerHTML = '<div class="empty">' + esc(t('loading')) + '</div>';
     Auth.call('report', { token: Auth.token(), id: id, year: Settings.get('year') })
-      .then(function (resp) { body.innerHTML = reportHTML(id, resp.data); })
-      .catch(function (e) { body.innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>'; });
+      .then(function (resp) { reportCache[key] = resp.data; body.innerHTML = reportHTML(id, resp.data); })
+      .catch(function (e) { if (!reportCache[key]) body.innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>'; });
   }
 
   function renderSettings() {
