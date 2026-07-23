@@ -235,5 +235,28 @@ eq(personalSummary(idData, 'rahul2').handedOver, 200, 'identity: personalSummary
 // legacy name-only rows still work (fallback)
 eq(inHandRows({ payments: [{ id: 'x', collector: 'Old', amount: 50 }], daily: [], expenses: [], handovers: [], voids: [] })[0].inHand, 50, 'identity: legacy name-only row still keyed');
 
+// ---- cross-collector installments: two collectors pay the same party ----
+// Kamal pledged 1000; Salil collected 400, Ram collected 600 (via find-party).
+const splitParty = {
+  parties: [{ id: 'P', name: 'Kamal', pledged: 1000 }],
+  payments: [
+    { id: 'pa', partyId: 'P', collectorId: 'salil', collector: 'Salil', amount: 400 },
+    { id: 'pb', partyId: 'P', collectorId: 'ram', collector: 'Ram', amount: 600 },
+  ],
+  daily: [], expenses: [], handovers: [], voids: [],
+};
+eq(computeTotals(splitParty).paidByParty['P'], 1000, 'cross-collector: party fully paid (400+600)');
+eq(computeTotals(splitParty).totalDue, 0, 'cross-collector: no due left');
+eq(personalSummary(splitParty, 'salil').inHand, 400, 'cross-collector: Salil holds only his 400');
+eq(personalSummary(splitParty, 'ram').inHand, 600, 'cross-collector: Ram holds only his 600');
+// full-amount case: Salil only entered it (paid 0), Ram collected all 1000
+const fullByRam = {
+  parties: [{ id: 'Q', name: 'Rahim', pledged: 1000 }],
+  payments: [{ id: 'pc', partyId: 'Q', collectorId: 'ram', collector: 'Ram', amount: 1000 }],
+  daily: [], expenses: [], handovers: [], voids: [],
+};
+eq(personalSummary(fullByRam, 'ram').inHand, 1000, 'cross-collector: Ram holds the full 1000');
+eq(personalSummary(fullByRam, 'salil').inHand, 0, 'cross-collector: Salil (entry only) holds nothing');
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

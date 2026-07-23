@@ -722,3 +722,11 @@
   (due 600), pays 600 → payment saved with partyId=A's, collector=Ram.
   sw → chanda-v3.32.0. 99 tests pass. ⚠️ Needs a Code.gs redeploy (+`parties`
   action) — Code-gs-copy.txt refreshed.
+
+## 2026-07-24 — Tests: cross-collector installment split (confirmation)
+
+- Confirmed (Hrishi's scenario) the model already splits correctly when
+  two collectors pay one party: Salil 400 + Ram 600 → party paid 1000/due
+  0, Salil in-hand 400, Ram in-hand 600; and full case (Salil enters only,
+  Ram collects 1000) → Ram 1000, Salil 0. Each hands over their own
+  portion. Added as regression tests. 105 passed, 0 failed. No code change.
