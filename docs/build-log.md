@@ -158,3 +158,17 @@
   entries); Other-with-comment entry created through the UI with the
   empty-comment submit correctly blocked; expenses report grouped
   Pandal 3500 / Other 240, total 3740. 71 tests pass. sw → chanda-v3.0.0.
+
+## 2026-07-23 — Bootstrap simplified: first registrant = admin
+
+- register() now makes the very first user an approved admin for the
+  current year (returns {first:true}); the client routes the first user
+  straight to login with a "you're the admin" toast. Removes the
+  awkward makeAdmin editor step from setup-google.md.
+- Context for Hrishi's question "how do I log in": NO real backend is
+  deployed yet — all testing used a local mock in the sandbox
+  (localhost:8790), unreachable from his devices. The live GitHub Pages
+  app has CONFIG.SCRIPT_URL='' so login can't work there until he
+  deploys the Apps Script and we bake the /exec URL into js/config.js.
+- Verified server + browser: 1st register→admin/approved, 2nd→pending;
+  browser register→login→role admin. 71 tests pass.
