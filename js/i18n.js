@@ -105,6 +105,7 @@ const I18N = {
   forgot_link: { bn: 'পাসওয়ার্ড ভুলে গেছি', en: 'Forgot password' },
   forgot_msg: { bn: 'Admin-কে (হৃষিকেশ) বলো — সে নতুন সাময়িক পাসওয়ার্ড দেবে। সেটা দিয়ে ঢুকে নিজের নতুন পাসওয়ার্ড বসাতে হবে।', en: 'Ask the admin (Hrishikesh) — they will give you a temporary password. Log in with it and set your own.' },
   reg_done_msg: { bn: '✅ নাম জমা পড়েছে! Admin approve করলে ঢুকতে পারবে — admin-কে জানিয়ে রাখো।', en: '✅ Registered! You can log in after the admin approves you — let the admin know.' },
+  reg_admin_msg: { bn: '👑 তুমিই প্রথম — তাই admin! এখন নিজের username/পাসওয়ার্ড দিয়ে ঢুকে পড়ো।', en: "👑 You're the first user — so you're the admin! Log in now with your username/password." },
   back_to_login: { bn: 'লগইনে ফিরি', en: 'Back to login' },
   logout: { bn: 'লগ আউট', en: 'Log out' },
   logged_in_as: { bn: 'লগইন করা আছে', en: 'Logged in as' },

@@ -855,8 +855,11 @@
         username: document.getElementById('rg-user').value.trim(),
         phone: document.getElementById('rg-phone').value.trim(),
         password: pw,
-      }).then(function () { authView = 'regdone'; renderAuth(); })
-        .catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
+      }).then(function (resp) {
+        if (resp && resp.first) { authView = 'login'; toast(t('reg_admin_msg')); }
+        else authView = 'regdone';
+        renderAuth();
+      }).catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
     };
   }
   function renderAuthMsg() {

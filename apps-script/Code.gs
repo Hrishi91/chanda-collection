@@ -144,18 +144,23 @@ var ACTIONS = {
     lock.waitLock(20000);
     try {
       if (findUser_('username', username)) throw new Error('username-taken');
+      // The very first registrant becomes the admin, auto-approved for this
+      // year — no separate makeAdmin step needed.
+      var first = usersSheet_().getLastRow() < 2;
       var salt = Utilities.getUuid();
       usersSheet_().appendRow(USER_COLS.map(function (c) {
         var row = {
           id: Utilities.getUuid(), username: username, name: name,
           phone: String(b.phone || ''), passwordHash: hash_(salt, password), salt: salt,
-          role: 'user', cashier: 0, reports: '', status: 'pending', years: '', token: '',
+          role: first ? 'admin' : 'user', cashier: 0, reports: '',
+          status: first ? 'approved' : 'pending',
+          years: first ? String(new Date().getFullYear()) : '', token: '',
           mustChange: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         };
         return row[c];
       }));
     } finally { lock.releaseLock(); }
-    return { ok: true };
+    return { ok: true, first: first };
   },
 
   login: function (b) {

@@ -27,18 +27,15 @@ One-time, ~10 minutes. After this, all 10 phones sync into one Sheet.
    it gets baked into the app (`js/config.js`) so collectors never
    type it.
 
-## 4. Bootstrap yourself as admin
+## 4. Become admin — just register first
 
-1. Open the app, tap **নতুন? নাম লেখাও (register)**, register with
-   your own username (e.g. `hrishi`).
-2. Back in the Apps Script editor: open `Code.gs`, in the function
-   dropdown pick **makeAdmin** — but first, at the bottom of the file,
-   nothing to edit: instead run it from the editor console via
-   **Run → makeAdmin** won't pass arguments, so use this once in the
-   editor: add a temporary line `function boot(){ makeAdmin('hrishi'); }`,
-   run **boot**, then delete the line.
-3. Log in from the app — you'll see 👑 Admin প্যানেল in Settings.
-   Everyone else who registers appears there for your approval.
+1. Open the app (the live link), tap **নতুন? নাম লেখাও (register)**,
+   register with your own name/username (e.g. `hrishi`).
+2. **The very first person to register is automatically the admin** and
+   is approved on the spot — no editor step. Log in and you'll see the
+   👑 Admin প্যানেল in Settings.
+3. Everyone who registers after you shows up there for your approval
+   (and you decide who is a cashier, who sees which report, etc).
 
 ## 5. Daily automatic backup to Drive
 
