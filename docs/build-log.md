@@ -828,3 +828,16 @@
   timestamp. Fixes a display regression the snapshot path would otherwise show.
 - Code.gs unchanged (server report actions kept as-is) → no redeploy needed.
   105 tests pass.
+
+## v3.38.0 — List scroll: top on navigate, preserve on background refresh
+
+- `navigate()` now `window.scrollTo(0, 0)` — a user navigation (tab switch,
+  opening a party, drill-in) starts at the top of the new screen instead of
+  keeping the previous screen's scroll offset.
+- Background pull re-renders (`pullCentral` / focus / 60s) go through `render()`
+  directly, NOT `navigate()`, so they keep the current scroll position — the
+  list no longer jumps to the top under the user while a refresh lands.
+- Back (popstate) relies on the browser's native scroll restoration, returning
+  the user to where they were on the previous screen.
+- Verified live: scrolled list preserved through a background pull (1200→1200),
+  navigate-to-party landed at top (0), Back restored to prior position (1200).

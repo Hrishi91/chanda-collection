@@ -1515,6 +1515,7 @@
     // through the app instead of leaving it.
     try { history.pushState({ v: view, p: current.params }, ''); } catch (e) {}
     render();
+    window.scrollTo(0, 0); // a user navigation starts at the top of the new screen
   }
   function render() {
     document.getElementById('app-title').textContent = '🙏 ' + t('app_title');
@@ -1549,6 +1550,8 @@
     const s = e.state, v = (s && s.v) || 'home';
     current = { view: v === 'entry' ? 'home' : v, params: (s && s.p) || {} };
     render();
+    // no scrollTo here: the browser's native scroll restoration returns Back to
+    // where the user was on the previous screen, which is what we want.
   });
   // ask the browser not to evict our IndexedDB under storage pressure
   if (navigator.storage && navigator.storage.persist) { try { navigator.storage.persist(); } catch (e) {} }
