@@ -76,6 +76,7 @@ const DB = (function () {
       year: Settings.get('year'),
       collector: Settings.get('collectorName') || '?',      // display name
       collectorId: Settings.get('collectorUsername') || '',  // stable identity
+      collectorRole: Settings.get('collectorRole') || 'collector', // for void permissions
       createdAt: new Date().toISOString(),
       synced: 0,
     }, extra);

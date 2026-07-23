@@ -647,7 +647,7 @@
             '<div class="row-sub">' + esc(x.collector || '') + (x.note ? ' • ' + esc(x.note) : '') +
             (isVoid ? ' • <span class="void-tag">' + esc(t('voided_label')) + reason + '</span>' : '') + '</div></div>' +
             '<b>' + fmtMoney(x.amount) + '</b>' +
-            (isVoid ? '' : '<button class="chip void-btn" data-void="' + esc(x.id) + '">' + esc(t('void_btn')) + '</button>') + '</div>';
+            (isVoid || !canVoid(x) ? '' : '<button class="chip void-btn" data-void="' + esc(x.id) + '">' + esc(t('void_btn')) + '</button>') + '</div>';
         }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
       document.getElementById('pay-btn').onclick = function () { startFlow(paymentFlow(p)); };
       document.querySelectorAll('[data-void]').forEach(function (b) {
@@ -658,6 +658,18 @@
 
   // Void a payment (audit-preserving correction): records a reason into the
   // `voids` store; aggregation then drops that payment id everywhere.
+  // Separation of duties: who may void an entry.
+  //  admin → anything · cashier → a regular collector's entry (not own) ·
+  //  collector → nothing (they flag/request instead).
+  function canVoid(entry) {
+    const u = Auth.current();
+    if (!u) return false;
+    if (u.role === 'admin') return true;
+    const myId = Settings.get('collectorUsername') || u.username;
+    if (entry.collectorId && entry.collectorId === myId) return false; // never one's own
+    if (u.cashier === 1) return (entry.collectorRole || 'collector') === 'collector';
+    return false;
+  }
   function renderVoidReason(targetId, party) {
     $view().innerHTML = backBar('party', { id: party.id }) +
       '<div class="card center onboard"><div class="big-emoji">✖️</div>' +

@@ -28,6 +28,8 @@ const Auth = (function () {
     localStorage.setItem('ck_user', JSON.stringify(resp.user));
     Settings.set('collectorName', resp.user.name); // display name on entries
     Settings.set('collectorUsername', resp.user.username); // stable identity key
+    // role stamped on entries so corrections can enforce who-can-void
+    Settings.set('collectorRole', resp.user.role === 'admin' ? 'admin' : (resp.user.cashier === 1 ? 'cashier' : 'collector'));
   }
   function logout() {
     // best-effort: invalidate the token server-side too (don't block on it),

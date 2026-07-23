@@ -564,3 +564,21 @@
   ✏️ Edit (prompt) + 🗑️ delete, matching the areas/locations cards).
   Completes admin-editable master data. sw → chanda-v3.22.0. 99 tests pass.
   Adds to the batched redeploy.
+
+## 2026-07-24 — Correction system step 2a: void permission rule (separation of duties)
+
+- Hrishi's rule: a regular collector's entry can be voided by a cashier or
+  admin (not the collector); a cashier's or admin's own entry only by an
+  admin; nobody voids their own (admin excepted). Anti-fraud by design.
+- Enforcing it needs each entry to carry its creator's role (a cashier has
+  no listUsers). auth.js stores collectorRole on login; db.js newRow stamps
+  it; SHEETS gained a collectorRole column on parties/payments/daily/
+  expenses/handovers (appended; setup migrates). New `canVoid(entry)` gates
+  the void button.
+- Verified live: on a party with 3 payments (by a collector, self-cashier,
+  another cashier) — cashier sees 1 void button (the collector's only),
+  admin sees 3, a regular collector sees 0. 99 tests pass.
+  sw → chanda-v3.23.0. Adds to the batched redeploy.
+- Still to do in step 2: void for daily/expense (needs an entry-browse
+  screen), handover cancel(pending)/dispute + admin void, and the
+  flag/request workflow for collectors.
