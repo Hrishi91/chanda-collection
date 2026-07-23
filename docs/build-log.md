@@ -443,3 +443,15 @@
   navigating to the right screen. 99 tests pass. sw → chanda-v3.14.0.
 - Server-side `notifications` action needs the same batched Code.gs
   redeploy (#3+#4+this).
+
+## 2026-07-23 — Fix-list #5: server-side logout (token invalidation)
+
+- Logout only cleared localStorage; the token stayed valid in the sheet
+  until the next login, so a leaked/old token kept working after "logout".
+  New Code.gs `logout` action clears the caller's token server-side;
+  Auth.logout() calls it best-effort (non-blocking, .catch) before wiping
+  the local session — so logout still works offline / if the call fails.
+- Verified live (browser, mocked): logout fires the server call with the
+  token AND clears the local session (loggedIn → false) even on failure.
+  99 tests pass. sw → chanda-v3.15.0. Needs the batched Code.gs redeploy.
+- Next: #6 password policy (min length + hash iterations).

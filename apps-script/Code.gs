@@ -186,6 +186,13 @@ var ACTIONS = {
     return { ok: true, token: u.row.token, user: publicUser_(u.row) };
   },
 
+  // invalidate the caller's token server-side (logout)
+  logout: function (b) {
+    var u = findUser_('token', b.token);
+    if (u) { u.row.token = ''; saveUser_(u); }
+    return { ok: true };
+  },
+
   changePassword: function (b) {
     var u = requireUser_(b.token);
     var mustChange = Number(u.row.mustChange) === 1;

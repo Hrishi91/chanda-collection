@@ -30,6 +30,10 @@ const Auth = (function () {
     Settings.set('collectorUsername', resp.user.username); // stable identity key
   }
   function logout() {
+    // best-effort: invalidate the token server-side too (don't block on it),
+    // so a leaked/old token can't keep working after logout.
+    var tok = token();
+    if (tok && apiUrl()) call('logout', { token: tok }).catch(function () {});
     localStorage.removeItem('ck_token');
     localStorage.removeItem('ck_user');
   }
