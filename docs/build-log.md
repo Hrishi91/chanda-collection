@@ -582,3 +582,17 @@
 - Still to do in step 2: void for daily/expense (needs an entry-browse
   screen), handover cancel(pending)/dispute + admin void, and the
   flag/request workflow for collectors.
+
+## 2026-07-24 — Backend redeployed (new deployment URL)
+
+- The old /exec deployment stubbornly kept serving pre-session code even
+  after "Manage deployments → New version" attempts; verified via probes
+  (listItems/notifications → "unknown action", no Voids/Lists in dump)
+  even with cache-busting. The Sheet, though, had the Voids + Lists tabs
+  with the 4 seeded areas — so the code WAS pasted/saved and setup() ran;
+  only that deployment wouldn't repoint.
+- Fix: Hrishi created a fresh Web-app deployment; its new URL runs the
+  current code (listItems returns the 4 bilingual areas; token still valid
+  since both deployments bind the same Sheet). Baked the new URL into
+  js/config.js and pushed. sw → chanda-v3.24.0.
+- Next: live-verify all server-side changes against the new deployment.
