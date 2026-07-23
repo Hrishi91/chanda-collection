@@ -869,6 +869,7 @@
           '<div class="row-sub">' + esc(x.collector || '') + (x.note ? ' • ' + esc(x.note) : '') +
           (isVoid ? ' • <span class="void-tag">' + esc(t('voided_label')) + reason + '</span>' : '') + '</div></div>' +
           '<b>' + fmtMoney(x.amount) + '</b>' +
+          (isVoid ? '' : '<button class="chip" data-receipt="' + esc(x.id) + '">🧾</button>') +
           (isVoid || !canVoid(x) ? '' : '<button class="chip void-btn" data-void="' + esc(x.id) + '">' + esc(t('void_btn')) + '</button>') + '</div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
     document.getElementById('pay-btn').onclick = function () { startFlow(paymentFlow(p)); };
@@ -885,6 +886,57 @@
     document.querySelectorAll('[data-void]').forEach(function (b) {
       b.onclick = function () { renderVoidReason('payments', b.dataset.void, function () { navigate('party', { id: p.id }); }); };
     });
+    document.querySelectorAll('[data-receipt]').forEach(function (b) {
+      b.onclick = function () {
+        const pay = pays.filter(function (x) { return x.id === b.dataset.receipt; })[0];
+        if (pay) shareReceipt(p, pay, paid, due);
+      };
+    });
+  }
+  // Draw a donation receipt onto a canvas and share it (WhatsApp etc. via the
+  // Web Share API) or download it as a PNG. Purely on-device — no server.
+  function shareReceipt(p, pay, paidTotal, due) {
+    const W = 720, H = 520, c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#c0392b'; g.fillRect(0, 0, W, 84);
+    g.fillStyle = '#ffffff'; g.font = 'bold 32px sans-serif';
+    g.fillText('🙏 ' + t('app_title'), 28, 54);
+    g.fillStyle = '#111111'; g.font = 'bold 26px sans-serif';
+    g.fillText(t('receipt_title'), 28, 140);
+    g.font = '22px sans-serif'; g.fillStyle = '#333333';
+    const line = function (label, val, y) {
+      g.fillStyle = '#777777'; g.fillText(label, 28, y);
+      g.fillStyle = '#111111'; g.font = 'bold 24px sans-serif'; g.fillText(String(val), 300, y);
+      g.font = '22px sans-serif';
+    };
+    line(t('receipt_for'), p.name, 196);
+    line(t('date'), fmtDate(pay.date || pay.createdAt), 240);
+    g.fillStyle = '#c0392b'; g.font = 'bold 40px sans-serif';
+    g.fillText(fmtMoney(pay.amount), 300, 300);
+    g.fillStyle = '#777777'; g.font = '22px sans-serif'; g.fillText(t('receipt_amount'), 28, 300);
+    line(t('paid'), fmtMoney(paidTotal) + ' / ' + fmtMoney(p.pledged), 350);
+    line(t('due'), fmtMoney(due), 392);
+    line(t('receipt_collector'), pay.collector || '', 434);
+    g.fillStyle = '#c0392b'; g.font = 'italic 22px sans-serif';
+    g.fillText(t('receipt_thanks'), 28, 486);
+    const done = function (blob) {
+      const file = new File([blob], 'receipt.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: t('receipt_title'), text: p.name }).catch(function () {});
+      } else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = 'receipt-' + (p.name || 'chanda') + '.png'; a.click();
+        toast(t('receipt_saved'));
+      }
+    };
+    if (c.toBlob) c.toBlob(done); else done(dataURLToBlob(c.toDataURL('image/png')));
+  }
+  function dataURLToBlob(u) {
+    const parts = u.split(','), bin = atob(parts[1]), arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: 'image/png' });
   }
 
   // Void a payment (audit-preserving correction): records a reason into the

@@ -948,3 +948,15 @@ Roadmap D5 (client-only, no redeploy).
 - Verified live: due+phone party shows the button and builds
   wa.me/919998887776?text=… with the name and ₹600 due; a fully-paid party and
   a phone-less party show no button. 105 tests pass.
+
+## v3.45.0 — Donation receipt (🧾 → WhatsApp / download)
+
+Roadmap D2 (client-only, no redeploy).
+
+- Each non-voided payment row in party detail gets a 🧾 button. It draws a
+  receipt onto a canvas (committee header, donor, date, this payment, running
+  paid/pledged/due, collector, thank-you) and shares the PNG via the Web Share
+  API (WhatsApp etc. on mobile) or downloads it as a fallback. Fully on-device.
+- Verified live: PNG generated (~49KB image/png); visual check confirms the
+  Bengali receipt renders correctly with all fields (₹400 this payment,
+  ₹400/₹1,000 paid, ₹600 due, collector Ram). 105 tests pass.
