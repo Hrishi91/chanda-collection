@@ -664,3 +664,18 @@
   recognised). Baked the new /exec URL into js/config.js and pushed.
   sw → chanda-v3.28.0. (Recurring: for this account "New deployment" works,
   "New version on existing" doesn't.)
+
+## 2026-07-24 — Areas fresh at entry time (new-entry form refreshes lists first)
+
+- Hrishi: an admin-added area wasn't visible to other users instantly.
+  Lists.refresh() was verified working (it fetched the new area), but it
+  only ran on login/focus/60s — so a collector could open a shop form
+  with an up-to-60s-stale dropdown. Now tapping 🏪/🙍/🤝/bulk refreshes the
+  lists first (Promise.race with a 1.5s cap so a slow network never blocks
+  the form), then opens the flow — so a just-added area shows the moment
+  someone starts a new entry.
+- Verified live (mocked): cache had 1 area; tapping shop refreshed and the
+  area step showed the newly-added "বাস স্ট্যান্ড". List/report labels still
+  refresh on focus/60s. Truly push-instant (no user action) needs a push
+  backend Apps Script can't provide. sw → chanda-v3.29.0. 99 tests pass.
+  Client-only.

@@ -566,11 +566,16 @@
         '</div>' +
         '<div class="grid one" style="margin-top:10px"><button class="tile wide" data-go="entries">✏️ ' +
           esc(t('my_entries_title')) + '</button></div>';
+      // refresh the areas/locations cache (≤1.5s), then run — so an admin's
+      // just-added area shows the moment a collector opens a new-entry form.
+      const freshThen = function (fn) {
+        Promise.race([Lists.refresh(), new Promise(function (r) { setTimeout(r, 1500); })]).then(fn);
+      };
       document.querySelectorAll('[data-go]').forEach(function (b) {
         b.onclick = function () {
           const g = b.dataset.go;
-          if (g === 'shop' || g === 'person' || g === 'member') startFlow(newPartyFlow(g));
-          else if (g === 'bulk') startFlow(newPartyFlow('shop', {}, true));
+          if (g === 'shop' || g === 'person' || g === 'member') freshThen(function () { startFlow(newPartyFlow(g)); });
+          else if (g === 'bulk') freshThen(function () { startFlow(newPartyFlow('shop', {}, true)); });
           else if (g === 'road' || g === 'toto' || g === 'bus') startFlow(dailyFlow(g));
           else if (g === 'expense') startExpense();
           else if (g === 'handover') startHandover();
