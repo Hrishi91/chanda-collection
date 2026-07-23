@@ -841,3 +841,23 @@
   the user to where they were on the previous screen.
 - Verified live: scrolled list preserved through a background pull (1200→1200),
   navigate-to-party landed at top (0), Back restored to prior position (1200).
+
+## v3.39.0 — Incremental pull (delta sync): 60s polls carry only changed rows
+
+- The `pull` action now supports a `since` cursor. No `since` → full snapshot
+  (first login / cache miss). With `since` → only rows whose receivedAt is newer
+  than the cursor. Idle polls return an empty delta, so 60s polling stays cheap
+  regardless of total row count (the peak-season concern).
+- `cursor` is epoch-ms of the newest receivedAt (`toEpoch_`/`maxReceivedAt_`),
+  robust whether the Sheet stored receivedAt as an ISO string or a Date cell.
+- In-place status changes now bump receivedAt so the delta carries them:
+  `confirmHandover` (affects in-hand) and `resolveCorrection`. push already
+  stamps receivedAt on every insert/update; the approve-void is a new row.
+- Client (`app.js`): `centralCursor` + `centralYear` persisted alongside
+  `ck_central`; `mergeDelta()` upserts changed rows by id (no hard deletes, so
+  merge-only is correct). Switching year forces a full pull (never merge one
+  year's delta into another). Idle empty delta → no re-render (also kills the
+  needless 60s findparty refresh). Logout clears the snapshot + cursor.
+- Verified live-mock (full → delta-merge → idle → year-change → back) and the
+  server epoch helpers in Node. 105 tests pass.
+- **Requires Code.gs redeploy** (pull `since` + receivedAt bumps are new).

@@ -83,14 +83,50 @@
   }
 
   // ---------- pull-down: one central snapshot, render every screen local ----------
-  let centralData = null;
+  let centralData = null, centralCursor = '', centralYear = '';
   try { centralData = JSON.parse(localStorage.getItem('ck_central') || 'null'); } catch (e) { centralData = null; }
+  try { centralCursor = localStorage.getItem('ck_central_cursor') || ''; } catch (e) { centralCursor = ''; }
+  try { centralYear = localStorage.getItem('ck_central_year') || ''; } catch (e) { centralYear = ''; }
+  // merge a delta (only changed rows) into the cached snapshot, upsert by id.
+  // There are no hard deletes (voids are soft), so merge-only stays correct.
+  function mergeDelta(delta) {
+    let changed = false;
+    DB.STORES.forEach(function (s) {
+      const incoming = delta[s] || [];
+      if (!incoming.length) return;
+      changed = true;
+      const byId = {};
+      (centralData[s] || []).forEach(function (r) { if (r && r.id != null) byId[r.id] = r; });
+      incoming.forEach(function (r) { if (r && r.id != null) byId[r.id] = r; });
+      centralData[s] = Object.keys(byId).map(function (k) { return byId[k]; });
+    });
+    return changed;
+  }
   function pullCentral() {
     if (!navigator.onLine || !Sync.configured() || !Auth.loggedIn()) return Promise.resolve();
-    return Auth.call('pull', { token: Auth.token(), year: Settings.get('year') }).then(function (resp) {
-      centralData = resp.data || null;
-      try { localStorage.setItem('ck_central', JSON.stringify(centralData)); } catch (e) { /* quota */ }
-      if (flowState) return;
+    const year = String(Settings.get('year'));
+    // switching year invalidates the snapshot — force a full pull, never merge
+    // one year's delta into another year's cache.
+    if (centralYear !== year) { centralData = null; centralCursor = ''; centralYear = year; }
+    const params = { token: Auth.token(), year: year };
+    // ask for a delta only when we already hold a snapshot at a known cursor
+    if (centralData && centralCursor) params.since = centralCursor;
+    return Auth.call('pull', params).then(function (resp) {
+      let changed;
+      if (resp.mode === 'delta' && centralData) {
+        changed = mergeDelta(resp.data || {});
+      } else {
+        centralData = resp.data || null; // full snapshot (first pull / cache miss)
+        changed = true;
+      }
+      if (resp.cursor != null) centralCursor = String(resp.cursor);
+      centralYear = year;
+      try {
+        localStorage.setItem('ck_central', JSON.stringify(centralData));
+        localStorage.setItem('ck_central_cursor', centralCursor);
+        localStorage.setItem('ck_central_year', centralYear);
+      } catch (e) { /* quota */ }
+      if (!changed || flowState) return; // idle poll (empty delta) → no re-render
       // findparty: refresh results in place (rebuilding the shell steals input
       // focus and flashes "loading" → looked like blinking). Its #fp-results
       // swap never touches the search box, so it's safe even mid-typing.
@@ -1164,6 +1200,9 @@
     document.getElementById('logout-btn').onclick = function () {
       DB.unsyncedCount().then(function (n) {
         if (n > 0) { toast('⏳ ' + n + t('unsynced_n')); return; } // never strand unsynced entries
+        // drop the central snapshot so the next login starts with a clean full pull
+        centralData = null; centralCursor = ''; centralYear = '';
+        ['ck_central', 'ck_central_cursor', 'ck_central_year'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
         Auth.logout(); authView = 'login'; navigate('home');
       });
     };

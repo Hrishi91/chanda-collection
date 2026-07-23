@@ -364,6 +364,7 @@ var ACTIONS = {
           csh.getRange(i + 1, cols.indexOf('status') + 1).setValue(b.decision === 'approve' ? 'approved' : 'rejected');
           csh.getRange(i + 1, cols.indexOf('resolvedBy') + 1).setValue(u.row.name);
           csh.getRange(i + 1, cols.indexOf('resolvedAt') + 1).setValue(new Date().toISOString());
+          csh.getRange(i + 1, cols.indexOf('receivedAt') + 1).setValue(new Date().toISOString()); // carry in delta pull
           if (b.decision === 'approve') {
             var vsh = ss.getSheetByName(SHEET_TITLES.voids), vcols = SHEETS.voids;
             var v = { id: Utilities.getUuid(), year: corr.year, targetStore: corr.targetStore, targetId: corr.targetId,
@@ -378,12 +379,27 @@ var ACTIONS = {
     } finally { lock.releaseLock(); }
   },
 
-  // pull-down sync: one call returns the whole (small) year dataset so the
-  // client can render every screen from a local snapshot — no per-screen
-  // round-trips. Any approved user (committee-transparent).
+  // pull-down sync: the client renders every screen from a local snapshot, no
+  // per-screen round-trips. Any approved user (committee-transparent).
+  //   - no `since`  → full snapshot (first login / cache miss).
+  //   - with `since` → only rows whose receivedAt is newer than the client's
+  //     cursor (a delta). Idle polls return an empty delta (~nothing), so 60s
+  //     polling stays cheap even at peak-season row counts.
+  // `cursor` is epoch-ms of the newest receivedAt so it compares correctly
+  // whether the Sheet stored receivedAt as an ISO string or a Date cell.
   pull: function (b) {
     requireUser_(b.token);
-    return { ok: true, data: readAll_(b.year ? Number(b.year) : new Date().getFullYear()) };
+    var all = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
+    var cursor = maxReceivedAt_(all);
+    if (b.since != null && b.since !== '') {
+      var since = Number(b.since) || 0;
+      var delta = {};
+      Object.keys(all).forEach(function (store) {
+        delta[store] = (all[store] || []).filter(function (r) { return toEpoch_(r.receivedAt) > since; });
+      });
+      return { ok: true, mode: 'delta', data: delta, cursor: cursor };
+    }
+    return { ok: true, mode: 'full', data: all, cursor: cursor };
   },
 
   // approved cashiers (any logged-in user may ask — needed for handover)
@@ -417,6 +433,8 @@ var ACTIONS = {
         sh.getRange(r, cols.indexOf('status') + 1).setValue('confirmed');
         sh.getRange(r, cols.indexOf('confirmedBy') + 1).setValue(u.row.name);
         sh.getRange(r, cols.indexOf('confirmedAt') + 1).setValue(new Date().toISOString());
+        // bump receivedAt so the delta pull carries this in-place status change
+        sh.getRange(r, cols.indexOf('receivedAt') + 1).setValue(new Date().toISOString());
         return { ok: true };
       }
     }
@@ -610,6 +628,22 @@ function readAll_(year) {
     data[store] = rows;
   });
   return data;
+}
+
+// receivedAt → epoch ms, tolerant of both ISO strings and Date cells (Sheets
+// may auto-type a full timestamp). Empty/unparseable → 0 (treated as oldest).
+function toEpoch_(v) {
+  if (!v) return 0;
+  var t = (v instanceof Date) ? v.getTime() : new Date(v).getTime();
+  return isNaN(t) ? 0 : t;
+}
+// Newest receivedAt across every store, as epoch ms — the delta-pull cursor.
+function maxReceivedAt_(data) {
+  var mx = 0;
+  Object.keys(data).forEach(function (store) {
+    (data[store] || []).forEach(function (r) { var t = toEpoch_(r && r.receivedAt); if (t > mx) mx = t; });
+  });
+  return mx;
 }
 
 // Drop voided (corrected) records everywhere reports are computed, mirroring
