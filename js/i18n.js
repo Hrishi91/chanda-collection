@@ -218,6 +218,15 @@ const I18N = {
   void_need_reason: { bn: 'কারণ লিখতে হবে', en: 'A reason is required' },
   voided_done: { bn: '✖️ বাতিল হলো', en: '✖️ Voided' },
   voided_label: { bn: 'বাতিল', en: 'VOID' },
+  // --- my entries + flag/correction ---
+  my_entries_title: { bn: '✏️ আমার entry / সংশোধন', en: '✏️ My entries / fix' },
+  my_entries_hint: { bn: 'ভুল entry? cashier/admin হলে ✖️ বাতিল; নিজেরটা হলে ⚠️ flag করো — cashier দেখে ঠিক করবে।', en: 'Wrong entry? cashier/admin can ✖️ void; for your own, ⚠️ flag it — a cashier will fix it.' },
+  flag_btn: { bn: '⚠️ ভুল, flag', en: '⚠️ Flag' },
+  flag_pending: { bn: 'flag করা — অপেক্ষায়', en: 'flagged — pending' },
+  flag_title: { bn: 'এটা ভুল বলে জানাও', en: 'Flag as wrong' },
+  flag_hint: { bn: 'তুমি নিজে মুছতে পারবে না — cashier/admin দেখে বাতিল করবে বা ফেরত দেবে।', en: 'You can\'t remove it yourself — a cashier/admin will void it or send it back.' },
+  flag_confirm: { bn: '⚠️ flag পাঠাও', en: '⚠️ Send flag' },
+  flagged_done: { bn: '⚠️ flag পাঠানো হলো', en: '⚠️ Flag sent' },
   // --- notifications ---
   notif_handovers: { bn: 'জমা confirm করো', en: 'to confirm' },
   notif_approvals: { bn: 'approve-এর অপেক্ষায়', en: 'awaiting approval' },

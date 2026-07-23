@@ -23,10 +23,13 @@ var SHEETS = {
   handovers: ['id', 'year', 'from', 'to', 'amount', 'cashAmount', 'upiAmount', 'date', 'note',
               'status', 'confirmedBy', 'confirmedAt', 'collector', 'createdAt', 'receivedAt', 'fromId', 'toId', 'collectorId', 'collectorRole'],
   // audit-preserving corrections: a void points at another record's id
-  voids: ['id', 'year', 'targetStore', 'targetId', 'reason', 'collector', 'createdAt', 'receivedAt'],
+  voids: ['id', 'year', 'targetStore', 'targetId', 'reason', 'collector', 'createdAt', 'receivedAt', 'collectorId'],
+  // a collector's "this is wrong" flag → a cashier/admin approves(void)/rejects
+  corrections: ['id', 'year', 'targetStore', 'targetId', 'targetSummary', 'reason', 'status',
+                'resolvedBy', 'resolvedAt', 'collector', 'collectorId', 'createdAt', 'receivedAt'],
 };
 var SHEET_TITLES = { parties: 'Parties', payments: 'Payments', daily: 'DailyCollections',
-                     expenses: 'Expenses', handovers: 'Handovers', voids: 'Voids' };
+                     expenses: 'Expenses', handovers: 'Handovers', voids: 'Voids', corrections: 'Corrections' };
 
 var USER_COLS = ['id', 'username', 'name', 'phone', 'passwordHash', 'salt', 'role',
                  'cashier', 'reports', 'status', 'years', 'token', 'mustChange', 'createdAt', 'updatedAt'];

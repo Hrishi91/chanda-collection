@@ -596,3 +596,31 @@
   since both deployments bind the same Sheet). Baked the new URL into
   js/config.js and pushed. sw → chanda-v3.24.0.
 - Next: live-verify all server-side changes against the new deployment.
+
+## 2026-07-24 — All server-side changes verified live (new deployment)
+
+- Against the new /exec: master-list add/edit/remove (net-zero, area count
+  back to 4), notifications, register min-6 reject, push persisting
+  collectorId/collectorRole/location columns (schema auto-migration works),
+  a void excluding a payment from the collectors report, and server logout
+  killing the token (which also rotated the token shared in chat). All ✅.
+
+## 2026-07-24 — Correction step 2b: "My entries" + void-all-types + flag
+
+- New "✏️ My entries" screen (home tile) lists the device's own payments/
+  daily/expenses/handovers. Each entry: ✖️ Void if canVoid (admin own /
+  cashier-admin on a collector's — via the permission rule), else ⚠️ Flag
+  (a collector can't self-void). renderVoidReason generalised to any store
+  (void now works for daily/expense/handover, not just payments); new
+  renderFlag writes a `corrections` record {targetStore,targetId,summary,
+  reason,status:pending}. IndexedDB v4 (+corrections); Code.gs SHEETS
+  +corrections (+collectorId appended to voids). entrySummary() one-liner.
+- Verified live (browser): a collector sees 3 flag buttons (no void),
+  flagging the road daily creates a pending correction with the summary +
+  reason and marks the row "flagged — pending"; an admin sees a void button
+  on their own daily and voiding it writes a void record. 99 tests pass.
+  sw → chanda-v3.25.0.
+- ⚠️ Needs another Code.gs redeploy (+Corrections sheet, run setup) for
+  flags/voids to sync centrally — batching with 2c (the cashier/admin
+  review screen: approve→void / reject, + notification count). Until then
+  corrections work on-device.

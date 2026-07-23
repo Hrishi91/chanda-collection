@@ -123,7 +123,7 @@
   // Returning to the app (or a pull-to-refresh) re-renders the current data
   // view so users never have to manually refresh — skipped mid-entry and on
   // transient screens.
-  const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party'];
+  const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party', 'entries'];
   function onAppFocus() {
     checkNotifications();
     autoSync(); // push anything still pending when the user returns
@@ -555,7 +555,9 @@
           '<button class="tile" data-go="handover">' + esc(t('handover')) + '</button>' +
           (Auth.isCashier()
             ? '<button class="tile" data-go="cashier">' + esc(t('confirm_handover')) + '</button>' : '') +
-        '</div>';
+        '</div>' +
+        '<div class="grid one" style="margin-top:10px"><button class="tile wide" data-go="entries">✏️ ' +
+          esc(t('my_entries_title')) + '</button></div>';
       document.querySelectorAll('[data-go]').forEach(function (b) {
         b.onclick = function () {
           const g = b.dataset.go;
@@ -651,7 +653,7 @@
         }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
       document.getElementById('pay-btn').onclick = function () { startFlow(paymentFlow(p)); };
       document.querySelectorAll('[data-void]').forEach(function (b) {
-        b.onclick = function () { renderVoidReason(b.dataset.void, p); };
+        b.onclick = function () { renderVoidReason('payments', b.dataset.void, function () { navigate('party', { id: p.id }); }); };
       });
     });
   }
@@ -670,23 +672,90 @@
     if (u.cashier === 1) return (entry.collectorRole || 'collector') === 'collector';
     return false;
   }
-  function renderVoidReason(targetId, party) {
-    $view().innerHTML = backBar('party', { id: party.id }) +
+  // one-line description of any entry (for lists + a flag's stored summary)
+  function entrySummary(store, r) {
+    const amt = fmtMoney(r.amount);
+    if (store === 'payments') return (r.partyName || '?') + ' — ' + amt;
+    if (store === 'daily') return t('type_' + r.type) + ' — ' + amt;
+    if (store === 'expenses') return (r.subject || r.desc || t('expense')) + ' — ' + amt;
+    if (store === 'handovers') return t('handover') + ' → ' + (r.to || '?') + ' — ' + amt;
+    return amt;
+  }
+  function renderVoidReason(targetStore, targetId, backFn) {
+    $view().innerHTML = '<button class="ghost back-bar" id="void-back">← ' + esc(t('back')) + '</button>' +
       '<div class="card center onboard"><div class="big-emoji">✖️</div>' +
       '<h2>' + esc(t('void_title')) + '</h2>' +
       '<div class="hint">' + esc(t('void_hint')) + '</div>' +
       '<div class="field"><label>' + esc(t('q_void_reason')) + '</label><input id="void-reason" autocomplete="off"></div>' +
       '<button id="void-ok" class="primary big block">' + esc(t('void_confirm')) + '</button>' +
       '<button id="void-cancel" class="ghost block">' + esc(t('cancel')) + '</button></div>';
-    const back = function () { navigate('party', { id: party.id }); };
-    document.getElementById('void-cancel').onclick = back;
+    document.getElementById('void-back').onclick = backFn;
+    document.getElementById('void-cancel').onclick = backFn;
     document.getElementById('void-ok').onclick = function () {
       const reason = document.getElementById('void-reason').value.trim();
       if (!reason) { toast(t('void_need_reason')); return; }
       this.disabled = true;
-      DB.put('voids', DB.newRow({ targetStore: 'payments', targetId: targetId, reason: reason }))
-        .then(function () { toast(t('voided_done')); updateBadge(); autoSync(); back(); });
+      DB.put('voids', DB.newRow({ targetStore: targetStore, targetId: targetId, reason: reason }))
+        .then(function () { toast(t('voided_done')); updateBadge(); autoSync(); backFn(); });
     };
+  }
+  // A collector can't void their own entry — they flag it for a cashier/admin.
+  function renderFlag(targetStore, targetId, summary, backFn) {
+    $view().innerHTML = '<button class="ghost back-bar" id="flag-back">← ' + esc(t('back')) + '</button>' +
+      '<div class="card center onboard"><div class="big-emoji">⚠️</div>' +
+      '<h2>' + esc(t('flag_title')) + '</h2>' +
+      '<div class="hint">' + esc(t('flag_hint')) + '</div>' +
+      (summary ? '<div class="row" style="cursor:default"><b>' + esc(summary) + '</b></div>' : '') +
+      '<div class="field"><label>' + esc(t('q_void_reason')) + '</label><input id="flag-reason" autocomplete="off"></div>' +
+      '<button id="flag-ok" class="primary big block">' + esc(t('flag_confirm')) + '</button>' +
+      '<button id="flag-cancel" class="ghost block">' + esc(t('cancel')) + '</button></div>';
+    document.getElementById('flag-back').onclick = backFn;
+    document.getElementById('flag-cancel').onclick = backFn;
+    document.getElementById('flag-ok').onclick = function () {
+      const reason = document.getElementById('flag-reason').value.trim();
+      if (!reason) { toast(t('void_need_reason')); return; }
+      this.disabled = true;
+      DB.put('corrections', DB.newRow({ targetStore: targetStore, targetId: targetId,
+        targetSummary: summary, reason: reason, status: 'pending' }))
+        .then(function () { toast(t('flagged_done')); updateBadge(); autoSync(); backFn(); });
+    };
+  }
+  // "My entries" — the device's own entries, each voidable (if permitted) or
+  // flaggable (if it's your own and you can't self-void).
+  function renderMyEntries() {
+    DB.allData().then(function (data) {
+      const voided = {}; (data.voids || []).forEach(function (v) { voided[v.targetId] = 1; });
+      const flagged = {}; (data.corrections || []).forEach(function (c) { if (c.status !== 'rejected') flagged[c.targetId] = 1; });
+      const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
+      const mine = function (r) { return (r.collectorId || r.collector) === meId; };
+      const list = [];
+      ['payments', 'daily', 'expenses', 'handovers'].forEach(function (store) {
+        (data[store] || []).filter(mine).forEach(function (r) { list.push({ store: store, r: r }); });
+      });
+      list.sort(function (a, b) { return String(b.r.createdAt || '').localeCompare(String(a.r.createdAt || '')); });
+      const rowsHTML = list.length ? list.map(function (it) {
+        const r = it.r, isVoid = !!voided[r.id], isFlag = !!flagged[r.id];
+        const tag = isVoid ? ' • <span class="void-tag">' + esc(t('voided_label')) + '</span>'
+          : isFlag ? ' • <span class="void-tag">⚠️ ' + esc(t('flag_pending')) + '</span>' : '';
+        const action = (isVoid || isFlag) ? '' :
+          (canVoid(r) ? '<button class="chip void-btn" data-vd="' + it.store + '|' + esc(r.id) + '">' + esc(t('void_btn')) + '</button>'
+                      : '<button class="chip void-btn" data-fl="' + it.store + '|' + esc(r.id) + '">' + esc(t('flag_btn')) + '</button>');
+        return '<div class="row' + (isVoid ? ' voided' : '') + '" style="cursor:default"><div style="flex:1 1 60%"><b>' +
+          esc(entrySummary(it.store, r)) + '</b><div class="row-sub">' + esc(r.date || (r.createdAt || '').slice(0, 10)) + tag + '</div></div>' +
+          action + '</div>';
+      }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>';
+      $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('my_entries_title')) + '</div>' +
+        '<div class="hint" style="margin-bottom:10px">' + esc(t('my_entries_hint')) + '</div>' + rowsHTML;
+      document.querySelectorAll('[data-vd]').forEach(function (b) {
+        b.onclick = function () { const p = b.dataset.vd.split('|'); renderVoidReason(p[0], p[1], function () { navigate('entries'); }); };
+      });
+      document.querySelectorAll('[data-fl]').forEach(function (b) {
+        b.onclick = function () {
+          const p = b.dataset.fl.split('|'), it = list.find(function (x) { return x.r.id === p[1]; });
+          renderFlag(p[0], p[1], it ? entrySummary(p[0], it.r) : '', function () { navigate('entries'); });
+        };
+      });
+    });
   }
 
   function totalsHTML(tt, title) {
@@ -1318,6 +1387,7 @@
     else if (current.view === 'settings') renderSettings();
     else if (current.view === 'admin') { Auth.isAdmin() ? renderAdmin() : renderHome(); }
     else if (current.view === 'cashier') renderCashier();
+    else if (current.view === 'entries') renderMyEntries();
     else if (current.view === 'help') renderHelp();
     else renderHome();
     updateBadge();
