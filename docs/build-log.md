@@ -219,3 +219,19 @@
 - Note: a device ALREADY stuck on the old SW must re-fetch sw.js once
   (reopen online / clear site data / reinstall) to receive v3.3.0; after
   that the two fixes keep it current automatically.
+
+## 2026-07-23 — REAL root cause: window.CONFIG was undefined
+
+- After the network-first fix, Hrishi cleared cache + reloaded and STILL
+  got "Sync URL not set" on the register button — proving it was never
+  the cache. CAUSE: config.js declared `const CONFIG`, but a top-level
+  `const` is NOT a property of `window`; auth.js and sync.js read the URL
+  as `window.CONFIG && CONFIG.SCRIPT_URL`, so `window.CONFIG` was always
+  undefined → apiUrl() always '' → EVERY UI login/register failed with
+  "Sync URL not set". The earlier manual fetch probes used bare `CONFIG`,
+  so they worked and masked the bug — no UI login had ever actually
+  succeeded (matches: no admin ever existed in the sheet).
+- Fix: config.js now assigns `window.CONFIG = {…}` (was `const CONFIG`),
+  so both `window.CONFIG` reads resolve. One line, fixes auth + sync.
+- sw → chanda-v3.4.0. 71 tests pass. The network-first + auto-reload
+  fixes from v3.3.0 stay (still correct); this is the actual unblocker.
