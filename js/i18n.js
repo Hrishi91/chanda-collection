@@ -227,6 +227,11 @@ const I18N = {
   flag_hint: { bn: 'তুমি নিজে মুছতে পারবে না — cashier/admin দেখে বাতিল করবে বা ফেরত দেবে।', en: 'You can\'t remove it yourself — a cashier/admin will void it or send it back.' },
   flag_confirm: { bn: '⚠️ flag পাঠাও', en: '⚠️ Send flag' },
   flagged_done: { bn: '⚠️ flag পাঠানো হলো', en: '⚠️ Flag sent' },
+  review_title: { bn: '🛠️ সংশোধন review', en: '🛠️ Review fixes' },
+  corr_approve: { bn: '✅ বাতিল করো', en: '✅ Void it' },
+  corr_reject: { bn: '🚫 ঠিক আছে (reject)', en: '🚫 It\'s fine (reject)' },
+  corr_rejected: { bn: 'reject করা হলো', en: 'Rejected' },
+  notif_corrections: { bn: 'সংশোধন দেখো', en: 'to review' },
   // --- notifications ---
   notif_handovers: { bn: 'জমা confirm করো', en: 'to confirm' },
   notif_approvals: { bn: 'approve-এর অপেক্ষায়', en: 'awaiting approval' },

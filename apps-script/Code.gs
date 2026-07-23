@@ -315,14 +315,15 @@ var ACTIONS = {
   // lightweight actionable counts for the in-app notification banner
   notifications: function (b) {
     var u = requireUser_(b.token);
-    var out = { handovers: 0, approvals: 0 };
+    var out = { handovers: 0, approvals: 0, corrections: 0 };
     var isCashier = Number(u.row.cashier) === 1 || u.row.role === 'admin';
     if (isCashier) {
       var year = b.year ? Number(b.year) : new Date().getFullYear();
-      var d = activeData_(readAll_(year));
+      var d = readAll_(year);
       out.handovers = d.handovers.filter(function (h) {
         return (String(h.toId || h.to) === String(u.row.username) || h.to === u.row.name) && h.status !== 'confirmed';
       }).length;
+      out.corrections = (d.corrections || []).filter(function (c) { return c.status === 'pending'; }).length;
     }
     if (u.row.role === 'admin') {
       var us = usersSheet_();
@@ -333,6 +334,48 @@ var ACTIONS = {
       }
     }
     return { ok: true, notifications: out };
+  },
+
+  // pending correction flags a cashier/admin can review
+  pendingCorrections: function (b) {
+    var u = requireUser_(b.token);
+    if (Number(u.row.cashier) !== 1 && u.row.role !== 'admin') throw new Error('not-cashier');
+    var d = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
+    return { ok: true, corrections: (d.corrections || []).filter(function (c) { return c.status === 'pending'; }) };
+  },
+  // approve a flag (→ creates the void) or reject it; enforces the void rule
+  resolveCorrection: function (b) {
+    var u = requireUser_(b.token);
+    if (Number(u.row.cashier) !== 1 && u.row.role !== 'admin') throw new Error('not-cashier');
+    var lock = LockService.getScriptLock(); lock.waitLock(20000);
+    try {
+      var ss = SpreadsheetApp.getActive();
+      var csh = ss.getSheetByName(SHEET_TITLES.corrections), cols = SHEETS.corrections;
+      if (!csh || csh.getLastRow() < 2) throw new Error('not-found');
+      var values = csh.getDataRange().getValues();
+      for (var i = 1; i < values.length; i++) {
+        if (String(values[i][cols.indexOf('id')]) === String(b.id)) {
+          var corr = {}; cols.forEach(function (c, j) { corr[c] = values[i][j]; });
+          if (corr.status !== 'pending') throw new Error('already-resolved');
+          // a cashier may only resolve a regular collector's entry; admin any
+          if (u.row.role !== 'admin' && targetCollectorRole_(corr.targetStore, corr.targetId) !== 'collector') {
+            throw new Error('not-allowed');
+          }
+          csh.getRange(i + 1, cols.indexOf('status') + 1).setValue(b.decision === 'approve' ? 'approved' : 'rejected');
+          csh.getRange(i + 1, cols.indexOf('resolvedBy') + 1).setValue(u.row.name);
+          csh.getRange(i + 1, cols.indexOf('resolvedAt') + 1).setValue(new Date().toISOString());
+          if (b.decision === 'approve') {
+            var vsh = ss.getSheetByName(SHEET_TITLES.voids), vcols = SHEETS.voids;
+            var v = { id: Utilities.getUuid(), year: corr.year, targetStore: corr.targetStore, targetId: corr.targetId,
+                      reason: corr.reason, collector: u.row.name, collectorId: u.row.username,
+                      createdAt: new Date().toISOString(), receivedAt: new Date().toISOString() };
+            vsh.appendRow(vcols.map(function (c) { return v[c] !== undefined ? v[c] : ''; }));
+          }
+          return { ok: true };
+        }
+      }
+      throw new Error('not-found');
+    } finally { lock.releaseLock(); }
   },
 
   // approved cashiers (any logged-in user may ask — needed for handover)
@@ -572,6 +615,17 @@ function activeData_(d) {
 }
 // Stable collector key: username (collectorId) when present, else name (legacy).
 function ck_(r) { return String((r && (r.collectorId || r.collector)) || '?'); }
+// role stamped on the target entry (for the void permission rule)
+function targetCollectorRole_(store, id) {
+  var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES[store]);
+  if (!sh || sh.getLastRow() < 2) return 'collector';
+  var values = sh.getDataRange().getValues(), header = values[0];
+  var idCol = header.indexOf('id'), roleCol = header.indexOf('collectorRole');
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][idCol]) === String(id)) return String((roleCol >= 0 && values[i][roleCol]) || 'collector');
+  }
+  return 'collector';
+}
 function num_(x) { return Number(x) || 0; }
 function sumBy_(rows, f) {
   var t = 0;

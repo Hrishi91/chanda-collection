@@ -73,7 +73,7 @@
   // ---------- in-app notifications ----------
   // Actionable counts (handovers to confirm, users to approve) polled while
   // the app is open; shown as a home banner + OS notification when new.
-  let notifCounts = { handovers: 0, approvals: 0 };
+  let notifCounts = { handovers: 0, approvals: 0, corrections: 0 };
   let notifTimer = null, notifWired = false;
   function osNotify(body) {
     try {
@@ -86,6 +86,7 @@
     const parts = [];
     if (notifCounts.handovers > 0) parts.push(notifCounts.handovers + ' ' + t('notif_handovers'));
     if (notifCounts.approvals > 0) parts.push(notifCounts.approvals + ' ' + t('notif_approvals'));
+    if (notifCounts.corrections > 0) parts.push(notifCounts.corrections + ' ' + t('notif_corrections'));
     return parts.join(' • ');
   }
   function renderNotifBanner() {
@@ -98,6 +99,9 @@
     if (notifCounts.approvals > 0) {
       html += '<button class="notif-item" data-notif="admin">🔔 ' + notifCounts.approvals + ' ' + esc(t('notif_approvals')) + ' ›</button>';
     }
+    if (notifCounts.corrections > 0) {
+      html += '<button class="notif-item" data-notif="review">🔔 ' + notifCounts.corrections + ' ' + esc(t('notif_corrections')) + ' ›</button>';
+    }
     el.innerHTML = html;
     el.querySelectorAll('[data-notif]').forEach(function (b) {
       b.onclick = function () { navigate(b.dataset.notif); };
@@ -107,9 +111,9 @@
     if (!Auth.loggedIn() || !navigator.onLine || !Sync.configured()) return;
     Auth.call('notifications', { token: Auth.token(), year: Settings.get('year') })
       .then(function (resp) {
-        const n = resp.notifications || { handovers: 0, approvals: 0 };
-        const total = (n.handovers || 0) + (n.approvals || 0);
-        const prev = (notifCounts.handovers || 0) + (notifCounts.approvals || 0);
+        const n = resp.notifications || { handovers: 0, approvals: 0, corrections: 0 };
+        const total = (n.handovers || 0) + (n.approvals || 0) + (n.corrections || 0);
+        const prev = (notifCounts.handovers || 0) + (notifCounts.approvals || 0) + (notifCounts.corrections || 0);
         const changed = total !== prev;
         notifCounts = n;
         renderNotifBanner();
@@ -123,7 +127,7 @@
   // Returning to the app (or a pull-to-refresh) re-renders the current data
   // view so users never have to manually refresh — skipped mid-entry and on
   // transient screens.
-  const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party', 'entries'];
+  const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party', 'entries', 'review'];
   function onAppFocus() {
     checkNotifications();
     autoSync(); // push anything still pending when the user returns
@@ -554,7 +558,8 @@
         '<div class="grid" style="margin-top:10px">' +
           '<button class="tile" data-go="handover">' + esc(t('handover')) + '</button>' +
           (Auth.isCashier()
-            ? '<button class="tile" data-go="cashier">' + esc(t('confirm_handover')) + '</button>' : '') +
+            ? '<button class="tile" data-go="cashier">' + esc(t('confirm_handover')) + '</button>' +
+              '<button class="tile" data-go="review">🛠️ ' + esc(t('review_title')) + '</button>' : '') +
         '</div>' +
         '<div class="grid one" style="margin-top:10px"><button class="tile wide" data-go="entries">✏️ ' +
           esc(t('my_entries_title')) + '</button></div>';
@@ -756,6 +761,32 @@
         };
       });
     });
+  }
+  // Cashier/admin: review collectors' correction flags → approve (void) / reject.
+  function renderReviewCorrections() {
+    if (!Auth.isCashier()) { $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
+    $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('loading')) + '</div>';
+    Auth.call('pendingCorrections', { token: Auth.token(), year: Settings.get('year') }).then(function (resp) {
+      const list = resp.corrections || [];
+      const html = list.length ? list.map(function (c) {
+        return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 100%"><b>' +
+          esc(c.targetSummary || c.targetStore) + '</b><div class="row-sub">' + esc(c.collector || '') +
+          ' • ' + esc(c.reason) + '</div></div><div class="chips" style="margin-top:8px">' +
+          '<button class="chip" data-corr-ok="' + esc(c.id) + '">' + esc(t('corr_approve')) + '</button>' +
+          '<button class="chip" data-corr-no="' + esc(c.id) + '">' + esc(t('corr_reject')) + '</button></div></div>';
+      }).join('') : '<div class="empty">' + esc(t('none_here')) + '</div>';
+      $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('review_title')) + '</div>' + html;
+      const resolve = function (id, decision, okMsg) {
+        return function () {
+          this.disabled = true;
+          Auth.call('resolveCorrection', { token: Auth.token(), id: id, decision: decision })
+            .then(function () { toast(okMsg); renderReviewCorrections(); })
+            .catch(function (e) { toast(errMsg(e)); renderReviewCorrections(); });
+        };
+      };
+      document.querySelectorAll('[data-corr-ok]').forEach(function (b) { b.onclick = resolve(b.dataset.corrOk, 'approve', t('voided_done')); });
+      document.querySelectorAll('[data-corr-no]').forEach(function (b) { b.onclick = resolve(b.dataset.corrNo, 'reject', t('corr_rejected')); });
+    }).catch(function () { $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('needs_net')) + '</div>'; });
   }
 
   function totalsHTML(tt, title) {
@@ -1388,6 +1419,7 @@
     else if (current.view === 'admin') { Auth.isAdmin() ? renderAdmin() : renderHome(); }
     else if (current.view === 'cashier') renderCashier();
     else if (current.view === 'entries') renderMyEntries();
+    else if (current.view === 'review') renderReviewCorrections();
     else if (current.view === 'help') renderHelp();
     else renderHome();
     updateBadge();

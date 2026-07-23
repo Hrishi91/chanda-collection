@@ -624,3 +624,24 @@
   flags/voids to sync centrally — batching with 2c (the cashier/admin
   review screen: approve→void / reject, + notification count). Until then
   corrections work on-device.
+
+## 2026-07-24 — Correction step 2c: cashier/admin review of flags (loop closed)
+
+- Code.gs: pendingCorrections (cashier/admin → pending flags) and
+  resolveCorrection {id, decision} → approve creates the void + marks the
+  flag approved, reject marks it rejected; permission enforced server-side
+  (a cashier may resolve only a regular collector's flag via
+  targetCollectorRole_, admin any). notifications now also returns a
+  pending-corrections count for cashier/admin.
+- Client: renderReviewCorrections screen (home "🛠️ Review fixes" tile +
+  a notification-banner item) lists each flag (summary • who • reason) with
+  ✅ Void it / 🚫 Reject. Fixed a real bug: the resolve payload used an
+  `action` key that collided with Auth.call's API-action field — renamed to
+  `decision`.
+- Verified live (browser, mocked): cashier sees "1 সংশোধন দেখো" banner +
+  review tile; the flag shows with approve/reject; approve calls
+  resolveCorrection{decision:'approve'} and the list refreshes empty.
+  99 tests pass. sw → chanda-v3.26.0.
+- Correction system COMPLETE: void-all-types + permission rule + flag
+  (collector) → review (cashier/admin) approve/reject. ⚠️ Needs one Code.gs
+  redeploy (+Corrections sheet via setup) for central sync of flags/voids.
