@@ -178,6 +178,17 @@ const I18N = {
   err_no_report_access: { bn: 'এই রিপোর্টের permission নেই — admin-কে বলো', en: 'No permission for this report — ask the admin' },
   report_perms: { bn: '📊 রিপোর্ট permission', en: '📊 Report permissions' },
   inhand_auto_cashier: { bn: '(ক্যাশিয়ার হলে "কার হাতে কত" এমনিই থাকে)', en: '(cashiers always get "Cash in hand")' },
+  // --- personal "my summary" ---
+  my_summary: { bn: '📱 আমার হিসাব', en: '📱 My summary' },
+  my_collected: { bn: 'আমি তুলেছি', en: 'I collected' },
+  my_handed: { bn: 'জমা দিয়েছি', en: 'Handed over' },
+  my_received: { bn: 'আমার কাছে জমা', en: 'Handed to me' },
+  my_inhand: { bn: 'আমার হাতে', en: 'In my hand' },
+  my_pending: { bn: 'confirm বাকি', en: 'Awaiting confirm' },
+  my_expenses: { bn: '🧾 আমার খরচ', en: '🧾 My expenses' },
+  my_device_note: { bn: 'এই ফোনের হিসাব (online হলে পুরো, সব ফোন মিলিয়ে)', en: "This device only (full cross-device total when online)" },
+  received_col: { bn: 'জমা নিয়েছে', en: 'Received' },
+  spent_col: { bn: 'খরচ', en: 'Spent' },
 };
 
 const LANGS = ['bn', 'en'];

@@ -374,7 +374,8 @@
           '<button class="tile" data-go="road">🛣️ ' + esc(t('daily_road')) + '</button>' +
           '<button class="tile" data-go="toto">🛺 ' + esc(t('daily_toto')) + '</button>' +
           '<button class="tile" data-go="bus">🚌 ' + esc(t('daily_bus')) + '</button>' +
-          '<button class="tile" data-go="expense">🧾 ' + esc(t('expense')) + '</button>' +
+          // puja expenses are recorded by the cashier/admin (who holds the money)
+          (Auth.isCashier() ? '<button class="tile" data-go="expense">🧾 ' + esc(t('expense')) + '</button>' : '') +
         '</div>' +
         '<div class="grid one"><button class="tile wide" data-go="list">💰 ' + esc(t('add_payment')) +
         ' / ' + esc(t('dues_only')) + '</button></div>' +
@@ -509,14 +510,44 @@
     const rows = d.rows || [];
     if (!rows.length) return '<div class="empty">' + esc(t('no_entries')) + '</div>';
     return '<div class="card"><div class="card-title">' + esc(t('report_inhand')) + '</div>' +
-      '<div class="row" style="cursor:default"><div class="row-sub">' + esc(t('by_collector')) + '</div>' +
-      '<div class="row-sub">' + esc(t('collected_col')) + ' − ' + esc(t('handed_col')) + ' = ' + esc(t('inhand_col')) + '</div></div>' +
       rows.map(function (r) {
-        return '<div class="row" style="cursor:default"><div><b>' + esc(r.collector) + '</b>' +
-          (r.pending ? '<div class="row-sub">⏳ ' + esc(t('pending_handovers')) + ': ' + fmtMoney(r.pending) + '</div>' : '') +
-          '</div><div class="row-right">' + fmtMoney(r.collected) + ' − ' + fmtMoney(r.handedOver) +
-          ' = <span class="' + (r.inHand > 0 ? 'red' : 'green') + '"><b>' + fmtMoney(r.inHand) + '</b></span></div></div>';
+        const parts = [esc(t('collected_col')) + ' ' + fmtMoney(r.collected)];
+        if (r.received) parts.push(esc(t('received_col')) + ' ' + fmtMoney(r.received));
+        if (r.handedOver) parts.push(esc(t('handed_col')) + ' ' + fmtMoney(r.handedOver));
+        if (r.spent) parts.push(esc(t('spent_col')) + ' ' + fmtMoney(r.spent));
+        return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 60%"><b>' + esc(r.collector) + '</b>' +
+          '<div class="row-sub">' + parts.join(' • ') + '</div>' +
+          (r.pending ? '<div class="row-sub">⏳ ' + esc(t('my_pending')) + ': ' + fmtMoney(r.pending) + '</div>' : '') +
+          '</div><div class="row-right"><span class="' + (r.inHand > 0 ? 'red' : 'green') + '"><b>' +
+          fmtMoney(r.inHand) + '</b></span><div class="row-sub">' + esc(t('inhand_col')) + '</div></div></div>';
       }).join('') + '</div>';
+  }
+  function mySummaryHTML(d, deviceOnly) {
+    const hasDaily = d.dailyByType && (d.dailyByType.road || d.dailyByType.toto || d.dailyByType.bus);
+    return '<div class="card"><div class="card-title">' + esc(t('my_summary')) + '</div>' +
+      (deviceOnly ? '<div class="row-sub" style="margin-bottom:8px">' + esc(t('my_device_note')) + '</div>' : '') +
+      '<div class="stat3">' +
+        '<div class="' + (d.inHand > 0 ? 'red' : 'green') + '"><span>' + esc(t('my_inhand')) + '</span><b>' + fmtMoney(d.inHand) + '</b></div>' +
+        '<div><span>' + esc(t('my_collected')) + '</span><b>' + fmtMoney(d.collected) + '</b></div>' +
+        '<div><span>' + esc(t('my_handed')) + '</span><b>' + fmtMoney(d.handedOver || 0) + '</b></div>' +
+      '</div>' +
+      '<div class="stat3">' +
+        '<div><span>' + esc(t('cash')) + '</span><b>' + fmtMoney(d.cash) + '</b></div>' +
+        '<div><span>' + esc(t('upi')) + '</span><b>' + fmtMoney(d.upi) + '</b></div>' +
+        '<div><span>' + esc(t('my_received')) + '</span><b>' + fmtMoney(d.received || 0) + '</b></div>' +
+      '</div>' +
+      (d.pending ? '<div class="row" style="cursor:default"><div>⏳ ' + esc(t('my_pending')) + '</div><b>' + fmtMoney(d.pending) + '</b></div>' : '') +
+      (hasDaily ? '<div class="stat3">' +
+        '<div><span>' + esc(t('type_road')) + '</span><b>' + fmtMoney(d.dailyByType.road) + '</b></div>' +
+        '<div><span>' + esc(t('type_toto')) + '</span><b>' + fmtMoney(d.dailyByType.toto) + '</b></div>' +
+        '<div><span>' + esc(t('type_bus')) + '</span><b>' + fmtMoney(d.dailyByType.bus) + '</b></div></div>' : '') +
+      '</div>' +
+      (d.expenses && d.expenses.length ?
+        '<div class="card"><div class="card-title">' + esc(t('my_expenses')) + ' — ' + fmtMoney(d.expenseTotal) + '</div>' +
+        d.expenses.map(function (e) {
+          return '<div class="row" style="cursor:default"><div><b>' + esc(e.desc) + '</b><div class="row-sub">' +
+            esc(e.date) + '</div></div><b>' + fmtMoney(e.amount) + '</b></div>';
+        }).join('') + '</div>' : '');
   }
   function reportCollectorsHTML(d) {
     const rows = d.rows || [];
@@ -593,20 +624,32 @@
   }
 
   function renderReport() {
-    DB.allData().then(function (data) {
-      const tt = Aggregate.computeTotals(data);
-      // own-device report — everyone always sees their own phone's totals
-      $view().innerHTML = totalsHTML(tt, t('local_report')) +
-        '<div class="section">' + esc(t('central_reports')) + '</div>' +
-        '<div id="report-picker"><div class="empty">' + esc(t('loading')) + '</div></div>' +
-        '<div id="report-body"></div>';
-      const fallback = function () { showReportButtons(myReports()); };
-      if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {
-        Auth.call('reportList', { token: Auth.token() })
-          .then(function (resp) { showReportButtons(resp.reports || []); })
-          .catch(fallback);
-      } else fallback();
-    });
+    // personal "my summary" (server-truth online; device-local fallback) —
+    // everyone always sees their own, no permission needed
+    $view().innerHTML = '<div id="my-summary"><div class="empty">' + esc(t('loading')) + '</div></div>' +
+      '<div class="section">' + esc(t('central_reports')) + '</div>' +
+      '<div id="report-picker"><div class="empty">' + esc(t('loading')) + '</div></div>' +
+      '<div id="report-body"></div>';
+    loadMySummary();
+    const fallback = function () { showReportButtons(myReports()); };
+    if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {
+      Auth.call('reportList', { token: Auth.token() })
+        .then(function (resp) { showReportButtons(resp.reports || []); })
+        .catch(fallback);
+    } else fallback();
+  }
+  function loadMySummary() {
+    const el = document.getElementById('my-summary');
+    const deviceFallback = function () {
+      DB.allData().then(function (data) {
+        el.innerHTML = mySummaryHTML(Aggregate.personalSummary(data, Settings.get('collectorName')), true);
+      });
+    };
+    if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {
+      Auth.call('myReport', { token: Auth.token(), year: Settings.get('year') })
+        .then(function (resp) { el.innerHTML = mySummaryHTML(resp.data, false); })
+        .catch(deviceFallback);
+    } else deviceFallback();
   }
   function showReportButtons(ids) {
     const picker = document.getElementById('report-picker');

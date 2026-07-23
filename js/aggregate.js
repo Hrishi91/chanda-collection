@@ -64,29 +64,75 @@
     };
   }
 
-  // Per-collector accountability: collected − confirmed handovers = in hand.
-  // Pending handovers stay "in hand" until the cashier confirms receipt.
-  function handoverSummary(data) {
-    const collected = {};
+  function isCashOnly(r) {
+    // legacy rows (no split fields) are treated as pure cash
+    return (r.cashAmount === undefined || r.cashAmount === '') &&
+           (r.upiAmount === undefined || r.upiAmount === '');
+  }
+
+  // Per-person accountability. True cash in hand for X =
+  //   collected(by X) + received(confirmed handovers TO X)
+  //   − handedOver(confirmed handovers FROM X) − spent(expenses by X).
+  // Pending outgoing handovers are shown separately and NOT subtracted
+  // (the giver keeps credit until the cashier confirms receipt).
+  function inHandRows(data) {
+    const collected = {}, received = {}, handed = {}, pending = {}, spent = {};
     (data.payments || []).concat(data.daily || []).forEach(function (r) {
       const c = r.collector || '?';
       collected[c] = (collected[c] || 0) + (Number(r.amount) || 0);
     });
-    const handed = {}, pending = {};
     (data.handovers || []).forEach(function (h) {
-      const c = h.from || h.collector || '?';
-      if (h.status === 'confirmed') handed[c] = (handed[c] || 0) + (Number(h.amount) || 0);
-      else pending[c] = (pending[c] || 0) + (Number(h.amount) || 0);
+      const amt = Number(h.amount) || 0;
+      if (h.status === 'confirmed') {
+        handed[h.from] = (handed[h.from] || 0) + amt;
+        received[h.to] = (received[h.to] || 0) + amt;
+      } else {
+        pending[h.from] = (pending[h.from] || 0) + amt;
+      }
+    });
+    (data.expenses || []).forEach(function (e) {
+      const c = e.collector || '?';
+      spent[c] = (spent[c] || 0) + (Number(e.amount) || 0);
     });
     const names = {};
-    [collected, handed, pending].forEach(function (m) {
+    [collected, received, handed, pending, spent].forEach(function (m) {
       Object.keys(m).forEach(function (k) { names[k] = 1; });
     });
     return Object.keys(names).map(function (c) {
-      const col = collected[c] || 0, h = handed[c] || 0;
-      return { collector: c, collected: col, handedOver: h,
-               pending: pending[c] || 0, inHand: col - h };
+      return { collector: c, collected: collected[c] || 0, received: received[c] || 0,
+               handedOver: handed[c] || 0, pending: pending[c] || 0, spent: spent[c] || 0,
+               inHand: (collected[c] || 0) + (received[c] || 0) - (handed[c] || 0) - (spent[c] || 0) };
     }).sort(function (a, b) { return b.inHand - a.inHand; });
+  }
+
+  // One person's own summary (always-visible "My summary" report).
+  function personalSummary(data, name) {
+    const myPay = (data.payments || []).filter(function (p) { return p.collector === name; });
+    const myDaily = (data.daily || []).filter(function (x) { return x.collector === name; });
+    const myExp = (data.expenses || []).filter(function (e) { return e.collector === name; });
+    const money = myPay.concat(myDaily);
+    let cash = 0, upi = 0;
+    money.forEach(function (r) {
+      if (isCashOnly(r)) cash += Number(r.amount) || 0;
+      else { cash += Number(r.cashAmount) || 0; upi += Number(r.upiAmount) || 0; }
+    });
+    const collected = money.reduce(function (a, r) { return a + (Number(r.amount) || 0); }, 0);
+    const dailyByType = { road: 0, toto: 0, bus: 0 };
+    myDaily.forEach(function (r) { if (r.type in dailyByType) dailyByType[r.type] += Number(r.amount) || 0; });
+    let received = 0, handedOver = 0, pending = 0;
+    (data.handovers || []).forEach(function (h) {
+      const amt = Number(h.amount) || 0;
+      if (h.to === name && h.status === 'confirmed') received += amt;
+      if (h.from === name && h.status === 'confirmed') handedOver += amt;
+      if (h.from === name && h.status !== 'confirmed') pending += amt;
+    });
+    const expenseTotal = myExp.reduce(function (a, e) { return a + (Number(e.amount) || 0); }, 0);
+    const expenses = myExp.map(function (e) { return { date: e.date, desc: e.desc, amount: Number(e.amount) || 0 }; })
+      .sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+    return { collected: collected, cash: cash, upi: upi, dailyByType: dailyByType,
+             received: received, handedOver: handedOver, pending: pending,
+             expenseTotal: expenseTotal, expenses: expenses,
+             inHand: collected + received - handedOver - expenseTotal };
   }
 
   // Parties with outstanding due, biggest due first.
@@ -102,7 +148,8 @@
       .sort(function (a, b) { return b.due - a.due; });
   }
 
-  const api = { computeTotals: computeTotals, duesList: duesList, handoverSummary: handoverSummary };
+  const api = { computeTotals: computeTotals, duesList: duesList,
+                inHandRows: inHandRows, personalSummary: personalSummary };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
 })();

@@ -236,6 +236,13 @@ var ACTIONS = {
     return { ok: true, id: b.id, data: computeReport_(b.id, d) };
   },
 
+  // every logged-in user's own summary — no permission needed (self-scoped)
+  myReport: function (b) {
+    var u = requireUser_(b.token);
+    var d = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
+    return { ok: true, data: personalSummary_(d, u.row.name) };
+  },
+
   // cashier's working list: handovers addressed to them (both statuses)
   pendingHandovers: function (b) {
     var u = requireUser_(b.token);
@@ -377,6 +384,63 @@ function sumBy_(rows, f) {
   rows.forEach(function (r) { t += num_(f(r)); });
   return t;
 }
+function cashOnly_(r) {
+  return (r.cashAmount === '' || r.cashAmount === undefined) &&
+         (r.upiAmount === '' || r.upiAmount === undefined);
+}
+
+// True cash in hand per person (used by the 'inhand' report).
+function inHandRows_(d) {
+  var coll = {}, received = {}, handed = {}, pending = {}, spent = {};
+  d.payments.concat(d.daily).forEach(function (r) {
+    var c = r.collector || '?'; coll[c] = (coll[c] || 0) + num_(r.amount);
+  });
+  d.handovers.forEach(function (h) {
+    var amt = num_(h.amount);
+    if (h.status === 'confirmed') {
+      handed[h.from] = (handed[h.from] || 0) + amt;
+      received[h.to] = (received[h.to] || 0) + amt;
+    } else pending[h.from] = (pending[h.from] || 0) + amt;
+  });
+  d.expenses.forEach(function (e) { var c = e.collector || '?'; spent[c] = (spent[c] || 0) + num_(e.amount); });
+  var names = {};
+  [coll, received, handed, pending, spent].forEach(function (m) { Object.keys(m).forEach(function (k) { names[k] = 1; }); });
+  return Object.keys(names).map(function (c) {
+    return { collector: c, collected: coll[c] || 0, received: received[c] || 0,
+             handedOver: handed[c] || 0, pending: pending[c] || 0, spent: spent[c] || 0,
+             inHand: (coll[c] || 0) + (received[c] || 0) - (handed[c] || 0) - (spent[c] || 0) };
+  }).sort(function (a, b) { return b.inHand - a.inHand; });
+}
+
+// One person's own summary (always-visible "My summary" report).
+function personalSummary_(d, name) {
+  var myPay = d.payments.filter(function (p) { return p.collector === name; });
+  var myDaily = d.daily.filter(function (x) { return x.collector === name; });
+  var myExp = d.expenses.filter(function (e) { return e.collector === name; });
+  var money = myPay.concat(myDaily);
+  var cash = 0, upi = 0;
+  money.forEach(function (r) {
+    if (cashOnly_(r)) cash += num_(r.amount);
+    else { cash += num_(r.cashAmount); upi += num_(r.upiAmount); }
+  });
+  var dailyByType = { road: 0, toto: 0, bus: 0 };
+  myDaily.forEach(function (r) { if (r.type in dailyByType) dailyByType[r.type] += num_(r.amount); });
+  var received = 0, handedOver = 0, pending = 0;
+  d.handovers.forEach(function (h) {
+    var amt = num_(h.amount);
+    if (h.to === name && h.status === 'confirmed') received += amt;
+    if (h.from === name && h.status === 'confirmed') handedOver += amt;
+    if (h.from === name && h.status !== 'confirmed') pending += amt;
+  });
+  var collected = sumBy_(money, function (r) { return r.amount; });
+  var expenseTotal = sumBy_(myExp, function (e) { return e.amount; });
+  var expenses = myExp.map(function (e) { return { date: e.date, desc: e.desc, amount: num_(e.amount) }; })
+    .sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+  return { collected: collected, cash: cash, upi: upi, dailyByType: dailyByType,
+           received: received, handedOver: handedOver, pending: pending,
+           expenseTotal: expenseTotal, expenses: expenses,
+           inHand: collected + received - handedOver - expenseTotal };
+}
 
 // Server-side report payloads — the client renders these read-only.
 function computeReport_(id, d) {
@@ -417,22 +481,7 @@ function computeReport_(id, d) {
       .sort(function (a, b) { return b.due - a.due; });
     return { rows: rows, totalDue: sumBy_(rows, function (r) { return r.due; }) };
   }
-  if (id === 'inhand') {
-    var coll = {}, handed = {}, pending = {};
-    money.forEach(function (r) { var c = r.collector || '?'; coll[c] = (coll[c] || 0) + num_(r.amount); });
-    d.handovers.forEach(function (h) {
-      var c = h.from || '?';
-      if (h.status === 'confirmed') handed[c] = (handed[c] || 0) + num_(h.amount);
-      else pending[c] = (pending[c] || 0) + num_(h.amount);
-    });
-    var names = {};
-    [coll, handed, pending].forEach(function (m) { Object.keys(m).forEach(function (k) { names[k] = 1; }); });
-    var out = Object.keys(names).map(function (c) {
-      return { collector: c, collected: coll[c] || 0, handedOver: handed[c] || 0,
-               pending: pending[c] || 0, inHand: (coll[c] || 0) - (handed[c] || 0) };
-    }).sort(function (a, b) { return b.inHand - a.inHand; });
-    return { rows: out };
-  }
+  if (id === 'inhand') return { rows: inHandRows_(d) };
   if (id === 'collectors') {
     var t = {};
     money.forEach(function (r) { var c = r.collector || '?'; t[c] = (t[c] || 0) + num_(r.amount); });

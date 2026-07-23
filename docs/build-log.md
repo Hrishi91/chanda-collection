@@ -114,3 +114,26 @@
   dues report data correct (Ram Stores due 300); admin toggling
   overview for that user persisted server-side and unlocked it
   (totalCollection 500 = 200 cash + 300 upi). 58 unit tests pass.
+
+## 2026-07-23 — v2 Phase 2.7: personal "My summary" + true in-hand
+
+- Everyone now sees a self-scoped **My summary** at the top of the
+  report tab (no permission): I collected (cash/UPI), handed over,
+  handed to me, in hand, my road/toto/bus, and my expense list. Server
+  action `myReport` (self only); offline falls back to device-local
+  Aggregate.personalSummary.
+- In-hand made correct: cash in hand = collected + received(confirmed
+  handovers TO me) − handedOver(confirmed FROM me) − my expenses.
+  Upgraded both the central 'inhand' report and the personal summary
+  via shared aggregate.js (inHandRows/personalSummary), mirrored in
+  Code.gs + mock. Pending outgoing handovers shown separately, not
+  subtracted (giver keeps credit until cashier confirms).
+- Puja-expense entry (🧾 খরচ home tile) restricted to cashier/admin —
+  they hold the money (Hrishi: "খরচ can be done by the cashier"). A
+  collector's own spend-while-collecting still available via the
+  post-daily "কালেকশন খরচ" flow.
+- Tests: 71 passed, 0 failed (added inHandRows with received/spent +
+  personalSummary incl. cash/UPI split). Verified live (curl+browser):
+  cashier Kartik with collected 300 + received 500 − expense 100 →
+  in hand 700, cash 300, expense list shown; central section for the
+  cashier shows only "কার হাতে কত". sw → chanda-v2.3.0.

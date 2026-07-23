@@ -42,8 +42,15 @@ Requirements given in chat; awaiting final go + UPI answer
       (dump now admin-only). Admin-panel per-user report chips. Everyone
       keeps own-device report. 3+ cashiers supported (flag, no limit).
       Verified curl+browser against mock.
+- [x] ~~Phase 2.7 — personal "My summary" for everyone (self-scoped,
+      no permission): collected/handed/received/in-hand/cash-UPI/daily/
+      my-expenses. True in-hand = collected + received − handedOver −
+      expenses (central inhand upgraded too). Expense entry restricted
+      to cashier/admin.~~ (2026-07-23, verified curl+browser)
 - [ ] Phase 3 — expenses: admin-managed category list, cashier picks
-      category on expense entry (Hrishi will supply list later)
+      category on expense entry (Hrishi will supply list later).
+      NOTE: expense entry is already cashier/admin-only as of 2.7;
+      Phase 3 adds the category dropdown on top.
 - Decision (recommended, pending ok): NO per-entry cashier approval —
   entries post immediately; accountability comes from the handover
   ledger instead, so collection never blocks on a busy cashier.

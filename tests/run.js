@@ -1,6 +1,6 @@
 // Pure-logic tests: node tests/run.js
 const { parseAmount } = require('../js/numparse.js');
-const { computeTotals, duesList, handoverSummary } = require('../js/aggregate.js');
+const { computeTotals, duesList, inHandRows, personalSummary } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -98,20 +98,46 @@ eq(st.totalCollection, 850, 'split: grand total');
 const hoData = {
   payments: [{ partyId: 'p1', amount: 700, collector: 'X' }],
   daily: [{ type: 'toto', amount: 300, collector: 'X' }, { type: 'road', amount: 400, collector: 'Y' }],
+  expenses: [{ amount: 100, collector: 'Cash Babu', desc: 'Pandal', date: '2026-07-20' }],
   handovers: [
     { from: 'X', to: 'Cash Babu', amount: 600, status: 'confirmed' },
     { from: 'X', to: 'Cash Babu', amount: 200, status: 'pending' },
   ],
 };
-const hs = handoverSummary(hoData);
+const hs = inHandRows(hoData);
 const hx = hs.find(function (r) { return r.collector === 'X'; });
 const hy = hs.find(function (r) { return r.collector === 'Y'; });
-eq(hx.collected, 1000, 'handover: X collected');
-eq(hx.handedOver, 600, 'handover: X confirmed handover only');
-eq(hx.pending, 200, 'handover: X pending shown separately');
-eq(hx.inHand, 400, 'handover: X in hand ignores pending');
-eq(hy.inHand, 400, 'handover: Y never handed over');
-eq(hs[0].collector, hs[0].inHand >= hs[1].inHand ? hs[0].collector : hs[1].collector, 'handover: sorted by in-hand desc');
+const hc = hs.find(function (r) { return r.collector === 'Cash Babu'; });
+eq(hx.collected, 1000, 'inhand: X collected');
+eq(hx.handedOver, 600, 'inhand: X confirmed handover only');
+eq(hx.pending, 200, 'inhand: X pending shown separately');
+eq(hx.inHand, 400, 'inhand: X in hand ignores pending (1000-600)');
+eq(hy.inHand, 400, 'inhand: Y never handed over');
+// Cash Babu received 600 (confirmed), spent 100 → holds 500
+eq(hc.received, 600, 'inhand: cashier received confirmed handover');
+eq(hc.spent, 100, 'inhand: cashier expense counted');
+eq(hc.inHand, 500, 'inhand: cashier = received - spent (600-100)');
+
+// ---- personalSummary (own view) ----
+const pmX = personalSummary(hoData, 'X');
+eq(pmX.collected, 1000, 'personal X collected');
+eq(pmX.handedOver, 600, 'personal X handed (confirmed)');
+eq(pmX.pending, 200, 'personal X pending');
+eq(pmX.inHand, 400, 'personal X in hand');
+eq(pmX.dailyByType.toto, 300, 'personal X toto');
+const pmC = personalSummary(hoData, 'Cash Babu');
+eq(pmC.received, 600, 'personal cashier received');
+eq(pmC.expenseTotal, 100, 'personal cashier expense total');
+eq(pmC.expenses.length, 1, 'personal cashier expense row');
+eq(pmC.inHand, 500, 'personal cashier in hand (received - spent)');
+// cash/UPI split in personal view
+const pmSplit = personalSummary({
+  payments: [{ collector: 'Z', amount: 500, cashAmount: 200, upiAmount: 300 }],
+  daily: [{ collector: 'Z', type: 'road', amount: 100, cashAmount: 100, upiAmount: 0 }],
+  expenses: [], handovers: [],
+}, 'Z');
+eq(pmSplit.cash, 300, 'personal split cash (200+100)');
+eq(pmSplit.upi, 300, 'personal split upi');
 
 const dues = duesList(parties, payments);
 eq(dues.length, 2, 'dues count (p2 600, p3 300; p1 cleared)');
