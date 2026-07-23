@@ -422,3 +422,24 @@
 - ⚠️ Redeploy now covers #3+#4: paste new Code.gs, run setup() (auto-adds
   the new columns + Voids sheet — no manual sheet deletion), redeploy.
   Next: #5 server-side logout / token invalidation.
+
+## 2026-07-23 — In-app notifications + fix a v3.13.0 home crash
+
+- ⚠️ First fixed a regression I shipped in v3.13.0: renderHome still had
+  `esc(me)` after #4 renamed `me`→`meId`, so `me` was undefined →
+  ReferenceError → the home screen broke. Now uses the display name.
+- Notifications (Telegram deferred; real Web Push needs infra the Apps
+  Script backend can't provide, so this is in-app + optional OS
+  notification):
+  - Server: light `notifications` action → {handovers: pending confirms
+    addressed to me (cashier/admin), approvals: pending users (admin)}.
+  - Client: a home banner lists actionable items (tap → cashier / admin),
+    polled every 60s while visible + on window focus + on home render;
+    when a count rises, a toast + (if permission granted) an OS
+    Notification fire. Settings gains a "🔔 Enable alerts" button that
+    requests Notification permission.
+- Verified live (browser, mocked endpoint): home renders (crash gone);
+  banner shows "2 জমা confirm করো" + "1 approve-এর অপেক্ষায়", each
+  navigating to the right screen. 99 tests pass. sw → chanda-v3.14.0.
+- Server-side `notifications` action needs the same batched Code.gs
+  redeploy (#3+#4+this).

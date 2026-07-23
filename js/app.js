@@ -58,6 +58,61 @@
     Sync.syncNow().then(function (r) { if (r.ok && r.sent) toast('☁️ Sync: ' + r.sent); updateBadge(); });
   }
 
+  // ---------- in-app notifications ----------
+  // Actionable counts (handovers to confirm, users to approve) polled while
+  // the app is open; shown as a home banner + OS notification when new.
+  let notifCounts = { handovers: 0, approvals: 0 };
+  let notifTimer = null, notifWired = false;
+  function osNotify(body) {
+    try {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('🙏 ' + t('app_title'), { body: body, icon: 'icons/icon.svg', tag: 'chanda-notif' });
+      }
+    } catch (e) { /* ignore */ }
+  }
+  function notifText() {
+    const parts = [];
+    if (notifCounts.handovers > 0) parts.push(notifCounts.handovers + ' ' + t('notif_handovers'));
+    if (notifCounts.approvals > 0) parts.push(notifCounts.approvals + ' ' + t('notif_approvals'));
+    return parts.join(' • ');
+  }
+  function renderNotifBanner() {
+    const el = document.getElementById('notif-banner');
+    if (!el) return;
+    let html = '';
+    if (notifCounts.handovers > 0) {
+      html += '<button class="notif-item" data-notif="cashier">🔔 ' + notifCounts.handovers + ' ' + esc(t('notif_handovers')) + ' ›</button>';
+    }
+    if (notifCounts.approvals > 0) {
+      html += '<button class="notif-item" data-notif="admin">🔔 ' + notifCounts.approvals + ' ' + esc(t('notif_approvals')) + ' ›</button>';
+    }
+    el.innerHTML = html;
+    el.querySelectorAll('[data-notif]').forEach(function (b) {
+      b.onclick = function () { navigate(b.dataset.notif); };
+    });
+  }
+  function checkNotifications() {
+    if (!Auth.loggedIn() || !navigator.onLine || !Sync.configured()) return;
+    Auth.call('notifications', { token: Auth.token(), year: Settings.get('year') })
+      .then(function (resp) {
+        const n = resp.notifications || { handovers: 0, approvals: 0 };
+        const total = (n.handovers || 0) + (n.approvals || 0);
+        const prev = (notifCounts.handovers || 0) + (notifCounts.approvals || 0);
+        notifCounts = n;
+        renderNotifBanner();
+        if (total > prev) { const m = notifText(); if (m) { toast('🔔 ' + m); osNotify(m); } }
+      }).catch(function () { /* offline / not ready */ });
+  }
+  function startNotifPolling() {
+    if (!notifWired) {
+      notifWired = true;
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) checkNotifications(); });
+      window.addEventListener('focus', checkNotifications);
+    }
+    if (!notifTimer) notifTimer = setInterval(function () { if (!document.hidden) checkNotifications(); }, 60000);
+    checkNotifications();
+  }
+
   // ---------- flow engine ----------
   // step: {key, qKey, kind:text|amount|choice, options:[{v,labelKey}], optional, showIf(answers)}
   function startFlow(def) {
@@ -421,8 +476,9 @@
         return (r.collectorId || r.collector) === meId && (r.date === today || (r.createdAt || '').slice(0, 10) === today);
       }).reduce(function (a, r) { return a + Number(r.amount || 0); }, 0);
       $view().innerHTML =
+        '<div id="notif-banner"></div>' +
         '<div class="hero"><div>🙏 ' + esc(t('welcome_title')) + ' ' + Settings.get('year') + '</div>' +
-        '<div class="hero-sub">' + esc(me) + ' • ' + esc(t('my_today')) + ': <b>' + fmtMoney(myToday) + '</b></div></div>' +
+        '<div class="hero-sub">' + esc(Settings.get('collectorName')) + ' • ' + esc(t('my_today')) + ': <b>' + fmtMoney(myToday) + '</b></div></div>' +
         '<div class="section">' + esc(t('new_entry')) + '</div>' +
         '<div class="grid">' +
           '<button class="tile" data-go="shop">🏪 ' + esc(t('new_shop')) + '</button>' +
@@ -456,6 +512,8 @@
           else navigate(g);
         };
       });
+      renderNotifBanner();   // show cached counts immediately
+      checkNotifications();  // then refresh from server
     });
   }
 
@@ -788,6 +846,7 @@
       '<div class="row-sub">' + esc(t('logged_in_as')) + ': @' + esc(user.username) + '</div></div>' +
       (Auth.isAdmin() ? '<button id="adm-btn" class="primary big block">' + esc(t('admin_panel')) + '</button>' : '') +
       '<button id="help-btn" class="ghost big block">' + esc(t('help_btn')) + '</button>' +
+      (('Notification' in window) ? '<button id="notif-btn" class="ghost big block">' + esc(t('notif_enable')) + '</button>' : '') +
       '<div class="card">' +
       '<div class="field"><label>' + esc(t('language')) + '</label>' +
       '<div class="chips"><button class="chip' + (Settings.get('lang') === 'bn' ? ' on' : '') + '" data-l="bn">বাংলা</button>' +
@@ -806,6 +865,11 @@
     const admB = document.getElementById('adm-btn');
     if (admB) admB.onclick = function () { navigate('admin'); };
     document.getElementById('help-btn').onclick = function () { navigate('help'); };
+    const notifBtn = document.getElementById('notif-btn');
+    if (notifBtn) notifBtn.onclick = function () {
+      if (Notification.permission === 'granted') { toast(t('notif_on')); checkNotifications(); return; }
+      Notification.requestPermission().then(function (p) { toast(p === 'granted' ? t('notif_on') : t('notif_off')); });
+    };
     document.getElementById('chpw-btn').onclick = function () { renderChangePw(false); };
     document.getElementById('logout-btn').onclick = function () {
       DB.unsyncedCount().then(function (n) {
@@ -1106,6 +1170,7 @@
       b.querySelector('span').textContent = t(b.dataset.nav === 'list' ? 'khata' : b.dataset.nav);
     });
     if (!Auth.loggedIn()) { renderAuth(); updateBadge(); return; }
+    startNotifPolling();
     const user = Auth.current();
     if (user && user.mustChange) { renderChangePw(true); updateBadge(); return; }
     if (flowState) { renderEntry(); return; }

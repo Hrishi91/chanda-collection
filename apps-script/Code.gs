@@ -270,6 +270,29 @@ var ACTIONS = {
     }) };
   },
 
+  // lightweight actionable counts for the in-app notification banner
+  notifications: function (b) {
+    var u = requireUser_(b.token);
+    var out = { handovers: 0, approvals: 0 };
+    var isCashier = Number(u.row.cashier) === 1 || u.row.role === 'admin';
+    if (isCashier) {
+      var year = b.year ? Number(b.year) : new Date().getFullYear();
+      var d = activeData_(readAll_(year));
+      out.handovers = d.handovers.filter(function (h) {
+        return (String(h.toId || h.to) === String(u.row.username) || h.to === u.row.name) && h.status !== 'confirmed';
+      }).length;
+    }
+    if (u.row.role === 'admin') {
+      var us = usersSheet_();
+      if (us.getLastRow() > 1) {
+        us.getDataRange().getValues().slice(1).forEach(function (v) {
+          if (String(v[USER_COLS.indexOf('status')]) === 'pending') out.approvals++;
+        });
+      }
+    }
+    return { ok: true, notifications: out };
+  },
+
   // approved cashiers (any logged-in user may ask — needed for handover)
   cashiers: function (b) {
     requireUser_(b.token);

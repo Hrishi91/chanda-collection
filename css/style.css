@@ -69,6 +69,9 @@ button.back-bar { margin: 0 0 12px; padding: 8px 14px; font-size: 14px; }
 .row.voided b { text-decoration: line-through; color: var(--sub); }
 .void-tag { color: var(--red); font-weight: 700; }
 button.void-btn { padding: 5px 10px; font-size: 12px; margin-left: 8px; border-color: var(--red); color: var(--red); }
+#notif-banner:not(:empty) { margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 1px solid #f0c98a;
+  color: var(--ink); border-radius: 12px; padding: 12px 14px; font-size: 14.5px; font-weight: 600; cursor: pointer; }
 .flow-title { font-weight: 700; font-size: 16px; margin-bottom: 12px; color: var(--sub); }
 .chat { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
 .bubble { max-width: 85%; padding: 11px 15px; border-radius: 16px; font-size: 16px; line-height: 1.45; }

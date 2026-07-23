@@ -218,6 +218,12 @@ const I18N = {
   void_need_reason: { bn: 'কারণ লিখতে হবে', en: 'A reason is required' },
   voided_done: { bn: '✖️ বাতিল হলো', en: '✖️ Voided' },
   voided_label: { bn: 'বাতিল', en: 'VOID' },
+  // --- notifications ---
+  notif_handovers: { bn: 'জমা confirm করো', en: 'to confirm' },
+  notif_approvals: { bn: 'approve-এর অপেক্ষায়', en: 'awaiting approval' },
+  notif_enable: { bn: '🔔 Alert চালু করো', en: '🔔 Enable alerts' },
+  notif_on: { bn: '🔔 Alert চালু হলো', en: '🔔 Alerts on' },
+  notif_off: { bn: 'Alert বন্ধই রইল', en: 'Alerts stayed off' },
 };
 
 const LANGS = ['bn', 'en'];
