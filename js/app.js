@@ -77,6 +77,8 @@
         val = NumParse.parseAmount(raw);
         if (isNaN(val)) { toast(t('invalid_amount')); return; }
       }
+    } else if (step.required && !String(raw || '').trim()) {
+      toast(t('comment_required')); return; // mandatory text (e.g. "Other" comment)
     }
     flowState.answers[step.key] = val;
     Voice.stop();
@@ -327,25 +329,58 @@
         })).then(function () {
           return { buttons: [
             { label: '➕ ' + t('daily_' + type), action: function () { startFlow(dailyFlow(type)); } },
-            { label: t('coll_expense'), action: function () { startFlow(expenseFlow('collection', type)); } },
+            { label: t('coll_expense'), action: function () { startFlow(collectionExpenseFlow(type)); } },
             { label: t('done_for_now'), action: function () { navigate('home'); } },
           ] };
         });
       },
     };
   }
-  function expenseFlow(source, collectionType) {
+  const OTHER_SUBJECT = '__other__';
+  // Puja expense (cashier/admin): pick an admin-defined subject; multiple
+  // cashiers may part-pay the same subject. "Other" forces a comment.
+  function expenseFlow(subjects) {
+    const opts = (subjects || []).map(function (s) { return { v: s.name, label: s.name }; });
+    opts.push({ v: OTHER_SUBJECT, labelKey: 'subject_other' });
     return {
-      title: source === 'collection' ? t('coll_expense') : t('expense'),
+      title: t('expense'),
+      steps: [
+        { key: 'subject', qKey: 'q_subject', kind: 'choice', options: opts },
+        { key: 'amount', qKey: 'q_amount', kind: 'amount' },
+        { key: 'comment', qKey: 'q_comment_req', kind: 'text', required: true,
+          showIf: function (a) { return a.subject === OTHER_SUBJECT; } },
+        { key: 'comment', qKey: 'q_note', kind: 'text', optional: true,
+          showIf: function (a) { return a.subject !== OTHER_SUBJECT; } },
+      ],
+      save: function (a) {
+        const isOther = a.subject === OTHER_SUBJECT;
+        return DB.put('expenses', DB.newRow({
+          subject: isOther ? 'Other' : a.subject, desc: a.comment || '',
+          amount: a.amount, spentBy: Settings.get('collectorName'),
+          source: 'general', collectionType: '', date: todayISO(),
+        })).then(function () { return null; });
+      },
+    };
+  }
+  function startExpense() {
+    const go = function (subjects) { startFlow(expenseFlow(subjects)); };
+    if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {
+      Auth.call('listSubjects', { token: Auth.token() })
+        .then(function (r) { go(r.subjects || []); }).catch(function () { go(null); });
+    } else go(null);
+  }
+  // Collector's own spend while collecting — free text, no subject.
+  function collectionExpenseFlow(collectionType) {
+    return {
+      title: t('coll_expense'),
       steps: [
         { key: 'desc', qKey: 'q_desc', kind: 'text' },
         { key: 'amount', qKey: 'q_amount', kind: 'amount' },
-        { key: 'spentBy', qKey: 'q_spent_by', kind: 'text', optional: true },
       ],
       save: function (a) {
         return DB.put('expenses', DB.newRow({
-          desc: a.desc, amount: a.amount, spentBy: a.spentBy || Settings.get('collectorName'),
-          source: source, collectionType: collectionType || '', date: todayISO(),
+          subject: '', desc: a.desc, amount: a.amount, spentBy: Settings.get('collectorName'),
+          source: 'collection', collectionType: collectionType || '', date: todayISO(),
         })).then(function () { return null; });
       },
     };
@@ -390,7 +425,7 @@
           if (g === 'shop' || g === 'person' || g === 'member') startFlow(newPartyFlow(g));
           else if (g === 'bulk') startFlow(newPartyFlow('shop', {}, true));
           else if (g === 'road' || g === 'toto' || g === 'bus') startFlow(dailyFlow(g));
-          else if (g === 'expense') startFlow(expenseFlow('general'));
+          else if (g === 'expense') startExpense();
           else if (g === 'handover') startHandover();
           else navigate(g);
         };
@@ -558,12 +593,21 @@
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
   }
   function reportExpensesHTML(d) {
-    const rows = d.rows || [];
+    const rows = d.rows || [], bySubject = d.bySubject || [];
     return '<div class="card"><div class="card-title">' + esc(t('report_expenses')) +
       ' — ' + esc(t('total_expense')) + ': ' + fmtMoney(d.total) + '</div>' +
+      (bySubject.length ? '<div class="row-sub" style="margin-bottom:6px">' + esc(t('by_subject')) + '</div>' +
+        bySubject.map(function (s) {
+          return '<div class="row" style="cursor:default"><div><b>' + esc(s.subject) + '</b>' +
+            '<div class="row-sub">' + s.count + ' ' + esc(t('entries')) + '</div></div><b>' + fmtMoney(s.total) + '</b></div>';
+        }).join('') : '') + '</div>' +
+      '<div class="card"><div class="card-title">' + esc(t('entries')) + '</div>' +
       (rows.length ? rows.map(function (r) {
-        return '<div class="row" style="cursor:default"><div><b>' + esc(r.desc) + '</b><div class="row-sub">' +
-          esc(r.date) + (r.spentBy ? ' • ' + esc(r.spentBy) : '') + '</div></div><b>' + fmtMoney(r.amount) + '</b></div>';
+        return '<div class="row" style="cursor:default"><div><b>' + esc(r.subject || '—') + '</b>' +
+          (r.desc ? ' <span class="row-sub">— ' + esc(r.desc) + '</span>' : '') +
+          '<div class="row-sub">' + esc(r.date) + (r.spentBy ? ' • ' + esc(r.spentBy) : '') +
+          (r.source === 'collection' ? ' • ' + esc(t('coll_expense')) : '') + '</div></div>' +
+          '<b>' + fmtMoney(r.amount) + '</b></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
   }
   function reportDailyHTML(d) {
@@ -854,7 +898,11 @@
   }
   function renderAdmin() {
     $view().innerHTML = '<div class="empty">' + esc(t('loading')) + '</div>';
-    Auth.call('listUsers', { token: Auth.token() }).then(function (resp) {
+    Promise.all([
+      Auth.call('listUsers', { token: Auth.token() }),
+      Auth.call('listSubjects', { token: Auth.token() }).catch(function () { return { subjects: [] }; }),
+    ]).then(function (res) {
+      const resp = res[0], subjects = res[1].subjects || [];
       const year = String(Settings.get('year'));
       const groups = { pending: [], approved: [], blocked: [] };
       resp.users.forEach(function (u) { (groups[u.status] || groups.blocked).push(u); });
@@ -896,12 +944,30 @@
         return '<div class="section">' + esc(t(key)) + ' (' + list.length + ')</div>' +
           (list.length ? list.map(userCard).join('') : '<div class="empty">' + esc(t('none_here')) + '</div>');
       }
+      const subjectsCard = '<div class="card"><div class="card-title">' + esc(t('manage_subjects')) + '</div>' +
+        '<div class="input-row"><input id="subj-input" placeholder="' + esc(t('add_subject_ph')) + '" autocomplete="off">' +
+        '<button id="subj-add" class="primary">' + esc(t('add_btn')) + '</button></div>' +
+        (subjects.length ? '<div class="chips" style="margin-top:10px">' + subjects.map(function (s) {
+          return '<button class="chip" data-subj-del="' + esc(s.id) + '">' + esc(s.name) + ' ✕</button>';
+        }).join('') + '</div>' : '<div class="empty">' + esc(t('no_subjects')) + '</div>') + '</div>';
       $view().innerHTML = '<div class="flow-title">' + esc(t('admin_panel')) + '</div>' +
         '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
+        subjectsCard +
         section('pending_users', groups.pending) +
         section('approved_users', groups.approved) +
         section('blocked_users', groups.blocked);
       document.getElementById('adm-refresh').onclick = renderAdmin;
+      document.getElementById('subj-add').onclick = function () {
+        const name = document.getElementById('subj-input').value.trim();
+        if (!name) return;
+        adminAction('addSubject', { name: name });
+      };
+      document.getElementById('subj-input').onkeydown = function (e) {
+        if (e.key === 'Enter') document.getElementById('subj-add').click();
+      };
+      document.querySelectorAll('[data-subj-del]').forEach(function (b) {
+        b.onclick = function () { adminAction('removeSubject', { id: b.dataset.subjDel }); };
+      });
       document.querySelectorAll('[data-act]').forEach(function (b) {
         const id = b.dataset.id;
         b.onclick = function () {

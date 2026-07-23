@@ -47,10 +47,11 @@ Requirements given in chat; awaiting final go + UPI answer
       my-expenses. True in-hand = collected + received − handedOver −
       expenses (central inhand upgraded too). Expense entry restricted
       to cashier/admin.~~ (2026-07-23, verified curl+browser)
-- [ ] Phase 3 — expenses: admin-managed category list, cashier picks
-      category on expense entry (Hrishi will supply list later).
-      NOTE: expense entry is already cashier/admin-only as of 2.7;
-      Phase 3 adds the category dropdown on top.
+- [x] ~~Phase 3 — admin-managed expense subjects; cashier/admin picks a
+      subject on expense entry; multiple cashiers part-pay a subject;
+      "Other" forces a comment; report groups by subject; admin sees
+      all.~~ (2026-07-23, verified curl+browser). Hrishi can add the
+      real subject names anytime from the admin panel.
 - Decision (recommended, pending ok): NO per-entry cashier approval —
   entries post immediately; accountability comes from the handover
   ledger instead, so collection never blocks on a busy cashier.

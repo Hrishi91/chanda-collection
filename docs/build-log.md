@@ -137,3 +137,24 @@
   cashier Kartik with collected 300 + received 500 − expense 100 →
   in hand 700, cash 300, expense list shown; central section for the
   cashier shows only "কার হাতে কত". sw → chanda-v2.3.0.
+
+## 2026-07-23 — v3 Phase 3: admin expense subjects + part-payments
+
+- Admin manages an expense-subject list (new ExpenseSubjects sheet;
+  actions listSubjects[any user]/addSubject[admin, dup-checked]/
+  removeSubject[admin]). Admin-panel card to add (input) / remove
+  (chip ✕).
+- Expenses now carry a `subject`. Puja-expense entry (cashier/admin)
+  picks a subject; "➕ অন্য কিছু" (Other) forces a mandatory comment
+  (flow engine gained step.required). Multiple cashiers part-paying the
+  same subject just add rows with that subject.
+- Expenses report groups **by subject** (subject → total, count) plus
+  the full entry list (subject — comment • date • who). Admin sees all
+  expenses + all reports (unchanged). Collector's own spend-while-
+  collecting stays a separate free-text "কালেকশন খরচ" (source
+  'collection', no subject).
+- Verified live (curl + browser): admin added Pandal/Light (dup +
+  non-admin add rejected); two people part-paid Pandal (→3500, 2
+  entries); Other-with-comment entry created through the UI with the
+  empty-comment submit correctly blocked; expenses report grouped
+  Pandal 3500 / Other 240, total 3740. 71 tests pass. sw → chanda-v3.0.0.

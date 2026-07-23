@@ -189,6 +189,18 @@ const I18N = {
   my_device_note: { bn: 'এই ফোনের হিসাব (online হলে পুরো, সব ফোন মিলিয়ে)', en: "This device only (full cross-device total when online)" },
   received_col: { bn: 'জমা নিয়েছে', en: 'Received' },
   spent_col: { bn: 'খরচ', en: 'Spent' },
+  // --- expense subjects (Phase 3) ---
+  q_subject: { bn: 'কীসের খরচ? (বিষয় বাছো)', en: 'Which expense? (pick subject)' },
+  subject_other: { bn: '➕ অন্য কিছু', en: '➕ Other' },
+  q_comment_req: { bn: 'কীসের খরচ — লিখতেই হবে', en: 'Describe the expense — required' },
+  comment_required: { bn: 'একটা comment লিখতে হবে', en: 'A comment is required' },
+  manage_subjects: { bn: '🧾 খরচের বিষয়', en: '🧾 Expense subjects' },
+  add_subject_ph: { bn: 'নতুন বিষয় (যেমন প্যান্ডেল, লাইট)', en: 'New subject (e.g. Pandal, Light)' },
+  add_btn: { bn: 'যোগ', en: 'Add' },
+  no_subjects: { bn: 'এখনো কোনো বিষয় যোগ করোনি', en: 'No subjects added yet' },
+  by_subject: { bn: 'বিষয় অনুযায়ী', en: 'By subject' },
+  subject_col: { bn: 'বিষয়', en: 'Subject' },
+  err_subject_exists: { bn: 'এই বিষয় আগেই আছে', en: 'Subject already exists' },
 };
 
 const LANGS = ['bn', 'en'];

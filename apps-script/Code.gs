@@ -17,7 +17,7 @@ var SHEETS = {
   parties:  ['id', 'year', 'type', 'name', 'owner', 'side', 'phone', 'pledged', 'collector', 'createdAt', 'receivedAt'],
   payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt'],
   daily:    ['id', 'year', 'type', 'busName', 'busNumber', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt'],
-  expenses: ['id', 'year', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt'],
+  expenses: ['id', 'year', 'subject', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt'],
   handovers: ['id', 'year', 'from', 'to', 'amount', 'cashAmount', 'upiAmount', 'date', 'note',
               'status', 'confirmedBy', 'confirmedAt', 'collector', 'createdAt', 'receivedAt'],
 };
@@ -45,6 +45,8 @@ function setup() {
   });
   var us = ss.getSheetByName('Users') || ss.insertSheet('Users');
   if (us.getLastRow() === 0) { us.appendRow(USER_COLS); us.setFrozenRows(1); }
+  var es = ss.getSheetByName('ExpenseSubjects') || ss.insertSheet('ExpenseSubjects');
+  if (es.getLastRow() === 0) { es.appendRow(['id', 'name', 'createdAt']); es.setFrozenRows(1); }
 }
 
 /** Run once from the editor after the first registration, e.g. makeAdmin('hrishi') */
@@ -288,6 +290,43 @@ var ACTIONS = {
     throw new Error('not-found');
   },
 
+  // ---------- expense subjects ----------
+  listSubjects: function (b) {
+    requireUser_(b.token); // cashier needs the list to record an expense
+    var sh = SpreadsheetApp.getActive().getSheetByName('ExpenseSubjects');
+    var out = [];
+    if (sh && sh.getLastRow() > 1) {
+      sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(function (r) {
+        out.push({ id: String(r[0]), name: String(r[1]) });
+      });
+    }
+    return { ok: true, subjects: out };
+  },
+  addSubject: function (b) {
+    requireAdmin_(b.token);
+    var name = String(b.name || '').trim();
+    if (!name) throw new Error('bad-input');
+    var sh = SpreadsheetApp.getActive().getSheetByName('ExpenseSubjects');
+    if (sh.getLastRow() > 1) {
+      var exists = sh.getRange(2, 2, sh.getLastRow() - 1, 1).getValues().some(function (r) {
+        return String(r[0]).toLowerCase() === name.toLowerCase();
+      });
+      if (exists) throw new Error('subject-exists');
+    }
+    sh.appendRow([Utilities.getUuid(), name, new Date().toISOString()]);
+    return { ok: true };
+  },
+  removeSubject: function (b) {
+    requireAdmin_(b.token);
+    var sh = SpreadsheetApp.getActive().getSheetByName('ExpenseSubjects');
+    if (sh.getLastRow() < 2) return { ok: true };
+    var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(b.id)) { sh.deleteRow(i + 2); break; }
+    }
+    return { ok: true };
+  },
+
   // ---------- admin ----------
   listUsers: function (b) {
     requireAdmin_(b.token);
@@ -491,10 +530,18 @@ function computeReport_(id, d) {
   }
   if (id === 'expenses') {
     var rows = d.expenses.map(function (e) {
-      return { date: e.date, desc: e.desc, amount: num_(e.amount),
-               spentBy: e.spentBy, source: e.source };
+      return { date: e.date, subject: e.subject || '—', desc: e.desc,
+               amount: num_(e.amount), spentBy: e.spentBy, source: e.source };
     }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
-    return { rows: rows, total: sumBy_(rows, function (r) { return r.amount; }) };
+    var subAgg = {};
+    rows.forEach(function (r) {
+      var s = r.subject || '—';
+      if (!subAgg[s]) subAgg[s] = { subject: s, total: 0, count: 0 };
+      subAgg[s].total += r.amount; subAgg[s].count += 1;
+    });
+    var bySubject = Object.keys(subAgg).map(function (k) { return subAgg[k]; })
+      .sort(function (a, b) { return b.total - a.total; });
+    return { rows: rows, bySubject: bySubject, total: sumBy_(rows, function (r) { return r.amount; }) };
   }
   if (id === 'daily') {
     var agg = {};
