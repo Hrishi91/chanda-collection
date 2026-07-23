@@ -27,7 +27,12 @@
     setTimeout(function () { el.classList.add('show'); }, 10);
     setTimeout(function () { el.classList.remove('show'); setTimeout(function () { el.remove(); }, 300); }, 2200);
   }
-  function todayISO() { return new Date().toISOString().slice(0, 10); }
+  // Calendar date in IST (UTC+5:30), independent of the device timezone —
+  // a plain toISOString() is UTC, so a midnight–5:30am IST entry would get
+  // stamped with the previous day.
+  function todayISO() {
+    return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  }
   // Back button for drill-in screens (party/admin/cashier) that aren't a
   // bottom-nav tab, so users aren't stranded without an obvious way back.
   function backBar(toView, params) {

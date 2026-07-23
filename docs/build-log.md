@@ -357,3 +357,15 @@
 - Tests: 82 passed, 0 failed (11 new — clean books balance + each anomaly
   caught). sw → chanda-v3.10.0.
 - Working the fix-list one item at a time; next up: #2 timezone (IST) date.
+
+## 2026-07-23 — Fix-list #2: IST date (timezone bug)
+
+- `todayISO()` used `new Date().toISOString()` = UTC, so an entry made
+  between midnight and 5:30am IST got stamped with the previous day
+  (wrong daily-report bucket + date). Now computes the IST (UTC+5:30)
+  calendar date, independent of device timezone. India-only app, so the
+  offset is fixed.
+- Verified (node, deterministic): IST 2am Jul-24 → was Jul-23, now Jul-24;
+  9pm and 11:59pm cases unchanged. 82 tests pass. sw → chanda-v3.11.0.
+- createdAt stays a full UTC timestamp (absolute instant, standard).
+- Next: #3 edit/void entries with audit trail.
