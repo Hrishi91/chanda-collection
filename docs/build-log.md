@@ -173,3 +173,13 @@
 - Verified server + browser: 1st register→admin/approved, 2nd→pending;
   browser register→login→role admin. 71 tests pass.
 - Cleanup: dropped the stale makeAdmin note from Code.gs header comment.
+
+## 2026-07-23 — Live backend wired
+
+- Hrishi deployed the Apps Script web app; baked its /exec URL into
+  js/config.js and bumped sw → chanda-v3.1.0 so the live PWA fetches
+  the new config (SW is cache-first for assets).
+- Verified the real backend from a browser fetch: doGet → {ok, service}
+  and a POST login-probe round-trips as JSON (text/plain POST, no
+  preflight, redirect handled). Next: Hrishi runs setup() (creates the
+  7 tabs) then registers as the first user → auto-admin.
