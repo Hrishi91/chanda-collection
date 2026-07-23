@@ -917,3 +917,22 @@ Roadmap step 3 — accountability for a money app: who did what, when.
 - Verified live-mock: log renders newest-first with mapped labels, actor and
   correct IST timestamps (09:30Z→15:00); collector blocked from the view.
   105 tests pass. Ships in the same pending Code.gs redeploy.
+
+## v3.43.0 — Rich notification feed (detail + inline actions)
+
+Roadmap step 4 — the banner was count-only; now it's an actionable feed.
+
+- `notifications` action now returns `items` alongside the counts:
+  approvals [{userId,name,username}], handovers [{id,from,amount,date}],
+  corrections [{id,targetStore,targetId,reason,by,date}] — same data it already
+  read, just surfaced.
+- Banner (`renderNotifBanner`) renders one card per pending item with who/
+  amount/date and inline buttons:
+    · approval → ✅ Approve · 🚫 Decline · 👁 View(→admin)
+    · handover → ✅ Received (confirmHandover) · 👁 View(→cashier)
+    · correction → 👁 Review(→review screen, where the void-permission UI lives)
+  Actions call the server then refresh the feed + current view. Falls back to
+  the old count chips if a server returns no `items` (older backend).
+- Verified live-mock: all three item types render with correct buttons;
+  clicking Approve fires setStatus{approved} and the row drops from the feed on
+  refresh. 105 tests pass. Ships in the pending Code.gs redeploy.

@@ -166,6 +166,7 @@
   // Actionable counts (handovers to confirm, users to approve) polled while
   // the app is open; shown as a home banner + OS notification when new.
   let notifCounts = { handovers: 0, approvals: 0, corrections: 0 };
+  let notifItems = { handovers: [], approvals: [], corrections: [] };
   let notifTimer = null, notifWired = false;
   function osNotify(body) {
     try {
@@ -181,22 +182,59 @@
     if (notifCounts.corrections > 0) parts.push(notifCounts.corrections + ' ' + t('notif_corrections'));
     return parts.join(' • ');
   }
+  function notifRow(msg, actions) {
+    return '<div class="notif-item" style="display:block">' +
+      '<div>' + msg + '</div>' +
+      '<div class="chips" style="margin:6px 0 0">' + actions + '</div></div>';
+  }
+  // Rich, actionable feed: each pending item shows who/what + inline buttons.
+  // Falls back to the plain count when detail items aren't available (e.g. an
+  // older backend that only returns counts).
   function renderNotifBanner() {
     const el = document.getElementById('notif-banner');
     if (!el) return;
+    const it = notifItems || {};
+    const haveDetail = (it.approvals && it.approvals.length) || (it.handovers && it.handovers.length) || (it.corrections && it.corrections.length);
     let html = '';
-    if (notifCounts.handovers > 0) {
-      html += '<button class="notif-item" data-notif="cashier">🔔 ' + notifCounts.handovers + ' ' + esc(t('notif_handovers')) + ' ›</button>';
-    }
-    if (notifCounts.approvals > 0) {
-      html += '<button class="notif-item" data-notif="admin">🔔 ' + notifCounts.approvals + ' ' + esc(t('notif_approvals')) + ' ›</button>';
-    }
-    if (notifCounts.corrections > 0) {
-      html += '<button class="notif-item" data-notif="review">🔔 ' + notifCounts.corrections + ' ' + esc(t('notif_corrections')) + ' ›</button>';
+    (it.approvals || []).forEach(function (a) {
+      html += notifRow('🙋 <b>' + esc(a.name) + '</b> (@' + esc(a.username) + ') — ' + esc(t('notif_wants_approve')),
+        '<button class="chip on" data-na="approve-user" data-id="' + esc(a.userId) + '">' + esc(t('approve')) + '</button>' +
+        '<button class="chip" data-na="decline-user" data-id="' + esc(a.userId) + '">🚫 ' + esc(t('notif_decline')) + '</button>' +
+        '<button class="chip" data-nav="admin">👁 ' + esc(t('view')) + '</button>');
+    });
+    (it.handovers || []).forEach(function (h) {
+      html += notifRow('💰 <b>' + esc(h.from) + '</b> — ' + fmtMoney(h.amount) + ' <span class="row-sub">' + esc(fmtDate(h.date)) + '</span>',
+        '<button class="chip on" data-na="confirm-handover" data-id="' + esc(h.id) + '">✅ ' + esc(t('confirm_received')) + '</button>' +
+        '<button class="chip" data-nav="cashier">👁 ' + esc(t('view')) + '</button>');
+    });
+    (it.corrections || []).forEach(function (c) {
+      html += notifRow('⚠️ ' + esc(c.reason || (c.targetStore + '/' + c.targetId)) +
+          (c.by ? ' <span class="row-sub">— ' + esc(c.by) + '</span>' : ''),
+        '<button class="chip" data-nav="review">👁 ' + esc(t('review_btn')) + '</button>');
+    });
+    // fallback: no detail from the server → show the old count chips
+    if (!haveDetail) {
+      if (notifCounts.handovers > 0) html += '<button class="notif-item" data-nav="cashier">🔔 ' + notifCounts.handovers + ' ' + esc(t('notif_handovers')) + ' ›</button>';
+      if (notifCounts.approvals > 0) html += '<button class="notif-item" data-nav="admin">🔔 ' + notifCounts.approvals + ' ' + esc(t('notif_approvals')) + ' ›</button>';
+      if (notifCounts.corrections > 0) html += '<button class="notif-item" data-nav="review">🔔 ' + notifCounts.corrections + ' ' + esc(t('notif_corrections')) + ' ›</button>';
     }
     el.innerHTML = html;
-    el.querySelectorAll('[data-notif]').forEach(function (b) {
-      b.onclick = function () { navigate(b.dataset.notif); };
+    el.querySelectorAll('[data-nav]').forEach(function (b) {
+      b.onclick = function () { navigate(b.dataset.nav); };
+    });
+    el.querySelectorAll('[data-na]').forEach(function (b) {
+      b.onclick = function () {
+        b.disabled = true;
+        const act = b.dataset.na, id = b.dataset.id, tok = Auth.token();
+        const call = act === 'approve-user' ? Auth.call('setStatus', { token: tok, userId: id, status: 'approved', year: Settings.get('year') })
+          : act === 'decline-user' ? Auth.call('setStatus', { token: tok, userId: id, status: 'blocked' })
+          : Auth.call('confirmHandover', { token: tok, id: id });
+        call.then(function () {
+          toast(t('saved'));
+          checkNotifications();
+          if (!flowState && REFRESHABLE.indexOf(current.view) >= 0) render();
+        }).catch(function (e) { b.disabled = false; toast(errMsg(e)); });
+      };
     });
   }
   function checkNotifications() {
@@ -208,6 +246,7 @@
         const prev = (notifCounts.handovers || 0) + (notifCounts.approvals || 0) + (notifCounts.corrections || 0);
         const changed = total !== prev;
         notifCounts = n;
+        notifItems = resp.items || { handovers: [], approvals: [], corrections: [] };
         renderNotifBanner();
         if (total > prev) { const m = notifText(); if (m) { toast('🔔 ' + m); osNotify(m); } }
         // auto-refresh a data view (e.g. admin panel) when the count changes,

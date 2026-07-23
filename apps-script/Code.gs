@@ -348,28 +348,40 @@ var ACTIONS = {
     }) };
   },
 
-  // lightweight actionable counts for the in-app notification banner
+  // actionable notification feed: counts + the detail items (who/amount/date)
+  // the banner needs to render inline approve/confirm/view actions.
   notifications: function (b) {
     var u = requireUser_(b.token);
     var out = { handovers: 0, approvals: 0, corrections: 0 };
+    var items = { handovers: [], approvals: [], corrections: [] };
     var isCashier = Number(u.row.cashier) === 1 || u.row.role === 'admin';
     if (isCashier) {
       var year = b.year ? Number(b.year) : new Date().getFullYear();
       var d = readAll_(year);
-      out.handovers = d.handovers.filter(function (h) {
-        return (String(h.toId || h.to) === String(u.row.username) || h.to === u.row.name) && h.status !== 'confirmed';
-      }).length;
-      out.corrections = (d.corrections || []).filter(function (c) { return c.status === 'pending'; }).length;
+      d.handovers.forEach(function (h) {
+        if ((String(h.toId || h.to) === String(u.row.username) || h.to === u.row.name) && h.status !== 'confirmed') {
+          items.handovers.push({ id: h.id, from: h.from, amount: Number(h.amount) || 0, date: h.date });
+        }
+      });
+      out.handovers = items.handovers.length;
+      (d.corrections || []).forEach(function (c) {
+        if (c.status === 'pending') {
+          items.corrections.push({ id: c.id, targetStore: c.targetStore, targetId: c.targetId, reason: c.reason, by: c.collector, date: c.createdAt });
+        }
+      });
+      out.corrections = items.corrections.length;
     }
     if (u.row.role === 'admin') {
       var us = usersSheet_();
       if (us.getLastRow() > 1) {
         us.getDataRange().getValues().slice(1).forEach(function (v) {
-          if (String(v[USER_COLS.indexOf('status')]) === 'pending') out.approvals++;
+          var row = {}; USER_COLS.forEach(function (c, j) { row[c] = v[j]; });
+          if (String(row.status) === 'pending') items.approvals.push({ userId: row.id, name: row.name, username: row.username });
         });
       }
+      out.approvals = items.approvals.length;
     }
-    return { ok: true, notifications: out };
+    return { ok: true, notifications: out, items: items };
   },
 
   // pending correction flags a cashier/admin can review

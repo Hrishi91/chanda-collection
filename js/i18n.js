@@ -250,6 +250,11 @@ const I18N = {
   corr_rejected: { bn: 'reject করা হলো', en: 'Rejected' },
   notif_corrections: { bn: 'সংশোধন দেখো', en: 'to review' },
   // --- notifications ---
+  view: { bn: 'দেখো', en: 'View' },
+  notif_wants_approve: { bn: 'approve চায়', en: 'wants approval' },
+  notif_decline: { bn: 'নাকচ', en: 'Decline' },
+  confirm_received: { bn: 'জমা নিলাম', en: 'Received' },
+  review_btn: { bn: 'দেখো / সিদ্ধান্ত', en: 'Review' },
   notif_handovers: { bn: 'জমা confirm করো', en: 'to confirm' },
   notif_approvals: { bn: 'approve-এর অপেক্ষায়', en: 'awaiting approval' },
   notif_enable: { bn: '🔔 Alert চালু করো', en: '🔔 Enable alerts' },
