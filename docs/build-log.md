@@ -748,3 +748,20 @@
   (not just his 400), breakdown Ram 600 + Salil 400, full history.
   105 tests pass. sw → chanda-v3.33.0. ⚠️ Needs the batched Code.gs redeploy
   (+`parties` +`partyPayments`) — Code-gs-copy.txt refreshed.
+
+## 2026-07-24 — Ledger paid/due also uses central (all-collector) totals
+
+- Audit after the party-statement work: the ledger (renderList) still summed
+  only the DEVICE's own payments (Aggregate.computeTotals local), so a
+  multi-collector party showed wrong paid/due there too. Split renderList
+  into an orchestrator + drawList(data, paidBy): draws local first, then
+  fetches the `parties` action and redraws with central paid; search/filter
+  reuse the cached central map (renderList(true)) to avoid refetching.
+- Confirmed the two questions are cleanly separated everywhere now:
+  party balance (all-collector) — ledger, party detail, find-party, dues/
+  overview reports — all central; collector attribution (who collected/
+  holds) — my-summary, in-hand, collectors report, home "my today",
+  party "who collected" — all by collector. No mixing.
+- Verified live (mocked): Salil's ledger shows কমল স্টোর্স 1000/1000 (not his
+  400). 105 tests pass. sw → chanda-v3.34.0. Uses the `parties` action from
+  the pending redeploy.

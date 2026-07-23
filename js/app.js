@@ -592,10 +592,22 @@
   }
 
   let listFilter = 'all', listQuery = '';
-  let findParties = [], findQuery = '';
-  function renderList() {
+  let findParties = [], findQuery = '', listPaidCentral = null;
+  function renderList(skipFetch) {
     DB.allData().then(function (data) {
-      const paidBy = Aggregate.computeTotals(data).paidByParty;
+      const localPaid = Aggregate.computeTotals(data).paidByParty;
+      drawList(data, listPaidCentral || localPaid);        // own-device paid first
+      if (!skipFetch && navigator.onLine && Sync.configured() && Auth.loggedIn()) {
+        Auth.call('parties', { token: Auth.token(), year: Settings.get('year') })
+          .then(function (resp) {                            // then true all-collector paid
+            listPaidCentral = {};
+            (resp.parties || []).forEach(function (p) { listPaidCentral[p.id] = p.paid || 0; });
+            drawList(data, listPaidCentral);
+          }).catch(function () { /* keep local */ });
+      }
+    });
+  }
+  function drawList(data, paidBy) {
       let rows = data.parties.slice().sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
       if (listFilter === 'due') {
         rows = rows.filter(function (p) { return (Number(p.pledged) || 0) - (paidBy[p.id] || 0) > 0; });
@@ -628,14 +640,13 @@
                      : '<span class="ok-chip">✅</span>') + '</div></div>';
         }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
       document.getElementById('find-party').onclick = function () { findQuery = ''; navigate('findparty'); };
-      document.getElementById('search').oninput = function (e) { listQuery = e.target.value; renderList(); };
+      document.getElementById('search').oninput = function (e) { listQuery = e.target.value; renderList(true); };
       document.querySelectorAll('[data-f]').forEach(function (c) {
-        c.onclick = function () { listFilter = c.dataset.f; renderList(); };
+        c.onclick = function () { listFilter = c.dataset.f; renderList(true); };
       });
       document.querySelectorAll('.row[data-id]').forEach(function (r) {
         r.onclick = function () { navigate('party', { id: r.dataset.id }); };
       });
-    });
   }
   // Find ANY party (created by any collector) and add a payment against its
   // balance — so a collector who receives a later installment can record it
