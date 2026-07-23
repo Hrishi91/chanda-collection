@@ -853,7 +853,9 @@
       '<div><span>' + esc(t('paid')) + '</span><b>' + fmtMoney(paid) + '</b></div>' +
       '<div class="' + (due > 0 ? 'red' : 'green') + '"><span>' + esc(t('due')) + '</span><b>' + fmtMoney(due) + '</b></div>' +
       '</div>' +
-      '<button id="pay-btn" class="primary big block">💰 ' + esc(t('add_payment')) + '</button></div>' +
+      '<button id="pay-btn" class="primary big block">💰 ' + esc(t('add_payment')) + '</button>' +
+      (due > 0 && p.phone ? '<button id="remind-btn" class="ghost big block">📞 ' + esc(t('remind_btn')) + '</button>' : '') +
+      '</div>' +
       (keys.length ? '<div class="section">' + esc(t('who_collected')) + '</div><div class="card">' +
         keys.map(function (k) {
           return '<div class="row" style="cursor:default"><div>' + esc(nameByC[k]) + '</div><b>' + fmtMoney(byC[k]) + '</b></div>';
@@ -870,6 +872,16 @@
           (isVoid || !canVoid(x) ? '' : '<button class="chip void-btn" data-void="' + esc(x.id) + '">' + esc(t('void_btn')) + '</button>') + '</div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
     document.getElementById('pay-btn').onclick = function () { startFlow(paymentFlow(p)); };
+    const remindBtn = document.getElementById('remind-btn');
+    if (remindBtn) remindBtn.onclick = function () {
+      // opens WhatsApp with a pre-filled reminder — the collector still taps
+      // send themselves (never auto-sent).
+      const digits = String(p.phone || '').replace(/\D/g, '');
+      if (!digits) { toast(t('no_phone')); return; }
+      const num = digits.length === 10 ? '91' + digits : digits; // default +91
+      const msg = t('remind_msg').replace('{name}', p.name).replace('{due}', fmtMoney(due));
+      window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
+    };
     document.querySelectorAll('[data-void]').forEach(function (b) {
       b.onclick = function () { renderVoidReason('payments', b.dataset.void, function () { navigate('party', { id: p.id }); }); };
     });

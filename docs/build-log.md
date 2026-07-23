@@ -936,3 +936,15 @@ Roadmap step 4 — the banner was count-only; now it's an actionable feed.
 - Verified live-mock: all three item types render with correct buttons;
   clicking Approve fires setStatus{approved} and the row drops from the feed on
   refresh. 105 tests pass. Ships in the pending Code.gs redeploy.
+
+## v3.44.0 — Dues follow-up: WhatsApp reminder (📞 মনে করাও)
+
+Roadmap D5 (client-only, no redeploy).
+
+- Party detail shows a "📞 মনে করাও (WhatsApp)" button only when the party has
+  a phone AND an outstanding due. It opens wa.me with a pre-filled bilingual
+  reminder (name + due amount); the collector still taps send themselves — never
+  auto-sent. 10-digit numbers default to +91.
+- Verified live: due+phone party shows the button and builds
+  wa.me/919998887776?text=… with the name and ₹600 due; a fully-paid party and
+  a phone-less party show no button. 105 tests pass.
