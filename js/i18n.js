@@ -206,6 +206,9 @@ const I18N = {
   by_subject: { bn: 'বিষয় অনুযায়ী', en: 'By subject' },
   subject_col: { bn: 'বিষয়', en: 'Subject' },
   err_subject_exists: { bn: 'এই বিষয় আগেই আছে', en: 'Subject already exists' },
+  // --- in-app help / guide ---
+  help_btn: { bn: '📖 অ্যাপ গাইড / সাহায্য', en: '📖 App guide / Help' },
+  help_title: { bn: '📖 অ্যাপ গাইড — কীভাবে চলে', en: '📖 App guide — how it works' },
 };
 
 const LANGS = ['bn', 'en'];

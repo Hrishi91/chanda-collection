@@ -740,6 +740,7 @@
       (user.role === 'admin' ? ' 👑' : '') + (Auth.isCashier() ? ' 💰' : '') + '</div>' +
       '<div class="row-sub">' + esc(t('logged_in_as')) + ': @' + esc(user.username) + '</div></div>' +
       (Auth.isAdmin() ? '<button id="adm-btn" class="primary big block">' + esc(t('admin_panel')) + '</button>' : '') +
+      '<button id="help-btn" class="ghost big block">' + esc(t('help_btn')) + '</button>' +
       '<div class="card">' +
       '<div class="field"><label>' + esc(t('language')) + '</label>' +
       '<div class="chips"><button class="chip' + (Settings.get('lang') === 'bn' ? ' on' : '') + '" data-l="bn">বাংলা</button>' +
@@ -757,6 +758,7 @@
       '<div class="empty">v2 • ' + esc(location.hostname) + '</div>';
     const admB = document.getElementById('adm-btn');
     if (admB) admB.onclick = function () { navigate('admin'); };
+    document.getElementById('help-btn').onclick = function () { navigate('help'); };
     document.getElementById('chpw-btn').onclick = function () { renderChangePw(false); };
     document.getElementById('logout-btn').onclick = function () {
       DB.unsyncedCount().then(function (n) {
@@ -797,6 +799,16 @@
       }).then(function () { toast(t('saved')); updateBadge(); })
         .catch(function () { toast(t('fetch_fail')); });
     };
+  }
+
+  // ---------- in-app guide ----------
+  function renderHelp() {
+    const lang = Settings.get('lang');
+    const secs = (window.HELP || []).map(function (s) {
+      return '<div class="card"><div class="card-title">' + esc(s.icon + ' ' + s.title[lang]) + '</div>' +
+        s.body[lang].map(function (p) { return '<div class="help-p">' + p + '</div>'; }).join('') + '</div>';
+    }).join('');
+    $view().innerHTML = backBar('settings') + '<div class="flow-title">' + esc(t('help_title')) + '</div>' + secs;
   }
 
   // ---------- auth views ----------
@@ -1057,6 +1069,7 @@
     else if (current.view === 'settings') renderSettings();
     else if (current.view === 'admin') { Auth.isAdmin() ? renderAdmin() : renderHome(); }
     else if (current.view === 'cashier') renderCashier();
+    else if (current.view === 'help') renderHelp();
     else renderHome();
     updateBadge();
   }

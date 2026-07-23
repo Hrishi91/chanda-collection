@@ -321,3 +321,23 @@
 - Verified in browser: party back → list; admin back → settings even when
   listUsers errors (fake token). 71 tests pass; app.js node --check clean.
 - sw → chanda-v3.8.0.
+
+## 2026-07-23 — In-app guide + salil approved (v3.9.0)
+
+- Hrishi: "make a document to understand the app and add it [to the] app."
+  Added a bilingual in-app guide: new `js/help.js` (window.HELP — 10
+  sections: what it is, login/register, roles, home tiles, entry flow,
+  cash/UPI/dues, handover, ledger/reports, admin panel, sync/backup/lang),
+  a `renderHelp()` screen (backBar → settings), and a Settings button
+  "📖 App guide / Help". Content respects the bn/en toggle. Also mirrored
+  to docs/user-guide/app-guide.md.
+- The guide explicitly covers what confused Hrishi: the admin panel needs
+  "🔄 Refresh" after a new registration, and one-account-one-phone (login
+  elsewhere logs the old device out).
+- Operational: diagnosed "can't see approval" — user `salil` (সলিল কুমার
+  সাহা) had registered and was pending on the server; the panel just
+  needed refresh (and Hrishi's phone token had rotated). Approved salil
+  for 2026 via the admin API with Hrishi's token.
+- Verified in browser: Settings → guide → 10 sections render, back works,
+  en/bn toggle switches the content. sw → chanda-v3.9.0. 71 tests pass;
+  help.js + app.js node --check clean.
