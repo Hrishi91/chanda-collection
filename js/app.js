@@ -1,0 +1,559 @@
+// UI: view router + guided chat-style entry engine + dashboards.
+(function () {
+  const $view = function () { return document.getElementById('view'); };
+  const SIDES = ['main_malda', 'main_balurghat', 'harirampur', 'singhadaha'];
+  let flowState = null;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function toast(msg) {
+    const el = document.createElement('div');
+    el.className = 'toast'; el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(function () { el.classList.add('show'); }, 10);
+    setTimeout(function () { el.classList.remove('show'); setTimeout(function () { el.remove(); }, 300); }, 2200);
+  }
+  function todayISO() { return new Date().toISOString().slice(0, 10); }
+
+  // ---------- header / nav ----------
+  function updateBadge() {
+    DB.unsyncedCount().then(function (n) {
+      const b = document.getElementById('sync-badge');
+      if (!b) return;
+      b.textContent = n ? '⏳ ' + n : '✅';
+      b.className = 'badge ' + (n ? 'warn' : 'ok');
+      b.title = n ? n + t('unsynced_n') : t('all_synced');
+    });
+  }
+  function autoSync() {
+    if (!Sync.configured()) return;
+    Sync.syncNow().then(function (r) { if (r.ok && r.sent) toast('☁️ Sync: ' + r.sent); updateBadge(); });
+  }
+
+  // ---------- flow engine ----------
+  // step: {key, qKey, kind:text|amount|choice, options:[{v,labelKey}], optional, showIf(answers)}
+  function startFlow(def) {
+    flowState = { def: def, answers: Object.assign({}, def.presets || {}), idx: 0, editIdx: -1 };
+    skipHidden();
+    renderEntry();
+  }
+  function visible(step) { return !step.showIf || step.showIf(flowState.answers); }
+  function skipHidden() {
+    const st = flowState.def.steps;
+    while (flowState.idx < st.length &&
+           (!visible(st[flowState.idx]) || flowState.answers[st[flowState.idx].key] !== undefined)) {
+      flowState.idx++;
+    }
+  }
+  function answerDisplay(step, val) {
+    if (val === null || val === undefined || val === '') return '—';
+    if (step.kind === 'amount') return fmtMoney(val);
+    if (step.kind === 'choice') {
+      const o = step.options.find(function (o) { return o.v === val; });
+      return o ? t(o.labelKey) : val;
+    }
+    return val;
+  }
+  function submitAnswer(raw) {
+    const step = flowState.def.steps[flowState.idx];
+    let val = raw;
+    if (step.kind === 'amount') {
+      if (raw === null) { val = null; } // skipped
+      else {
+        val = NumParse.parseAmount(raw);
+        if (isNaN(val)) { toast(t('invalid_amount')); return; }
+      }
+    }
+    flowState.answers[step.key] = val;
+    Voice.stop();
+    if (flowState.editIdx >= 0) { flowState.editIdx = -1; flowState.idx = flowState.def.steps.length; }
+    else { flowState.idx++; skipHidden(); }
+    renderEntry();
+  }
+  function goBack() {
+    Voice.stop();
+    if (flowState.idx === 0) { flowState = null; navigate('home'); return; }
+    let i = flowState.idx - 1;
+    while (i > 0 && !visible(flowState.def.steps[i])) i--;
+    delete flowState.answers[flowState.def.steps[i].key];
+    flowState.idx = i;
+    renderEntry();
+  }
+
+  function renderEntry() {
+    const def = flowState.def, steps = def.steps;
+    let html = '<div class="flow"><div class="flow-title">' + esc(def.title) + '</div><div class="chat">';
+    for (let i = 0; i < flowState.idx && i < steps.length; i++) {
+      const s = steps[i];
+      if (!visible(s) || flowState.answers[s.key] === undefined) continue;
+      html += '<div class="bubble q">' + esc(t(s.qKey)) + '</div>';
+      html += '<div class="bubble a">' + esc(answerDisplay(s, flowState.answers[s.key])) + '</div>';
+    }
+    if (flowState.idx < steps.length) {
+      const s = steps[flowState.idx];
+      html += '<div class="bubble q now">' + esc(t(s.qKey)) + '</div></div>';
+      if (s.kind === 'choice') {
+        html += '<div class="chips">' + s.options.map(function (o) {
+          return '<button class="chip" data-v="' + esc(o.v) + '">' + esc(t(o.labelKey)) + '</button>';
+        }).join('') + '</div>';
+      } else {
+        html += '<div class="input-row">' +
+          '<input id="flow-input" ' + (s.kind === 'amount' ? 'inputmode="text" placeholder="৫০০ / পাঁচশো"' : '') +
+          ' autocomplete="off">' +
+          (Voice.supported() ? '<button id="mic-btn" class="mic">🎤</button>' : '') +
+          '<button id="next-btn" class="primary">' + esc(t('next')) + '</button></div>' +
+          '<div class="hint" id="flow-hint">' + esc(Voice.supported() ? t('mic_hint') : '') + '</div>';
+      }
+      html += '<div class="flow-actions">' +
+        (s.optional ? '<button id="skip-btn" class="ghost">' + esc(t('skip')) + '</button>' : '') +
+        '<button id="back-btn" class="ghost">' + esc(t('back')) + '</button></div>';
+    } else {
+      // summary + confirm
+      html += '</div><div class="card summary"><div class="card-title">' + esc(t('confirm_title')) + '</div>';
+      steps.forEach(function (s, i) {
+        if (!visible(s) || flowState.answers[s.key] === undefined) return;
+        html += '<div class="sum-row" data-i="' + i + '"><span>' + esc(t(s.qKey)) + '</span>' +
+                '<b>' + esc(answerDisplay(s, flowState.answers[s.key])) + '</b> ✏️</div>';
+      });
+      html += '</div><div class="flow-actions">' +
+        '<button id="save-btn" class="primary big">' + esc(t('save')) + '</button>' +
+        '<button id="cancel-btn" class="ghost">' + esc(t('cancel')) + '</button></div>';
+    }
+    html += '</div>';
+    $view().innerHTML = html;
+
+    // wire up
+    document.querySelectorAll('.chip').forEach(function (c) {
+      c.onclick = function () { submitAnswer(c.dataset.v); };
+    });
+    const input = document.getElementById('flow-input');
+    if (input) {
+      input.focus();
+      input.onkeydown = function (e) { if (e.key === 'Enter') submitAnswer(input.value.trim()); };
+      const nextB = document.getElementById('next-btn');
+      if (nextB) nextB.onclick = function () { submitAnswer(input.value.trim()); };
+      const mic = document.getElementById('mic-btn');
+      if (mic) mic.onclick = function () {
+        const hint = document.getElementById('flow-hint');
+        mic.classList.add('rec'); hint.textContent = t('listening');
+        Voice.start(function (txt) {
+          input.value = txt;
+          const s = flowState.def.steps[flowState.idx];
+          if (s.kind === 'amount') {
+            const v = NumParse.parseAmount(txt);
+            hint.textContent = isNaN(v) ? t('invalid_amount') : (t('parsed_hint') + ': ' + fmtMoney(v));
+          } else { hint.textContent = t('mic_hint'); }
+        }, function () { mic.classList.remove('rec'); },
+        function (err) {
+          mic.classList.remove('rec');
+          hint.textContent = (err === 'network') ? t('need_net_voice') : t('no_mic');
+        });
+      };
+    }
+    const skipB = document.getElementById('skip-btn');
+    if (skipB) skipB.onclick = function () { submitAnswer(flowState.def.steps[flowState.idx].kind === 'amount' ? null : ''); };
+    const backB = document.getElementById('back-btn');
+    if (backB) backB.onclick = goBack;
+    document.querySelectorAll('.sum-row').forEach(function (r) {
+      r.onclick = function () {
+        const i = Number(r.dataset.i);
+        flowState.editIdx = i; flowState.idx = i;
+        delete flowState.answers[flowState.def.steps[i].key];
+        renderEntry();
+      };
+    });
+    const saveB = document.getElementById('save-btn');
+    if (saveB) saveB.onclick = function () {
+      saveB.disabled = true;
+      flowState.def.save(flowState.answers).then(function (afterOpts) {
+        toast(t('saved')); updateBadge(); autoSync();
+        if (afterOpts) renderAfter(afterOpts); else navigate(flowState.def.returnTo || 'home');
+      });
+    };
+    const cancelB = document.getElementById('cancel-btn');
+    if (cancelB) cancelB.onclick = function () { flowState = null; navigate('home'); };
+  }
+
+  function renderAfter(opts) {
+    $view().innerHTML = '<div class="card center"><div class="big-emoji">✅</div>' +
+      opts.buttons.map(function (b, i) {
+        return '<button class="primary big block" data-i="' + i + '">' + esc(b.label) + '</button>';
+      }).join('') + '</div>';
+    document.querySelectorAll('[data-i]').forEach(function (el) {
+      el.onclick = function () { opts.buttons[Number(el.dataset.i)].action(); };
+    });
+  }
+
+  // ---------- flow definitions ----------
+  function sideOptions() {
+    return SIDES.map(function (s) { return { v: s, labelKey: 'side_' + s }; });
+  }
+  function savePartyAndFirstPayment(type, a) {
+    const party = DB.newRow({
+      type: type, name: a.name, owner: a.owner || '', side: a.side || '',
+      phone: a.phone || '', pledged: a.pledged || 0,
+    });
+    return DB.put('parties', party).then(function () {
+      if (a.paidNow > 0) {
+        return DB.put('payments', DB.newRow({
+          partyId: party.id, partyName: party.name, amount: a.paidNow, date: todayISO(), note: '',
+        }));
+      }
+    }).then(function () { return party; });
+  }
+  function newPartyFlow(type, presets, bulk) {
+    return {
+      title: t('new_entry') + ' — ' + t('type_' + type),
+      presets: presets || {},
+      steps: [
+        { key: 'name', qKey: type === 'shop' ? 'q_shop_name' : 'q_person_name', kind: 'text' },
+        { key: 'owner', qKey: 'q_owner_name', kind: 'text', showIf: function () { return type === 'shop'; } },
+        { key: 'side', qKey: 'q_side', kind: 'choice', options: sideOptions(), showIf: function () { return type === 'shop'; } },
+        { key: 'phone', qKey: 'q_phone', kind: 'text', optional: true },
+        { key: 'pledged', qKey: 'q_pledged', kind: 'amount' },
+        { key: 'paidNow', qKey: 'q_paid_now', kind: 'amount', optional: true },
+      ],
+      save: function (a) {
+        return savePartyAndFirstPayment(type, a).then(function (party) {
+          if (!bulk) return null;
+          return { buttons: [
+            { label: t('one_more_shop'), action: function () {
+                startFlow(newPartyFlow('shop', { side: party.side }, true)); } },
+            { label: t('done_for_now'), action: function () { navigate('home'); } },
+          ] };
+        });
+      },
+    };
+  }
+  function paymentFlow(party) {
+    return {
+      title: t('add_payment') + ' — ' + party.name,
+      returnTo: 'list',
+      steps: [
+        { key: 'amount', qKey: 'q_amount', kind: 'amount' },
+        { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
+      ],
+      save: function (a) {
+        return DB.put('payments', DB.newRow({
+          partyId: party.id, partyName: party.name, amount: a.amount,
+          date: todayISO(), note: a.note || '',
+        })).then(function () { return null; });
+      },
+    };
+  }
+  function dailyFlow(type) {
+    return {
+      title: t('daily_' + type),
+      steps: [
+        { key: 'busName', qKey: 'q_bus_name', kind: 'text', showIf: function () { return type === 'bus'; } },
+        { key: 'busNumber', qKey: 'q_bus_number', kind: 'text', showIf: function () { return type === 'bus'; } },
+        { key: 'amount', qKey: 'q_amount', kind: 'amount' },
+        { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
+      ],
+      save: function (a) {
+        return DB.put('daily', DB.newRow({
+          type: type, busName: a.busName || '', busNumber: a.busNumber || '',
+          amount: a.amount, date: todayISO(), note: a.note || '',
+        })).then(function () {
+          return { buttons: [
+            { label: '➕ ' + t('daily_' + type), action: function () { startFlow(dailyFlow(type)); } },
+            { label: t('coll_expense'), action: function () { startFlow(expenseFlow('collection', type)); } },
+            { label: t('done_for_now'), action: function () { navigate('home'); } },
+          ] };
+        });
+      },
+    };
+  }
+  function expenseFlow(source, collectionType) {
+    return {
+      title: source === 'collection' ? t('coll_expense') : t('expense'),
+      steps: [
+        { key: 'desc', qKey: 'q_desc', kind: 'text' },
+        { key: 'amount', qKey: 'q_amount', kind: 'amount' },
+        { key: 'spentBy', qKey: 'q_spent_by', kind: 'text', optional: true },
+      ],
+      save: function (a) {
+        return DB.put('expenses', DB.newRow({
+          desc: a.desc, amount: a.amount, spentBy: a.spentBy || Settings.get('collectorName'),
+          source: source, collectionType: collectionType || '', date: todayISO(),
+        })).then(function () { return null; });
+      },
+    };
+  }
+
+  // ---------- views ----------
+  function renderHome() {
+    DB.allData().then(function (data) {
+      const today = todayISO();
+      const me = Settings.get('collectorName');
+      const myToday = data.payments.concat(data.daily).filter(function (r) {
+        return r.collector === me && (r.date === today || (r.createdAt || '').slice(0, 10) === today);
+      }).reduce(function (a, r) { return a + Number(r.amount || 0); }, 0);
+      $view().innerHTML =
+        '<div class="hero"><div>🙏 ' + esc(t('welcome_title')) + ' ' + Settings.get('year') + '</div>' +
+        '<div class="hero-sub">' + esc(me) + ' • ' + esc(t('my_today')) + ': <b>' + fmtMoney(myToday) + '</b></div></div>' +
+        '<div class="section">' + esc(t('new_entry')) + '</div>' +
+        '<div class="grid">' +
+          '<button class="tile" data-go="shop">🏪 ' + esc(t('new_shop')) + '</button>' +
+          '<button class="tile" data-go="person">🙍 ' + esc(t('new_person')) + '</button>' +
+          '<button class="tile" data-go="member">🤝 ' + esc(t('new_member')) + '</button>' +
+          '<button class="tile" data-go="bulk">🏪🏪 ' + esc(t('bulk_shop')) + '</button>' +
+        '</div>' +
+        '<div class="section">' + esc(t('today_daily')) + '</div>' +
+        '<div class="grid">' +
+          '<button class="tile" data-go="road">🛣️ ' + esc(t('daily_road')) + '</button>' +
+          '<button class="tile" data-go="toto">🛺 ' + esc(t('daily_toto')) + '</button>' +
+          '<button class="tile" data-go="bus">🚌 ' + esc(t('daily_bus')) + '</button>' +
+          '<button class="tile" data-go="expense">🧾 ' + esc(t('expense')) + '</button>' +
+        '</div>' +
+        '<div class="grid one"><button class="tile wide" data-go="list">💰 ' + esc(t('add_payment')) +
+        ' / ' + esc(t('dues_only')) + '</button></div>';
+      document.querySelectorAll('[data-go]').forEach(function (b) {
+        b.onclick = function () {
+          const g = b.dataset.go;
+          if (g === 'shop' || g === 'person' || g === 'member') startFlow(newPartyFlow(g));
+          else if (g === 'bulk') startFlow(newPartyFlow('shop', {}, true));
+          else if (g === 'road' || g === 'toto' || g === 'bus') startFlow(dailyFlow(g));
+          else if (g === 'expense') startFlow(expenseFlow('general'));
+          else navigate(g);
+        };
+      });
+    });
+  }
+
+  let listFilter = 'all', listQuery = '';
+  function renderList() {
+    DB.allData().then(function (data) {
+      const paidBy = Aggregate.computeTotals(data).paidByParty;
+      let rows = data.parties.slice().sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+      if (listFilter === 'due') {
+        rows = rows.filter(function (p) { return (Number(p.pledged) || 0) - (paidBy[p.id] || 0) > 0; });
+      } else if (listFilter !== 'all') {
+        rows = rows.filter(function (p) { return p.type === listFilter; });
+      }
+      if (listQuery) {
+        const q = listQuery.toLowerCase();
+        rows = rows.filter(function (p) {
+          return (p.name || '').toLowerCase().includes(q) || (p.owner || '').toLowerCase().includes(q);
+        });
+      }
+      const tabs = [['all', t('all')], ['shop', t('type_shop')], ['person', t('type_person')],
+                    ['member', t('type_member')], ['due', t('dues_only')]];
+      $view().innerHTML =
+        '<input id="search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(listQuery) + '">' +
+        '<div class="chips tabs">' + tabs.map(function (tb) {
+          return '<button class="chip' + (listFilter === tb[0] ? ' on' : '') + '" data-f="' + tb[0] + '">' + esc(tb[1]) + '</button>';
+        }).join('') + '</div>' +
+        (rows.length ? rows.map(function (p) {
+          const paid = paidBy[p.id] || 0, due = (Number(p.pledged) || 0) - paid;
+          return '<div class="row" data-id="' + p.id + '">' +
+            '<div><b>' + esc(p.name) + '</b><div class="row-sub">' +
+            esc(t('type_' + p.type)) + (p.side ? ' • ' + esc(t('side_' + p.side)) : '') +
+            (p.owner ? ' • ' + esc(p.owner) : '') + '</div></div>' +
+            '<div class="row-right">' + fmtMoney(paid) + '/' + fmtMoney(p.pledged) +
+            (due > 0 ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
+                     : '<span class="ok-chip">✅</span>') + '</div></div>';
+        }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
+      document.getElementById('search').oninput = function (e) { listQuery = e.target.value; renderList(); };
+      document.querySelectorAll('[data-f]').forEach(function (c) {
+        c.onclick = function () { listFilter = c.dataset.f; renderList(); };
+      });
+      document.querySelectorAll('.row[data-id]').forEach(function (r) {
+        r.onclick = function () { navigate('party', { id: r.dataset.id }); };
+      });
+    });
+  }
+
+  function renderParty(params) {
+    Promise.all([DB.get('parties', params.id), DB.allData()]).then(function (res) {
+      const p = res[0], data = res[1];
+      if (!p) { navigate('list'); return; }
+      const pays = data.payments.filter(function (x) { return x.partyId === p.id; })
+        .sort(function (a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
+      const paid = pays.reduce(function (a, x) { return a + Number(x.amount || 0); }, 0);
+      const due = (Number(p.pledged) || 0) - paid;
+      $view().innerHTML =
+        '<div class="card"><div class="card-title">' + esc(p.name) + '</div>' +
+        '<div class="row-sub">' + esc(t('type_' + p.type)) +
+        (p.side ? ' • ' + esc(t('side_' + p.side)) : '') + (p.owner ? ' • ' + esc(p.owner) : '') +
+        (p.phone ? ' • 📞 ' + esc(p.phone) : '') + '</div>' +
+        '<div class="stat3">' +
+        '<div><span>' + esc(t('pledged')) + '</span><b>' + fmtMoney(p.pledged) + '</b></div>' +
+        '<div><span>' + esc(t('paid')) + '</span><b>' + fmtMoney(paid) + '</b></div>' +
+        '<div class="' + (due > 0 ? 'red' : 'green') + '"><span>' + esc(t('due')) + '</span><b>' + fmtMoney(due) + '</b></div>' +
+        '</div>' +
+        '<button id="pay-btn" class="primary big block">💰 ' + esc(t('add_payment')) + '</button></div>' +
+        '<div class="section">' + esc(t('payments_history')) + '</div>' +
+        (pays.length ? pays.map(function (x) {
+          return '<div class="row"><div>' + esc(x.date || (x.createdAt || '').slice(0, 10)) +
+            '<div class="row-sub">' + esc(x.collector || '') + (x.note ? ' • ' + esc(x.note) : '') + '</div></div>' +
+            '<b>' + fmtMoney(x.amount) + '</b></div>';
+        }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
+      document.getElementById('pay-btn').onclick = function () { startFlow(paymentFlow(p)); };
+    });
+  }
+
+  function totalsHTML(tt, title) {
+    function typeRow(k) {
+      const b = tt.byType[k];
+      return '<div class="row"><div>' + esc(t('type_' + k)) + ' (' + b.count + ')</div>' +
+        '<div class="row-right">' + fmtMoney(b.paid) + ' / ' + fmtMoney(b.pledged) + '</div></div>';
+    }
+    function dailyRow(k) {
+      return '<div class="row"><div>' + esc(t('type_' + k)) + '</div><b>' + fmtMoney(tt.dailyByType[k]) + '</b></div>';
+    }
+    return '<div class="card"><div class="card-title">' + esc(title) + '</div>' +
+      '<div class="stat3">' +
+      '<div><span>' + esc(t('total_collection')) + '</span><b>' + fmtMoney(tt.totalCollection) + '</b></div>' +
+      '<div><span>' + esc(t('total_expense')) + '</span><b>' + fmtMoney(tt.totalExpense) + '</b></div>' +
+      '<div class="green"><span>' + esc(t('in_hand')) + '</span><b>' + fmtMoney(tt.inHand) + '</b></div>' +
+      '</div>' +
+      '<div class="stat3"><div><span>' + esc(t('total_pledged')) + '</span><b>' + fmtMoney(tt.totalPledged) + '</b></div>' +
+      '<div class="red"><span>' + esc(t('total_due')) + '</span><b>' + fmtMoney(tt.totalDue) + '</b></div><div></div></div>' +
+      typeRow('shop') + typeRow('person') + typeRow('member') +
+      dailyRow('road') + dailyRow('toto') + dailyRow('bus') + '</div>';
+  }
+
+  function renderReport() {
+    DB.allData().then(function (data) {
+      const tt = Aggregate.computeTotals(data);
+      $view().innerHTML = totalsHTML(tt, t('local_report')) +
+        '<button id="central-btn" class="primary big block">☁️ ' + esc(t('central_report')) + '</button>' +
+        '<div id="central"></div>';
+      document.getElementById('central-btn').onclick = function () {
+        const c = document.getElementById('central');
+        c.innerHTML = '<div class="empty">' + esc(t('loading')) + '</div>';
+        Sync.fetchCentral().then(function (cd) {
+          const ct = Aggregate.computeTotals(cd);
+          const coll = Object.keys(ct.byCollector).sort(function (a, b) {
+            return ct.byCollector[b] - ct.byCollector[a];
+          });
+          c.innerHTML = totalsHTML(ct, t('central_report')) +
+            '<div class="card"><div class="card-title">' + esc(t('by_collector')) + '</div>' +
+            coll.map(function (k) {
+              return '<div class="row"><div>' + esc(k) + '</div><b>' + fmtMoney(ct.byCollector[k]) + '</b></div>';
+            }).join('') + '</div>';
+        }).catch(function () {
+          c.innerHTML = '<div class="empty">' + esc(Sync.configured() ? t('fetch_fail') : t('sync_not_configured')) + '</div>';
+        });
+      };
+    });
+  }
+
+  function renderSettings() {
+    const fields = [
+      ['collectorName', 'collector_name', 'text'], ['year', 'year', 'number'],
+      ['scriptUrl', 'script_url', 'text'], ['secret', 'secret', 'password'],
+    ];
+    $view().innerHTML = '<div class="card">' +
+      '<div class="field"><label>' + esc(t('language')) + '</label>' +
+      '<div class="chips"><button class="chip' + (Settings.get('lang') === 'bn' ? ' on' : '') + '" data-l="bn">বাংলা</button>' +
+      '<button class="chip' + (Settings.get('lang') === 'en' ? ' on' : '') + '" data-l="en">English</button></div></div>' +
+      fields.map(function (f) {
+        return '<div class="field"><label>' + esc(t(f[1])) + '</label>' +
+          '<input type="' + f[2] + '" data-k="' + f[0] + '" value="' + esc(Settings.get(f[0])) + '"></div>';
+      }).join('') + '</div>' +
+      '<button id="sync-btn" class="primary big block">☁️ ' + esc(t('sync_now')) + '</button>' +
+      '<button id="export-btn" class="ghost big block">' + esc(t('export_backup')) + '</button>' +
+      '<button id="import-btn" class="ghost big block">' + esc(t('import_backup')) + '</button>' +
+      '<input type="file" id="import-file" accept=".json" hidden>' +
+      '<div class="empty">v1 • ' + esc(location.hostname) + '</div>';
+    document.querySelectorAll('[data-l]').forEach(function (b) {
+      b.onclick = function () { Settings.set('lang', b.dataset.l); render(); };
+    });
+    document.querySelectorAll('[data-k]').forEach(function (i) {
+      i.onchange = function () { Settings.set(i.dataset.k, i.value.trim()); };
+    });
+    document.getElementById('sync-btn').onclick = function () {
+      Sync.syncNow().then(function (r) {
+        toast(r.ok ? t('all_synced') : (r.reason === 'not-configured' ? t('sync_not_configured') : t('sync_fail')));
+        updateBadge();
+      });
+    };
+    document.getElementById('export-btn').onclick = function () {
+      DB.allData().then(function (data) {
+        const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(),
+          collector: Settings.get('collectorName'), year: Settings.get('year'), data: data }, null, 2)],
+          { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'chanda-backup-' + Settings.get('collectorName') + '-' + todayISO() + '.json';
+        a.click();
+      });
+    };
+    const fileEl = document.getElementById('import-file');
+    document.getElementById('import-btn').onclick = function () { fileEl.click(); };
+    fileEl.onchange = function () {
+      const f = fileEl.files[0]; if (!f) return;
+      f.text().then(function (txt) {
+        const d = JSON.parse(txt).data;
+        return Promise.all(DB.STORES.map(function (s) { return d[s] ? DB.bulkPut(s, d[s]) : 0; }));
+      }).then(function () { toast(t('saved')); updateBadge(); })
+        .catch(function () { toast(t('fetch_fail')); });
+    };
+  }
+
+  function renderOnboard() {
+    $view().innerHTML = '<div class="card center onboard">' +
+      '<div class="big-emoji">🙏</div><h2>' + esc(t('welcome_title')) + '</h2>' +
+      '<div class="field"><label>' + esc(t('choose_lang')) + '</label>' +
+      '<div class="chips center"><button class="chip' + (Settings.get('lang') === 'bn' ? ' on' : '') + '" data-l="bn">বাংলা</button>' +
+      '<button class="chip' + (Settings.get('lang') === 'en' ? ' on' : '') + '" data-l="en">English</button></div></div>' +
+      '<div class="field"><label>' + esc(t('your_name_q')) + '</label>' +
+      '<input id="ob-name" value="' + esc(Settings.get('collectorName')) + '"></div>' +
+      '<button id="ob-start" class="primary big block">' + esc(t('start')) + '</button></div>';
+    document.querySelectorAll('[data-l]').forEach(function (b) {
+      b.onclick = function () { Settings.set('lang', b.dataset.l); renderOnboard(); };
+    });
+    document.getElementById('ob-start').onclick = function () {
+      const n = document.getElementById('ob-name').value.trim();
+      if (!n) return;
+      Settings.set('collectorName', n);
+      if (!localStorage.getItem('ck_year')) Settings.set('year', new Date().getFullYear());
+      navigate('home');
+    };
+  }
+
+  // ---------- router ----------
+  let current = { view: 'home', params: {} };
+  function navigate(view, params) {
+    current = { view: view, params: params || {} };
+    flowState = view === 'entry' ? flowState : null;
+    render();
+  }
+  function render() {
+    document.getElementById('app-title').textContent = '🙏 ' + t('app_title');
+    document.querySelectorAll('#bottomnav button').forEach(function (b) {
+      b.classList.toggle('on', b.dataset.nav === current.view);
+      b.querySelector('span').textContent = t(b.dataset.nav === 'list' ? 'khata' : b.dataset.nav);
+    });
+    if (!Settings.get('collectorName')) { renderOnboard(); updateBadge(); return; }
+    if (flowState) { renderEntry(); return; }
+    if (current.view === 'home') renderHome();
+    else if (current.view === 'list') renderList();
+    else if (current.view === 'party') renderParty(current.params);
+    else if (current.view === 'report') renderReport();
+    else if (current.view === 'settings') renderSettings();
+    else renderHome();
+    updateBadge();
+  }
+
+  window.addEventListener('online', autoSync);
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('#bottomnav button').forEach(function (b) {
+      b.onclick = function () { Voice.stop(); flowState = null; navigate(b.dataset.nav); };
+    });
+    document.getElementById('sync-badge').onclick = function () {
+      Sync.syncNow().then(function (r) {
+        toast(r.ok ? t('all_synced') : (r.reason === 'not-configured' ? t('sync_not_configured') : t('sync_fail')));
+        updateBadge();
+      });
+    };
+    render();
+    autoSync();
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  });
+})();

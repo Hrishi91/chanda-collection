@@ -4,15 +4,14 @@
 
 ## P0 — v1 must-haves (before giving link to collectors)
 
-- [ ] PWA shell: manifest, service worker, offline app-shell caching
-- [ ] IndexedDB data layer + sync queue (parties/payments/daily/expenses)
-- [ ] i18n bn/en toggle
-- [ ] Guided chat-style entry flows (new party, payment, daily, expense)
-- [ ] Voice input (Web Speech API bn-IN/en-IN) + Bengali/English amount
-      word parser (tested)
-- [ ] Bulk shop mode (sticky side, loop entry)
-- [ ] Parties list + search + dues; party detail + add installment
-- [ ] Local dashboard (device totals) + unsynced badge
+- [x] ~~PWA shell: manifest, service worker, offline app-shell caching~~ (2026-07-23)
+- [x] ~~IndexedDB data layer + sync queue~~ (2026-07-23)
+- [x] ~~i18n bn/en toggle~~ (2026-07-23)
+- [x] ~~Guided chat-style entry flows~~ (2026-07-23)
+- [x] ~~Voice input + amount word parser (49 tests)~~ (2026-07-23)
+- [x] ~~Bulk shop mode~~ (2026-07-23, needs live re-check on phone)
+- [x] ~~Parties list + search + dues; party detail + installment~~ (2026-07-23)
+- [x] ~~Local dashboard + unsynced badge~~ (2026-07-23)
 - [ ] Apps Script backend (Code.gs): upsert by id, summary doGet,
       daily Drive JSON backup function
 - [ ] Sync client + settings (collector name, script URL, secret)

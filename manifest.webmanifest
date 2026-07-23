@@ -1,0 +1,14 @@
+{
+  "name": "চাঁদা খাতা — Ganesh Puja",
+  "short_name": "চাঁদা খাতা",
+  "description": "Ganesh Puja chanda collection ledger",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fdf6ee",
+  "theme_color": "#d9531e",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
