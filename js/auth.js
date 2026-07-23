@@ -26,7 +26,8 @@ const Auth = (function () {
   function saveSession(resp) {
     localStorage.setItem('ck_token', resp.token);
     localStorage.setItem('ck_user', JSON.stringify(resp.user));
-    Settings.set('collectorName', resp.user.name); // stamped on entries
+    Settings.set('collectorName', resp.user.name); // display name on entries
+    Settings.set('collectorUsername', resp.user.username); // stable identity key
   }
   function logout() {
     localStorage.removeItem('ck_token');

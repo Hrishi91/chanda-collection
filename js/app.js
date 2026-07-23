@@ -296,9 +296,16 @@
     };
   }
   function handoverFlow(cashierOpts) {
-    const toStep = cashierOpts && cashierOpts.length
+    // cashierOpts: [{username, name}] (new server) or [name] (older server) or
+    // null/[] → free-text. Normalise both shapes.
+    const opts = (cashierOpts || []).map(function (c) {
+      return typeof c === 'string' ? { username: c, name: c } : c;
+    });
+    const byUser = {};
+    opts.forEach(function (c) { byUser[c.username] = c.name; });
+    const toStep = opts.length
       ? { key: 'to', qKey: 'q_handover_to', kind: 'choice',
-          options: cashierOpts.map(function (n) { return { v: n, label: n }; }) }
+          options: opts.map(function (c) { return { v: c.username, label: c.name }; }) }
       : { key: 'to', qKey: 'q_handover_to', kind: 'text' };
     return {
       title: t('handover_title'),
@@ -308,8 +315,13 @@
       save: function (a) {
         const m = moneyOf(a);
         if (m.total <= 0) return Promise.reject(new Error('zero'));
+        // when picked from the list, a.to is a username → resolve name + id;
+        // when typed free (offline), a.to is a name with no id.
+        const toId = byUser[a.to] !== undefined ? a.to : '';
+        const toName = byUser[a.to] !== undefined ? byUser[a.to] : a.to;
         return DB.put('handovers', DB.newRow({
-          from: Settings.get('collectorName'), to: a.to,
+          from: Settings.get('collectorName'), fromId: Settings.get('collectorUsername') || '',
+          to: toName, toId: toId,
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
           date: todayISO(), note: a.note || '',
           status: 'pending', confirmedBy: '', confirmedAt: '',
@@ -404,9 +416,9 @@
   function renderHome() {
     DB.allData().then(function (data) {
       const today = todayISO();
-      const me = Settings.get('collectorName');
+      const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
       const myToday = data.payments.concat(data.daily).filter(function (r) {
-        return r.collector === me && (r.date === today || (r.createdAt || '').slice(0, 10) === today);
+        return (r.collectorId || r.collector) === meId && (r.date === today || (r.createdAt || '').slice(0, 10) === today);
       }).reduce(function (a, r) { return a + Number(r.amount || 0); }, 0);
       $view().innerHTML =
         '<div class="hero"><div>🙏 ' + esc(t('welcome_title')) + ' ' + Settings.get('year') + '</div>' +
@@ -730,7 +742,7 @@
     const el = document.getElementById('my-summary');
     const deviceFallback = function () {
       DB.allData().then(function (data) {
-        el.innerHTML = mySummaryHTML(Aggregate.personalSummary(data, Settings.get('collectorName')), true);
+        el.innerHTML = mySummaryHTML(Aggregate.personalSummary(data, Settings.get('collectorUsername') || Settings.get('collectorName')), true);
       });
     };
     if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {

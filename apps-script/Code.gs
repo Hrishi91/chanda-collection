@@ -13,12 +13,15 @@
  */
 
 var SHEETS = {
-  parties:  ['id', 'year', 'type', 'name', 'owner', 'side', 'phone', 'pledged', 'collector', 'createdAt', 'receivedAt'],
-  payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt'],
-  daily:    ['id', 'year', 'type', 'busName', 'busNumber', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt'],
-  expenses: ['id', 'year', 'subject', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt'],
+  // NOTE: new columns are appended at the END so setup()'s migration (which
+  // appends missing headers) keeps push's position-based writes aligned with
+  // existing sheets. Do not insert columns mid-array.
+  parties:  ['id', 'year', 'type', 'name', 'owner', 'side', 'phone', 'pledged', 'collector', 'createdAt', 'receivedAt', 'collectorId'],
+  payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId'],
+  daily:    ['id', 'year', 'type', 'busName', 'busNumber', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId'],
+  expenses: ['id', 'year', 'subject', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt', 'collectorId'],
   handovers: ['id', 'year', 'from', 'to', 'amount', 'cashAmount', 'upiAmount', 'date', 'note',
-              'status', 'confirmedBy', 'confirmedAt', 'collector', 'createdAt', 'receivedAt'],
+              'status', 'confirmedBy', 'confirmedAt', 'collector', 'createdAt', 'receivedAt', 'fromId', 'toId', 'collectorId'],
   // audit-preserving corrections: a void points at another record's id
   voids: ['id', 'year', 'targetStore', 'targetId', 'reason', 'collector', 'createdAt', 'receivedAt'],
 };
@@ -42,7 +45,12 @@ function setup() {
   var ss = SpreadsheetApp.getActive();
   Object.keys(SHEETS).forEach(function (key) {
     var sh = ss.getSheetByName(SHEET_TITLES[key]) || ss.insertSheet(SHEET_TITLES[key]);
-    if (sh.getLastRow() === 0) { sh.appendRow(SHEETS[key]); sh.setFrozenRows(1); }
+    var want = SHEETS[key];
+    if (sh.getLastRow() === 0) { sh.appendRow(want); sh.setFrozenRows(1); return; }
+    // migrate: append any new columns to the header (existing data untouched)
+    var have = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+    var missing = want.filter(function (c) { return have.indexOf(c) < 0; });
+    if (missing.length) sh.getRange(1, have.length + 1, 1, missing.length).setValues([missing]);
   });
   var us = ss.getSheetByName('Users') || ss.insertSheet('Users');
   if (us.getLastRow() === 0) { us.appendRow(USER_COLS); us.setFrozenRows(1); }
@@ -216,6 +224,7 @@ var ACTIONS = {
         byStore[store].forEach(function (row) {
           row.receivedAt = new Date().toISOString();
           row.collector = row.collector || user.row.name;
+          row.collectorId = row.collectorId || user.row.username; // stable identity
           var values = cols.map(function (c) { return row[c] !== undefined ? row[c] : ''; });
           if (idRow[row.id]) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([values]);
           else sh.appendRow(values);
@@ -248,7 +257,7 @@ var ACTIONS = {
   myReport: function (b) {
     var u = requireUser_(b.token);
     var d = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
-    return { ok: true, data: personalSummary_(d, u.row.name) };
+    return { ok: true, data: personalSummary_(d, u.row.username) };
   },
 
   // cashier's working list: handovers addressed to them (both statuses)
@@ -256,7 +265,9 @@ var ACTIONS = {
     var u = requireUser_(b.token);
     if (Number(u.row.cashier) !== 1 && u.row.role !== 'admin') throw new Error('not-cashier');
     var d = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
-    return { ok: true, handovers: d.handovers.filter(function (h) { return h.to === u.row.name; }) };
+    return { ok: true, handovers: d.handovers.filter(function (h) {
+      return String(h.toId || h.to) === String(u.row.username) || h.to === u.row.name;
+    }) };
   },
 
   // approved cashiers (any logged-in user may ask — needed for handover)
@@ -269,7 +280,7 @@ var ACTIONS = {
         var row = {};
         USER_COLS.forEach(function (c, j) { row[c] = v[j]; });
         if (row.status === 'approved' && (Number(row.cashier) === 1 || row.role === 'admin')) {
-          names.push(row.name);
+          names.push({ username: row.username, name: row.name });
         }
       });
     }
@@ -432,6 +443,8 @@ function activeData_(d) {
   return { parties: keep(d.parties), payments: keep(d.payments), daily: keep(d.daily),
            expenses: keep(d.expenses), handovers: keep(d.handovers), voids: d.voids || [] };
 }
+// Stable collector key: username (collectorId) when present, else name (legacy).
+function ck_(r) { return String((r && (r.collectorId || r.collector)) || '?'); }
 function num_(x) { return Number(x) || 0; }
 function sumBy_(rows, f) {
   var t = 0;
@@ -445,33 +458,38 @@ function cashOnly_(r) {
 
 // True cash in hand per person (used by the 'inhand' report).
 function inHandRows_(d) {
-  var coll = {}, received = {}, handed = {}, pending = {}, spent = {};
+  var coll = {}, received = {}, handed = {}, pending = {}, spent = {}, nameBy = {};
+  var note = function (k, nm) { if (nm) nameBy[k] = nm; };
   d.payments.concat(d.daily).forEach(function (r) {
-    var c = r.collector || '?'; coll[c] = (coll[c] || 0) + num_(r.amount);
+    var k = ck_(r); note(k, r.collector); coll[k] = (coll[k] || 0) + num_(r.amount);
   });
   d.handovers.forEach(function (h) {
     var amt = num_(h.amount);
+    var fromK = String(h.fromId || h.from || '?'), toK = String(h.toId || h.to || '?');
+    note(fromK, h.from); note(toK, h.to);
     if (h.status === 'confirmed') {
-      handed[h.from] = (handed[h.from] || 0) + amt;
-      received[h.to] = (received[h.to] || 0) + amt;
-    } else pending[h.from] = (pending[h.from] || 0) + amt;
+      handed[fromK] = (handed[fromK] || 0) + amt;
+      received[toK] = (received[toK] || 0) + amt;
+    } else pending[fromK] = (pending[fromK] || 0) + amt;
   });
-  d.expenses.forEach(function (e) { var c = e.collector || '?'; spent[c] = (spent[c] || 0) + num_(e.amount); });
-  var names = {};
-  [coll, received, handed, pending, spent].forEach(function (m) { Object.keys(m).forEach(function (k) { names[k] = 1; }); });
-  return Object.keys(names).map(function (c) {
-    return { collector: c, collected: coll[c] || 0, received: received[c] || 0,
-             handedOver: handed[c] || 0, pending: pending[c] || 0, spent: spent[c] || 0,
-             inHand: (coll[c] || 0) + (received[c] || 0) - (handed[c] || 0) - (spent[c] || 0) };
+  d.expenses.forEach(function (e) { var k = ck_(e); note(k, e.collector); spent[k] = (spent[k] || 0) + num_(e.amount); });
+  var keys = {};
+  [coll, received, handed, pending, spent].forEach(function (m) { Object.keys(m).forEach(function (k) { keys[k] = 1; }); });
+  return Object.keys(keys).map(function (k) {
+    return { collector: nameBy[k] || k, collected: coll[k] || 0, received: received[k] || 0,
+             handedOver: handed[k] || 0, pending: pending[k] || 0, spent: spent[k] || 0,
+             inHand: (coll[k] || 0) + (received[k] || 0) - (handed[k] || 0) - (spent[k] || 0) };
   }).sort(function (a, b) { return b.inHand - a.inHand; });
 }
 
 // One person's own summary (always-visible "My summary" report).
-function personalSummary_(d, name) {
+function personalSummary_(d, ident) {
   d = activeData_(d);
-  var myPay = d.payments.filter(function (p) { return p.collector === name; });
-  var myDaily = d.daily.filter(function (x) { return x.collector === name; });
-  var myExp = d.expenses.filter(function (e) { return e.collector === name; });
+  ident = String(ident);
+  var mine = function (r) { return ck_(r) === ident || r.collector === ident; };
+  var myPay = d.payments.filter(mine);
+  var myDaily = d.daily.filter(mine);
+  var myExp = d.expenses.filter(mine);
   var money = myPay.concat(myDaily);
   var cash = 0, upi = 0;
   money.forEach(function (r) {
@@ -481,11 +499,13 @@ function personalSummary_(d, name) {
   var dailyByType = { road: 0, toto: 0, bus: 0 };
   myDaily.forEach(function (r) { if (r.type in dailyByType) dailyByType[r.type] += num_(r.amount); });
   var received = 0, handedOver = 0, pending = 0;
+  var isTo = function (h) { return String(h.toId || h.to) === ident || h.to === ident; };
+  var isFrom = function (h) { return String(h.fromId || h.from) === ident || h.from === ident; };
   d.handovers.forEach(function (h) {
     var amt = num_(h.amount);
-    if (h.to === name && h.status === 'confirmed') received += amt;
-    if (h.from === name && h.status === 'confirmed') handedOver += amt;
-    if (h.from === name && h.status !== 'confirmed') pending += amt;
+    if (isTo(h) && h.status === 'confirmed') received += amt;
+    if (isFrom(h) && h.status === 'confirmed') handedOver += amt;
+    if (isFrom(h) && h.status !== 'confirmed') pending += amt;
   });
   var collected = sumBy_(money, function (r) { return r.amount; });
   var expenseTotal = sumBy_(myExp, function (e) { return e.amount; });
@@ -539,9 +559,9 @@ function computeReport_(id, d) {
   }
   if (id === 'inhand') return { rows: inHandRows_(d) };
   if (id === 'collectors') {
-    var t = {};
-    money.forEach(function (r) { var c = r.collector || '?'; t[c] = (t[c] || 0) + num_(r.amount); });
-    var rows = Object.keys(t).map(function (c) { return { collector: c, total: t[c] }; })
+    var t = {}, nameBy = {};
+    money.forEach(function (r) { var k = ck_(r); if (r.collector) nameBy[k] = r.collector; t[k] = (t[k] || 0) + num_(r.amount); });
+    var rows = Object.keys(t).map(function (k) { return { collector: nameBy[k] || k, total: t[k] }; })
       .sort(function (a, b) { return b.total - a.total; });
     return { rows: rows };
   }

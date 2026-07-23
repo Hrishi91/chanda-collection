@@ -393,3 +393,32 @@
   (push skips unknown stores). Path handed off in chat.
 - Scope: payments only for now; voiding daily/expense needs a per-entry
   browse screen (later). Next: #4 name→id collector identity.
+
+## 2026-07-23 — Fix-list #4: collector identity by username, not name
+
+- Aggregation keyed collectors by the display NAME, so two people sharing a
+  name merged, and handover 'to' (free-text) was typo-fragile. Now every
+  record carries `collectorId` (username) beside `collector` (name), and
+  handovers carry `fromId`/`toId`. All aggregation keys by
+  `collectorId || collector` (stable) and shows the name — `ck()` in
+  aggregate.js, `ck_()` in Code.gs. Fully backward-compatible: legacy rows
+  (name only) fall back to name-keying.
+- Client: auth.js stores collectorUsername on login; db.js newRow stamps
+  collectorId; inHandRows/personalSummary/renderHome scope by id; handover
+  flow picks a cashier by username (label = name), stores to/toId, and
+  normalises both old ([name]) and new ([{username,name}]) `cashiers`
+  shapes so it works before AND after the server redeploy.
+- Server (Code.gs): SHEETS gained collectorId (+ handovers fromId/toId),
+  APPENDED at the end so setup()'s new schema-migration (auto-adds missing
+  header columns) keeps push's position-based writes aligned. push stamps
+  collectorId; cashiers returns {username,name}; pendingHandovers +
+  personalSummary_ + inHandRows_ + collectors report all key by id.
+- Verified: 99 tests pass (9 new — two same-name collectors stay separate,
+  handover matched by toId, personalSummary scoped by username, legacy
+  fallback). Browser: session→collectorUsername, newRow→collectorId,
+  handover fromId/toId, My-summary scoped to salil (other username sees 0),
+  in-hand keyed by id but shows the Bengali name, reconcile balanced.
+  sw → chanda-v3.13.0.
+- ⚠️ Redeploy now covers #3+#4: paste new Code.gs, run setup() (auto-adds
+  the new columns + Voids sheet — no manual sheet deletion), redeploy.
+  Next: #5 server-side logout / token invalidation.

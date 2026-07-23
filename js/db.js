@@ -74,7 +74,8 @@ const DB = (function () {
     return Object.assign({
       id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()),
       year: Settings.get('year'),
-      collector: Settings.get('collectorName') || '?',
+      collector: Settings.get('collectorName') || '?',      // display name
+      collectorId: Settings.get('collectorUsername') || '',  // stable identity
       createdAt: new Date().toISOString(),
       synced: 0,
     }, extra);

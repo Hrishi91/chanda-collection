@@ -211,5 +211,29 @@ eq(vrec.balanced, true, 'void: books still balance');
 eq(vrec.totalCollected, 300, 'void: excluded from reconcile');
 eq(duesList(voidData.parties, voidData.payments, voidData.voids)[0].due, 700, 'void: excluded from duesList');
 
+// ---- identity: username key, name display (two same-name collectors) ----
+const idData = {
+  parties: [], expenses: [], voids: [], daily: [],
+  payments: [
+    { id: 'a', collectorId: 'rahul1', collector: 'Rahul', amount: 100 },
+    { id: 'b', collectorId: 'rahul2', collector: 'Rahul', amount: 300 },
+  ],
+  handovers: [{ id: 'h', fromId: 'rahul2', from: 'Rahul', toId: 'kartik', to: 'Kartik', amount: 200, status: 'confirmed' }],
+};
+const idh = inHandRows(idData);
+eq(idh.length, 3, 'identity: two same-name collectors + cashier = 3 separate rows');
+const idR1 = idh.find(function (r) { return r.collected === 100; });
+const idR2 = idh.find(function (r) { return r.collected === 300; });
+const idK = idh.find(function (r) { return r.collector === 'Kartik'; });
+eq(idR1.collector, 'Rahul', 'identity: display name kept');
+eq(idR1.inHand, 100, 'identity: rahul1 not merged with rahul2');
+eq(idR2.inHand, 100, 'identity: rahul2 = 300 − 200 handed');
+eq(idK.received, 200, 'identity: handover matched by toId');
+eq(idK.inHand, 200, 'identity: cashier holds received 200');
+eq(personalSummary(idData, 'rahul1').collected, 100, 'identity: personalSummary scoped by username (rahul1)');
+eq(personalSummary(idData, 'rahul2').handedOver, 200, 'identity: personalSummary rahul2 handed by fromId');
+// legacy name-only rows still work (fallback)
+eq(inHandRows({ payments: [{ id: 'x', collector: 'Old', amount: 50 }], daily: [], expenses: [], handovers: [], voids: [] })[0].inHand, 50, 'identity: legacy name-only row still keyed');
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

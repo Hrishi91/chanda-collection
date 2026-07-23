@@ -9,6 +9,10 @@
     (data.voids || []).forEach(function (v) { if (v && v.targetId) s[v.targetId] = 1; });
     return s;
   }
+  // Stable collector key: username (collectorId) when present, else the name
+  // (legacy rows). So two people sharing a name never merge, and the name is
+  // still available for display.
+  function ck(r) { return String((r && (r.collectorId || r.collector)) || '?'); }
   function activeData(data) {
     const v = voidedIds(data);
     const keep = function (rows) { return (rows || []).filter(function (r) { return r && !v[r.id]; }); };
@@ -92,41 +96,46 @@
   // (the giver keeps credit until the cashier confirms receipt).
   function inHandRows(data) {
     data = activeData(data);
-    const collected = {}, received = {}, handed = {}, pending = {}, spent = {};
+    const collected = {}, received = {}, handed = {}, pending = {}, spent = {}, nameBy = {};
+    const note = function (k, nm) { if (nm) nameBy[k] = nm; };
     (data.payments || []).concat(data.daily || []).forEach(function (r) {
-      const c = r.collector || '?';
-      collected[c] = (collected[c] || 0) + (Number(r.amount) || 0);
+      const k = ck(r); note(k, r.collector);
+      collected[k] = (collected[k] || 0) + (Number(r.amount) || 0);
     });
     (data.handovers || []).forEach(function (h) {
       const amt = Number(h.amount) || 0;
+      const fromK = String(h.fromId || h.from || '?'), toK = String(h.toId || h.to || '?');
+      note(fromK, h.from); note(toK, h.to);
       if (h.status === 'confirmed') {
-        handed[h.from] = (handed[h.from] || 0) + amt;
-        received[h.to] = (received[h.to] || 0) + amt;
+        handed[fromK] = (handed[fromK] || 0) + amt;
+        received[toK] = (received[toK] || 0) + amt;
       } else {
-        pending[h.from] = (pending[h.from] || 0) + amt;
+        pending[fromK] = (pending[fromK] || 0) + amt;
       }
     });
     (data.expenses || []).forEach(function (e) {
-      const c = e.collector || '?';
-      spent[c] = (spent[c] || 0) + (Number(e.amount) || 0);
+      const k = ck(e); note(k, e.collector);
+      spent[k] = (spent[k] || 0) + (Number(e.amount) || 0);
     });
-    const names = {};
+    const keys = {};
     [collected, received, handed, pending, spent].forEach(function (m) {
-      Object.keys(m).forEach(function (k) { names[k] = 1; });
+      Object.keys(m).forEach(function (k) { keys[k] = 1; });
     });
-    return Object.keys(names).map(function (c) {
-      return { collector: c, collected: collected[c] || 0, received: received[c] || 0,
-               handedOver: handed[c] || 0, pending: pending[c] || 0, spent: spent[c] || 0,
-               inHand: (collected[c] || 0) + (received[c] || 0) - (handed[c] || 0) - (spent[c] || 0) };
+    return Object.keys(keys).map(function (k) {
+      return { collector: nameBy[k] || k, collected: collected[k] || 0, received: received[k] || 0,
+               handedOver: handed[k] || 0, pending: pending[k] || 0, spent: spent[k] || 0,
+               inHand: (collected[k] || 0) + (received[k] || 0) - (handed[k] || 0) - (spent[k] || 0) };
     }).sort(function (a, b) { return b.inHand - a.inHand; });
   }
 
-  // One person's own summary (always-visible "My summary" report).
-  function personalSummary(data, name) {
+  // One person's own summary (always-visible "My summary" report). `ident` is
+  // the caller's identity — username (preferred) or, for legacy rows, name.
+  function personalSummary(data, ident) {
     data = activeData(data);
-    const myPay = (data.payments || []).filter(function (p) { return p.collector === name; });
-    const myDaily = (data.daily || []).filter(function (x) { return x.collector === name; });
-    const myExp = (data.expenses || []).filter(function (e) { return e.collector === name; });
+    const mine = function (r) { return ck(r) === String(ident) || r.collector === ident; };
+    const myPay = (data.payments || []).filter(mine);
+    const myDaily = (data.daily || []).filter(mine);
+    const myExp = (data.expenses || []).filter(mine);
     const money = myPay.concat(myDaily);
     let cash = 0, upi = 0;
     money.forEach(function (r) {
@@ -137,11 +146,13 @@
     const dailyByType = { road: 0, toto: 0, bus: 0 };
     myDaily.forEach(function (r) { if (r.type in dailyByType) dailyByType[r.type] += Number(r.amount) || 0; });
     let received = 0, handedOver = 0, pending = 0;
+    const isTo = function (h) { return String(h.toId || h.to) === String(ident) || h.to === ident; };
+    const isFrom = function (h) { return String(h.fromId || h.from) === String(ident) || h.from === ident; };
     (data.handovers || []).forEach(function (h) {
       const amt = Number(h.amount) || 0;
-      if (h.to === name && h.status === 'confirmed') received += amt;
-      if (h.from === name && h.status === 'confirmed') handedOver += amt;
-      if (h.from === name && h.status !== 'confirmed') pending += amt;
+      if (isTo(h) && h.status === 'confirmed') received += amt;
+      if (isFrom(h) && h.status === 'confirmed') handedOver += amt;
+      if (isFrom(h) && h.status !== 'confirmed') pending += amt;
     });
     const expenseTotal = myExp.reduce(function (a, e) { return a + (Number(e.amount) || 0); }, 0);
     const expenses = myExp.map(function (e) { return { date: e.date, desc: e.desc, amount: Number(e.amount) || 0 }; })
