@@ -12,13 +12,15 @@
 - [x] ~~Bulk shop mode~~ (2026-07-23, needs live re-check on phone)
 - [x] ~~Parties list + search + dues; party detail + installment~~ (2026-07-23)
 - [x] ~~Local dashboard + unsynced badge~~ (2026-07-23)
-- [ ] Apps Script backend (Code.gs): upsert by id, summary doGet,
-      daily Drive JSON backup function
-- [ ] Sync client + settings (collector name, script URL, secret)
-- [ ] Central report view (fetch summary from Apps Script)
-- [ ] JSON export/import backup
-- [ ] Setup guide for Hrishi (deploy Apps Script) + collector user guide
+- [x] ~~Apps Script backend (Code.gs)~~ (2026-07-23, code written)
+- [x] ~~Sync client + settings~~ (2026-07-23)
+- [x] ~~Central report view~~ (2026-07-23)
+- [x] ~~JSON export/import backup~~ (2026-07-23)
+- [x] ~~Setup + collector guides~~ (2026-07-23)
 - [ ] GitHub repo + Pages deploy (**needs Hrishi's ok — public repo**)
+- [ ] END-TO-END sync test against real Apps Script deployment
+      (blocked on Hrishi doing setup-google.md steps)
+- [ ] Real-phone smoke test: install, mic permission, bn voice entry
 
 ## P1 — nice-to-have before puja
 

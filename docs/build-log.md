@@ -30,3 +30,15 @@
   with "পাঁচশো"→₹500 word parse → save → খাতা list (₹200/₹500, বাকি
   ₹300) → installment "তিনশো" → ₹500/₹500 ✅ → report totals correct;
   unsynced badge counts 3.
+
+## 2026-07-23 — Google Sheets backend + user guides
+
+- `apps-script/Code.gs`: doPost push with LockService + upsert-by-uuid
+  (safe retries, no duplicates from 10 concurrent phones), doGet dump
+  (year-filtered, client aggregates with the same aggregate.js), setup()
+  sheet creator, dailyBackup() → Drive folder JSON snapshots. Secret in
+  Script Properties, never in the repo.
+- Guides: `docs/user-guide/setup-google.md` (owner, one-time deploy),
+  `docs/user-guide/collector-guide.md` (Bengali, for the 10 collectors).
+- Not yet live-tested against a real deployment — needs Hrishi's Google
+  account (tracked in pending.md).
