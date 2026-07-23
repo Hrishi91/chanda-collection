@@ -34,7 +34,7 @@ const Sync = (function () {
             if (rows.length) updates.push(DB.bulkPut(s, rows));
           });
           return Promise.all(updates).then(function () {
-            inFlight = false; return { ok: true, sent: resp.savedIds.length };
+            inFlight = false; return { ok: true, sent: (resp.savedIds || []).length };
           });
         });
     }).catch(function (e) {

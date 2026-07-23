@@ -723,10 +723,10 @@
 
   function renderSettings() {
     const user = Auth.current() || { name: '?', username: '?' };
-    const fields = [
-      ['year', 'year', 'number'],
-      ['scriptUrl', 'script_url', 'text'],
-    ];
+    // scriptUrl is a backend override for testing — admins only, so a
+    // collector can't accidentally edit it and break their own sync.
+    const fields = [['year', 'year', 'number']];
+    if (Auth.isAdmin()) fields.push(['scriptUrl', 'script_url', 'text']);
     $view().innerHTML = '<div class="card"><div class="card-title">👤 ' + esc(user.name) +
       (user.role === 'admin' ? ' 👑' : '') + (Auth.isCashier() ? ' 💰' : '') + '</div>' +
       '<div class="row-sub">' + esc(t('logged_in_as')) + ': @' + esc(user.username) + '</div></div>' +

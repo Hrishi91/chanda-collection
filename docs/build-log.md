@@ -297,3 +297,13 @@
   removed by Hrishi. Test data left in the Sheet (SYNC TEST দোকান party +
   its payment, and the Ramu→hrishikesh handover) is Hrishi's to clear.
   Token was shared in chat once — re-login rotates/invalidates it.
+
+## 2026-07-23 — Polish: hide scriptUrl from collectors, defensive sync (v3.7.0)
+
+- Settings: the scriptUrl backend-override field is now shown to admins
+  only — a collector can no longer accidentally edit it and break their
+  own sync. (Verified in browser: admin fields [year, scriptUrl];
+  collector fields [year].)
+- sync.js: `resp.savedIds.length` → `(resp.savedIds || []).length` so a
+  malformed server response can't throw during a sync.
+- sw → chanda-v3.7.0. 71 tests pass; app.js + sync.js node --check clean.
