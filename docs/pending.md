@@ -60,10 +60,26 @@ Requirements given in chat; awaiting final go + UPI answer
   entries post immediately; accountability comes from the handover
   ledger instead, so collection never blocks on a busy cashier.
 
+## P0.7 — polish/hardening sprint (2026-07-23, DONE, needs one redeploy)
+
+Fix-list #1–#10 + in-app notifications + in-app guide, all live (sw
+v3.20.0). See build-log for details. Pending: batched Code.gs redeploy
+(voids, collectorId identity, logout, password, notifications) + run
+setup() (auto-migrates columns) + clear the leftover test data.
+
+- [x] ~~#1 reconciliation self-check~~  [x] ~~#2 IST date~~
+- [x] ~~#3 void payment (audit)~~  [x] ~~#4 collector identity by username~~
+- [x] ~~#5 server-side logout~~  [x] ~~#6 password policy (min6 + stretched)~~
+- [x] ~~#7 auto/pull refresh~~  [x] ~~#8 import guard~~
+- [x] ~~#9 data-loss guard~~  [x] ~~#10 speed (debounce + report cache)~~
+- [x] ~~in-app notifications (banner + OS) — Telegram deferred~~
+- [ ] Telegram alerts (Hrishi's bot) — deferred, discuss later
+
 ## P1 — nice-to-have before puja
 
 - [ ] Receipt image/PDF per payment (share via WhatsApp)
-- [ ] Edit/void entries with audit trail (currently append-only)
+- [x] ~~Edit/void entries with audit trail~~ (2026-07-23, payments; daily/
+      expense void later — needs a per-entry browse screen)
 - [ ] Per-collector leaderboard on central report
 - [ ] PNG icons (maskable) alongside SVG
 
