@@ -1008,7 +1008,7 @@
       // client-side checks with clear, persistent messages
       if (!name) { authError(t('fill_all')); return; }
       if (!USERNAME_RE.test(username)) { authError(t('err_bad_username')); return; }
-      if (pw.length < 4) { authError(t('err_bad_input')); return; }
+      if (pw.length < 6) { authError(t('err_bad_input')); return; }
       if (pw !== pw2) { authError(t('pw_mismatch')); return; }
       const btn = this; btn.disabled = true;
       Auth.register({ name: name, username: username,

@@ -455,3 +455,19 @@
   token AND clears the local session (loggedIn → false) even on failure.
   99 tests pass. sw → chanda-v3.15.0. Needs the batched Code.gs redeploy.
 - Next: #6 password policy (min length + hash iterations).
+
+## 2026-07-23 — Fix-list #6: stronger password policy
+
+- Min length 4 → 6 (client register check + server register/changePassword;
+  i18n hints updated). resetPassword's 6-digit temp already qualifies.
+- Password hashing key-stretched: new scheme `s2$` iterates SHA-256
+  HASH_ITER (200) times so a leaked sheet is far slower to brute-force.
+  Backward-compatible via `verifyPassword_` — legacy single-pass hashes
+  still verify and are transparently upgraded to `s2$` on the next
+  successful login (no user is locked out). Iteration kept modest (200)
+  so GAS login latency stays low; tune HASH_ITER if needed.
+- Verified: hash scheme ported to node — legacy + new both verify, wrong
+  passwords rejected, upgrade path correct. Browser: register rejects a
+  5-char password with "min 6". 99 tests pass. sw → chanda-v3.16.0.
+  Needs the batched Code.gs redeploy.
+- Next: #7 pull-to-refresh + focus-refresh + admin auto-refresh.

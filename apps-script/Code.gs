@@ -74,10 +74,23 @@ function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
+// Password hashing. Current scheme 's2$' key-stretches SHA-256 to slow down
+// brute-force if the sheet ever leaks. Legacy hashes (no prefix, single-pass)
+// still verify and are upgraded transparently on the next successful login.
+var HASH_ITER = 200; // key-stretch rounds; kept modest so GAS login stays snappy
+function sha256_(s) {
+  return Utilities.base64Encode(Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256, s, Utilities.Charset.UTF_8));
+}
 function hash_(salt, password) {
-  var d = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + password,
-                                  Utilities.Charset.UTF_8);
-  return Utilities.base64Encode(d);
+  var d = salt + password;
+  for (var i = 0; i < HASH_ITER; i++) d = sha256_(d + salt);
+  return 's2$' + d;
+}
+function verifyPassword_(stored, salt, password) {
+  stored = String(stored || '');
+  if (stored.indexOf('s2$') === 0) return hash_(salt, password) === stored;
+  return sha256_(salt + password) === stored; // legacy single-pass
 }
 function usersSheet_() { return SpreadsheetApp.getActive().getSheetByName('Users'); }
 function findUser_(col, val) {
@@ -148,7 +161,7 @@ var ACTIONS = {
     var name = String(b.name || '').trim();
     var password = String(b.password || '');
     if (!/^[a-z0-9._-]{3,20}$/.test(username)) throw new Error('bad-username');
-    if (!name || password.length < 4) throw new Error('bad-input');
+    if (!name || password.length < 6) throw new Error('bad-input');
     var lock = LockService.getScriptLock();
     lock.waitLock(20000);
     try {
@@ -174,13 +187,17 @@ var ACTIONS = {
 
   login: function (b) {
     var u = findUser_('username', String(b.username || '').trim().toLowerCase());
-    if (!u || hash_(u.row.salt, String(b.password || '')) !== u.row.passwordHash) {
+    if (!u || !verifyPassword_(u.row.passwordHash, u.row.salt, String(b.password || ''))) {
       throw new Error('bad-login');
     }
     if (u.row.status === 'pending') throw new Error('pending');
     if (u.row.status === 'blocked') throw new Error('blocked');
     var year = b.year ? Number(b.year) : new Date().getFullYear();
     if (!hasYear_(u.row.years, year)) throw new Error('year-not-approved');
+    // transparently upgrade a legacy hash to the current scheme
+    if (String(u.row.passwordHash).indexOf('s2$') !== 0) {
+      u.row.passwordHash = hash_(u.row.salt, String(b.password || ''));
+    }
     u.row.token = Utilities.getUuid();
     saveUser_(u);
     return { ok: true, token: u.row.token, user: publicUser_(u.row) };
@@ -196,10 +213,10 @@ var ACTIONS = {
   changePassword: function (b) {
     var u = requireUser_(b.token);
     var mustChange = Number(u.row.mustChange) === 1;
-    if (!mustChange && hash_(u.row.salt, String(b.oldPassword || '')) !== u.row.passwordHash) {
+    if (!mustChange && !verifyPassword_(u.row.passwordHash, u.row.salt, String(b.oldPassword || ''))) {
       throw new Error('bad-login');
     }
-    if (String(b.newPassword || '').length < 4) throw new Error('bad-input');
+    if (String(b.newPassword || '').length < 6) throw new Error('bad-input');
     u.row.salt = Utilities.getUuid();
     u.row.passwordHash = hash_(u.row.salt, String(b.newPassword));
     u.row.mustChange = 0;
