@@ -861,3 +861,23 @@
 - Verified live-mock (full → delta-merge → idle → year-change → back) and the
   server epoch helpers in Node. 105 tests pass.
 - **Requires Code.gs redeploy** (pull `since` + receivedAt bumps are new).
+
+## v3.40.0 — Role gap: in-app admin grant + collector↔area assignment
+
+Roadmap step 1 of the remaining work ("go one by one").
+
+- **Admin grant/revoke in-app** (was editor-only `makeAdmin`). New `setRole`
+  action, admin-only, with safeguards: you can't demote yourself, and the last
+  remaining admin can't be demoted (`countAdmins_`) — the committee can never
+  lock itself out. Admin panel: a 👑 make/remove-admin chip per approved user;
+  the `err_cant_demote_self` / `err_last_admin` messages surface as toasts.
+- **Collector↔area assignment**. New `areas` column on Users (append-only;
+  setup() now migrates the Users header too), `setAreas` action, and
+  `publicUser_` returns `areas`. Admin panel shows an "📍 এলাকার দায়িত্ব" chip
+  row per collector (from the area master list); toggling calls setAreas. This
+  is the base for area-based reports / leaderboard (later steps).
+- `confirmHandover`/`resolveCorrection` receivedAt bumps and the delta pull are
+  unchanged here; all of it ships in the same pending Code.gs redeploy.
+- Verified live-mock: chips render from u.areas, self shows remove-admin + no
+  area chips, setAreas/setRole send the right payloads, last-admin toast maps.
+  105 tests pass. **Requires the pending Code.gs redeploy.**

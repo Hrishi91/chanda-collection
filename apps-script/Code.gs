@@ -32,7 +32,8 @@ var SHEET_TITLES = { parties: 'Parties', payments: 'Payments', daily: 'DailyColl
                      expenses: 'Expenses', handovers: 'Handovers', voids: 'Voids', corrections: 'Corrections' };
 
 var USER_COLS = ['id', 'username', 'name', 'phone', 'passwordHash', 'salt', 'role',
-                 'cashier', 'reports', 'status', 'years', 'token', 'mustChange', 'createdAt', 'updatedAt'];
+                 'cashier', 'reports', 'status', 'years', 'token', 'mustChange', 'createdAt', 'updatedAt',
+                 'areas']; // append-only: comma-separated area ids this collector is responsible for
 
 // Per-report access: admin sees all; cashier gets 'inhand' by default;
 // anyone else sees only what the admin grants (Users.reports, comma list).
@@ -57,6 +58,11 @@ function setup() {
   });
   var us = ss.getSheetByName('Users') || ss.insertSheet('Users');
   if (us.getLastRow() === 0) { us.appendRow(USER_COLS); us.setFrozenRows(1); }
+  else { // migrate: append any new user columns (e.g. areas) to the header
+    var uHave = us.getRange(1, 1, 1, us.getLastColumn()).getValues()[0].map(String);
+    var uMiss = USER_COLS.filter(function (c) { return uHave.indexOf(c) < 0; });
+    if (uMiss.length) us.getRange(1, uHave.length + 1, 1, uMiss.length).setValues([uMiss]);
+  }
   var es = ss.getSheetByName('ExpenseSubjects') || ss.insertSheet('ExpenseSubjects');
   if (es.getLastRow() === 0) { es.appendRow(['id', 'name', 'createdAt']); es.setFrozenRows(1); }
   // master lists (areas, person locations) — bilingual, admin-editable
@@ -143,7 +149,18 @@ function publicUser_(row) {
            role: row.role, cashier: Number(row.cashier) || 0,
            reports: String(row.reports || ''), status: row.status,
            years: String(row.years || ''), mustChange: Number(row.mustChange) || 0,
-           createdAt: row.createdAt };
+           areas: String(row.areas || ''), createdAt: row.createdAt };
+}
+// how many approved admins exist — guards the last-admin safeguard in setRole
+function countAdmins_() {
+  var sh = usersSheet_(), n = 0;
+  if (sh.getLastRow() > 1) {
+    var ri = USER_COLS.indexOf('role'), si = USER_COLS.indexOf('status');
+    sh.getDataRange().getValues().slice(1).forEach(function (v) {
+      if (String(v[ri]) === 'admin' && String(v[si]) === 'approved') n++;
+    });
+  }
+  return n;
 }
 /** Token → approved user (throws otherwise). */
 function requireUser_(token) {
@@ -592,6 +609,33 @@ var ACTIONS = {
     u.row.reports = (b.reports || []).filter(function (r) {
       return REPORT_IDS.indexOf(r) >= 0;
     }).join(',');
+    saveUser_(u);
+    return { ok: true, user: publicUser_(u.row) };
+  },
+
+  // grant/revoke admin. Safeguards: an admin can't demote themselves, and the
+  // last remaining admin can't be demoted — so the committee never locks itself
+  // out of the admin panel.
+  setRole: function (b) {
+    var me = requireAdmin_(b.token);
+    var u = findUser_('id', b.userId);
+    if (!u) throw new Error('user not found');
+    if (['admin', 'user'].indexOf(b.role) < 0) throw new Error('bad-input');
+    if (b.role !== 'admin' && String(u.row.role) === 'admin') {
+      if (String(u.row.id) === String(me.row.id)) throw new Error('cant-demote-self');
+      if (countAdmins_() <= 1) throw new Error('last-admin');
+    }
+    u.row.role = b.role;
+    saveUser_(u);
+    return { ok: true, user: publicUser_(u.row) };
+  },
+
+  // assign the areas (from the Lists master) a collector is responsible for
+  setAreas: function (b) {
+    requireAdmin_(b.token);
+    var u = findUser_('id', b.userId);
+    if (!u) throw new Error('user not found');
+    u.row.areas = (b.areas || []).map(String).filter(Boolean).join(',');
     saveUser_(u);
     return { ok: true, user: publicUser_(u.row) };
   },

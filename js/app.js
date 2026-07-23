@@ -1420,6 +1420,8 @@
           if (!hasYear) btns += '<button class="chip" data-act="year" data-id="' + u.id + '">' + esc(t('give_year_access')) + '</button>';
           btns += '<button class="chip" data-act="cashier" data-id="' + u.id + '" data-v="' + (u.cashier ? 0 : 1) + '">' +
                   esc(u.cashier ? t('remove_cashier') : t('make_cashier')) + '</button>' +
+                  '<button class="chip" data-act="role" data-id="' + u.id + '" data-v="' + (u.role === 'admin' ? 'user' : 'admin') + '">' +
+                  esc(u.role === 'admin' ? t('remove_admin') : t('make_admin')) + '</button>' +
                   '<button class="chip" data-act="reset" data-id="' + u.id + '">' + esc(t('reset_pw')) + '</button>' +
                   (u.role === 'admin' ? '' : '<button class="chip" data-act="block" data-id="' + u.id + '">' + esc(t('block')) + '</button>');
         } else {
@@ -1429,7 +1431,19 @@
           (u.role === 'admin' ? ' 👑' : '') + (u.cashier ? ' 💰' : '') +
           '<div class="row-sub">@' + esc(u.username) + (u.phone ? ' • 📞 ' + esc(u.phone) : '') +
           ' • ' + esc(u.years || '—') + '</div></div>' +
-          '<div class="chips" style="margin:8px 0 0">' + btns + '</div>' + reportChips(u) + '</div>';
+          '<div class="chips" style="margin:8px 0 0">' + btns + '</div>' + reportChips(u) + areaChips(u) + '</div>';
+      }
+      // which master areas a collector is responsible for (drives area reports)
+      function areaChips(u) {
+        if (u.status !== 'approved' || u.role === 'admin') return '';
+        const mine = String(u.areas || '').split(',').filter(Boolean);
+        const chips = areas.length ? areas.map(function (a) {
+          const on = mine.indexOf(a.id) >= 0;
+          return '<button class="chip' + (on ? ' on' : '') + '" data-area-user="' + u.id + '" data-area-id="' + esc(a.id) + '">' +
+            esc(Settings.get('lang') === 'en' ? (a.nameEn || a.nameBn) : (a.nameBn || a.nameEn)) + '</button>';
+        }).join('') : '<span class="row-sub">' + esc(t('no_areas_yet')) + '</span>';
+        return '<div class="row-sub" style="flex-basis:100%;margin-top:10px">' + esc(t('assign_areas')) + '</div>' +
+          '<div class="chips" style="margin:4px 0 0">' + chips + '</div>';
       }
       function reportChips(u) {
         if (u.status !== 'approved' || u.role === 'admin') return '';
@@ -1524,6 +1538,7 @@
           if (b.dataset.act === 'approve') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') });
           else if (b.dataset.act === 'year') adminAction('approveYear', { userId: id, year: Settings.get('year') });
           else if (b.dataset.act === 'cashier') adminAction('setCashier', { userId: id, cashier: Number(b.dataset.v) });
+          else if (b.dataset.act === 'role') adminAction('setRole', { userId: id, role: b.dataset.v });
           else if (b.dataset.act === 'block') adminAction('setStatus', { userId: id, status: 'blocked' });
           else if (b.dataset.act === 'unblock') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') });
           else if (b.dataset.act === 'reset') adminAction('resetPassword', { userId: id }, function (r) {
@@ -1540,6 +1555,16 @@
           const i = set.indexOf(rid);
           if (i >= 0) set.splice(i, 1); else set.push(rid);
           adminAction('setReports', { userId: uid, reports: set });
+        };
+      });
+      document.querySelectorAll('[data-area-user]').forEach(function (b) {
+        b.onclick = function () {
+          const uid = b.dataset.areaUser, aid = b.dataset.areaId;
+          const u = resp.users.find(function (x) { return x.id === uid; });
+          const set = String(u.areas || '').split(',').filter(Boolean);
+          const i = set.indexOf(aid);
+          if (i >= 0) set.splice(i, 1); else set.push(aid);
+          adminAction('setAreas', { userId: uid, areas: set });
         };
       });
     }).catch(function (e) { $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(errMsg(e)) + '</div>'; });
