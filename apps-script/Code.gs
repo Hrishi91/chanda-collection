@@ -37,7 +37,7 @@ var USER_COLS = ['id', 'username', 'name', 'phone', 'passwordHash', 'salt', 'rol
 
 // Per-report access: admin sees all; cashier gets 'inhand' by default;
 // anyone else sees only what the admin grants (Users.reports, comma list).
-var REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'expenses', 'daily'];
+var REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
 function allowedReports_(u) {
   if (u.row.role === 'admin') return REPORT_IDS.slice();
   var granted = String(u.row.reports || '').split(',').filter(Boolean);
@@ -831,6 +831,19 @@ function computeReport_(id, d) {
     var rows = Object.keys(t).map(function (k) { return { collector: nameBy[k] || k, total: t[k] }; })
       .sort(function (a, b) { return b.total - a.total; });
     return { rows: rows };
+  }
+  if (id === 'areas') {
+    var paidA = {};
+    d.payments.forEach(function (p) { paidA[p.partyId] = (paidA[p.partyId] || 0) + num_(p.amount); });
+    var agg = {};
+    d.parties.forEach(function (p) {
+      var k = p.side || '—';
+      if (!agg[k]) agg[k] = { area: k, count: 0, pledged: 0, paid: 0 };
+      agg[k].count++; agg[k].pledged += num_(p.pledged); agg[k].paid += paidA[p.id] || 0;
+    });
+    var arows = Object.keys(agg).map(function (k) { var a = agg[k]; a.due = a.pledged - a.paid; return a; })
+      .sort(function (a, b) { return b.paid - a.paid; });
+    return { rows: arows, totalPaid: sumBy_(arows, function (r) { return r.paid; }) };
   }
   if (id === 'expenses') {
     var rows = d.expenses.map(function (e) {

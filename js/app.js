@@ -2,7 +2,7 @@
 (function () {
   const $view = function () { return document.getElementById('view'); };
   const SIDES = ['main_malda', 'main_balurghat', 'harirampur', 'singhadaha'];
-  const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'expenses', 'daily'];
+  const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
   let flowState = null;
 
   // offline fallback; the server's reportList is the authority when online
@@ -1070,11 +1070,27 @@
           esc(t('type_' + r.type)) + '</div><b>' + fmtMoney(r.amount) + '</b></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
   }
+  function reportAreasHTML(d) {
+    const rows = d.rows || [];
+    const medal = ['🥇', '🥈', '🥉'];
+    return '<div class="card"><div class="card-title">' + esc(t('report_areas')) +
+      ' — ' + esc(t('paid')) + ': ' + fmtMoney(d.totalPaid) + '</div>' +
+      (rows.length ? rows.map(function (r, i) {
+        const label = r.area === '—' ? t('no_area') : Lists.labelOf('area', r.area);
+        return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 60%"><b>' +
+          (medal[i] || '') + ' ' + esc(label) + '</b>' +
+          '<div class="row-sub">' + r.count + ' ' + esc(t('parties_n')) +
+          (r.due > 0 ? ' • ' + esc(t('due')) + ' ' + fmtMoney(r.due) : ' • ✅') + '</div></div>' +
+          '<div class="row-right"><b>' + fmtMoney(r.paid) + '</b>' +
+          '<div class="row-sub">/ ' + fmtMoney(r.pledged) + '</div></div></div>';
+      }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
+  }
   function reportHTML(id, d) {
     if (id === 'overview') return totalsHTML(d, t('report_overview'));
     if (id === 'dues') return reportDuesHTML(d);
     if (id === 'inhand') return reportInhandHTML(d);
     if (id === 'collectors') return reportCollectorsHTML(d);
+    if (id === 'areas') return reportAreasHTML(d);
     if (id === 'expenses') return reportExpensesHTML(d);
     if (id === 'daily') return reportDailyHTML(d);
     return '';

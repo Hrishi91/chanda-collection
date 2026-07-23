@@ -881,3 +881,20 @@ Roadmap step 1 of the remaining work ("go one by one").
 - Verified live-mock: chips render from u.areas, self shows remove-admin + no
   area chips, setAreas/setRole send the right payloads, last-admin toast maps.
   105 tests pass. **Requires the pending Code.gs redeploy.**
+
+## v3.41.0 — Area-wise report / leaderboard (📍 এলাকা-ভিত্তিক)
+
+Roadmap step 2 (client-only, no redeploy needed to work).
+
+- New `areas` report: groups parties by `side` (the shop area, from the master
+  list), showing per-area count / pledged / paid / due, ranked by collected
+  (leaderboard 🥇🥈🥉). person/member parties (no side) fall under "এলাকা ছাড়া".
+- Computed client-side in `Aggregate.computeReport('areas')` from the pull
+  snapshot; `reportAreasHTML` renders it; area labels via `Lists.labelOf`.
+  Added to REPORT_IDS (so it appears in the picker + admin report permissions).
+- Mirrored `computeReport_('areas')` + REPORT_IDS in Code.gs to keep the two
+  aggregation definitions identical (rides the pending redeploy; client already
+  works without it since reports compute locally).
+- Verified live: 4 parties across 2 areas + no-area → totals ₹3,000, ranked
+  হরিরামপুর ₹1,500/₹2,000 · মালদা ₹1,300/₹2,000 (2 parties) · এলাকা ছাড়া
+  ₹200/₹500, all figures correct. 105 tests pass.

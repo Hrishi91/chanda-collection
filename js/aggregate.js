@@ -240,7 +240,7 @@
   // report renders from the local pull snapshot (one aggregation path, no extra
   // round-trip, works offline). Shapes MUST match the server versions because
   // reportHTML() renders them unchanged.
-  const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'expenses', 'daily'];
+  const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
   function computeReport(id, data) {
     const d = activeData(data);
     const money = (d.payments || []).concat(d.daily || []);
@@ -287,6 +287,19 @@
       const rows = Object.keys(tot).map(function (k) { return { collector: nameBy[k] || k, total: tot[k] }; })
         .sort(function (a, b) { return b.total - a.total; });
       return { rows: rows };
+    }
+    if (id === 'areas') {
+      const paid = {};
+      (d.payments || []).forEach(function (p) { paid[p.partyId] = (paid[p.partyId] || 0) + (Number(p.amount) || 0); });
+      const agg = {};
+      (d.parties || []).forEach(function (p) {
+        const k = p.side || '—'; // shops carry an area; person/member fall in "no area"
+        if (!agg[k]) agg[k] = { area: k, count: 0, pledged: 0, paid: 0 };
+        agg[k].count++; agg[k].pledged += Number(p.pledged) || 0; agg[k].paid += paid[p.id] || 0;
+      });
+      const rows = Object.keys(agg).map(function (k) { const a = agg[k]; a.due = a.pledged - a.paid; return a; })
+        .sort(function (a, b) { return b.paid - a.paid; }); // leaderboard: most collected on top
+      return { rows: rows, totalPaid: sum(rows, function (r) { return r.paid; }) };
     }
     if (id === 'expenses') {
       const rows = (d.expenses || []).map(function (e) {
