@@ -369,3 +369,27 @@
   9pm and 11:59pm cases unchanged. 82 tests pass. sw → chanda-v3.11.0.
 - createdAt stays a full UTC timestamp (absolute instant, standard).
 - Next: #3 edit/void entries with audit trail.
+
+## 2026-07-23 — Fix-list #3: void (correct) a payment, audit-preserving
+
+- Wrong entries could never be corrected (append-only). Design: keep the
+  original for audit; add a new **`voids`** store/sheet whose rows point at
+  a targetId (migration-safe — a new sheet, like handovers was; existing
+  columns untouched). Aggregation drops voided ids everywhere.
+- Client: IndexedDB v3 (+voids store); `Aggregate` gained `activeData()` and
+  filters voids in computeTotals/inHandRows/personalSummary/reconcile/
+  duesList. Party detail now shows a `✖️ বাতিল` button per payment →
+  reason screen → writes a void record (syncs like any entry); voided rows
+  render struck-through with the reason and stop counting toward paid/due.
+- Server (Code.gs): SHEETS.voids + SHEET_TITLES.voids; `activeData_()`
+  mirrors the client and is applied in computeReport_ + personalSummary_.
+- Verified live in browser: party paid 300+999(wrong) → void the 999 with
+  a reason → paid 300 / due 700, wrong row struck-through, and the #1
+  reconcile check confirms balanced + zero anomalies (the earlier
+  "overpaid" anomaly cleared). Tests: 90 passed, 0 failed (8 new void
+  cases). sw → chanda-v3.12.0.
+- ⚠️ NEEDS Hrishi to redeploy Code.gs + run setup() (creates the Voids
+  sheet) — until then voids work on-device but don't sync centrally
+  (push skips unknown stores). Path handed off in chat.
+- Scope: payments only for now; voiding daily/expense needs a per-entry
+  browse screen (later). Next: #4 name→id collector identity.

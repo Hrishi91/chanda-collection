@@ -494,9 +494,11 @@
     Promise.all([DB.get('parties', params.id), DB.allData()]).then(function (res) {
       const p = res[0], data = res[1];
       if (!p) { navigate('list'); return; }
+      const voidedOf = {};
+      (data.voids || []).forEach(function (v) { if (v.targetStore === 'payments') voidedOf[v.targetId] = v.reason || '✓'; });
       const pays = data.payments.filter(function (x) { return x.partyId === p.id; })
         .sort(function (a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
-      const paid = pays.reduce(function (a, x) { return a + Number(x.amount || 0); }, 0);
+      const paid = pays.reduce(function (a, x) { return a + (voidedOf[x.id] !== undefined ? 0 : Number(x.amount || 0)); }, 0);
       const due = (Number(p.pledged) || 0) - paid;
       $view().innerHTML = backBar('list') +
         '<div class="card"><div class="card-title">' + esc(p.name) + '</div>' +
@@ -511,12 +513,40 @@
         '<button id="pay-btn" class="primary big block">💰 ' + esc(t('add_payment')) + '</button></div>' +
         '<div class="section">' + esc(t('payments_history')) + '</div>' +
         (pays.length ? pays.map(function (x) {
-          return '<div class="row"><div>' + esc(x.date || (x.createdAt || '').slice(0, 10)) +
-            '<div class="row-sub">' + esc(x.collector || '') + (x.note ? ' • ' + esc(x.note) : '') + '</div></div>' +
-            '<b>' + fmtMoney(x.amount) + '</b></div>';
+          const isVoid = voidedOf[x.id] !== undefined;
+          const reason = isVoid && voidedOf[x.id] !== '✓' ? ': ' + esc(voidedOf[x.id]) : '';
+          return '<div class="row' + (isVoid ? ' voided' : '') + '"><div>' + esc(x.date || (x.createdAt || '').slice(0, 10)) +
+            '<div class="row-sub">' + esc(x.collector || '') + (x.note ? ' • ' + esc(x.note) : '') +
+            (isVoid ? ' • <span class="void-tag">' + esc(t('voided_label')) + reason + '</span>' : '') + '</div></div>' +
+            '<b>' + fmtMoney(x.amount) + '</b>' +
+            (isVoid ? '' : '<button class="chip void-btn" data-void="' + esc(x.id) + '">' + esc(t('void_btn')) + '</button>') + '</div>';
         }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
       document.getElementById('pay-btn').onclick = function () { startFlow(paymentFlow(p)); };
+      document.querySelectorAll('[data-void]').forEach(function (b) {
+        b.onclick = function () { renderVoidReason(b.dataset.void, p); };
+      });
     });
+  }
+
+  // Void a payment (audit-preserving correction): records a reason into the
+  // `voids` store; aggregation then drops that payment id everywhere.
+  function renderVoidReason(targetId, party) {
+    $view().innerHTML = backBar('party', { id: party.id }) +
+      '<div class="card center onboard"><div class="big-emoji">✖️</div>' +
+      '<h2>' + esc(t('void_title')) + '</h2>' +
+      '<div class="hint">' + esc(t('void_hint')) + '</div>' +
+      '<div class="field"><label>' + esc(t('q_void_reason')) + '</label><input id="void-reason" autocomplete="off"></div>' +
+      '<button id="void-ok" class="primary big block">' + esc(t('void_confirm')) + '</button>' +
+      '<button id="void-cancel" class="ghost block">' + esc(t('cancel')) + '</button></div>';
+    const back = function () { navigate('party', { id: party.id }); };
+    document.getElementById('void-cancel').onclick = back;
+    document.getElementById('void-ok').onclick = function () {
+      const reason = document.getElementById('void-reason').value.trim();
+      if (!reason) { toast(t('void_need_reason')); return; }
+      this.disabled = true;
+      DB.put('voids', DB.newRow({ targetStore: 'payments', targetId: targetId, reason: reason }))
+        .then(function () { toast(t('voided_done')); updateBadge(); autoSync(); back(); });
+    };
   }
 
   function totalsHTML(tt, title) {

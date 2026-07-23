@@ -190,5 +190,26 @@ const recUnbal = reconcile({ parties: [], payments: [{ id: 'x', partyId: 'p1', a
 // to:'' still attributes received to '' collector, so Σ still balances — instead test a torn book via missing amount handled as 0
 eq(typeof recUnbal.balanced, 'boolean', 'reconcile: balanced flag present');
 
+// ---- void (corrected entries excluded everywhere) ----
+const voidData = {
+  parties: [{ id: 'p1', type: 'shop', name: 'A', pledged: 1000 }],
+  payments: [
+    { id: 'pay1', partyId: 'p1', amount: 300, collector: 'X' },
+    { id: 'pay2', partyId: 'p1', amount: 999, collector: 'X' }, // wrong → voided
+  ],
+  daily: [], expenses: [], handovers: [],
+  voids: [{ id: 'v1', targetStore: 'payments', targetId: 'pay2', reason: 'wrong amount' }],
+};
+const vt = computeTotals(voidData);
+eq(vt.totalCollection, 300, 'void: excluded from total collection');
+eq(vt.paidByParty.p1, 300, 'void: excluded from paidByParty');
+eq(vt.totalDue, 700, 'void: due reflects only live payments');
+eq(inHandRows(voidData).find(function (r) { return r.collector === 'X'; }).collected, 300, 'void: excluded from in-hand');
+eq(personalSummary(voidData, 'X').collected, 300, 'void: excluded from personal summary');
+const vrec = reconcile(voidData);
+eq(vrec.balanced, true, 'void: books still balance');
+eq(vrec.totalCollected, 300, 'void: excluded from reconcile');
+eq(duesList(voidData.parties, voidData.payments, voidData.voids)[0].due, 700, 'void: excluded from duesList');
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

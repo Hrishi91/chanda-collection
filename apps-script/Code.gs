@@ -19,9 +19,11 @@ var SHEETS = {
   expenses: ['id', 'year', 'subject', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt'],
   handovers: ['id', 'year', 'from', 'to', 'amount', 'cashAmount', 'upiAmount', 'date', 'note',
               'status', 'confirmedBy', 'confirmedAt', 'collector', 'createdAt', 'receivedAt'],
+  // audit-preserving corrections: a void points at another record's id
+  voids: ['id', 'year', 'targetStore', 'targetId', 'reason', 'collector', 'createdAt', 'receivedAt'],
 };
 var SHEET_TITLES = { parties: 'Parties', payments: 'Payments', daily: 'DailyCollections',
-                     expenses: 'Expenses', handovers: 'Handovers' };
+                     expenses: 'Expenses', handovers: 'Handovers', voids: 'Voids' };
 
 var USER_COLS = ['id', 'username', 'name', 'phone', 'passwordHash', 'salt', 'role',
                  'cashier', 'reports', 'status', 'years', 'token', 'mustChange', 'createdAt', 'updatedAt'];
@@ -421,6 +423,15 @@ function readAll_(year) {
   return data;
 }
 
+// Drop voided (corrected) records everywhere reports are computed, mirroring
+// js/aggregate.js. Void rows stay in the sheet (dump) for audit.
+function activeData_(d) {
+  var voided = {};
+  (d.voids || []).forEach(function (v) { if (v && v.targetId) voided[String(v.targetId)] = 1; });
+  var keep = function (rows) { return (rows || []).filter(function (r) { return r && !voided[String(r.id)]; }); };
+  return { parties: keep(d.parties), payments: keep(d.payments), daily: keep(d.daily),
+           expenses: keep(d.expenses), handovers: keep(d.handovers), voids: d.voids || [] };
+}
 function num_(x) { return Number(x) || 0; }
 function sumBy_(rows, f) {
   var t = 0;
@@ -457,6 +468,7 @@ function inHandRows_(d) {
 
 // One person's own summary (always-visible "My summary" report).
 function personalSummary_(d, name) {
+  d = activeData_(d);
   var myPay = d.payments.filter(function (p) { return p.collector === name; });
   var myDaily = d.daily.filter(function (x) { return x.collector === name; });
   var myExp = d.expenses.filter(function (e) { return e.collector === name; });
@@ -487,6 +499,7 @@ function personalSummary_(d, name) {
 
 // Server-side report payloads — the client renders these read-only.
 function computeReport_(id, d) {
+  d = activeData_(d);
   var money = d.payments.concat(d.daily);
   if (id === 'overview') {
     var byType = { shop: { count: 0, pledged: 0, paid: 0 },

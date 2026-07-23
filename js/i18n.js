@@ -209,6 +209,15 @@ const I18N = {
   // --- in-app help / guide ---
   help_btn: { bn: '📖 অ্যাপ গাইড / সাহায্য', en: '📖 App guide / Help' },
   help_title: { bn: '📖 অ্যাপ গাইড — কীভাবে চলে', en: '📖 App guide — how it works' },
+  // --- void / correct an entry ---
+  void_btn: { bn: '✖️ বাতিল', en: '✖️ Void' },
+  void_title: { bn: 'এই জমা বাতিল?', en: 'Void this payment?' },
+  void_hint: { bn: 'ভুল entry মুছে যায় না — কারণ সহ বাতিল হিসেবে থেকে যায় (audit)। ঠিক করতে বাতিল করে নতুন জমা দাও।', en: 'The entry is not deleted — it stays marked void with the reason (audit). To correct, void it and add a fresh payment.' },
+  q_void_reason: { bn: 'কেন বাতিল? (কারণ লেখো)', en: 'Why void? (reason)' },
+  void_confirm: { bn: '✖️ বাতিল করো', en: '✖️ Void it' },
+  void_need_reason: { bn: 'কারণ লিখতে হবে', en: 'A reason is required' },
+  voided_done: { bn: '✖️ বাতিল হলো', en: '✖️ Voided' },
+  voided_label: { bn: 'বাতিল', en: 'VOID' },
 };
 
 const LANGS = ['bn', 'en'];

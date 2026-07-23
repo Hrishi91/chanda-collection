@@ -1,8 +1,8 @@
 // IndexedDB wrapper. Stores: parties, payments, daily, expenses.
 // Every row: {id: uuid, year, collector, createdAt, synced: 0|1, ...}
 const DB = (function () {
-  const NAME = 'chanda-khata', VER = 2; // v2: + handovers store
-  const STORES = ['parties', 'payments', 'daily', 'expenses', 'handovers'];
+  const NAME = 'chanda-khata', VER = 3; // v2: + handovers; v3: + voids (audit)
+  const STORES = ['parties', 'payments', 'daily', 'expenses', 'handovers', 'voids'];
   let dbp = null;
 
   function open() {

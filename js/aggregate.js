@@ -2,8 +2,23 @@
 (function () {
   function sum(arr, f) { return arr.reduce(function (a, x) { return a + (Number(f ? f(x) : x) || 0); }, 0); }
 
-  // data: {parties:[], payments:[], daily:[], expenses:[]}
+  // Voided (corrected) records are kept for audit in a separate `voids` store,
+  // each pointing at a targetId. Aggregation drops those ids everywhere.
+  function voidedIds(data) {
+    const s = {};
+    (data.voids || []).forEach(function (v) { if (v && v.targetId) s[v.targetId] = 1; });
+    return s;
+  }
+  function activeData(data) {
+    const v = voidedIds(data);
+    const keep = function (rows) { return (rows || []).filter(function (r) { return r && !v[r.id]; }); };
+    return { parties: keep(data.parties), payments: keep(data.payments), daily: keep(data.daily),
+             expenses: keep(data.expenses), handovers: keep(data.handovers), voids: data.voids || [] };
+  }
+
+  // data: {parties:[], payments:[], daily:[], expenses:[], voids:[]}
   function computeTotals(data) {
+    data = activeData(data);
     const parties = data.parties || [], payments = data.payments || [];
     const daily = data.daily || [], expenses = data.expenses || [];
 
@@ -76,6 +91,7 @@
   // Pending outgoing handovers are shown separately and NOT subtracted
   // (the giver keeps credit until the cashier confirms receipt).
   function inHandRows(data) {
+    data = activeData(data);
     const collected = {}, received = {}, handed = {}, pending = {}, spent = {};
     (data.payments || []).concat(data.daily || []).forEach(function (r) {
       const c = r.collector || '?';
@@ -107,6 +123,7 @@
 
   // One person's own summary (always-visible "My summary" report).
   function personalSummary(data, name) {
+    data = activeData(data);
     const myPay = (data.payments || []).filter(function (p) { return p.collector === name; });
     const myDaily = (data.daily || []).filter(function (x) { return x.collector === name; });
     const myExp = (data.expenses || []).filter(function (e) { return e.collector === name; });
@@ -136,12 +153,14 @@
   }
 
   // Parties with outstanding due, biggest due first.
-  function duesList(parties, payments) {
+  function duesList(parties, payments, voids) {
+    const v = voidedIds({ voids: voids });
     const paidByParty = {};
     (payments || []).forEach(function (p) {
+      if (v[p.id]) return;
       paidByParty[p.partyId] = (paidByParty[p.partyId] || 0) + (Number(p.amount) || 0);
     });
-    return (parties || []).map(function (pt) {
+    return (parties || []).filter(function (pt) { return !v[pt.id]; }).map(function (pt) {
       const paid = paidByParty[pt.id] || 0;
       return { party: pt, paid: paid, due: (Number(pt.pledged) || 0) - paid };
     }).filter(function (x) { return x.due > 0; })
@@ -153,6 +172,7 @@
   // transfers, so across everyone they net out — hence the invariant:
   //   Σ (cash in hand)  ===  total collected − total expenses.
   function reconcile(data) {
+    data = activeData(data);
     const parties = data.parties || [], payments = data.payments || [];
     const daily = data.daily || [], expenses = data.expenses || [];
     const money = payments.concat(daily);
