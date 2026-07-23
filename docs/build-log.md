@@ -63,3 +63,12 @@
   post-login autosync pushed 3 queued entries; wrong password, year
   2027 gate, stale-token admin call all rejected; password change +
   re-login ok. 49 unit tests still passing.
+
+## 2026-07-23 — Live on GitHub Pages
+
+- Repo published: github.com/Hrishi91/chanda-collection (public,
+  Hrishi created it + enabled Pages from main//root himself).
+- Live install link verified in browser (login screen renders):
+  https://hrishi91.github.io/chanda-collection/
+- Remaining to go fully live: Hrishi's Apps Script deploy → bake URL
+  into js/config.js → real e2e sync test → collectors install.
