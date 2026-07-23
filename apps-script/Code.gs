@@ -34,6 +34,7 @@ var SHEET_TITLES = { parties: 'Parties', payments: 'Payments', daily: 'DailyColl
 var USER_COLS = ['id', 'username', 'name', 'phone', 'passwordHash', 'salt', 'role',
                  'cashier', 'reports', 'status', 'years', 'token', 'mustChange', 'createdAt', 'updatedAt',
                  'areas']; // append-only: comma-separated area ids this collector is responsible for
+var AUDIT_COLS = ['id', 'ts', 'actor', 'actorId', 'action', 'detail'];
 
 // Per-report access: admin sees all; cashier gets 'inhand' by default;
 // anyone else sees only what the admin grants (Users.reports, comma list).
@@ -65,6 +66,8 @@ function setup() {
   }
   var es = ss.getSheetByName('ExpenseSubjects') || ss.insertSheet('ExpenseSubjects');
   if (es.getLastRow() === 0) { es.appendRow(['id', 'name', 'createdAt']); es.setFrozenRows(1); }
+  var au = ss.getSheetByName('Audit') || ss.insertSheet('Audit');
+  if (au.getLastRow() === 0) { au.appendRow(AUDIT_COLS); au.setFrozenRows(1); }
   // master lists (areas, person locations) — bilingual, admin-editable
   var ls = ss.getSheetByName('Lists') || ss.insertSheet('Lists');
   if (ls.getLastRow() === 0) { ls.appendRow(['id', 'kind', 'nameBn', 'nameEn', 'order', 'createdAt']); ls.setFrozenRows(1); }
@@ -151,6 +154,19 @@ function publicUser_(row) {
            years: String(row.years || ''), mustChange: Number(row.mustChange) || 0,
            areas: String(row.areas || ''), createdAt: row.createdAt };
 }
+// Append-only activity log for accountability (who did what, when). Logging
+// must never break the real action, so it is fully wrapped in try/catch.
+// `actor` is a user row (name + username).
+function logAudit_(actor, action, detail) {
+  try {
+    var ss = SpreadsheetApp.getActive();
+    var sh = ss.getSheetByName('Audit');
+    if (!sh) { sh = ss.insertSheet('Audit'); sh.appendRow(AUDIT_COLS); sh.setFrozenRows(1); }
+    sh.appendRow([Utilities.getUuid(), new Date().toISOString(),
+      (actor && actor.name) || '', (actor && actor.username) || '', action, String(detail == null ? '' : detail)]);
+  } catch (e) { /* audit is best-effort — never fail the caller */ }
+}
+
 // how many approved admins exist — guards the last-admin safeguard in setRole
 function countAdmins_() {
   var sh = usersSheet_(), n = 0;
@@ -286,7 +302,10 @@ var ACTIONS = {
           row.collectorId = row.collectorId || user.row.username; // stable identity
           var values = cols.map(function (c) { return row[c] !== undefined ? row[c] : ''; });
           if (idRow[row.id]) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([values]);
-          else sh.appendRow(values);
+          else {
+            sh.appendRow(values);
+            if (store === 'voids') logAudit_(user.row, 'void', row.targetStore + '/' + row.targetId + (row.reason ? ' — ' + row.reason : ''));
+          }
           savedIds.push(row.id);
         });
       });
@@ -389,6 +408,8 @@ var ACTIONS = {
                       createdAt: new Date().toISOString(), receivedAt: new Date().toISOString() };
             vsh.appendRow(vcols.map(function (c) { return v[c] !== undefined ? v[c] : ''; }));
           }
+          logAudit_(u.row, b.decision === 'approve' ? 'correction:approve' : 'correction:reject',
+            corr.targetStore + '/' + corr.targetId + (corr.reason ? ' — ' + corr.reason : ''));
           return { ok: true };
         }
       }
@@ -417,6 +438,20 @@ var ACTIONS = {
       return { ok: true, mode: 'delta', data: delta, cursor: cursor };
     }
     return { ok: true, mode: 'full', data: all, cursor: cursor };
+  },
+
+  // admin-only activity log, newest first (accountability view)
+  auditLog: function (b) {
+    requireAdmin_(b.token);
+    var sh = SpreadsheetApp.getActive().getSheetByName('Audit');
+    var out = [];
+    if (sh && sh.getLastRow() > 1) {
+      var vals = sh.getDataRange().getValues(), h = vals[0], lim = Number(b.limit) || 150;
+      for (var i = vals.length - 1; i >= 1 && out.length < lim; i--) {
+        var o = {}; h.forEach(function (c, j) { o[c] = vals[i][j]; }); out.push(o);
+      }
+    }
+    return { ok: true, log: out };
   },
 
   // approved cashiers (any logged-in user may ask — needed for handover)
@@ -452,6 +487,8 @@ var ACTIONS = {
         sh.getRange(r, cols.indexOf('confirmedAt') + 1).setValue(new Date().toISOString());
         // bump receivedAt so the delta pull carries this in-place status change
         sh.getRange(r, cols.indexOf('receivedAt') + 1).setValue(new Date().toISOString());
+        var hv = sh.getRange(r, 1, 1, cols.length).getValues()[0];
+        logAudit_(u.row, 'handover:confirm', '₹' + hv[cols.indexOf('amount')] + ' from ' + hv[cols.indexOf('from')]);
         return { ok: true };
       }
     }
@@ -471,7 +508,7 @@ var ACTIONS = {
     return { ok: true, subjects: out };
   },
   addSubject: function (b) {
-    requireAdmin_(b.token);
+    var me = requireAdmin_(b.token);
     var name = String(b.name || '').trim();
     if (!name) throw new Error('bad-input');
     var sh = SpreadsheetApp.getActive().getSheetByName('ExpenseSubjects');
@@ -482,27 +519,28 @@ var ACTIONS = {
       if (exists) throw new Error('subject-exists');
     }
     sh.appendRow([Utilities.getUuid(), name, new Date().toISOString()]);
+    logAudit_(me.row, 'subject:add', name);
     return { ok: true };
   },
   editSubject: function (b) {
-    requireAdmin_(b.token);
+    var me = requireAdmin_(b.token);
     var name = String(b.name || '').trim();
     if (!name) throw new Error('bad-input');
     var sh = SpreadsheetApp.getActive().getSheetByName('ExpenseSubjects');
     if (sh.getLastRow() < 2) throw new Error('not-found');
     var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
     for (var i = 0; i < ids.length; i++) {
-      if (String(ids[i][0]) === String(b.id)) { sh.getRange(i + 2, 2).setValue(name); return { ok: true }; }
+      if (String(ids[i][0]) === String(b.id)) { sh.getRange(i + 2, 2).setValue(name); logAudit_(me.row, 'subject:edit', name); return { ok: true }; }
     }
     throw new Error('not-found');
   },
   removeSubject: function (b) {
-    requireAdmin_(b.token);
+    var me = requireAdmin_(b.token);
     var sh = SpreadsheetApp.getActive().getSheetByName('ExpenseSubjects');
     if (sh.getLastRow() < 2) return { ok: true };
     var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
     for (var i = 0; i < ids.length; i++) {
-      if (String(ids[i][0]) === String(b.id)) { sh.deleteRow(i + 2); break; }
+      if (String(ids[i][0]) === String(b.id)) { sh.deleteRow(i + 2); logAudit_(me.row, 'subject:remove', b.id); break; }
     }
     return { ok: true };
   },
@@ -523,15 +561,16 @@ var ACTIONS = {
     return { ok: true, items: out };
   },
   addItem: function (b) {
-    requireAdmin_(b.token);
+    var me = requireAdmin_(b.token);
     var kind = String(b.kind || '').trim(), bn = String(b.nameBn || '').trim(), en = String(b.nameEn || '').trim();
     if (['area', 'location'].indexOf(kind) < 0 || (!bn && !en)) throw new Error('bad-input');
     var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
     sh.appendRow([Utilities.getUuid(), kind, bn || en, en || bn, sh.getLastRow(), new Date().toISOString()]);
+    logAudit_(me.row, kind + ':add', bn || en);
     return { ok: true };
   },
   editItem: function (b) {
-    requireAdmin_(b.token);
+    var me = requireAdmin_(b.token);
     var bn = String(b.nameBn || '').trim(), en = String(b.nameEn || '').trim();
     if (!bn && !en) throw new Error('bad-input');
     var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
@@ -541,18 +580,19 @@ var ACTIONS = {
       if (String(ids[i][0]) === String(b.id)) {
         sh.getRange(i + 2, 3).setValue(bn || en);
         sh.getRange(i + 2, 4).setValue(en || bn);
+        logAudit_(me.row, 'item:edit', bn || en);
         return { ok: true };
       }
     }
     throw new Error('not-found');
   },
   removeItem: function (b) {
-    requireAdmin_(b.token);
+    var me = requireAdmin_(b.token);
     var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
     if (sh.getLastRow() < 2) return { ok: true };
     var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
     for (var i = 0; i < ids.length; i++) {
-      if (String(ids[i][0]) === String(b.id)) { sh.deleteRow(i + 2); break; }
+      if (String(ids[i][0]) === String(b.id)) { sh.deleteRow(i + 2); logAudit_(me.row, 'item:remove', b.id); break; }
     }
     return { ok: true };
   },
@@ -573,7 +613,7 @@ var ACTIONS = {
   },
 
   setStatus: function (b) { // approve (adds year) / block / unblock
-    requireAdmin_(b.token);
+    var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
     if (['approved', 'blocked', 'pending'].indexOf(b.status) < 0) throw new Error('bad-input');
@@ -581,6 +621,7 @@ var ACTIONS = {
     if (b.status === 'approved') u.row.years = addYear_(u.row.years, b.year || new Date().getFullYear());
     if (b.status === 'blocked') u.row.token = '';
     saveUser_(u);
+    logAudit_(me.row, 'status:' + b.status, '@' + u.row.username);
     return { ok: true, user: publicUser_(u.row) };
   },
 
@@ -594,22 +635,24 @@ var ACTIONS = {
   },
 
   setCashier: function (b) {
-    requireAdmin_(b.token);
+    var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
     u.row.cashier = b.cashier ? 1 : 0;
     saveUser_(u);
+    logAudit_(me.row, b.cashier ? 'cashier:on' : 'cashier:off', '@' + u.row.username);
     return { ok: true, user: publicUser_(u.row) };
   },
 
   setReports: function (b) { // grant/revoke per-report access
-    requireAdmin_(b.token);
+    var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
     u.row.reports = (b.reports || []).filter(function (r) {
       return REPORT_IDS.indexOf(r) >= 0;
     }).join(',');
     saveUser_(u);
+    logAudit_(me.row, 'reports', '@' + u.row.username + ' → [' + u.row.reports + ']');
     return { ok: true, user: publicUser_(u.row) };
   },
 
@@ -627,21 +670,23 @@ var ACTIONS = {
     }
     u.row.role = b.role;
     saveUser_(u);
+    logAudit_(me.row, b.role === 'admin' ? 'admin:grant' : 'admin:revoke', '@' + u.row.username);
     return { ok: true, user: publicUser_(u.row) };
   },
 
   // assign the areas (from the Lists master) a collector is responsible for
   setAreas: function (b) {
-    requireAdmin_(b.token);
+    var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
     u.row.areas = (b.areas || []).map(String).filter(Boolean).join(',');
     saveUser_(u);
+    logAudit_(me.row, 'areas', '@' + u.row.username + ' → [' + u.row.areas + ']');
     return { ok: true, user: publicUser_(u.row) };
   },
 
   resetPassword: function (b) {
-    requireAdmin_(b.token);
+    var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
     var temp = ('' + Math.floor(100000 + Math.random() * 900000)); // 6-digit temp
@@ -650,6 +695,7 @@ var ACTIONS = {
     u.row.mustChange = 1;
     u.row.token = '';
     saveUser_(u);
+    logAudit_(me.row, 'password:reset', '@' + u.row.username);
     return { ok: true, tempPassword: temp }; // admin passes it on verbally
   },
 };

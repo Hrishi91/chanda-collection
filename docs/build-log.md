@@ -898,3 +898,22 @@ Roadmap step 2 (client-only, no redeploy needed to work).
 - Verified live: 4 parties across 2 areas + no-area → totals ₹3,000, ranked
   হরিরামপুর ₹1,500/₹2,000 · মালদা ₹1,300/₹2,000 (2 parties) · এলাকা ছাড়া
   ₹200/₹500, all figures correct. 105 tests pass.
+
+## v3.42.0 — Audit / activity log (📜 কার্যকলাপ)
+
+Roadmap step 3 — accountability for a money app: who did what, when.
+
+- Append-only `Audit` sheet (`id, ts, actor, actorId, action, detail`), seeded
+  in setup(). `logAudit_(actorRow, action, detail)` — fully try/catch-wrapped so
+  logging can never break the real action.
+- Instrumented every privileged/money action: void (on new push of a void row),
+  correction approve/reject, handover confirm, admin grant/revoke, cashier
+  on/off, status approve/block, report perms, area assignment, password reset,
+  and master-list add/edit/remove (areas/locations/subjects).
+- `auditLog` action (admin-only) returns the newest ~150 entries.
+- Client: admin panel → "📜 কার্যকলাপ" opens `renderAuditLog`; `auditLabel()`
+  maps action codes to bilingual labels; `fmtDateTime()` shows IST day+time.
+  Non-admins are bounced to home.
+- Verified live-mock: log renders newest-first with mapped labels, actor and
+  correct IST timestamps (09:30Z→15:00); collector blocked from the view.
+  105 tests pass. Ships in the same pending Code.gs redeploy.

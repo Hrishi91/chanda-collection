@@ -45,6 +45,14 @@
     if (isNaN(d.getTime())) return s;
     return new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
   }
+  // IST day + time "YYYY-MM-DD HH:MM" for the audit log (when matters there)
+  function fmtDateTime(v) {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return String(v);
+    const s = new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString();
+    return s.slice(0, 10) + ' ' + s.slice(11, 16);
+  }
   // Back button for drill-in screens (party/admin/cashier) that aren't a
   // bottom-nav tab, so users aren't stranded without an obvious way back.
   function backBar(toView, params) {
@@ -1414,6 +1422,49 @@
       .then(function (resp) { after && after(resp); renderAdmin(); })
       .catch(function (e) { toast(errMsg(e)); });
   }
+  // human label for an audit action code (falls back to the raw code)
+  function auditLabel(action) {
+    const lang = Settings.get('lang') === 'en' ? 'en' : 'bn';
+    const M = {
+      'void': { bn: '🚫 বাতিল', en: '🚫 Void' },
+      'correction:approve': { bn: '✅ সংশোধন মঞ্জুর', en: '✅ Correction approved' },
+      'correction:reject': { bn: '❌ সংশোধন নাকচ', en: '❌ Correction rejected' },
+      'handover:confirm': { bn: '💰 জমা নিশ্চিত', en: '💰 Handover confirmed' },
+      'admin:grant': { bn: '👑 admin দেওয়া', en: '👑 Admin granted' },
+      'admin:revoke': { bn: '👑 admin সরানো', en: '👑 Admin revoked' },
+      'cashier:on': { bn: '💰 ক্যাশিয়ার করা', en: '💰 Made cashier' },
+      'cashier:off': { bn: 'ক্যাশিয়ার সরানো', en: 'Removed cashier' },
+      'status:approved': { bn: '✅ approve করা', en: '✅ Approved' },
+      'status:blocked': { bn: '🚫 block করা', en: '🚫 Blocked' },
+      'status:pending': { bn: 'pending করা', en: 'Set pending' },
+      'reports': { bn: '📊 report permission', en: '📊 Report perms' },
+      'areas': { bn: '📍 এলাকা assign', en: '📍 Areas assigned' },
+      'password:reset': { bn: '🔑 পাসওয়ার্ড রিসেট', en: '🔑 Password reset' },
+      'subject:add': { bn: '➕ বিষয় যোগ', en: '➕ Subject added' },
+      'subject:edit': { bn: '✏️ বিষয় বদল', en: '✏️ Subject edited' },
+      'subject:remove': { bn: '🗑️ বিষয় সরানো', en: '🗑️ Subject removed' },
+      'area:add': { bn: '➕ এলাকা যোগ', en: '➕ Area added' },
+      'location:add': { bn: '➕ location যোগ', en: '➕ Location added' },
+      'item:edit': { bn: '✏️ তালিকা বদল', en: '✏️ List edited' },
+      'item:remove': { bn: '🗑️ তালিকা সরানো', en: '🗑️ List removed' },
+    };
+    return (M[action] && M[action][lang]) || action;
+  }
+  function renderAuditLog() {
+    $view().innerHTML = backBar('admin') + '<div class="flow-title">' + esc(t('audit_title')) + '</div>' +
+      '<div id="audit-body"><div class="empty">' + esc(t('loading')) + '</div></div>';
+    Auth.call('auditLog', { token: Auth.token(), limit: 150 }).then(function (resp) {
+      const body = document.getElementById('audit-body'); if (!body) return;
+      const log = resp.log || [];
+      body.innerHTML = log.length ? '<div class="card">' + log.map(function (e) {
+        return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 100%"><b>' + esc(auditLabel(e.action)) + '</b>' +
+          (e.detail ? ' <span class="row-sub">' + esc(e.detail) + '</span>' : '') +
+          '<div class="row-sub">' + esc(e.actor || '?') + ' • ' + esc(fmtDateTime(e.ts)) + '</div></div></div>';
+      }).join('') + '</div>' : '<div class="empty">' + esc(t('audit_empty')) + '</div>';
+    }).catch(function (e) {
+      const body = document.getElementById('audit-body'); if (body) body.innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>';
+    });
+  }
   function renderAdmin() {
     $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(t('loading')) + '</div>';
     Promise.all([
@@ -1502,6 +1553,7 @@
       }
       $view().innerHTML = backBar('settings') + '<div class="flow-title">' + esc(t('admin_panel')) + '</div>' +
         '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
+        '<button id="audit-btn" class="ghost block">' + esc(t('audit_btn')) + '</button>' +
         subjectsCard +
         listMgmtCard('area', 'manage_areas', areas) +
         listMgmtCard('location', 'manage_locations', locations) +
@@ -1509,6 +1561,7 @@
         section('approved_users', groups.approved) +
         section('blocked_users', groups.blocked);
       document.getElementById('adm-refresh').onclick = renderAdmin;
+      document.getElementById('audit-btn').onclick = function () { navigate('audit'); };
       document.getElementById('subj-add').onclick = function () {
         const name = document.getElementById('subj-input').value.trim();
         if (!name) return;
@@ -1618,6 +1671,7 @@
     else if (current.view === 'entries') renderMyEntries();
     else if (current.view === 'findparty') renderFindParty();
     else if (current.view === 'review') renderReviewCorrections();
+    else if (current.view === 'audit') { Auth.isAdmin() ? renderAuditLog() : renderHome(); }
     else if (current.view === 'help') renderHelp();
     else renderHome();
     updateBadge();
