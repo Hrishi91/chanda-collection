@@ -655,3 +655,12 @@
   device on their next return-to-app or within ~60s (and entry forms read
   the freshly-refreshed cache). True push-instant isn't feasible on the
   Apps Script backend. sw → chanda-v3.27.0. 99 tests pass. Client-only.
+
+## 2026-07-24 — Backend redeployed again (corrections) → new URL
+
+- The corrections Code.gs wouldn't repoint the existing deployment ("New
+  version" keeps failing for this project); a fresh Web-app deployment
+  carries the new code (pendingCorrections/resolveCorrection → "no-token",
+  recognised). Baked the new /exec URL into js/config.js and pushed.
+  sw → chanda-v3.28.0. (Recurring: for this account "New deployment" works,
+  "New version on existing" doesn't.)
