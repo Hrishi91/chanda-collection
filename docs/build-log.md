@@ -471,3 +471,18 @@
   5-char password with "min 6". 99 tests pass. sw → chanda-v3.16.0.
   Needs the batched Code.gs redeploy.
 - Next: #7 pull-to-refresh + focus-refresh + admin auto-refresh.
+
+## 2026-07-23 — Fix-list #7: no manual refresh (focus + pull + auto)
+
+- Returning to the app (visibilitychange→visible / window focus) or a
+  pull-to-refresh (drag down >80px from the top) now re-renders the
+  current data view — home/list/report/admin/cashier/party — so fresh
+  data appears without a manual refresh. Skipped mid-entry (flowState).
+- The 60s notification poll also auto-refreshes the current view when a
+  count changes (e.g. the admin panel updates within a minute of a new
+  registration, no "🔄 Refresh" tap needed), except on home (its banner
+  updates in place).
+- Client-only — no Code.gs change. Verified live: added a party straight
+  to the DB while on the (stale) ledger, dispatched focus → the list
+  auto-refreshed and showed it. 99 tests pass. sw → chanda-v3.17.0.
+- Next: #8 import backup guard (confirm + validate).

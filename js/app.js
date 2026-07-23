@@ -98,19 +98,47 @@
         const n = resp.notifications || { handovers: 0, approvals: 0 };
         const total = (n.handovers || 0) + (n.approvals || 0);
         const prev = (notifCounts.handovers || 0) + (notifCounts.approvals || 0);
+        const changed = total !== prev;
         notifCounts = n;
         renderNotifBanner();
         if (total > prev) { const m = notifText(); if (m) { toast('🔔 ' + m); osNotify(m); } }
+        // auto-refresh a data view (e.g. admin panel) when the count changes,
+        // so a new registration/handover shows without a manual refresh
+        if (changed && Auth.loggedIn() && !flowState && current.view !== 'home' &&
+            REFRESHABLE.indexOf(current.view) >= 0) render();
       }).catch(function () { /* offline / not ready */ });
+  }
+  // Returning to the app (or a pull-to-refresh) re-renders the current data
+  // view so users never have to manually refresh — skipped mid-entry and on
+  // transient screens.
+  const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party'];
+  function onAppFocus() {
+    checkNotifications();
+    if (Auth.loggedIn() && !flowState && REFRESHABLE.indexOf(current.view) >= 0) render();
   }
   function startNotifPolling() {
     if (!notifWired) {
       notifWired = true;
-      document.addEventListener('visibilitychange', function () { if (!document.hidden) checkNotifications(); });
-      window.addEventListener('focus', checkNotifications);
+      document.addEventListener('visibilitychange', function () { if (!document.hidden) onAppFocus(); });
+      window.addEventListener('focus', onAppFocus);
+      wirePullToRefresh();
     }
     if (!notifTimer) notifTimer = setInterval(function () { if (!document.hidden) checkNotifications(); }, 60000);
     checkNotifications();
+  }
+  // Minimal pull-to-refresh: pull down > ~80px from the very top → refresh.
+  function wirePullToRefresh() {
+    let startY = 0, pulling = false;
+    document.addEventListener('touchstart', function (e) {
+      pulling = (window.scrollY <= 0 && e.touches.length === 1);
+      if (pulling) startY = e.touches[0].clientY;
+    }, { passive: true });
+    document.addEventListener('touchend', function (e) {
+      if (pulling && (e.changedTouches[0].clientY - startY) > 80 && !flowState) {
+        toast('🔄'); onAppFocus();
+      }
+      pulling = false;
+    }, { passive: true });
   }
 
   // ---------- flow engine ----------
