@@ -166,6 +166,7 @@
   // step: {key, qKey, kind:text|amount|choice, options:[{v,labelKey}], optional, showIf(answers)}
   function startFlow(def) {
     flowState = { def: def, answers: Object.assign({}, def.presets || {}), idx: 0, editIdx: -1 };
+    try { history.pushState({ v: 'entry' }, ''); } catch (e) {} // Back cancels the entry
     skipHidden();
     renderEntry();
   }
@@ -244,7 +245,8 @@
         '<button id="back-btn" class="ghost">' + esc(t('back')) + '</button></div>';
     } else {
       // summary + confirm
-      html += '</div><div class="card summary"><div class="card-title">' + esc(t('confirm_title')) + '</div>';
+      html += '</div><div class="card summary"><div class="card-title">' + esc(t('confirm_title')) + '</div>' +
+        '<div class="hint" style="margin:-4px 0 8px">' + esc(t('edit_hint')) + '</div>';
       steps.forEach(function (s, i) {
         if (!visible(s) || flowState.answers[s.key] === undefined) return;
         html += '<div class="sum-row" data-i="' + i + '"><span>' + esc(t(s.qKey)) + '</span>' +
@@ -1406,6 +1408,9 @@
   function navigate(view, params) {
     current = { view: view, params: params || {} };
     flowState = view === 'entry' ? flowState : null;
+    // push a history entry so the phone/browser Back button steps back
+    // through the app instead of leaving it.
+    try { history.pushState({ v: view, p: current.params }, ''); } catch (e) {}
     render();
   }
   function render() {
@@ -1434,6 +1439,13 @@
   }
 
   window.addEventListener('online', autoSync);
+  // phone/browser Back button → step back in the app (in a flow, cancel it)
+  window.addEventListener('popstate', function (e) {
+    Voice.stop(); flowState = null;
+    const s = e.state, v = (s && s.v) || 'home';
+    current = { view: v === 'entry' ? 'home' : v, params: (s && s.p) || {} };
+    render();
+  });
   // ask the browser not to evict our IndexedDB under storage pressure
   if (navigator.storage && navigator.storage.persist) { try { navigator.storage.persist(); } catch (e) {} }
   // warn before leaving/closing if there are entries not yet synced to the sheet

@@ -47,6 +47,7 @@ const I18N = {
   cancel: { bn: 'বাতিল', en: 'Cancel' },
   next: { bn: 'পরের প্রশ্ন', en: 'Next' },
   confirm_title: { bn: 'সব ঠিক আছে?', en: 'Everything correct?' },
+  edit_hint: { bn: '✏️ ঠিক করতে যেকোনো লাইনে চাপো', en: '✏️ Tap any line to edit it' },
   saved: { bn: '✅ সেভ হয়ে গেল', en: '✅ Saved' },
   one_more_shop: { bn: '➕ আরেকটা দোকান (একই রাস্তা)', en: '➕ One more shop (same side)' },
   done_for_now: { bn: 'শেষ, হোমে ফিরি', en: 'Done, go home' },

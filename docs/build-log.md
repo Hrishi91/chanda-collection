@@ -679,3 +679,18 @@
   refresh on focus/60s. Truly push-instant (no user action) needs a push
   backend Apps Script can't provide. sw → chanda-v3.29.0. 99 tests pass.
   Client-only.
+
+## 2026-07-24 — Phone Back button works + summary edit hint
+
+- Hrishi: "all back not working" + "no edit option, directly save/cancel".
+  The in-app back buttons worked, but the app never pushed browser history,
+  so the PHONE/gesture Back button left the app instead of stepping back —
+  that's the real "back not working". Integrated the History API:
+  navigate() and startFlow() pushState; a popstate listener steps back to
+  the previous view (and cancels an in-progress entry to home). Verified
+  live: party→(back)→list→(back)→home; Back mid-flow cancels to home.
+- Edit: the guided-entry summary already lets you tap any field row (✏️) to
+  fix it — verified working. Added an "✏️ Tap any line to edit it" hint so
+  it's discoverable. Editing a *saved* ledger entry stays void-and-re-enter
+  by design (audit trail).
+- sw → chanda-v3.30.0. 99 tests pass. Client-only.
