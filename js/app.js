@@ -44,8 +44,10 @@
   }
 
   // ---------- header / nav ----------
+  let unsyncedN = 0; // mirrored synchronously for the beforeunload guard
   function updateBadge() {
     DB.unsyncedCount().then(function (n) {
+      unsyncedN = n;
       const b = document.getElementById('sync-badge');
       if (!b) return;
       b.textContent = n ? '⏳ ' + n : '✅';
@@ -282,7 +284,10 @@
       flowState.def.save(flowState.answers).then(function (afterOpts) {
         toast(t('saved')); updateBadge(); autoSync();
         if (afterOpts) renderAfter(afterOpts); else navigate(flowState.def.returnTo || 'home');
-      }).catch(function () { saveB.disabled = false; toast(t('amount_zero')); });
+      }).catch(function (e) {
+        saveB.disabled = false;
+        if (String(e && e.message) !== 'cancelled') toast(t('amount_zero'));
+      });
     };
     const cancelB = document.getElementById('cancel-btn');
     if (cancelB) cancelB.onclick = function () { flowState = null; navigate('home'); };
@@ -349,7 +354,12 @@
         { key: 'pledged', qKey: 'q_pledged', kind: 'amount' },
       ].concat(moneySteps(true)),
       save: function (a) {
-        return savePartyAndFirstPayment(type, a).then(function (party) {
+        return DB.getAll('parties').then(function (existing) {
+          const nm = String(a.name || '').trim().toLowerCase();
+          const dup = existing.some(function (p) { return String(p.name || '').trim().toLowerCase() === nm; });
+          if (dup && !window.confirm(t('dup_party_warn'))) throw new Error('cancelled');
+          return savePartyAndFirstPayment(type, a);
+        }).then(function (party) {
           if (!bulk) return null;
           return { buttons: [
             { label: t('one_more_shop'), action: function () {
@@ -1227,6 +1237,12 @@
   }
 
   window.addEventListener('online', autoSync);
+  // ask the browser not to evict our IndexedDB under storage pressure
+  if (navigator.storage && navigator.storage.persist) { try { navigator.storage.persist(); } catch (e) {} }
+  // warn before leaving/closing if there are entries not yet synced to the sheet
+  window.addEventListener('beforeunload', function (e) {
+    if (unsyncedN > 0) { e.preventDefault(); e.returnValue = ''; }
+  });
   document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('#bottomnav button').forEach(function (b) {
       b.onclick = function () { Voice.stop(); flowState = null; navigate(b.dataset.nav); };

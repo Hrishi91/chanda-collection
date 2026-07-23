@@ -500,3 +500,21 @@
   valid backup → confirm shown, imported; id-less rows → "nothing to
   import". 99 tests pass. sw → chanda-v3.18.0.
 - Next: #9 data-loss guard (persistent storage + unsynced-clear warning).
+
+## 2026-07-23 — Fix-list #9: data-loss guard
+
+- Three protections for a money app whose unsynced entries live only
+  on-device until they reach the sheet:
+  1. `navigator.storage.persist()` on startup — asks the browser not to
+     evict our IndexedDB under storage pressure.
+  2. `beforeunload` warning when unsynced entries exist (unsyncedN mirrored
+     synchronously from updateBadge) — the browser's "leave site?" prompt
+     stops an accidental close/reload from stranding data.
+  3. Duplicate-party warning: adding a party whose name already exists asks
+     for confirmation first (a mis-tapped double entry inflates totals).
+     The save-button catch no longer shows the misleading "amount zero"
+     toast on a user cancel.
+- Client-only. Verified live: persist API present; a duplicate "Dup Shop"
+  is blocked on cancel (count stays 1) and added on confirm (count 2).
+  99 tests pass. sw → chanda-v3.19.0.
+- Next: #10 speed (debounce autoSync + report cache + optimistic UI).

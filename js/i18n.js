@@ -228,6 +228,7 @@ const I18N = {
   import_bad: { bn: 'ফাইলটা ঠিক backup নয়', en: 'Not a valid backup file' },
   import_empty: { bn: 'ফাইলে আনার মতো কিছু নেই', en: 'Nothing to import in the file' },
   import_confirm: { bn: 'এই data এই ফোনে মিশিয়ে দেব?', en: 'Merge this data into this phone?' },
+  dup_party_warn: { bn: 'এই নামে আগেই একটা আছে — তবু নতুন যোগ করব?', en: 'One with this name already exists — add anyway?' },
 };
 
 const LANGS = ['bn', 'en'];
