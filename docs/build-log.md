@@ -694,3 +694,14 @@
   it's discoverable. Editing a *saved* ledger entry stays void-and-re-enter
   by design (audit trail).
 - sw → chanda-v3.30.0. 99 tests pass. Client-only.
+
+## 2026-07-24 — Fix: in-flow Back landed on a hidden step (toto/road)
+
+- Hrishi: in the toto flow, Back showed "bus name". goBack()'s skip loop
+  used `while (i > 0 ...)`, so it stopped AT step 0 even when step 0 was a
+  hidden step (bus name/number are showIf bus). Toto/road hide those, so
+  Back from the pay-mode step landed on the hidden bus-name step and
+  rendered its question. Fixed: skip hidden steps with `i >= 0`, and if no
+  visible earlier step remains, leave the flow (→ home).
+- Verified live: toto Back → home (bus-name gone); bus Back still steps
+  busNumber → busName. sw → chanda-v3.31.0. 99 tests pass. Client-only.

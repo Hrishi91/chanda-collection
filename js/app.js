@@ -207,9 +207,11 @@
   }
   function goBack() {
     Voice.stop();
-    if (flowState.idx === 0) { flowState = null; navigate('home'); return; }
+    // step back to the previous VISIBLE step; skip hidden ones (e.g. bus
+    // name/number in a toto/road flow). If none remain, leave the flow.
     let i = flowState.idx - 1;
-    while (i > 0 && !visible(flowState.def.steps[i])) i--;
+    while (i >= 0 && !visible(flowState.def.steps[i])) i--;
+    if (i < 0) { flowState = null; navigate('home'); return; }
     delete flowState.answers[flowState.def.steps[i].key];
     flowState.idx = i;
     renderEntry();
