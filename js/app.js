@@ -63,11 +63,38 @@
     clearTimeout(syncTimer);
     syncTimer = setTimeout(function () {
       Sync.syncNow().then(function (r) {
-        if (r.ok && r.sent) toast('☁️ Sync: ' + r.sent);
+        if (r.ok && r.sent) { toast('☁️ Sync: ' + r.sent); pullCentral(); } // refresh the snapshot after a push
         updateBadge();
         if (r.reason === 'busy') autoSync(); // a sync was in flight — retry the tail
       });
     }, 1000);
+  }
+
+  // ---------- pull-down: one central snapshot, render every screen local ----------
+  let centralData = null;
+  try { centralData = JSON.parse(localStorage.getItem('ck_central') || 'null'); } catch (e) { centralData = null; }
+  function pullCentral() {
+    if (!navigator.onLine || !Sync.configured() || !Auth.loggedIn()) return Promise.resolve();
+    return Auth.call('pull', { token: Auth.token(), year: Settings.get('year') }).then(function (resp) {
+      centralData = resp.data || null;
+      try { localStorage.setItem('ck_central', JSON.stringify(centralData)); } catch (e) { /* quota */ }
+      if (!flowState && ['list', 'party', 'findparty', 'report'].indexOf(current.view) >= 0) render();
+    }).catch(function () { /* offline — keep the cached snapshot */ });
+  }
+  // central snapshot overlaid with this device's own rows (so a just-saved
+  // entry shows before it syncs back). Falls back to local-only if no pull yet.
+  function viewData() {
+    return DB.allData().then(function (local) {
+      if (!centralData) return local;
+      const merged = {};
+      DB.STORES.forEach(function (s) {
+        const byId = {};
+        (centralData[s] || []).forEach(function (r) { if (r && r.id != null) byId[r.id] = r; });
+        (local[s] || []).forEach(function (r) { if (r && r.id != null) byId[r.id] = r; }); // local wins
+        merged[s] = Object.keys(byId).map(function (k) { return byId[k]; });
+      });
+      return merged;
+    });
   }
 
   // ---------- in-app notifications ----------
@@ -132,6 +159,7 @@
     checkNotifications();
     autoSync(); // push anything still pending when the user returns
     Lists.refresh(); // pick up admin edits to areas/locations
+    pullCentral(); // refresh the central snapshot
     if (Auth.loggedIn() && !flowState && REFRESHABLE.indexOf(current.view) >= 0) render();
   }
   function startNotifPolling() {
@@ -142,10 +170,11 @@
       wirePullToRefresh();
     }
     if (!notifTimer) notifTimer = setInterval(function () {
-      if (!document.hidden) { checkNotifications(); Lists.refresh(); }
+      if (!document.hidden) { checkNotifications(); Lists.refresh(); pullCentral(); }
     }, 60000);
     checkNotifications();
     Lists.refresh(); // populate the areas/locations cache
+    pullCentral(); // pull the central snapshot on login
   }
   // Minimal pull-to-refresh: pull down > ~80px from the very top → refresh.
   function wirePullToRefresh() {
@@ -592,19 +621,11 @@
   }
 
   let listFilter = 'all', listQuery = '';
-  let findParties = [], findQuery = '', listPaidCentral = null;
-  function renderList(skipFetch) {
-    DB.allData().then(function (data) {
-      const localPaid = Aggregate.computeTotals(data).paidByParty;
-      drawList(data, listPaidCentral || localPaid);        // own-device paid first
-      if (!skipFetch && navigator.onLine && Sync.configured() && Auth.loggedIn()) {
-        Auth.call('parties', { token: Auth.token(), year: Settings.get('year') })
-          .then(function (resp) {                            // then true all-collector paid
-            listPaidCentral = {};
-            (resp.parties || []).forEach(function (p) { listPaidCentral[p.id] = p.paid || 0; });
-            drawList(data, listPaidCentral);
-          }).catch(function () { /* keep local */ });
-      }
+  let findParties = [], findQuery = '';
+  function renderList() {
+    // reads the central snapshot (+ own rows) locally — instant, all-collector
+    viewData().then(function (data) {
+      drawList(data, Aggregate.computeTotals(data).paidByParty);
     });
   }
   function drawList(data, paidBy) {
@@ -640,9 +661,9 @@
                      : '<span class="ok-chip">✅</span>') + '</div></div>';
         }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
       document.getElementById('find-party').onclick = function () { findQuery = ''; navigate('findparty'); };
-      document.getElementById('search').oninput = function (e) { listQuery = e.target.value; renderList(true); };
+      document.getElementById('search').oninput = function (e) { listQuery = e.target.value; renderList(); };
       document.querySelectorAll('[data-f]').forEach(function (c) {
-        c.onclick = function () { listFilter = c.dataset.f; renderList(true); };
+        c.onclick = function () { listFilter = c.dataset.f; renderList(); };
       });
       document.querySelectorAll('.row[data-id]').forEach(function (r) {
         r.onclick = function () { navigate('party', { id: r.dataset.id }); };
@@ -657,12 +678,14 @@
       '<input id="fp-search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(findQuery) + '">' +
       '<div id="fp-results"><div class="empty">' + esc(t('loading')) + '</div></div>';
     document.getElementById('fp-search').oninput = function (e) { findQuery = e.target.value; renderFPResults(); };
-    if (!navigator.onLine || !Sync.configured() || !Auth.loggedIn()) {
-      document.getElementById('fp-results').innerHTML = '<div class="empty">' + esc(t('needs_net')) + '</div>'; return;
-    }
-    Auth.call('parties', { token: Auth.token(), year: Settings.get('year') })
-      .then(function (resp) { findParties = resp.parties || []; renderFPResults(); })
-      .catch(function () { const el = document.getElementById('fp-results'); if (el) el.innerHTML = '<div class="empty">' + esc(t('needs_net')) + '</div>'; });
+    viewData().then(function (data) {                    // local central snapshot — instant
+      const paidBy = Aggregate.computeTotals(data).paidByParty;
+      findParties = data.parties.map(function (p) {
+        return { id: p.id, name: p.name, type: p.type, side: p.side, owner: p.owner,
+                 collector: p.collector, pledged: Number(p.pledged) || 0, paid: paidBy[p.id] || 0 };
+      });
+      renderFPResults();
+    });
   }
   function renderFPResults() {
     const el = document.getElementById('fp-results'); if (!el) return;
@@ -688,19 +711,13 @@
   }
 
   function renderParty(params) {
-    Promise.all([DB.get('parties', params.id), DB.allData()]).then(function (res) {
-      const p = res[0], data = res[1];
+    viewData().then(function (data) {                    // central snapshot (+ own), instant
+      const p = (data.parties || []).filter(function (x) { return x.id === params.id; })[0];
       if (!p) { navigate('list'); return; }
       const voidedOf = {};
       (data.voids || []).forEach(function (v) { if (v.targetStore === 'payments') voidedOf[v.targetId] = v.reason || '✓'; });
-      const localPays = data.payments.filter(function (x) { return x.partyId === p.id; });
-      drawParty(p, localPays, false, voidedOf);            // device-local first (offline-safe)
-      if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {
-        Auth.call('partyPayments', { token: Auth.token(), partyId: p.id, year: Settings.get('year') })
-          .then(function (resp) {                            // then the true all-collector picture
-            drawParty(resp.party ? Object.assign({}, p, resp.party) : p, resp.payments || [], true, voidedOf);
-          }).catch(function () { /* keep the local view */ });
-      }
+      const pays = (data.payments || []).filter(function (x) { return x.partyId === p.id; });
+      drawParty(p, pays, true, voidedOf);
     });
   }
   // Renders a party card + a per-collector breakdown + the payment history.

@@ -765,3 +765,21 @@
 - Verified live (mocked): Salil's ledger shows কমল স্টোর্স 1000/1000 (not his
   400). 105 tests pass. sw → chanda-v3.34.0. Uses the `parties` action from
   the pending redeploy.
+
+## v3.35.0 — Pull-down sync (one snapshot, instant local render)
+
+- **Backend**: replaced per-screen `parties`/`partyPayments` actions with a
+  single `pull` action returning the whole year dataset (`readAll_`).
+- **Client**: `pullCentral()` caches the snapshot in `localStorage.ck_central`;
+  `viewData()` merges central rows with the device's own unsynced rows (own row
+  wins by id). `renderList`/`renderFindParty`/`renderParty` now render instantly
+  from the local snapshot — no per-screen network round-trip.
+- Snapshot refreshes on login, window focus, after every push, and every 60s.
+- **Why**: each `Auth.call` was a ~1–3s network round-trip; indexes cut server
+  compute but not the round-trip. Fewer calls (one pull) is the real win, and
+  screens paint immediately from cache while offline.
+- Verified live-mock: Ram's party appears on Salil's device via the snapshot,
+  balance 1000/1000, per-collector breakdown ₹600 (Ram) + ₹400 (Salil), party
+  detail opens with zero network fetch. 105 unit tests pass.
+- **Redeploy needed**: `pull` replaces `parties`/`partyPayments` — Hrishi must
+  redeploy Code.gs (New deployment → new URL → rebake config.js).
