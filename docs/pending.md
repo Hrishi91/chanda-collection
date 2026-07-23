@@ -27,10 +27,10 @@
 Requirements given in chat; awaiting final go + UPI answer
 (committee UPI vs collectors' own UPI).
 
-- [ ] Phase 1 — auth: register (basic details) + login, Users sheet
-      with salted-hash passwords + device token; admin approves users
-      per year; admin resets forgotten passwords; roles:
-      admin / cashier / collector (cashier grantable by admin)
+- [x] ~~Phase 1 — auth: register/login, admin approval per year,
+      admin password reset, roles admin/cashier/collector~~
+      (2026-07-23, verified against protocol mock; real Apps Script
+      e2e still pending Hrishi's deploy)
 - [ ] Phase 2 — money: payment mode cash / UPI / both (split amounts,
       reported separately); handover flow (collector "জমা দিলাম ₹X" →
       cashier confirms "জমা নিলাম"); per-collector cash-in-hand

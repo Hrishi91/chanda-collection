@@ -1,9 +1,9 @@
 // App-shell cache. Bump VERSION on every deploy that changes app files.
-const VERSION = 'chanda-v1.0.0';
+const VERSION = 'chanda-v2.0.0';
 const ASSETS = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest', 'icons/icon.svg',
-  'js/i18n.js', 'js/numparse.js', 'js/aggregate.js', 'js/db.js',
-  'js/voice.js', 'js/sync.js', 'js/app.js',
+  'js/config.js', 'js/i18n.js', 'js/numparse.js', 'js/aggregate.js', 'js/db.js',
+  'js/auth.js', 'js/voice.js', 'js/sync.js', 'js/app.js',
 ];
 
 self.addEventListener('install', function (e) {

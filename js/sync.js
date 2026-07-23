@@ -1,9 +1,11 @@
-// Sync to Apps Script web app. POST body is text/plain JSON (avoids
-// CORS preflight, which Apps Script cannot answer). Server upserts by id.
+// Sync to Apps Script web app, authenticated with the login token.
+// (Auth.call posts text/plain JSON — no CORS preflight.)
 const Sync = (function () {
   let inFlight = false;
 
-  function configured() { return !!Settings.get('scriptUrl'); }
+  function configured() {
+    return !!(Settings.get('scriptUrl') || (window.CONFIG && CONFIG.SCRIPT_URL));
+  }
 
   function collectUnsynced(data) {
     const recs = [];
@@ -16,17 +18,13 @@ const Sync = (function () {
   function syncNow() {
     if (inFlight) return Promise.resolve({ ok: false, reason: 'busy' });
     if (!configured()) return Promise.resolve({ ok: false, reason: 'not-configured' });
+    if (!Auth.loggedIn()) return Promise.resolve({ ok: false, reason: 'not-logged-in' });
     inFlight = true;
     return DB.allData().then(function (data) {
       const recs = collectUnsynced(data);
       if (!recs.length) { inFlight = false; return { ok: true, sent: 0 }; }
-      return fetch(Settings.get('scriptUrl'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ secret: Settings.get('secret'), action: 'push', records: recs }),
-      }).then(function (r) { return r.json(); })
+      return Auth.call('push', { token: Auth.token(), records: recs })
         .then(function (resp) {
-          if (!resp.ok) throw new Error(resp.error || 'server rejected');
           const savedIds = {};
           (resp.savedIds || []).forEach(function (id) { savedIds[id] = 1; });
           const updates = [];
@@ -45,17 +43,10 @@ const Sync = (function () {
     });
   }
 
-  // Central dump: all rows from the Sheet (all collectors), aggregated client-side.
+  // Central dump: all collectors' rows; aggregated client-side with aggregate.js.
   function fetchCentral() {
-    if (!configured()) return Promise.reject(new Error('not-configured'));
-    const u = Settings.get('scriptUrl') +
-      '?action=dump&year=' + Settings.get('year') +
-      '&secret=' + encodeURIComponent(Settings.get('secret'));
-    return fetch(u).then(function (r) { return r.json(); })
-      .then(function (resp) {
-        if (!resp.ok) throw new Error(resp.error || 'server rejected');
-        return resp.data; // {parties, payments, daily, expenses}
-      });
+    return Auth.call('dump', { token: Auth.token(), year: Settings.get('year') })
+      .then(function (resp) { return resp.data; });
   }
 
   return { syncNow: syncNow, fetchCentral: fetchCentral, configured: configured };

@@ -22,6 +22,11 @@ the final hisab. Data survives any phone/app deletion because the Sheet
 | Pledged amount for ALL party types | Hrishi: "make for all". Balance = pledged − installments |
 | `year` field on every record | Puja is annual; party master list carries over, pledges/payments restart each year |
 | Vanilla JS, no build step | 1 developer, static hosting, easy for future sessions to pick up |
+| Own username/password auth (Users sheet, salted SHA-256 + token), NOT Google login | Hrishi needs admin approval, admin password reset, per-year access — trivial with own Users sheet, impossible with Google login. Trust level: puja committee, not a bank |
+| Admin approval gates everything; first admin via makeAdmin() run in editor | No open access even with the public URL; shared-secret removed (token replaced it) |
+| Cashier = admin-grantable flag, not an account type | Hrishi: admin decides who's cashier (could be himself/others, multiple ok) |
+| UPI goes to members' PERSONAL numbers (no committee account) | So UPI ≠ auto-settled: it counts as in-collector's-hand until handover, same as cash; mode still recorded for reconciliation |
+| Handover ledger instead of per-entry cashier approval | Entries post immediately (busy cashier must not block collection); accountability via collector "জমা দিলাম" → cashier confirms, dashboard shows per-collector cash-in-hand |
 
 ## Architecture
 

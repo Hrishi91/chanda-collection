@@ -444,11 +444,16 @@
   }
 
   function renderSettings() {
+    const user = Auth.current() || { name: '?', username: '?' };
     const fields = [
-      ['collectorName', 'collector_name', 'text'], ['year', 'year', 'number'],
-      ['scriptUrl', 'script_url', 'text'], ['secret', 'secret', 'password'],
+      ['year', 'year', 'number'],
+      ['scriptUrl', 'script_url', 'text'],
     ];
-    $view().innerHTML = '<div class="card">' +
+    $view().innerHTML = '<div class="card"><div class="card-title">👤 ' + esc(user.name) +
+      (user.role === 'admin' ? ' 👑' : '') + (Auth.isCashier() ? ' 💰' : '') + '</div>' +
+      '<div class="row-sub">' + esc(t('logged_in_as')) + ': @' + esc(user.username) + '</div></div>' +
+      (Auth.isAdmin() ? '<button id="adm-btn" class="primary big block">' + esc(t('admin_panel')) + '</button>' : '') +
+      '<div class="card">' +
       '<div class="field"><label>' + esc(t('language')) + '</label>' +
       '<div class="chips"><button class="chip' + (Settings.get('lang') === 'bn' ? ' on' : '') + '" data-l="bn">বাংলা</button>' +
       '<button class="chip' + (Settings.get('lang') === 'en' ? ' on' : '') + '" data-l="en">English</button></div></div>' +
@@ -460,7 +465,18 @@
       '<button id="export-btn" class="ghost big block">' + esc(t('export_backup')) + '</button>' +
       '<button id="import-btn" class="ghost big block">' + esc(t('import_backup')) + '</button>' +
       '<input type="file" id="import-file" accept=".json" hidden>' +
-      '<div class="empty">v1 • ' + esc(location.hostname) + '</div>';
+      '<button id="chpw-btn" class="ghost big block">🔑 ' + esc(t('change_pw_title')) + '</button>' +
+      '<button id="logout-btn" class="ghost big block">🚪 ' + esc(t('logout')) + '</button>' +
+      '<div class="empty">v2 • ' + esc(location.hostname) + '</div>';
+    const admB = document.getElementById('adm-btn');
+    if (admB) admB.onclick = function () { navigate('admin'); };
+    document.getElementById('chpw-btn').onclick = function () { renderChangePw(false); };
+    document.getElementById('logout-btn').onclick = function () {
+      DB.unsyncedCount().then(function (n) {
+        if (n > 0) { toast('⏳ ' + n + t('unsynced_n')); return; } // never strand unsynced entries
+        Auth.logout(); authView = 'login'; navigate('home');
+      });
+    };
     document.querySelectorAll('[data-l]').forEach(function (b) {
       b.onclick = function () { Settings.set('lang', b.dataset.l); render(); };
     });
@@ -496,25 +512,162 @@
     };
   }
 
-  function renderOnboard() {
-    $view().innerHTML = '<div class="card center onboard">' +
-      '<div class="big-emoji">🙏</div><h2>' + esc(t('welcome_title')) + '</h2>' +
-      '<div class="field"><label>' + esc(t('choose_lang')) + '</label>' +
-      '<div class="chips center"><button class="chip' + (Settings.get('lang') === 'bn' ? ' on' : '') + '" data-l="bn">বাংলা</button>' +
-      '<button class="chip' + (Settings.get('lang') === 'en' ? ' on' : '') + '" data-l="en">English</button></div></div>' +
-      '<div class="field"><label>' + esc(t('your_name_q')) + '</label>' +
-      '<input id="ob-name" value="' + esc(Settings.get('collectorName')) + '"></div>' +
-      '<button id="ob-start" class="primary big block">' + esc(t('start')) + '</button></div>';
-    document.querySelectorAll('[data-l]').forEach(function (b) {
-      b.onclick = function () { Settings.set('lang', b.dataset.l); renderOnboard(); };
-    });
-    document.getElementById('ob-start').onclick = function () {
-      const n = document.getElementById('ob-name').value.trim();
-      if (!n) return;
-      Settings.set('collectorName', n);
-      if (!localStorage.getItem('ck_year')) Settings.set('year', new Date().getFullYear());
-      navigate('home');
+  // ---------- auth views ----------
+  let authView = 'login'; // login | register | forgot | regdone
+  function errMsg(e) {
+    const code = String(e && e.message || e).replace(/-/g, '_');
+    const key = 'err_' + (code === 'year_not_approved' ? 'year' : code);
+    return I18N[key] ? t(key) : t('err_network');
+  }
+  function langChips(rerender) {
+    setTimeout(function () {
+      document.querySelectorAll('[data-l]').forEach(function (b) {
+        b.onclick = function () { Settings.set('lang', b.dataset.l); rerender(); };
+      });
+    }, 0);
+    return '<div class="chips center"><button class="chip' + (Settings.get('lang') === 'bn' ? ' on' : '') +
+      '" data-l="bn">বাংলা</button><button class="chip' + (Settings.get('lang') === 'en' ? ' on' : '') +
+      '" data-l="en">English</button></div>';
+  }
+  function renderAuth() {
+    if (authView === 'register') return renderRegister();
+    if (authView === 'forgot' || authView === 'regdone') return renderAuthMsg();
+    renderLogin();
+  }
+  function renderLogin() {
+    $view().innerHTML = '<div class="card center onboard"><div class="big-emoji">🙏</div>' +
+      '<h2>' + esc(t('welcome_title')) + '</h2>' + langChips(renderLogin) +
+      '<div class="field"><label>' + esc(t('username')) + '</label>' +
+      '<input id="lg-user" autocapitalize="none" autocomplete="username"></div>' +
+      '<div class="field"><label>' + esc(t('password')) + '</label>' +
+      '<input id="lg-pw" type="password" autocomplete="current-password"></div>' +
+      '<button id="lg-btn" class="primary big block">' + esc(t('login_btn')) + '</button>' +
+      '<button id="lg-reg" class="ghost block">' + esc(t('no_account_register')) + '</button>' +
+      '<button id="lg-forgot" class="ghost block">' + esc(t('forgot_link')) + '</button>' +
+      (navigator.onLine ? '' : '<div class="hint">' + esc(t('login_needs_net')) + '</div>') +
+      '</div>';
+    document.getElementById('lg-reg').onclick = function () { authView = 'register'; renderAuth(); };
+    document.getElementById('lg-forgot').onclick = function () { authView = 'forgot'; renderAuth(); };
+    document.getElementById('lg-btn').onclick = function () {
+      const btn = this; btn.disabled = true;
+      Auth.login(document.getElementById('lg-user').value.trim(),
+                 document.getElementById('lg-pw').value)
+        .then(function () { navigate('home'); autoSync(); })
+        .catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
     };
+  }
+  function renderRegister() {
+    $view().innerHTML = '<div class="card center onboard"><h2>' + esc(t('register_title')) + '</h2>' +
+      langChips(renderRegister) +
+      '<div class="field"><label>' + esc(t('full_name')) + '</label><input id="rg-name"></div>' +
+      '<div class="field"><label>' + esc(t('username')) + '</label>' +
+      '<input id="rg-user" autocapitalize="none"></div>' +
+      '<div class="field"><label>' + esc(t('q_phone')) + '</label><input id="rg-phone" inputmode="tel"></div>' +
+      '<div class="field"><label>' + esc(t('password')) + '</label><input id="rg-pw" type="password"></div>' +
+      '<div class="field"><label>' + esc(t('confirm_password')) + '</label><input id="rg-pw2" type="password"></div>' +
+      '<button id="rg-btn" class="primary big block">' + esc(t('register_btn')) + '</button>' +
+      '<button id="rg-back" class="ghost block">' + esc(t('back_to_login')) + '</button></div>';
+    document.getElementById('rg-back').onclick = function () { authView = 'login'; renderAuth(); };
+    document.getElementById('rg-btn').onclick = function () {
+      const pw = document.getElementById('rg-pw').value;
+      if (pw !== document.getElementById('rg-pw2').value) { toast(t('pw_mismatch')); return; }
+      const btn = this; btn.disabled = true;
+      Auth.register({
+        name: document.getElementById('rg-name').value.trim(),
+        username: document.getElementById('rg-user').value.trim(),
+        phone: document.getElementById('rg-phone').value.trim(),
+        password: pw,
+      }).then(function () { authView = 'regdone'; renderAuth(); })
+        .catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
+    };
+  }
+  function renderAuthMsg() {
+    const msg = authView === 'forgot' ? t('forgot_msg') : t('reg_done_msg');
+    $view().innerHTML = '<div class="card center onboard"><div class="big-emoji">' +
+      (authView === 'forgot' ? '🔑' : '📨') + '</div>' +
+      '<p style="line-height:1.6">' + esc(msg) + '</p>' +
+      '<button id="am-back" class="primary big block">' + esc(t('back_to_login')) + '</button></div>';
+    document.getElementById('am-back').onclick = function () { authView = 'login'; renderAuth(); };
+  }
+  function renderChangePw(forced) {
+    $view().innerHTML = '<div class="card center onboard"><h2>' + esc(t('change_pw_title')) + '</h2>' +
+      (forced ? '<div class="hint">' + esc(t('must_change_msg')) + '</div>' : '') +
+      (forced ? '' : '<div class="field"><label>' + esc(t('old_password')) + '</label>' +
+        '<input id="cp-old" type="password"></div>') +
+      '<div class="field"><label>' + esc(t('new_password')) + '</label><input id="cp-new" type="password"></div>' +
+      '<div class="field"><label>' + esc(t('confirm_password')) + '</label><input id="cp-new2" type="password"></div>' +
+      '<button id="cp-btn" class="primary big block">' + esc(t('change_pw_btn')) + '</button>' +
+      (forced ? '' : '<button id="cp-back" class="ghost block">' + esc(t('back')) + '</button>') +
+      '</div>';
+    const backB = document.getElementById('cp-back');
+    if (backB) backB.onclick = function () { navigate('settings'); };
+    document.getElementById('cp-btn').onclick = function () {
+      const nw = document.getElementById('cp-new').value;
+      if (nw !== document.getElementById('cp-new2').value) { toast(t('pw_mismatch')); return; }
+      const oldEl = document.getElementById('cp-old');
+      const btn = this; btn.disabled = true;
+      Auth.changePassword(oldEl ? oldEl.value : '', nw)
+        .then(function () { toast(t('saved')); navigate('home'); })
+        .catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
+    };
+  }
+
+  // ---------- admin panel ----------
+  function adminAction(action, payload, after) {
+    Auth.call(action, Object.assign({ token: Auth.token() }, payload))
+      .then(function (resp) { after && after(resp); renderAdmin(); })
+      .catch(function (e) { toast(errMsg(e)); });
+  }
+  function renderAdmin() {
+    $view().innerHTML = '<div class="empty">' + esc(t('loading')) + '</div>';
+    Auth.call('listUsers', { token: Auth.token() }).then(function (resp) {
+      const year = String(Settings.get('year'));
+      const groups = { pending: [], approved: [], blocked: [] };
+      resp.users.forEach(function (u) { (groups[u.status] || groups.blocked).push(u); });
+      function userCard(u) {
+        const hasYear = u.years.split(',').indexOf(year) >= 0;
+        let btns = '';
+        if (u.status === 'pending') {
+          btns = '<button class="chip" data-act="approve" data-id="' + u.id + '">' + esc(t('approve')) + '</button>';
+        } else if (u.status === 'approved') {
+          if (!hasYear) btns += '<button class="chip" data-act="year" data-id="' + u.id + '">' + esc(t('give_year_access')) + '</button>';
+          btns += '<button class="chip" data-act="cashier" data-id="' + u.id + '" data-v="' + (u.cashier ? 0 : 1) + '">' +
+                  esc(u.cashier ? t('remove_cashier') : t('make_cashier')) + '</button>' +
+                  '<button class="chip" data-act="reset" data-id="' + u.id + '">' + esc(t('reset_pw')) + '</button>' +
+                  (u.role === 'admin' ? '' : '<button class="chip" data-act="block" data-id="' + u.id + '">' + esc(t('block')) + '</button>');
+        } else {
+          btns = '<button class="chip" data-act="unblock" data-id="' + u.id + '">' + esc(t('unblock')) + '</button>';
+        }
+        return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 100%"><b>' + esc(u.name) + '</b>' +
+          (u.role === 'admin' ? ' 👑' : '') + (u.cashier ? ' 💰' : '') +
+          '<div class="row-sub">@' + esc(u.username) + (u.phone ? ' • 📞 ' + esc(u.phone) : '') +
+          ' • ' + esc(u.years || '—') + '</div></div>' +
+          '<div class="chips" style="margin:8px 0 0">' + btns + '</div></div>';
+      }
+      function section(key, list) {
+        return '<div class="section">' + esc(t(key)) + ' (' + list.length + ')</div>' +
+          (list.length ? list.map(userCard).join('') : '<div class="empty">' + esc(t('none_here')) + '</div>');
+      }
+      $view().innerHTML = '<div class="flow-title">' + esc(t('admin_panel')) + '</div>' +
+        '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
+        section('pending_users', groups.pending) +
+        section('approved_users', groups.approved) +
+        section('blocked_users', groups.blocked);
+      document.getElementById('adm-refresh').onclick = renderAdmin;
+      document.querySelectorAll('[data-act]').forEach(function (b) {
+        const id = b.dataset.id;
+        b.onclick = function () {
+          if (b.dataset.act === 'approve') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') });
+          else if (b.dataset.act === 'year') adminAction('approveYear', { userId: id, year: Settings.get('year') });
+          else if (b.dataset.act === 'cashier') adminAction('setCashier', { userId: id, cashier: Number(b.dataset.v) });
+          else if (b.dataset.act === 'block') adminAction('setStatus', { userId: id, status: 'blocked' });
+          else if (b.dataset.act === 'unblock') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') });
+          else if (b.dataset.act === 'reset') adminAction('resetPassword', { userId: id }, function (resp) {
+            alert(t('temp_pw_is') + ':\n\n' + resp.tempPassword);
+          });
+        };
+      });
+    }).catch(function (e) { $view().innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>'; });
   }
 
   // ---------- router ----------
@@ -530,13 +683,16 @@
       b.classList.toggle('on', b.dataset.nav === current.view);
       b.querySelector('span').textContent = t(b.dataset.nav === 'list' ? 'khata' : b.dataset.nav);
     });
-    if (!Settings.get('collectorName')) { renderOnboard(); updateBadge(); return; }
+    if (!Auth.loggedIn()) { renderAuth(); updateBadge(); return; }
+    const user = Auth.current();
+    if (user && user.mustChange) { renderChangePw(true); updateBadge(); return; }
     if (flowState) { renderEntry(); return; }
     if (current.view === 'home') renderHome();
     else if (current.view === 'list') renderList();
     else if (current.view === 'party') renderParty(current.params);
     else if (current.view === 'report') renderReport();
     else if (current.view === 'settings') renderSettings();
+    else if (current.view === 'admin') { Auth.isAdmin() ? renderAdmin() : renderHome(); }
     else renderHome();
     updateBadge();
   }
