@@ -391,6 +391,25 @@ var ACTIONS = {
     }) };
   },
 
+  // one party's full (all-collector) payment history + its info — so the
+  // party detail shows the correct total and a per-collector breakdown.
+  partyPayments: function (b) {
+    requireUser_(b.token);
+    var d = activeData_(readAll_(b.year ? Number(b.year) : new Date().getFullYear()));
+    var party = null;
+    d.parties.forEach(function (p) { if (String(p.id) === String(b.partyId)) party = p; });
+    var pays = d.payments.filter(function (p) { return String(p.partyId) === String(b.partyId); });
+    return { ok: true,
+      party: party ? { id: party.id, name: party.name, type: party.type, side: party.side,
+                       location: party.location, owner: party.owner, phone: party.phone,
+                       pledged: num_(party.pledged) } : null,
+      payments: pays.map(function (p) {
+        return { id: p.id, amount: num_(p.amount), collector: p.collector, collectorId: p.collectorId,
+                 collectorRole: p.collectorRole, date: p.date, note: p.note,
+                 cashAmount: p.cashAmount, upiAmount: p.upiAmount, createdAt: p.createdAt };
+      }) };
+  },
+
   // approved cashiers (any logged-in user may ask — needed for handover)
   cashiers: function (b) {
     requireUser_(b.token);

@@ -66,6 +66,7 @@ const I18N = {
   paid: { bn: 'জমা', en: 'Paid' },
   due: { bn: 'বাকি', en: 'Due' },
   payments_history: { bn: 'জমার ইতিহাস', en: 'Payment history' },
+  who_collected: { bn: '🧑 কে কত তুলল', en: '🧑 Who collected' },
   total_collection: { bn: 'মোট আদায়', en: 'Total collected' },
   total_expense: { bn: 'মোট খরচ', en: 'Total expense' },
   in_hand: { bn: 'হাতে আছে', en: 'In hand' },

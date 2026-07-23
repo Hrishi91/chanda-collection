@@ -730,3 +730,21 @@
   0, Salil in-hand 400, Ram in-hand 600; and full case (Salil enters only,
   Ram collects 1000) → Ram 1000, Salil 0. Each hands over their own
   portion. Added as regression tests. 105 passed, 0 failed. No code change.
+
+## 2026-07-24 — Party statement: correct totals + per-collector breakdown
+
+- Hrishi wanted one clean entry per party showing who collected (max ~3),
+  "data not mixed". Kept the append-only payments model (concurrency-safe,
+  audit) and solved it as a VIEW. Also fixed a real bug: party detail
+  summed only the DEVICE's own payments, so a multi-collector party showed
+  the wrong paid/due on each device.
+- New Code.gs `partyPayments` action (any user) → a party's all-collector
+  payments (id/amount/collector/collectorId/collectorRole/date) + info.
+  renderParty now draws the device-local view first (offline), then fetches
+  central and redraws with the true total paid/due, a "🧑 Who collected"
+  breakdown (per collector), and the full all-collector history (with
+  void buttons where permitted). drawParty() extracted.
+- Verified live (mocked): Salil's device shows কমল স্টোর্স paid 1000/due 0
+  (not just his 400), breakdown Ram 600 + Salil 400, full history.
+  105 tests pass. sw → chanda-v3.33.0. ⚠️ Needs the batched Code.gs redeploy
+  (+`parties` +`partyPayments`) — Code-gs-copy.txt refreshed.

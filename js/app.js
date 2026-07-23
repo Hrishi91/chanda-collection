@@ -682,37 +682,58 @@
       if (!p) { navigate('list'); return; }
       const voidedOf = {};
       (data.voids || []).forEach(function (v) { if (v.targetStore === 'payments') voidedOf[v.targetId] = v.reason || '✓'; });
-      const pays = data.payments.filter(function (x) { return x.partyId === p.id; })
-        .sort(function (a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
-      const paid = pays.reduce(function (a, x) { return a + (voidedOf[x.id] !== undefined ? 0 : Number(x.amount || 0)); }, 0);
-      const due = (Number(p.pledged) || 0) - paid;
-      $view().innerHTML = backBar('list') +
-        '<div class="card"><div class="card-title">' + esc(p.name) + '</div>' +
-        '<div class="row-sub">' + esc(t('type_' + p.type)) +
-        (p.side ? ' • ' + esc(Lists.labelOf('area', p.side)) : '') +
-        (p.location ? ' • ' + esc(Lists.labelOf('location', p.location)) : '') +
-        (p.owner ? ' • ' + esc(p.owner) : '') +
-        (p.phone ? ' • 📞 ' + esc(p.phone) : '') + '</div>' +
-        '<div class="stat3">' +
-        '<div><span>' + esc(t('pledged')) + '</span><b>' + fmtMoney(p.pledged) + '</b></div>' +
-        '<div><span>' + esc(t('paid')) + '</span><b>' + fmtMoney(paid) + '</b></div>' +
-        '<div class="' + (due > 0 ? 'red' : 'green') + '"><span>' + esc(t('due')) + '</span><b>' + fmtMoney(due) + '</b></div>' +
-        '</div>' +
-        '<button id="pay-btn" class="primary big block">💰 ' + esc(t('add_payment')) + '</button></div>' +
-        '<div class="section">' + esc(t('payments_history')) + '</div>' +
-        (pays.length ? pays.map(function (x) {
-          const isVoid = voidedOf[x.id] !== undefined;
-          const reason = isVoid && voidedOf[x.id] !== '✓' ? ': ' + esc(voidedOf[x.id]) : '';
-          return '<div class="row' + (isVoid ? ' voided' : '') + '"><div>' + esc(x.date || (x.createdAt || '').slice(0, 10)) +
-            '<div class="row-sub">' + esc(x.collector || '') + (x.note ? ' • ' + esc(x.note) : '') +
-            (isVoid ? ' • <span class="void-tag">' + esc(t('voided_label')) + reason + '</span>' : '') + '</div></div>' +
-            '<b>' + fmtMoney(x.amount) + '</b>' +
-            (isVoid || !canVoid(x) ? '' : '<button class="chip void-btn" data-void="' + esc(x.id) + '">' + esc(t('void_btn')) + '</button>') + '</div>';
-        }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
-      document.getElementById('pay-btn').onclick = function () { startFlow(paymentFlow(p)); };
-      document.querySelectorAll('[data-void]').forEach(function (b) {
-        b.onclick = function () { renderVoidReason('payments', b.dataset.void, function () { navigate('party', { id: p.id }); }); };
-      });
+      const localPays = data.payments.filter(function (x) { return x.partyId === p.id; });
+      drawParty(p, localPays, false, voidedOf);            // device-local first (offline-safe)
+      if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {
+        Auth.call('partyPayments', { token: Auth.token(), partyId: p.id, year: Settings.get('year') })
+          .then(function (resp) {                            // then the true all-collector picture
+            drawParty(resp.party ? Object.assign({}, p, resp.party) : p, resp.payments || [], true, voidedOf);
+          }).catch(function () { /* keep the local view */ });
+      }
+    });
+  }
+  // Renders a party card + a per-collector breakdown + the payment history.
+  // `pays` is device-local (central=false) or all-collector (central=true).
+  function drawParty(p, pays, central, voidedOf) {
+    voidedOf = voidedOf || {};
+    const live = pays.filter(function (x) { return voidedOf[x.id] === undefined; });
+    const paid = live.reduce(function (a, x) { return a + (Number(x.amount) || 0); }, 0);
+    const due = (Number(p.pledged) || 0) - paid;
+    const byC = {}, nameByC = {};
+    live.forEach(function (x) { const k = x.collectorId || x.collector || '?'; byC[k] = (byC[k] || 0) + (Number(x.amount) || 0); nameByC[k] = x.collector || k; });
+    const keys = Object.keys(byC).sort(function (a, b) { return byC[b] - byC[a]; });
+    const sorted = pays.slice().sort(function (a, b) { return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
+    $view().innerHTML = backBar('list') +
+      '<div class="card"><div class="card-title">' + esc(p.name) + '</div>' +
+      '<div class="row-sub">' + esc(t('type_' + p.type)) +
+      (p.side ? ' • ' + esc(Lists.labelOf('area', p.side)) : '') +
+      (p.location ? ' • ' + esc(Lists.labelOf('location', p.location)) : '') +
+      (p.owner ? ' • ' + esc(p.owner) : '') +
+      (p.phone ? ' • 📞 ' + esc(p.phone) : '') + '</div>' +
+      '<div class="stat3">' +
+      '<div><span>' + esc(t('pledged')) + '</span><b>' + fmtMoney(p.pledged) + '</b></div>' +
+      '<div><span>' + esc(t('paid')) + '</span><b>' + fmtMoney(paid) + '</b></div>' +
+      '<div class="' + (due > 0 ? 'red' : 'green') + '"><span>' + esc(t('due')) + '</span><b>' + fmtMoney(due) + '</b></div>' +
+      '</div>' +
+      '<button id="pay-btn" class="primary big block">💰 ' + esc(t('add_payment')) + '</button></div>' +
+      (keys.length ? '<div class="section">' + esc(t('who_collected')) + '</div><div class="card">' +
+        keys.map(function (k) {
+          return '<div class="row" style="cursor:default"><div>' + esc(nameByC[k]) + '</div><b>' + fmtMoney(byC[k]) + '</b></div>';
+        }).join('') + '</div>' : '') +
+      '<div class="section">' + esc(t('payments_history')) +
+        (central ? '' : ' <span class="row-sub">(' + esc(t('local_report')) + ')</span>') + '</div>' +
+      (sorted.length ? sorted.map(function (x) {
+        const isVoid = voidedOf[x.id] !== undefined;
+        const reason = isVoid && voidedOf[x.id] !== '✓' ? ': ' + esc(voidedOf[x.id]) : '';
+        return '<div class="row' + (isVoid ? ' voided' : '') + '"><div>' + esc(x.date || (x.createdAt || '').slice(0, 10)) +
+          '<div class="row-sub">' + esc(x.collector || '') + (x.note ? ' • ' + esc(x.note) : '') +
+          (isVoid ? ' • <span class="void-tag">' + esc(t('voided_label')) + reason + '</span>' : '') + '</div></div>' +
+          '<b>' + fmtMoney(x.amount) + '</b>' +
+          (isVoid || !canVoid(x) ? '' : '<button class="chip void-btn" data-void="' + esc(x.id) + '">' + esc(t('void_btn')) + '</button>') + '</div>';
+      }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
+    document.getElementById('pay-btn').onclick = function () { startFlow(paymentFlow(p)); };
+    document.querySelectorAll('[data-void]').forEach(function (b) {
+      b.onclick = function () { renderVoidReason('payments', b.dataset.void, function () { navigate('party', { id: p.id }); }); };
     });
   }
 
