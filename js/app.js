@@ -131,6 +131,7 @@
   function onAppFocus() {
     checkNotifications();
     autoSync(); // push anything still pending when the user returns
+    Lists.refresh(); // pick up admin edits to areas/locations
     if (Auth.loggedIn() && !flowState && REFRESHABLE.indexOf(current.view) >= 0) render();
   }
   function startNotifPolling() {
@@ -140,7 +141,9 @@
       window.addEventListener('focus', onAppFocus);
       wirePullToRefresh();
     }
-    if (!notifTimer) notifTimer = setInterval(function () { if (!document.hidden) checkNotifications(); }, 60000);
+    if (!notifTimer) notifTimer = setInterval(function () {
+      if (!document.hidden) { checkNotifications(); Lists.refresh(); }
+    }, 60000);
     checkNotifications();
     Lists.refresh(); // populate the areas/locations cache
   }

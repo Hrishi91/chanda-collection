@@ -645,3 +645,13 @@
 - Correction system COMPLETE: void-all-types + permission rule + flag
   (collector) → review (cashier/admin) approve/reject. ⚠️ Needs one Code.gs
   redeploy (+Corrections sheet via setup) for central sync of flags/voids.
+
+## 2026-07-24 — Master lists refresh more often (near-instant to all users)
+
+- Lists.refresh() previously ran only on login + the admin's own edits, so
+  a logged-in collector kept a stale areas/locations dropdown until
+  re-login. Now it also refreshes on app-return (onAppFocus) and every 60s
+  (with the notification poll). So an admin's add/edit/remove reaches every
+  device on their next return-to-app or within ~60s (and entry forms read
+  the freshly-refreshed cache). True push-instant isn't feasible on the
+  Apps Script backend. sw → chanda-v3.27.0. 99 tests pass. Client-only.
