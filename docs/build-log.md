@@ -556,3 +556,11 @@
   sw → chanda-v3.21.0. Adds to the batched Code.gs redeploy.
 - Next: expense-subject edit + the correction system (void all types +
   the cashier/admin permission rule + flag/request).
+
+## 2026-07-24 — Master data step 1b: expense-subject edit (rename)
+
+- Expense subjects had add/remove only; admin can now rename one too
+  (Code.gs editSubject action; admin card shows each subject as a row with
+  ✏️ Edit (prompt) + 🗑️ delete, matching the areas/locations cards).
+  Completes admin-editable master data. sw → chanda-v3.22.0. 99 tests pass.
+  Adds to the batched redeploy.

@@ -395,6 +395,18 @@ var ACTIONS = {
     sh.appendRow([Utilities.getUuid(), name, new Date().toISOString()]);
     return { ok: true };
   },
+  editSubject: function (b) {
+    requireAdmin_(b.token);
+    var name = String(b.name || '').trim();
+    if (!name) throw new Error('bad-input');
+    var sh = SpreadsheetApp.getActive().getSheetByName('ExpenseSubjects');
+    if (sh.getLastRow() < 2) throw new Error('not-found');
+    var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(b.id)) { sh.getRange(i + 2, 2).setValue(name); return { ok: true }; }
+    }
+    throw new Error('not-found');
+  },
   removeSubject: function (b) {
     requireAdmin_(b.token);
     var sh = SpreadsheetApp.getActive().getSheetByName('ExpenseSubjects');

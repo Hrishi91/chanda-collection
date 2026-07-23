@@ -1188,9 +1188,11 @@
       const subjectsCard = '<div class="card"><div class="card-title">' + esc(t('manage_subjects')) + '</div>' +
         '<div class="input-row"><input id="subj-input" placeholder="' + esc(t('add_subject_ph')) + '" autocomplete="off">' +
         '<button id="subj-add" class="primary">' + esc(t('add_btn')) + '</button></div>' +
-        (subjects.length ? '<div class="chips" style="margin-top:10px">' + subjects.map(function (s) {
-          return '<button class="chip" data-subj-del="' + esc(s.id) + '">' + esc(s.name) + ' ✕</button>';
-        }).join('') + '</div>' : '<div class="empty">' + esc(t('no_subjects')) + '</div>') + '</div>';
+        (subjects.length ? subjects.map(function (s) {
+          return '<div class="row" style="cursor:default"><div><b>' + esc(s.name) + '</b></div><div class="chips" style="margin:0">' +
+            '<button class="chip" data-subj-edit="' + esc(s.id) + '">' + esc(t('edit_btn')) + '</button>' +
+            '<button class="chip" data-subj-del="' + esc(s.id) + '">' + esc(t('del_btn')) + '</button></div></div>';
+        }).join('') : '<div class="empty">' + esc(t('no_subjects')) + '</div>') + '</div>';
       // bilingual master-list manager (areas, person locations)
       function listMgmtCard(kind, titleKey, list) {
         return '<div class="card"><div class="card-title">' + esc(t(titleKey)) + '</div>' +
@@ -1223,6 +1225,13 @@
       };
       document.querySelectorAll('[data-subj-del]').forEach(function (b) {
         b.onclick = function () { adminAction('removeSubject', { id: b.dataset.subjDel }); };
+      });
+      document.querySelectorAll('[data-subj-edit]').forEach(function (b) {
+        b.onclick = function () {
+          const s = subjects.find(function (x) { return x.id === b.dataset.subjEdit; }) || {};
+          const nm = window.prompt(t('edit_item_title'), s.name || ''); if (nm === null) return;
+          if (nm.trim()) adminAction('editSubject', { id: b.dataset.subjEdit, name: nm.trim() });
+        };
       });
       const afterList = function () { Lists.refresh(); }; // refresh the client cache too
       document.querySelectorAll('[data-li-add]').forEach(function (b) {
