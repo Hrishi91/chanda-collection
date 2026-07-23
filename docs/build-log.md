@@ -486,3 +486,17 @@
   to the DB while on the (stale) ledger, dispatched focus → the list
   auto-refreshed and showed it. 99 tests pass. sw → chanda-v3.17.0.
 - Next: #8 import backup guard (confirm + validate).
+
+## 2026-07-23 — Fix-list #8: import backup guard
+
+- Import blindly parsed + bulk-put whatever JSON was chosen. Now it
+  validates the file has a `data` object, keeps only known stores and rows
+  that carry an id, and shows a confirm() with the counts
+  ("2 parties, 1 payments") before merging — so a wrong file or another
+  device's junk can't silently overwrite. Bad/empty files are rejected
+  with a clear message; the file input resets so the same file can be
+  retried.
+- Client-only. Verified live: bad JSON → rejected (no confirm, no import);
+  valid backup → confirm shown, imported; id-less rows → "nothing to
+  import". 99 tests pass. sw → chanda-v3.18.0.
+- Next: #9 data-loss guard (persistent storage + unsynced-clear warning).

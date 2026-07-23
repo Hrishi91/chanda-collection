@@ -224,6 +224,10 @@ const I18N = {
   notif_enable: { bn: '🔔 Alert চালু করো', en: '🔔 Enable alerts' },
   notif_on: { bn: '🔔 Alert চালু হলো', en: '🔔 Alerts on' },
   notif_off: { bn: 'Alert বন্ধই রইল', en: 'Alerts stayed off' },
+  // --- import guard ---
+  import_bad: { bn: 'ফাইলটা ঠিক backup নয়', en: 'Not a valid backup file' },
+  import_empty: { bn: 'ফাইলে আনার মতো কিছু নেই', en: 'Nothing to import in the file' },
+  import_confirm: { bn: 'এই data এই ফোনে মিশিয়ে দেব?', en: 'Merge this data into this phone?' },
 };
 
 const LANGS = ['bn', 'en'];

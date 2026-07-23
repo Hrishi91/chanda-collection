@@ -933,10 +933,22 @@
     fileEl.onchange = function () {
       const f = fileEl.files[0]; if (!f) return;
       f.text().then(function (txt) {
-        const d = JSON.parse(txt).data;
-        return Promise.all(DB.STORES.map(function (s) { return d[s] ? DB.bulkPut(s, d[s]) : 0; }));
-      }).then(function () { toast(t('saved')); updateBadge(); })
-        .catch(function () { toast(t('fetch_fail')); });
+        let d;
+        try { d = (JSON.parse(txt) || {}).data; } catch (e) { d = null; }
+        if (!d || typeof d !== 'object') { toast(t('import_bad')); fileEl.value = ''; return; }
+        // keep only known stores and rows that carry an id
+        const clean = {}, counts = [];
+        DB.STORES.forEach(function (s) {
+          const rows = Array.isArray(d[s]) ? d[s].filter(function (r) { return r && r.id; }) : [];
+          if (rows.length) { clean[s] = rows; counts.push(rows.length + ' ' + s); }
+        });
+        fileEl.value = '';
+        if (!counts.length) { toast(t('import_empty')); return; }
+        if (!window.confirm(t('import_confirm') + '\n\n' + counts.join(', '))) return;
+        Promise.all(Object.keys(clean).map(function (s) { return DB.bulkPut(s, clean[s]); }))
+          .then(function () { toast(t('saved')); updateBadge(); render(); })
+          .catch(function () { toast(t('fetch_fail')); });
+      }).catch(function () { toast(t('import_bad')); fileEl.value = ''; });
     };
   }
 
