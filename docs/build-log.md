@@ -91,3 +91,26 @@
   (100 cash + 150 UPI), handover "দুশো"→200 cash → cashier confirm →
   pending(1)→confirmed, in-hand table shows 250−200=50, cash/UPI totals
   100/150 correct. Tests 58 passed, 0 failed.
+
+## 2026-07-23 — v2 Phase 2.6: per-report access control
+
+- Six named reports, each computed server-side (readable payloads,
+  client renders read-only): overview, dues, inhand, collectors,
+  expenses, daily.
+- Access model: admin sees all; a cashier gets `inhand` by default;
+  everyone else sees only what the admin grants (new Users.reports
+  comma list). Enforced server-side — `dump` is now admin-only, data
+  reaches non-admins ONLY through the per-report `report` action which
+  checks allowedReports_. New actions: reportList, report,
+  pendingHandovers (cashier confirm no longer needs the admin-only
+  dump), setReports (admin toggle).
+- Admin panel: per-user report-permission chips (cashier's inhand shown
+  on+disabled = auto). Report tab: own-device totals always shown, then
+  a picker of only the reports the user may see (server reportList is
+  authority; myReports() offline fallback). Removed dead inHandTable +
+  Sync.fetchCentral.
+- Verified live (curl + browser, mock): admin=6 reports, cashier=
+  [inhand], granted user=[dues] only — overview & raw dump both denied;
+  dues report data correct (Ram Stores due 300); admin toggling
+  overview for that user persisted server-side and unlocked it
+  (totalCollection 500 = 200 cash + 300 upi). 58 unit tests pass.

@@ -166,6 +166,18 @@ const I18N = {
   amount_zero: { bn: 'মোট টাকা ০ হতে পারে না', en: 'Total cannot be zero' },
   total_cash: { bn: 'মোট নগদ', en: 'Total cash' },
   total_upi: { bn: 'মোট UPI', en: 'Total UPI' },
+  // --- per-report access ---
+  central_reports: { bn: '☁️ কেন্দ্রীয় রিপোর্ট', en: '☁️ Central reports' },
+  report_overview: { bn: '📊 মোট হিসাব', en: '📊 Overview' },
+  report_dues: { bn: '📋 বাকির তালিকা', en: '📋 Dues list' },
+  report_inhand: { bn: '💰 কার হাতে কত', en: '💰 Cash in hand' },
+  report_collectors: { bn: '🏆 কে কত তুলল', en: '🏆 By collector' },
+  report_expenses: { bn: '🧾 খরচের হিসাব', en: '🧾 Expenses' },
+  report_daily: { bn: '🛣️ দিনের রোড/টোটো/বাস', en: '🛣️ Daily road/toto/bus' },
+  no_reports_msg: { bn: 'কেন্দ্রীয় রিপোর্ট দেখার permission নেই — দরকার হলে admin-কে বলো', en: 'No central-report permission — ask the admin if needed' },
+  err_no_report_access: { bn: 'এই রিপোর্টের permission নেই — admin-কে বলো', en: 'No permission for this report — ask the admin' },
+  report_perms: { bn: '📊 রিপোর্ট permission', en: '📊 Report permissions' },
+  inhand_auto_cashier: { bn: '(ক্যাশিয়ার হলে "কার হাতে কত" এমনিই থাকে)', en: '(cashiers always get "Cash in hand")' },
 };
 
 const LANGS = ['bn', 'en'];

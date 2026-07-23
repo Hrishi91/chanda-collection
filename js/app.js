@@ -2,7 +2,18 @@
 (function () {
   const $view = function () { return document.getElementById('view'); };
   const SIDES = ['main_malda', 'main_balurghat', 'harirampur', 'singhadaha'];
+  const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'expenses', 'daily'];
   let flowState = null;
+
+  // offline fallback; the server's reportList is the authority when online
+  function myReports() {
+    const u = Auth.current();
+    if (!u) return [];
+    if (u.role === 'admin') return REPORT_IDS.slice();
+    const g = String(u.reports || '').split(',').filter(Boolean);
+    if (u.cashier === 1 && g.indexOf('inhand') < 0) g.push('inhand');
+    return g.filter(function (r) { return REPORT_IDS.indexOf(r) >= 0; });
+  }
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -481,10 +492,23 @@
       dailyRow('road') + dailyRow('toto') + dailyRow('bus') + '</div>';
   }
 
-  function inHandTable(data) {
-    const rows = Aggregate.handoverSummary(data);
-    if (!rows.length) return '';
-    return '<div class="card"><div class="card-title">' + esc(t('in_hand_by_collector')) + '</div>' +
+  // --- per-report renderers (server computes; client renders read-only) ---
+  function reportDuesHTML(d) {
+    const rows = d.rows || [];
+    return '<div class="card"><div class="card-title">' + esc(t('report_dues')) +
+      ' — ' + esc(t('total_due')) + ': ' + fmtMoney(d.totalDue) + '</div>' +
+      (rows.length ? rows.map(function (r) {
+        return '<div class="row" style="cursor:default"><div><b>' + esc(r.name) + '</b><div class="row-sub">' +
+          esc(t('type_' + r.type)) + (r.side ? ' • ' + esc(t('side_' + r.side)) : '') +
+          (r.owner ? ' • ' + esc(r.owner) : '') + '</div></div>' +
+          '<div class="row-right">' + fmtMoney(r.paid) + '/' + fmtMoney(r.pledged) +
+          '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(r.due) + '</span></div></div>';
+      }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
+  }
+  function reportInhandHTML(d) {
+    const rows = d.rows || [];
+    if (!rows.length) return '<div class="empty">' + esc(t('no_entries')) + '</div>';
+    return '<div class="card"><div class="card-title">' + esc(t('report_inhand')) + '</div>' +
       '<div class="row" style="cursor:default"><div class="row-sub">' + esc(t('by_collector')) + '</div>' +
       '<div class="row-sub">' + esc(t('collected_col')) + ' − ' + esc(t('handed_col')) + ' = ' + esc(t('inhand_col')) + '</div></div>' +
       rows.map(function (r) {
@@ -494,13 +518,49 @@
           ' = <span class="' + (r.inHand > 0 ? 'red' : 'green') + '"><b>' + fmtMoney(r.inHand) + '</b></span></div></div>';
       }).join('') + '</div>';
   }
+  function reportCollectorsHTML(d) {
+    const rows = d.rows || [];
+    return '<div class="card"><div class="card-title">' + esc(t('report_collectors')) + '</div>' +
+      (rows.length ? rows.map(function (r) {
+        return '<div class="row" style="cursor:default"><div><b>' + esc(r.collector) + '</b></div><b>' +
+          fmtMoney(r.total) + '</b></div>';
+      }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
+  }
+  function reportExpensesHTML(d) {
+    const rows = d.rows || [];
+    return '<div class="card"><div class="card-title">' + esc(t('report_expenses')) +
+      ' — ' + esc(t('total_expense')) + ': ' + fmtMoney(d.total) + '</div>' +
+      (rows.length ? rows.map(function (r) {
+        return '<div class="row" style="cursor:default"><div><b>' + esc(r.desc) + '</b><div class="row-sub">' +
+          esc(r.date) + (r.spentBy ? ' • ' + esc(r.spentBy) : '') + '</div></div><b>' + fmtMoney(r.amount) + '</b></div>';
+      }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
+  }
+  function reportDailyHTML(d) {
+    const rows = d.rows || [], bt = d.byType || { road: 0, toto: 0, bus: 0 };
+    return '<div class="card"><div class="card-title">' + esc(t('report_daily')) + '</div>' +
+      '<div class="stat3"><div><span>' + esc(t('type_road')) + '</span><b>' + fmtMoney(bt.road) + '</b></div>' +
+      '<div><span>' + esc(t('type_toto')) + '</span><b>' + fmtMoney(bt.toto) + '</b></div>' +
+      '<div><span>' + esc(t('type_bus')) + '</span><b>' + fmtMoney(bt.bus) + '</b></div></div>' +
+      (rows.length ? rows.map(function (r) {
+        return '<div class="row" style="cursor:default"><div>' + esc(r.date) + ' • ' +
+          esc(t('type_' + r.type)) + '</div><b>' + fmtMoney(r.amount) + '</b></div>';
+      }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
+  }
+  function reportHTML(id, d) {
+    if (id === 'overview') return totalsHTML(d, t('report_overview'));
+    if (id === 'dues') return reportDuesHTML(d);
+    if (id === 'inhand') return reportInhandHTML(d);
+    if (id === 'collectors') return reportCollectorsHTML(d);
+    if (id === 'expenses') return reportExpensesHTML(d);
+    if (id === 'daily') return reportDailyHTML(d);
+    return '';
+  }
 
   function renderCashier() {
     if (!Auth.isCashier()) { $view().innerHTML = '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
     $view().innerHTML = '<div class="empty">' + esc(t('loading')) + '</div>';
-    Sync.fetchCentral().then(function (data) {
-      const me = Settings.get('collectorName');
-      const mine = (data.handovers || []).filter(function (h) { return h.to === me; });
+    Auth.call('pendingHandovers', { token: Auth.token(), year: Settings.get('year') }).then(function (resp) {
+      const mine = resp.handovers || [];
       const pending = mine.filter(function (h) { return h.status !== 'confirmed'; });
       const done = mine.filter(function (h) { return h.status === 'confirmed'; })
         .sort(function (a, b) { return String(b.confirmedAt).localeCompare(String(a.confirmedAt)); }).slice(0, 15);
@@ -535,20 +595,43 @@
   function renderReport() {
     DB.allData().then(function (data) {
       const tt = Aggregate.computeTotals(data);
+      // own-device report — everyone always sees their own phone's totals
       $view().innerHTML = totalsHTML(tt, t('local_report')) +
-        '<button id="central-btn" class="primary big block">☁️ ' + esc(t('central_report')) + '</button>' +
-        '<div id="central"></div>';
-      document.getElementById('central-btn').onclick = function () {
-        const c = document.getElementById('central');
-        c.innerHTML = '<div class="empty">' + esc(t('loading')) + '</div>';
-        Sync.fetchCentral().then(function (cd) {
-          const ct = Aggregate.computeTotals(cd);
-          c.innerHTML = totalsHTML(ct, t('central_report')) + inHandTable(cd);
-        }).catch(function () {
-          c.innerHTML = '<div class="empty">' + esc(Sync.configured() ? t('fetch_fail') : t('sync_not_configured')) + '</div>';
-        });
+        '<div class="section">' + esc(t('central_reports')) + '</div>' +
+        '<div id="report-picker"><div class="empty">' + esc(t('loading')) + '</div></div>' +
+        '<div id="report-body"></div>';
+      const fallback = function () { showReportButtons(myReports()); };
+      if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {
+        Auth.call('reportList', { token: Auth.token() })
+          .then(function (resp) { showReportButtons(resp.reports || []); })
+          .catch(fallback);
+      } else fallback();
+    });
+  }
+  function showReportButtons(ids) {
+    const picker = document.getElementById('report-picker');
+    if (!picker) return;
+    if (!ids.length) {
+      picker.innerHTML = '<div class="empty">' + esc(t('no_reports_msg')) + '</div>';
+      return;
+    }
+    picker.innerHTML = '<div class="chips">' + ids.map(function (id) {
+      return '<button class="chip" data-rep="' + esc(id) + '">' + esc(t('report_' + id)) + '</button>';
+    }).join('') + '</div>';
+    picker.querySelectorAll('[data-rep]').forEach(function (b) {
+      b.onclick = function () {
+        picker.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('on'); });
+        b.classList.add('on');
+        loadReport(b.dataset.rep);
       };
     });
+  }
+  function loadReport(id) {
+    const body = document.getElementById('report-body');
+    body.innerHTML = '<div class="empty">' + esc(t('loading')) + '</div>';
+    Auth.call('report', { token: Auth.token(), id: id, year: Settings.get('year') })
+      .then(function (resp) { body.innerHTML = reportHTML(id, resp.data); })
+      .catch(function (e) { body.innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>'; });
   }
 
   function renderSettings() {
@@ -750,7 +833,21 @@
           (u.role === 'admin' ? ' 👑' : '') + (u.cashier ? ' 💰' : '') +
           '<div class="row-sub">@' + esc(u.username) + (u.phone ? ' • 📞 ' + esc(u.phone) : '') +
           ' • ' + esc(u.years || '—') + '</div></div>' +
-          '<div class="chips" style="margin:8px 0 0">' + btns + '</div></div>';
+          '<div class="chips" style="margin:8px 0 0">' + btns + '</div>' + reportChips(u) + '</div>';
+      }
+      function reportChips(u) {
+        if (u.status !== 'approved' || u.role === 'admin') return '';
+        const granted = String(u.reports || '').split(',').filter(Boolean);
+        const chips = REPORT_IDS.map(function (rid) {
+          const autoCashier = (rid === 'inhand' && u.cashier);
+          const on = autoCashier || granted.indexOf(rid) >= 0;
+          return '<button class="chip' + (on ? ' on' : '') + '" data-rep-user="' + u.id +
+            '" data-rep-id="' + rid + '"' + (autoCashier ? ' disabled title="auto"' : '') + '>' +
+            esc(t('report_' + rid)) + '</button>';
+        }).join('');
+        return '<div class="row-sub" style="flex-basis:100%;margin-top:10px">' + esc(t('report_perms')) +
+          ' ' + esc(u.cashier ? t('inhand_auto_cashier') : '') + '</div>' +
+          '<div class="chips" style="margin:4px 0 0">' + chips + '</div>';
       }
       function section(key, list) {
         return '<div class="section">' + esc(t(key)) + ' (' + list.length + ')</div>' +
@@ -770,9 +867,20 @@
           else if (b.dataset.act === 'cashier') adminAction('setCashier', { userId: id, cashier: Number(b.dataset.v) });
           else if (b.dataset.act === 'block') adminAction('setStatus', { userId: id, status: 'blocked' });
           else if (b.dataset.act === 'unblock') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') });
-          else if (b.dataset.act === 'reset') adminAction('resetPassword', { userId: id }, function (resp) {
-            alert(t('temp_pw_is') + ':\n\n' + resp.tempPassword);
+          else if (b.dataset.act === 'reset') adminAction('resetPassword', { userId: id }, function (r) {
+            alert(t('temp_pw_is') + ':\n\n' + r.tempPassword);
           });
+        };
+      });
+      document.querySelectorAll('[data-rep-user]').forEach(function (b) {
+        b.onclick = function () {
+          if (b.disabled) return;
+          const uid = b.dataset.repUser, rid = b.dataset.repId;
+          const u = resp.users.find(function (x) { return x.id === uid; });
+          const set = String(u.reports || '').split(',').filter(Boolean);
+          const i = set.indexOf(rid);
+          if (i >= 0) set.splice(i, 1); else set.push(rid);
+          adminAction('setReports', { userId: uid, reports: set });
         };
       });
     }).catch(function (e) { $view().innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>'; });

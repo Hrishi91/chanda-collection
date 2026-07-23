@@ -25,7 +25,17 @@ var SHEET_TITLES = { parties: 'Parties', payments: 'Payments', daily: 'DailyColl
                      expenses: 'Expenses', handovers: 'Handovers' };
 
 var USER_COLS = ['id', 'username', 'name', 'phone', 'passwordHash', 'salt', 'role',
-                 'cashier', 'status', 'years', 'token', 'mustChange', 'createdAt', 'updatedAt'];
+                 'cashier', 'reports', 'status', 'years', 'token', 'mustChange', 'createdAt', 'updatedAt'];
+
+// Per-report access: admin sees all; cashier gets 'inhand' by default;
+// anyone else sees only what the admin grants (Users.reports, comma list).
+var REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'expenses', 'daily'];
+function allowedReports_(u) {
+  if (u.row.role === 'admin') return REPORT_IDS.slice();
+  var granted = String(u.row.reports || '').split(',').filter(Boolean);
+  if (Number(u.row.cashier) === 1 && granted.indexOf('inhand') < 0) granted.push('inhand');
+  return granted.filter(function (r) { return REPORT_IDS.indexOf(r) >= 0; });
+}
 
 function setup() {
   var ss = SpreadsheetApp.getActive();
@@ -88,7 +98,8 @@ function hasYear_(years, y) {
 }
 function publicUser_(row) {
   return { id: row.id, username: row.username, name: row.name, phone: row.phone,
-           role: row.role, cashier: Number(row.cashier) || 0, status: row.status,
+           role: row.role, cashier: Number(row.cashier) || 0,
+           reports: String(row.reports || ''), status: row.status,
            years: String(row.years || ''), mustChange: Number(row.mustChange) || 0,
            createdAt: row.createdAt };
 }
@@ -136,7 +147,7 @@ var ACTIONS = {
         var row = {
           id: Utilities.getUuid(), username: username, name: name,
           phone: String(b.phone || ''), passwordHash: hash_(salt, password), salt: salt,
-          role: 'user', cashier: 0, status: 'pending', years: '', token: '',
+          role: 'user', cashier: 0, reports: '', status: 'pending', years: '', token: '',
           mustChange: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         };
         return row[c];
@@ -207,26 +218,30 @@ var ACTIONS = {
     } finally { lock.releaseLock(); }
   },
 
+  // raw dump is admin-only now; everyone else goes through per-report access
   dump: function (b) {
-    requireUser_(b.token);
-    var year = b.year ? Number(b.year) : null;
-    var ss = SpreadsheetApp.getActive();
-    var data = {};
-    Object.keys(SHEETS).forEach(function (store) {
-      var sh = ss.getSheetByName(SHEET_TITLES[store]);
-      var rows = [];
-      if (sh && sh.getLastRow() > 1) {
-        var values = sh.getDataRange().getValues();
-        var header = values[0];
-        for (var i = 1; i < values.length; i++) {
-          var obj = {};
-          header.forEach(function (h, j) { obj[h] = values[i][j]; });
-          if (!year || Number(obj.year) === year) rows.push(obj);
-        }
-      }
-      data[store] = rows;
-    });
-    return { ok: true, data: data };
+    requireAdmin_(b.token);
+    return { ok: true, data: readAll_(b.year ? Number(b.year) : null) };
+  },
+
+  reportList: function (b) {
+    var u = requireUser_(b.token);
+    return { ok: true, reports: allowedReports_(u) };
+  },
+
+  report: function (b) {
+    var u = requireUser_(b.token);
+    if (allowedReports_(u).indexOf(b.id) < 0) throw new Error('no-report-access');
+    var d = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
+    return { ok: true, id: b.id, data: computeReport_(b.id, d) };
+  },
+
+  // cashier's working list: handovers addressed to them (both statuses)
+  pendingHandovers: function (b) {
+    var u = requireUser_(b.token);
+    if (Number(u.row.cashier) !== 1 && u.row.role !== 'admin') throw new Error('not-cashier');
+    var d = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
+    return { ok: true, handovers: d.handovers.filter(function (h) { return h.to === u.row.name; }) };
   },
 
   // approved cashiers (any logged-in user may ask — needed for handover)
@@ -311,6 +326,17 @@ var ACTIONS = {
     return { ok: true, user: publicUser_(u.row) };
   },
 
+  setReports: function (b) { // grant/revoke per-report access
+    requireAdmin_(b.token);
+    var u = findUser_('id', b.userId);
+    if (!u) throw new Error('user not found');
+    u.row.reports = (b.reports || []).filter(function (r) {
+      return REPORT_IDS.indexOf(r) >= 0;
+    }).join(',');
+    saveUser_(u);
+    return { ok: true, user: publicUser_(u.row) };
+  },
+
   resetPassword: function (b) {
     requireAdmin_(b.token);
     var u = findUser_('id', b.userId);
@@ -324,6 +350,119 @@ var ACTIONS = {
     return { ok: true, tempPassword: temp }; // admin passes it on verbally
   },
 };
+
+function readAll_(year) {
+  var ss = SpreadsheetApp.getActive();
+  var data = {};
+  Object.keys(SHEETS).forEach(function (store) {
+    var sh = ss.getSheetByName(SHEET_TITLES[store]);
+    var rows = [];
+    if (sh && sh.getLastRow() > 1) {
+      var values = sh.getDataRange().getValues();
+      var header = values[0];
+      for (var i = 1; i < values.length; i++) {
+        var obj = {};
+        header.forEach(function (h, j) { obj[h] = values[i][j]; });
+        if (!year || Number(obj.year) === year) rows.push(obj);
+      }
+    }
+    data[store] = rows;
+  });
+  return data;
+}
+
+function num_(x) { return Number(x) || 0; }
+function sumBy_(rows, f) {
+  var t = 0;
+  rows.forEach(function (r) { t += num_(f(r)); });
+  return t;
+}
+
+// Server-side report payloads — the client renders these read-only.
+function computeReport_(id, d) {
+  var money = d.payments.concat(d.daily);
+  if (id === 'overview') {
+    var byType = { shop: { count: 0, pledged: 0, paid: 0 },
+                   person: { count: 0, pledged: 0, paid: 0 },
+                   member: { count: 0, pledged: 0, paid: 0 } };
+    var paidBy = {};
+    d.payments.forEach(function (p) { paidBy[p.partyId] = (paidBy[p.partyId] || 0) + num_(p.amount); });
+    d.parties.forEach(function (p) {
+      var b = byType[p.type]; if (!b) return;
+      b.count++; b.pledged += num_(p.pledged); b.paid += paidBy[p.id] || 0;
+    });
+    var dailyByType = { road: 0, toto: 0, bus: 0 };
+    d.daily.forEach(function (r) { if (r.type in dailyByType) dailyByType[r.type] += num_(r.amount); });
+    var cash = 0, upi = 0;
+    money.forEach(function (r) {
+      if (r.cashAmount === '' && r.upiAmount === '') cash += num_(r.amount);
+      else { cash += num_(r.cashAmount); upi += num_(r.upiAmount); }
+    });
+    var totalPledged = byType.shop.pledged + byType.person.pledged + byType.member.pledged;
+    var totalPaid = byType.shop.paid + byType.person.paid + byType.member.paid;
+    var totalColl = sumBy_(money, function (r) { return r.amount; });
+    var totalExp = sumBy_(d.expenses, function (r) { return r.amount; });
+    return { totalCollection: totalColl, totalExpense: totalExp, inHand: totalColl - totalExp,
+             totalPledged: totalPledged, totalDue: totalPledged - totalPaid,
+             totalCash: cash, totalUpi: upi, byType: byType, dailyByType: dailyByType };
+  }
+  if (id === 'dues') {
+    var paid = {};
+    d.payments.forEach(function (p) { paid[p.partyId] = (paid[p.partyId] || 0) + num_(p.amount); });
+    var rows = d.parties.map(function (p) {
+      var pd = paid[p.id] || 0;
+      return { name: p.name, type: p.type, side: p.side, owner: p.owner,
+               pledged: num_(p.pledged), paid: pd, due: num_(p.pledged) - pd };
+    }).filter(function (r) { return r.due > 0; })
+      .sort(function (a, b) { return b.due - a.due; });
+    return { rows: rows, totalDue: sumBy_(rows, function (r) { return r.due; }) };
+  }
+  if (id === 'inhand') {
+    var coll = {}, handed = {}, pending = {};
+    money.forEach(function (r) { var c = r.collector || '?'; coll[c] = (coll[c] || 0) + num_(r.amount); });
+    d.handovers.forEach(function (h) {
+      var c = h.from || '?';
+      if (h.status === 'confirmed') handed[c] = (handed[c] || 0) + num_(h.amount);
+      else pending[c] = (pending[c] || 0) + num_(h.amount);
+    });
+    var names = {};
+    [coll, handed, pending].forEach(function (m) { Object.keys(m).forEach(function (k) { names[k] = 1; }); });
+    var out = Object.keys(names).map(function (c) {
+      return { collector: c, collected: coll[c] || 0, handedOver: handed[c] || 0,
+               pending: pending[c] || 0, inHand: (coll[c] || 0) - (handed[c] || 0) };
+    }).sort(function (a, b) { return b.inHand - a.inHand; });
+    return { rows: out };
+  }
+  if (id === 'collectors') {
+    var t = {};
+    money.forEach(function (r) { var c = r.collector || '?'; t[c] = (t[c] || 0) + num_(r.amount); });
+    var rows = Object.keys(t).map(function (c) { return { collector: c, total: t[c] }; })
+      .sort(function (a, b) { return b.total - a.total; });
+    return { rows: rows };
+  }
+  if (id === 'expenses') {
+    var rows = d.expenses.map(function (e) {
+      return { date: e.date, desc: e.desc, amount: num_(e.amount),
+               spentBy: e.spentBy, source: e.source };
+    }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+    return { rows: rows, total: sumBy_(rows, function (r) { return r.amount; }) };
+  }
+  if (id === 'daily') {
+    var agg = {};
+    d.daily.forEach(function (r) {
+      var k = r.date + '|' + r.type;
+      agg[k] = (agg[k] || 0) + num_(r.amount);
+    });
+    var rows = Object.keys(agg).map(function (k) {
+      var p = k.split('|');
+      return { date: p[0], type: p[1], amount: agg[k] };
+    }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+    var byType = { road: 0, toto: 0, bus: 0 };
+    d.daily.forEach(function (r) { if (r.type in byType) byType[r.type] += num_(r.amount); });
+    return { rows: rows, byType: byType };
+  }
+  throw new Error('unknown report');
+}
 
 /**
  * Daily JSON snapshot of all sheets into Drive folder "ChandaKhata-Backups".

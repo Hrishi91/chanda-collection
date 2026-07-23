@@ -43,11 +43,5 @@ const Sync = (function () {
     });
   }
 
-  // Central dump: all collectors' rows; aggregated client-side with aggregate.js.
-  function fetchCentral() {
-    return Auth.call('dump', { token: Auth.token(), year: Settings.get('year') })
-      .then(function (resp) { return resp.data; });
-  }
-
-  return { syncNow: syncNow, fetchCentral: fetchCentral, configured: configured };
+  return { syncNow: syncNow, configured: configured };
 })();

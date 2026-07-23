@@ -35,6 +35,13 @@ Requirements given in chat; awaiting final go + UPI answer
       confirm, per-collector in-hand dashboard~~ (2026-07-23; UPI goes
       to personal numbers so it counts as in-hand until handover —
       Hrishi's "within us only" decision)
+- [x] ~~Phase 2.6 — per-report access control~~ (2026-07-23): 6 named
+      reports (overview/dues/inhand/collectors/expenses/daily), each
+      computed server-side; admin=all, cashier=inhand default, others=
+      admin-granted per report (Users.reports). Enforced server-side
+      (dump now admin-only). Admin-panel per-user report chips. Everyone
+      keeps own-device report. 3+ cashiers supported (flag, no limit).
+      Verified curl+browser against mock.
 - [ ] Phase 3 — expenses: admin-managed category list, cashier picks
       category on expense entry (Hrishi will supply list later)
 - Decision (recommended, pending ok): NO per-entry cashier approval —

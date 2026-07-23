@@ -27,6 +27,7 @@ the final hisab. Data survives any phone/app deletion because the Sheet
 | Cashier = admin-grantable flag, not an account type | Hrishi: admin decides who's cashier (could be himself/others, multiple ok) |
 | UPI goes to members' PERSONAL numbers (no committee account) | So UPI ≠ auto-settled: it counts as in-collector's-hand until handover, same as cash; mode still recorded for reconciliation |
 | Handover ledger instead of per-entry cashier approval | Entries post immediately (busy cashier must not block collection); accountability via collector "জমা দিলাম" → cashier confirms, dashboard shows per-collector cash-in-hand |
+| Per-report access, enforced server-side (dump is admin-only) | Hrishi: admin sees all reports, cashier gets one default (inhand), everyone else only what admin grants per report; report data must never leak through a hidden button, so the server gates it. Reports are read-only (no write path). Everyone keeps their own-device totals |
 
 ## Architecture
 
