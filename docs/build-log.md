@@ -960,3 +960,17 @@ Roadmap D2 (client-only, no redeploy).
 - Verified live: PNG generated (~49KB image/png); visual check confirms the
   Bengali receipt renders correctly with all fields (₹400 this payment,
   ₹400/₹1,000 paid, ₹600 due, collector Ram). 105 tests pass.
+
+## v3.46.0 — Year rollover (🔄 carry donors to a new year)
+
+Roadmap D4.
+
+- `rolloverYear` action (admin-only): copies the party master from `fromYear`
+  into `toYear` with fresh ids, zeroed history (no payments carried), pledges
+  kept as the new year's starting ask. Refuses if the target year already has
+  parties (never double-runs); audit-logged.
+- Admin panel: "🔄 নতুন বছরে দাতা আনো" button → confirm (from→to = current
+  year+1) → rolloverYear → shows the count added.
+- Verified live-mock: button present, click sends rolloverYear{2026→2027},
+  done alert "2027 সালে 42 জন দাতা যোগ হলো". err_year_has_data mapped.
+  105 tests pass. Ships in the pending Code.gs redeploy.

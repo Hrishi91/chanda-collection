@@ -646,6 +646,34 @@ var ACTIONS = {
     return { ok: true, user: publicUser_(u.row) };
   },
 
+  // carry the party master (donor list + pledges) into a new year, fresh ids
+  // and zero payments. Refuses if the target year already has parties, so it
+  // can't double-run. Admin-only.
+  rolloverYear: function (b) {
+    var me = requireAdmin_(b.token);
+    var from = Number(b.fromYear), to = Number(b.toYear);
+    if (!from || !to || from === to) throw new Error('bad-input');
+    var lock = LockService.getScriptLock(); lock.waitLock(20000);
+    try {
+      var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.parties), cols = SHEETS.parties;
+      if (sh.getLastRow() < 2) return { ok: true, count: 0 };
+      var vals = sh.getDataRange().getValues(), yi = cols.indexOf('year');
+      for (var i = 1; i < vals.length; i++) {
+        if (Number(vals[i][yi]) === to) throw new Error('year-has-data'); // never duplicate
+      }
+      var now = new Date().toISOString(), out = [];
+      for (var j = 1; j < vals.length; j++) {
+        if (Number(vals[j][yi]) !== from) continue;
+        var o = {}; cols.forEach(function (c, k) { o[c] = vals[j][k]; });
+        o.id = Utilities.getUuid(); o.year = to; o.createdAt = now; o.receivedAt = now;
+        out.push(cols.map(function (c) { return o[c] !== undefined ? o[c] : ''; }));
+      }
+      if (out.length) sh.getRange(sh.getLastRow() + 1, 1, out.length, cols.length).setValues(out);
+      logAudit_(me.row, 'rollover', from + '→' + to + ' (' + out.length + ')');
+      return { ok: true, count: out.length };
+    } finally { lock.releaseLock(); }
+  },
+
   setCashier: function (b) {
     var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);

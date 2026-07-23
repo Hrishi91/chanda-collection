@@ -1657,6 +1657,7 @@
       $view().innerHTML = backBar('settings') + '<div class="flow-title">' + esc(t('admin_panel')) + '</div>' +
         '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
         '<button id="audit-btn" class="ghost block">' + esc(t('audit_btn')) + '</button>' +
+        '<button id="rollover-btn" class="ghost block">' + esc(t('rollover_btn')) + '</button>' +
         subjectsCard +
         listMgmtCard('area', 'manage_areas', areas) +
         listMgmtCard('location', 'manage_locations', locations) +
@@ -1665,6 +1666,13 @@
         section('blocked_users', groups.blocked);
       document.getElementById('adm-refresh').onclick = renderAdmin;
       document.getElementById('audit-btn').onclick = function () { navigate('audit'); };
+      document.getElementById('rollover-btn').onclick = function () {
+        const from = Number(Settings.get('year')), to = from + 1;
+        if (!window.confirm(t('rollover_confirm').replace('{from}', from).replace('{to}', to))) return;
+        Auth.call('rolloverYear', { token: Auth.token(), fromYear: from, toYear: to })
+          .then(function (r) { alert(t('rollover_done').replace('{n}', r.count).replace('{to}', to)); })
+          .catch(function (e) { toast(errMsg(e)); });
+      };
       document.getElementById('subj-add').onclick = function () {
         const name = document.getElementById('subj-input').value.trim();
         if (!name) return;
