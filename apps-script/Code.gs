@@ -378,6 +378,19 @@ var ACTIONS = {
     } finally { lock.releaseLock(); }
   },
 
+  // all parties + how much each has paid — so any collector can find a party
+  // (created by someone else) and add a payment against its balance.
+  parties: function (b) {
+    requireUser_(b.token);
+    var d = activeData_(readAll_(b.year ? Number(b.year) : new Date().getFullYear()));
+    var paid = {};
+    d.payments.forEach(function (p) { paid[p.partyId] = (paid[p.partyId] || 0) + num_(p.amount); });
+    return { ok: true, parties: d.parties.map(function (p) {
+      return { id: p.id, name: p.name, type: p.type, side: p.side, location: p.location,
+               owner: p.owner, pledged: num_(p.pledged), paid: paid[p.id] || 0, collector: p.collector };
+    }) };
+  },
+
   // approved cashiers (any logged-in user may ask — needed for handover)
   cashiers: function (b) {
     requireUser_(b.token);

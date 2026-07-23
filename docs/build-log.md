@@ -705,3 +705,20 @@
   visible earlier step remains, leave the flow (→ home).
 - Verified live: toto Back → home (bus-name gone); bus Back still steps
   busNumber → busName. sw → chanda-v3.31.0. 99 tests pass. Client-only.
+
+## 2026-07-24 — Any collector can pay any party (cross-collector installments)
+
+- Hrishi: donor A entered by one collector pays a later installment to a
+  DIFFERENT collector — who couldn't find A's party (the ledger is
+  device-local, sync is push-only). New Code.gs `parties` action (any
+  approved user) returns all parties + paid for the year. Client: a
+  "🔍 Anyone's donor — take a payment" button on the ledger opens a search
+  (renderFindParty) over the central party list; tapping one opens the
+  normal payment flow. The payment keys by that partyId (so it clears the
+  right balance) but stamps the CURRENT collector (so the cash counts in
+  their hand) — the data model already supported this; only discovery was
+  missing.
+- Verified live (mocked): collector Ram searches, finds Salil's "কমল স্টোর্স"
+  (due 600), pays 600 → payment saved with partyId=A's, collector=Ram.
+  sw → chanda-v3.32.0. 99 tests pass. ⚠️ Needs a Code.gs redeploy (+`parties`
+  action) — Code-gs-copy.txt refreshed.

@@ -592,6 +592,7 @@
   }
 
   let listFilter = 'all', listQuery = '';
+  let findParties = [], findQuery = '';
   function renderList() {
     DB.allData().then(function (data) {
       const paidBy = Aggregate.computeTotals(data).paidByParty;
@@ -610,6 +611,7 @@
       const tabs = [['all', t('all')], ['shop', t('type_shop')], ['person', t('type_person')],
                     ['member', t('type_member')], ['due', t('dues_only')]];
       $view().innerHTML =
+        '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' +
         '<input id="search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(listQuery) + '">' +
         '<div class="chips tabs">' + tabs.map(function (tb) {
           return '<button class="chip' + (listFilter === tb[0] ? ' on' : '') + '" data-f="' + tb[0] + '">' + esc(tb[1]) + '</button>';
@@ -625,6 +627,7 @@
             (due > 0 ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
                      : '<span class="ok-chip">✅</span>') + '</div></div>';
         }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
+      document.getElementById('find-party').onclick = function () { findQuery = ''; navigate('findparty'); };
       document.getElementById('search').oninput = function (e) { listQuery = e.target.value; renderList(); };
       document.querySelectorAll('[data-f]').forEach(function (c) {
         c.onclick = function () { listFilter = c.dataset.f; renderList(); };
@@ -632,6 +635,44 @@
       document.querySelectorAll('.row[data-id]').forEach(function (r) {
         r.onclick = function () { navigate('party', { id: r.dataset.id }); };
       });
+    });
+  }
+  // Find ANY party (created by any collector) and add a payment against its
+  // balance — so a collector who receives a later installment can record it
+  // even though they didn't create the party.
+  function renderFindParty() {
+    $view().innerHTML = backBar('list') + '<div class="flow-title">' + esc(t('find_party_title')) + '</div>' +
+      '<div class="hint" style="margin-bottom:8px">' + esc(t('find_party_hint')) + '</div>' +
+      '<input id="fp-search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(findQuery) + '">' +
+      '<div id="fp-results"><div class="empty">' + esc(t('loading')) + '</div></div>';
+    document.getElementById('fp-search').oninput = function (e) { findQuery = e.target.value; renderFPResults(); };
+    if (!navigator.onLine || !Sync.configured() || !Auth.loggedIn()) {
+      document.getElementById('fp-results').innerHTML = '<div class="empty">' + esc(t('needs_net')) + '</div>'; return;
+    }
+    Auth.call('parties', { token: Auth.token(), year: Settings.get('year') })
+      .then(function (resp) { findParties = resp.parties || []; renderFPResults(); })
+      .catch(function () { const el = document.getElementById('fp-results'); if (el) el.innerHTML = '<div class="empty">' + esc(t('needs_net')) + '</div>'; });
+  }
+  function renderFPResults() {
+    const el = document.getElementById('fp-results'); if (!el) return;
+    const q = (findQuery || '').toLowerCase();
+    const rows = findParties.filter(function (p) {
+      return !q || (p.name || '').toLowerCase().includes(q) || (p.owner || '').toLowerCase().includes(q);
+    }).sort(function (a, b) { return ((b.pledged - b.paid) || 0) - ((a.pledged - a.paid) || 0); });
+    el.innerHTML = rows.length ? rows.map(function (p) {
+      const due = (p.pledged || 0) - (p.paid || 0);
+      return '<div class="row" data-fp="' + esc(p.id) + '"><div><b>' + esc(p.name) + '</b><div class="row-sub">' +
+        esc(t('type_' + p.type)) + (p.side ? ' • ' + esc(Lists.labelOf('area', p.side)) : '') +
+        (p.collector ? ' • ' + esc(p.collector) : '') + '</div></div>' +
+        '<div class="row-right">' + fmtMoney(p.paid) + '/' + fmtMoney(p.pledged) +
+        (due > 0 ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
+                 : '<span class="ok-chip">✅</span>') + '</div></div>';
+    }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>';
+    el.querySelectorAll('[data-fp]').forEach(function (r) {
+      r.onclick = function () {
+        const p = findParties.find(function (x) { return x.id === r.dataset.fp; });
+        if (p) startFlow(paymentFlow(p));
+      };
     });
   }
 
@@ -1434,6 +1475,7 @@
     else if (current.view === 'admin') { Auth.isAdmin() ? renderAdmin() : renderHome(); }
     else if (current.view === 'cashier') renderCashier();
     else if (current.view === 'entries') renderMyEntries();
+    else if (current.view === 'findparty') renderFindParty();
     else if (current.view === 'review') renderReviewCorrections();
     else if (current.view === 'help') renderHelp();
     else renderHome();
