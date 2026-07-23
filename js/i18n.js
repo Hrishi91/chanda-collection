@@ -229,6 +229,16 @@ const I18N = {
   import_empty: { bn: 'ফাইলে আনার মতো কিছু নেই', en: 'Nothing to import in the file' },
   import_confirm: { bn: 'এই data এই ফোনে মিশিয়ে দেব?', en: 'Merge this data into this phone?' },
   dup_party_warn: { bn: 'এই নামে আগেই একটা আছে — তবু নতুন যোগ করব?', en: 'One with this name already exists — add anyway?' },
+  // --- master lists (admin-editable areas / locations) ---
+  q_location: { bn: 'কোন এলাকা/জায়গা? (Skip করা যায়)', en: 'Which area/place? (can Skip)' },
+  manage_areas: { bn: '🏪 দোকানের এলাকা', en: '🏪 Shop areas' },
+  manage_locations: { bn: '🙍 ব্যক্তির এলাকা', en: '🙍 Person areas' },
+  name_bn: { bn: 'বাংলা নাম', en: 'Bengali name' },
+  name_en: { bn: 'English নাম', en: 'English name' },
+  edit_btn: { bn: '✏️ বদলাও', en: '✏️ Edit' },
+  del_btn: { bn: '🗑️', en: '🗑️' },
+  no_items: { bn: 'এখনো কিছু যোগ করোনি', en: 'Nothing added yet' },
+  edit_item_title: { bn: 'নাম বদলাও', en: 'Rename' },
 };
 
 const LANGS = ['bn', 'en'];

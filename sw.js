@@ -1,12 +1,12 @@
 // App-shell cache. Bump VERSION on every deploy that changes app files.
-const VERSION = 'chanda-v3.20.0';
+const VERSION = 'chanda-v3.21.0';
 // config.js is intentionally NOT precached — it carries the live backend URL
 // and is served network-first (no-store) by the fetch handler so it can never
 // be stale. Precaching it here would risk baking in a stale copy at install.
 const ASSETS = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest', 'icons/icon.svg',
   'js/i18n.js', 'js/numparse.js', 'js/aggregate.js', 'js/db.js',
-  'js/auth.js', 'js/help.js', 'js/voice.js', 'js/sync.js', 'js/app.js',
+  'js/auth.js', 'js/help.js', 'js/voice.js', 'js/sync.js', 'js/lists.js', 'js/app.js',
 ];
 
 self.addEventListener('install', function (e) {

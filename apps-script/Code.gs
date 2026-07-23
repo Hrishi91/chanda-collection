@@ -16,7 +16,7 @@ var SHEETS = {
   // NOTE: new columns are appended at the END so setup()'s migration (which
   // appends missing headers) keeps push's position-based writes aligned with
   // existing sheets. Do not insert columns mid-array.
-  parties:  ['id', 'year', 'type', 'name', 'owner', 'side', 'phone', 'pledged', 'collector', 'createdAt', 'receivedAt', 'collectorId'],
+  parties:  ['id', 'year', 'type', 'name', 'owner', 'side', 'phone', 'pledged', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'location'],
   payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId'],
   daily:    ['id', 'year', 'type', 'busName', 'busNumber', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId'],
   expenses: ['id', 'year', 'subject', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt', 'collectorId'],
@@ -56,6 +56,21 @@ function setup() {
   if (us.getLastRow() === 0) { us.appendRow(USER_COLS); us.setFrozenRows(1); }
   var es = ss.getSheetByName('ExpenseSubjects') || ss.insertSheet('ExpenseSubjects');
   if (es.getLastRow() === 0) { es.appendRow(['id', 'name', 'createdAt']); es.setFrozenRows(1); }
+  // master lists (areas, person locations) — bilingual, admin-editable
+  var ls = ss.getSheetByName('Lists') || ss.insertSheet('Lists');
+  if (ls.getLastRow() === 0) { ls.appendRow(['id', 'kind', 'nameBn', 'nameEn', 'order', 'createdAt']); ls.setFrozenRows(1); }
+  var hasArea = false;
+  if (ls.getLastRow() > 1) {
+    ls.getRange(2, 2, ls.getLastRow() - 1, 1).getValues().forEach(function (r) { if (String(r[0]) === 'area') hasArea = true; });
+  }
+  if (!hasArea) { // seed the 4 default shop areas (ids match the old hardcoded enum)
+    [['main_malda', 'মেন রোড — মালদার দিকে', 'Main Rd — Malda side'],
+     ['main_balurghat', 'মেন রোড — বালুরঘাটের দিকে', 'Main Rd — Balurghat side'],
+     ['harirampur', 'হরিরামপুর রোড', 'Harirampur Road'],
+     ['singhadaha', 'সিংহদহ রোড', 'Singhadaha Road']].forEach(function (a, i) {
+      ls.appendRow([a[0], 'area', a[1], a[2], i, new Date().toISOString()]);
+    });
+  }
 }
 
 /** Run once from the editor after the first registration, e.g. makeAdmin('hrishi') */
@@ -383,6 +398,56 @@ var ACTIONS = {
   removeSubject: function (b) {
     requireAdmin_(b.token);
     var sh = SpreadsheetApp.getActive().getSheetByName('ExpenseSubjects');
+    if (sh.getLastRow() < 2) return { ok: true };
+    var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(b.id)) { sh.deleteRow(i + 2); break; }
+    }
+    return { ok: true };
+  },
+
+  // ---------- master lists (areas, person locations) — bilingual ----------
+  listItems: function (b) {
+    requireUser_(b.token);
+    var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
+    var out = [];
+    if (sh && sh.getLastRow() > 1) {
+      sh.getRange(2, 1, sh.getLastRow() - 1, 5).getValues().forEach(function (r) {
+        if (!b.kind || String(r[1]) === b.kind) {
+          out.push({ id: String(r[0]), kind: String(r[1]), nameBn: String(r[2]), nameEn: String(r[3]), order: Number(r[4]) || 0 });
+        }
+      });
+      out.sort(function (a, c) { return a.order - c.order; });
+    }
+    return { ok: true, items: out };
+  },
+  addItem: function (b) {
+    requireAdmin_(b.token);
+    var kind = String(b.kind || '').trim(), bn = String(b.nameBn || '').trim(), en = String(b.nameEn || '').trim();
+    if (['area', 'location'].indexOf(kind) < 0 || (!bn && !en)) throw new Error('bad-input');
+    var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
+    sh.appendRow([Utilities.getUuid(), kind, bn || en, en || bn, sh.getLastRow(), new Date().toISOString()]);
+    return { ok: true };
+  },
+  editItem: function (b) {
+    requireAdmin_(b.token);
+    var bn = String(b.nameBn || '').trim(), en = String(b.nameEn || '').trim();
+    if (!bn && !en) throw new Error('bad-input');
+    var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
+    if (sh.getLastRow() < 2) throw new Error('not-found');
+    var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(b.id)) {
+        sh.getRange(i + 2, 3).setValue(bn || en);
+        sh.getRange(i + 2, 4).setValue(en || bn);
+        return { ok: true };
+      }
+    }
+    throw new Error('not-found');
+  },
+  removeItem: function (b) {
+    requireAdmin_(b.token);
+    var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
     if (sh.getLastRow() < 2) return { ok: true };
     var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
     for (var i = 0; i < ids.length; i++) {

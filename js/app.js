@@ -138,6 +138,7 @@
     }
     if (!notifTimer) notifTimer = setInterval(function () { if (!document.hidden) checkNotifications(); }, 60000);
     checkNotifications();
+    Lists.refresh(); // populate the areas/locations cache
   }
   // Minimal pull-to-refresh: pull down > ~80px from the very top → refresh.
   function wirePullToRefresh() {
@@ -316,7 +317,10 @@
 
   // ---------- flow definitions ----------
   function sideOptions() {
-    return SIDES.map(function (s) { return { v: s, labelKey: 'side_' + s }; });
+    return Lists.get('area').map(function (a) { return { v: a.id, label: Lists.labelOf('area', a.id) }; });
+  }
+  function locationOptions() {
+    return Lists.get('location').map(function (l) { return { v: l.id, label: Lists.labelOf('location', l.id) }; });
   }
   function modeOptions(withNone) {
     const o = [{ v: 'cash', labelKey: 'mode_cash' }, { v: 'upi', labelKey: 'mode_upi' },
@@ -341,7 +345,7 @@
   function savePartyAndFirstPayment(type, a) {
     const party = DB.newRow({
       type: type, name: a.name, owner: a.owner || '', side: a.side || '',
-      phone: a.phone || '', pledged: a.pledged || 0,
+      location: a.location || '', phone: a.phone || '', pledged: a.pledged || 0,
     });
     const m = moneyOf(a);
     return DB.put('parties', party).then(function () {
@@ -361,6 +365,8 @@
         { key: 'name', qKey: type === 'shop' ? 'q_shop_name' : 'q_person_name', kind: 'text' },
         { key: 'owner', qKey: 'q_owner_name', kind: 'text', showIf: function () { return type === 'shop'; } },
         { key: 'side', qKey: 'q_side', kind: 'choice', options: sideOptions(), showIf: function () { return type === 'shop'; } },
+        { key: 'location', qKey: 'q_location', kind: 'choice', options: locationOptions(), optional: true,
+          showIf: function () { return type !== 'shop' && Lists.get('location').length > 0; } },
         { key: 'phone', qKey: 'q_phone', kind: 'text', optional: true },
         { key: 'pledged', qKey: 'q_pledged', kind: 'amount' },
       ].concat(moneySteps(true)),
@@ -593,7 +599,8 @@
           const paid = paidBy[p.id] || 0, due = (Number(p.pledged) || 0) - paid;
           return '<div class="row" data-id="' + p.id + '">' +
             '<div><b>' + esc(p.name) + '</b><div class="row-sub">' +
-            esc(t('type_' + p.type)) + (p.side ? ' • ' + esc(t('side_' + p.side)) : '') +
+            esc(t('type_' + p.type)) + (p.side ? ' • ' + esc(Lists.labelOf('area', p.side)) : '') +
+            (p.location ? ' • ' + esc(Lists.labelOf('location', p.location)) : '') +
             (p.owner ? ' • ' + esc(p.owner) : '') + '</div></div>' +
             '<div class="row-right">' + fmtMoney(paid) + '/' + fmtMoney(p.pledged) +
             (due > 0 ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
@@ -622,7 +629,9 @@
       $view().innerHTML = backBar('list') +
         '<div class="card"><div class="card-title">' + esc(p.name) + '</div>' +
         '<div class="row-sub">' + esc(t('type_' + p.type)) +
-        (p.side ? ' • ' + esc(t('side_' + p.side)) : '') + (p.owner ? ' • ' + esc(p.owner) : '') +
+        (p.side ? ' • ' + esc(Lists.labelOf('area', p.side)) : '') +
+        (p.location ? ' • ' + esc(Lists.labelOf('location', p.location)) : '') +
+        (p.owner ? ' • ' + esc(p.owner) : '') +
         (p.phone ? ' • 📞 ' + esc(p.phone) : '') + '</div>' +
         '<div class="stat3">' +
         '<div><span>' + esc(t('pledged')) + '</span><b>' + fmtMoney(p.pledged) + '</b></div>' +
@@ -698,7 +707,7 @@
       ' — ' + esc(t('total_due')) + ': ' + fmtMoney(d.totalDue) + '</div>' +
       (rows.length ? rows.map(function (r) {
         return '<div class="row" style="cursor:default"><div><b>' + esc(r.name) + '</b><div class="row-sub">' +
-          esc(t('type_' + r.type)) + (r.side ? ' • ' + esc(t('side_' + r.side)) : '') +
+          esc(t('type_' + r.type)) + (r.side ? ' • ' + esc(Lists.labelOf('area', r.side)) : '') +
           (r.owner ? ' • ' + esc(r.owner) : '') + '</div></div>' +
           '<div class="row-right">' + fmtMoney(r.paid) + '/' + fmtMoney(r.pledged) +
           '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(r.due) + '</span></div></div>';
@@ -1130,8 +1139,11 @@
     Promise.all([
       Auth.call('listUsers', { token: Auth.token() }),
       Auth.call('listSubjects', { token: Auth.token() }).catch(function () { return { subjects: [] }; }),
+      Auth.call('listItems', { token: Auth.token() }).catch(function () { return { items: [] }; }),
     ]).then(function (res) {
-      const resp = res[0], subjects = res[1].subjects || [];
+      const resp = res[0], subjects = res[1].subjects || [], items = res[2].items || [];
+      const areas = items.filter(function (i) { return i.kind === 'area'; });
+      const locations = items.filter(function (i) { return i.kind === 'location'; });
       const year = String(Settings.get('year'));
       const groups = { pending: [], approved: [], blocked: [] };
       resp.users.forEach(function (u) { (groups[u.status] || groups.blocked).push(u); });
@@ -1179,9 +1191,24 @@
         (subjects.length ? '<div class="chips" style="margin-top:10px">' + subjects.map(function (s) {
           return '<button class="chip" data-subj-del="' + esc(s.id) + '">' + esc(s.name) + ' ✕</button>';
         }).join('') + '</div>' : '<div class="empty">' + esc(t('no_subjects')) + '</div>') + '</div>';
+      // bilingual master-list manager (areas, person locations)
+      function listMgmtCard(kind, titleKey, list) {
+        return '<div class="card"><div class="card-title">' + esc(t(titleKey)) + '</div>' +
+          '<div class="input-row"><input id="li-bn-' + kind + '" placeholder="' + esc(t('name_bn')) + '" autocomplete="off">' +
+          '<input id="li-en-' + kind + '" placeholder="' + esc(t('name_en')) + '" autocomplete="off">' +
+          '<button class="primary" data-li-add="' + kind + '">' + esc(t('add_btn')) + '</button></div>' +
+          (list.length ? list.map(function (it) {
+            return '<div class="row" style="cursor:default"><div><b>' + esc(it.nameBn) + '</b>' +
+              '<div class="row-sub">' + esc(it.nameEn) + '</div></div><div class="chips" style="margin:0">' +
+              '<button class="chip" data-li-edit="' + esc(it.id) + '">' + esc(t('edit_btn')) + '</button>' +
+              '<button class="chip" data-li-del="' + esc(it.id) + '">' + esc(t('del_btn')) + '</button></div></div>';
+          }).join('') : '<div class="empty">' + esc(t('no_items')) + '</div>') + '</div>';
+      }
       $view().innerHTML = backBar('settings') + '<div class="flow-title">' + esc(t('admin_panel')) + '</div>' +
         '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
         subjectsCard +
+        listMgmtCard('area', 'manage_areas', areas) +
+        listMgmtCard('location', 'manage_locations', locations) +
         section('pending_users', groups.pending) +
         section('approved_users', groups.approved) +
         section('blocked_users', groups.blocked);
@@ -1196,6 +1223,27 @@
       };
       document.querySelectorAll('[data-subj-del]').forEach(function (b) {
         b.onclick = function () { adminAction('removeSubject', { id: b.dataset.subjDel }); };
+      });
+      const afterList = function () { Lists.refresh(); }; // refresh the client cache too
+      document.querySelectorAll('[data-li-add]').forEach(function (b) {
+        b.onclick = function () {
+          const kind = b.dataset.liAdd;
+          const bn = document.getElementById('li-bn-' + kind).value.trim();
+          const en = document.getElementById('li-en-' + kind).value.trim();
+          if (!bn && !en) return;
+          adminAction('addItem', { kind: kind, nameBn: bn, nameEn: en }, afterList);
+        };
+      });
+      document.querySelectorAll('[data-li-del]').forEach(function (b) {
+        b.onclick = function () { adminAction('removeItem', { id: b.dataset.liDel }, afterList); };
+      });
+      document.querySelectorAll('[data-li-edit]').forEach(function (b) {
+        b.onclick = function () {
+          const it = items.find(function (x) { return x.id === b.dataset.liEdit; }) || {};
+          const bn = window.prompt(t('name_bn'), it.nameBn || ''); if (bn === null) return;
+          const en = window.prompt(t('name_en'), it.nameEn || ''); if (en === null) return;
+          adminAction('editItem', { id: b.dataset.liEdit, nameBn: bn.trim(), nameEn: en.trim() }, afterList);
+        };
       });
       document.querySelectorAll('[data-act]').forEach(function (b) {
         const id = b.dataset.id;

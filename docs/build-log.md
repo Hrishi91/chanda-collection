@@ -534,3 +534,25 @@
 - ✅ Fix-list #1–#10 complete (+ notifications). Pending: the batched
   Code.gs redeploy (#3 voids, #4 identity, #5 logout, #6 password,
   notifications) + Hrishi clearing test data.
+
+## 2026-07-24 — Master data step 1: admin-editable areas + locations (bilingual)
+
+- Shop areas were a hardcoded enum; person/member had no area. Both are now
+  admin-editable, bilingual (bn+en). New generic `Lists` sheet
+  {id,kind,nameBn,nameEn,order} with kind area|location; Code.gs actions
+  listItems (any user) + addItem/editItem/removeItem (admin). setup()
+  creates Lists and seeds the 4 default areas with ids = the old enum
+  values (backward-compatible with existing shop.side data).
+- Client: new js/lists.js — fetches + caches lists in localStorage (SEED
+  fallback offline), Lists.get(kind) / Lists.labelOf(kind,id) resolves the
+  current-language label. Shop-side step + a new optional person/member
+  location step read from Lists; list/party display resolve via
+  Lists.labelOf. Admin panel gained bilingual add/edit(rename via prompt)/
+  remove cards for areas and locations. parties sheet +location column
+  (appended; setup migrates). Lists.refresh() on login + admin edits.
+- Verified live (mocked backend): custom area "নতুন বাজার/New Market"
+  shows in the shop-side chips and admin card with ✏️/🗑️; person flow
+  shows a location step; bilingual labels resolve bn/en. 99 tests pass.
+  sw → chanda-v3.21.0. Adds to the batched Code.gs redeploy.
+- Next: expense-subject edit + the correction system (void all types +
+  the cashier/admin permission rule + flag/request).
