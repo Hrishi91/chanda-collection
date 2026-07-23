@@ -250,3 +250,26 @@
   fallback), and config.js removed from the precache ASSETS list so a
   stale copy is never baked in at install time.
 - sw → chanda-v3.5.0. 71 tests pass; sw.js node --check clean.
+
+## 2026-07-23 — Full audit: language toggle was completely broken (v3.6.0)
+
+- Deep-read every module (js/*.js, Code.gs, index.html) after the
+  window.CONFIG bug, hunting for the same class of error. Found the
+  English/Bengali toggle never worked:
+  1. i18n.js `t()` read the language as `window.Settings && Settings.get('lang')`,
+     but Settings was a top-level `const` → `window.Settings` undefined →
+     the guard always fell back to 'bn'. So `t()` returned Bengali no
+     matter what the user picked. Fix: db.js assigns `window.Settings = {…}`
+     (same class of bug as window.CONFIG).
+  2. On the login/register/forgot screens the language chips called only
+     the partial re-render (renderLogin/renderRegister), so even once (1)
+     was fixed the header title + bottom-nav labels stayed in the old
+     language. Fix: langChips() now calls the full render().
+- Verified live in the browser (local static serve): with lang=en the UI
+  renders fully in English; clicking বাংলা flips the card, the header
+  (🙏 চাঁদা খাতা) and the nav (হোম/খাতা/রিপোর্ট/সেটিংস) together.
+- Audit result otherwise clean: client↔server field/action contract
+  matches (SHEETS cols vs DB.newRow vs report renderers), auth/roles/
+  report-gating consistent, no other `window.X &&` guard bugs remain
+  (grep-verified: only CONFIG + Settings were affected, both fixed).
+- sw → chanda-v3.6.0. 71 tests pass; db.js + app.js node --check clean.

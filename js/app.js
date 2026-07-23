@@ -802,10 +802,11 @@
     const el = document.getElementById('auth-err');
     if (el) { el.textContent = msg || ''; el.style.display = msg ? 'block' : 'none'; }
   }
-  function langChips(rerender) {
+  function langChips() {
     setTimeout(function () {
       document.querySelectorAll('[data-l]').forEach(function (b) {
-        b.onclick = function () { Settings.set('lang', b.dataset.l); rerender(); };
+        // full render() (not just the card) so header + bottom nav switch too
+        b.onclick = function () { Settings.set('lang', b.dataset.l); render(); };
       });
     }, 0);
     return '<div class="chips center"><button class="chip' + (Settings.get('lang') === 'bn' ? ' on' : '') +
@@ -819,7 +820,7 @@
   }
   function renderLogin() {
     $view().innerHTML = '<div class="card center onboard"><div class="big-emoji">🙏</div>' +
-      '<h2>' + esc(t('welcome_title')) + '</h2>' + langChips(renderLogin) +
+      '<h2>' + esc(t('welcome_title')) + '</h2>' + langChips() +
       '<div class="field"><label>' + esc(t('username')) + '</label>' +
       '<input id="lg-user" autocapitalize="none" autocomplete="username"></div>' +
       '<div class="field"><label>' + esc(t('password')) + '</label>' +
@@ -845,7 +846,7 @@
   }
   function renderRegister() {
     $view().innerHTML = '<div class="card center onboard"><h2>' + esc(t('register_title')) + '</h2>' +
-      langChips(renderRegister) +
+      langChips() +
       '<div class="field"><label>' + esc(t('full_name')) + '</label><input id="rg-name"></div>' +
       '<div class="field"><label>' + esc(t('username')) + '</label>' +
       '<input id="rg-user" autocapitalize="none" autocorrect="off" spellcheck="false">' +

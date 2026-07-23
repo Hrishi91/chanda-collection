@@ -85,7 +85,10 @@ const DB = (function () {
 })();
 
 // Tiny localStorage settings helper.
-const Settings = {
+// Assigned to window (not `const`) so `window.Settings` resolves — i18n.js
+// guards t() with `window.Settings && …`; a top-level const is not a window
+// property, which pinned the language to Bengali (English toggle did nothing).
+window.Settings = {
   get: function (k) {
     const v = localStorage.getItem('ck_' + k);
     if (k === 'year') return v ? Number(v) : new Date().getFullYear();
