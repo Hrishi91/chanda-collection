@@ -78,7 +78,16 @@
     return Auth.call('pull', { token: Auth.token(), year: Settings.get('year') }).then(function (resp) {
       centralData = resp.data || null;
       try { localStorage.setItem('ck_central', JSON.stringify(centralData)); } catch (e) { /* quota */ }
-      if (!flowState && ['list', 'party', 'findparty', 'report'].indexOf(current.view) >= 0) render();
+      if (flowState) return;
+      // findparty: refresh results in place (rebuilding the shell steals input
+      // focus and flashes "loading" → looked like blinking). Its #fp-results
+      // swap never touches the search box, so it's safe even mid-typing.
+      if (current.view === 'findparty') { if (document.getElementById('fp-search')) refreshFindParty(); return; }
+      // Other screens fully rebuild their DOM (incl. the search box). Skip the
+      // background re-render while the user is typing so we don't steal focus.
+      const el = document.activeElement;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
+      if (['list', 'party', 'report'].indexOf(current.view) >= 0) render();
     }).catch(function () { /* offline — keep the cached snapshot */ });
   }
   // central snapshot overlaid with this device's own rows (so a just-saved
@@ -678,7 +687,13 @@
       '<input id="fp-search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(findQuery) + '">' +
       '<div id="fp-results"><div class="empty">' + esc(t('loading')) + '</div></div>';
     document.getElementById('fp-search').oninput = function (e) { findQuery = e.target.value; renderFPResults(); };
-    viewData().then(function (data) {                    // local central snapshot — instant
+    refreshFindParty();
+  }
+  // Reloads the party data + results only, WITHOUT rebuilding the shell — so a
+  // background pull can refresh the list in place without stealing input focus
+  // or flashing the "loading" placeholder (which looked like blinking).
+  function refreshFindParty() {
+    return viewData().then(function (data) {              // local central snapshot — instant
       const paidBy = Aggregate.computeTotals(data).paidByParty;
       findParties = data.parties.map(function (p) {
         return { id: p.id, name: p.name, type: p.type, side: p.side, owner: p.owner,

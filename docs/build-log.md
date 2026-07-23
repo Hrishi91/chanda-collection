@@ -789,3 +789,19 @@
 - New Apps Script deployment carries the `pull` action; probed live from a
   browser origin → `{"ok":false,"error":"bad-token"}` (action reached
   requireUser_, so `pull` is deployed — not "unknown action").
+
+## v3.36.0 — Fix find-party "blinking" during background pull
+
+- `pullCentral()` was calling full `render()` for the findparty view on every
+  60s tick / focus / post-push. `renderFindParty()` rebuilds the whole shell:
+  it recreates the `#fp-search` input (stealing focus) and resets `#fp-results`
+  to the "loading" placeholder before the async fill → a visible blink while
+  the user was searching.
+- Split `renderFindParty()` into shell-build + `refreshFindParty()` (data +
+  results only, no shell rebuild). Background pull now refreshes findparty in
+  place — the `#fp-results` swap never touches the search box.
+- Same-class guard for other screens (list/party/report fully rebuild their DOM
+  incl. the search box): background pull skips the re-render while an INPUT/
+  TEXTAREA is focused, so typing in the khata search isn't interrupted either.
+- Verified live: focus + typed value retained through a background pull, no
+  loading flash, filter still correct. 105 tests pass.
