@@ -1,5 +1,5 @@
 // App-shell cache. Bump VERSION on every deploy that changes app files.
-const VERSION = 'chanda-v3.2.0';
+const VERSION = 'chanda-v3.3.0';
 const ASSETS = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest', 'icons/icon.svg',
   'js/config.js', 'js/i18n.js', 'js/numparse.js', 'js/aggregate.js', 'js/db.js',
@@ -23,6 +23,17 @@ self.addEventListener('fetch', function (e) {
   // network-first for navigation (fresh app), cache-first for assets
   if (e.request.mode === 'navigate') {
     e.respondWith(fetch(e.request).catch(function () { return caches.match('./'); }));
+    return;
+  }
+  // config.js carries the live backend URL — never serve it stale. Network-
+  // first (refresh the cache on success) so a device that cached an older
+  // config can't get stuck on an empty SCRIPT_URL; falls back to cache offline.
+  if (url.pathname.endsWith('/config.js') || url.pathname.endsWith('js/config.js')) {
+    e.respondWith(fetch(e.request).then(function (resp) {
+      const copy = resp.clone();
+      caches.open(VERSION).then(function (c) { c.put(e.request, copy); });
+      return resp;
+    }).catch(function () { return caches.match(e.request); }));
     return;
   }
   e.respondWith(caches.match(e.request).then(function (hit) {

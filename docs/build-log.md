@@ -196,3 +196,26 @@
   the inline box. sw → chanda-v3.2.0.
 - Verified in browser: "Hrishi Babu" → red rule; "hrishi" → green ✓;
   mismatched passwords → persistent inline error box.
+
+## 2026-07-23 — Fix: stale cached config → "Sync URL not set"
+
+- Symptom (Hrishi, 2nd device): register failed with "Sync URL not set
+  (Settings)" even though js/config.js has the live URL and Pages serves
+  it. Live-diagnosed: backend up, config correct, Users sheet exists,
+  register works via fetch. CAUSE: config.js was cache-first in the SW,
+  so a device that cached the app BEFORE the URL was baked in kept
+  serving the old empty SCRIPT_URL until it happened to re-fetch sw.js.
+  This is why the very first register never reached the sheet either.
+- Fix 1 — sw.js: config.js is now **network-first** (refresh cache on
+  success, cache fallback offline). The file carrying the backend URL can
+  never be served stale while online, so no collector gets stuck on an
+  empty URL.
+- Fix 2 — app.js: on `controllerchange` (an UPDATED SW taking control via
+  skipWaiting+clients.claim) the page **auto-reloads once**, so future
+  deploys apply without asking users to close/clear the app. Guarded by
+  `hadController` so the first-ever install doesn't self-reload.
+- sw → chanda-v3.3.0. 71 unit tests still pass; sw.js + app.js
+  node --check clean.
+- Note: a device ALREADY stuck on the old SW must re-fetch sw.js once
+  (reopen online / clear site data / reinstall) to receive v3.3.0; after
+  that the two fixes keep it current automatically.

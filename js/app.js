@@ -1064,6 +1064,20 @@
     };
     render();
     autoSync();
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+    if ('serviceWorker' in navigator) {
+      // When an UPDATED SW takes control (skipWaiting + clients.claim), reload
+      // once so the page picks up fresh assets — chiefly config.js — instead of
+      // running stale in-memory code until the user manually closes the app.
+      // Guard: on the very first install there is no prior controller, and
+      // clients.claim fires controllerchange too — don't reload in that case.
+      const hadController = !!navigator.serviceWorker.controller;
+      let swReloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (!hadController || swReloaded) return;
+        swReloaded = true;
+        location.reload();
+      });
+      navigator.serviceWorker.register('sw.js');
+    }
   });
 })();
