@@ -32,6 +32,17 @@
     const totalExpense = sum(expenses, function (e) { return e.amount; });
     const totalPledged = byType.shop.pledged + byType.person.pledged + byType.member.pledged;
 
+    // cash/UPI split (legacy rows without split fields count as cash)
+    let totalCash = 0, totalUpi = 0;
+    payments.concat(daily).forEach(function (r) {
+      if (r.cashAmount === undefined && r.upiAmount === undefined) {
+        totalCash += Number(r.amount) || 0;
+      } else {
+        totalCash += Number(r.cashAmount) || 0;
+        totalUpi += Number(r.upiAmount) || 0;
+      }
+    });
+
     const byCollector = {};
     payments.concat(daily).forEach(function (r) {
       const c = r.collector || '?';
@@ -48,7 +59,34 @@
       totalDue: totalPledged - (byType.shop.paid + byType.person.paid + byType.member.paid),
       byCollector: byCollector,
       paidByParty: paidByParty,
+      totalCash: totalCash,
+      totalUpi: totalUpi,
     };
+  }
+
+  // Per-collector accountability: collected − confirmed handovers = in hand.
+  // Pending handovers stay "in hand" until the cashier confirms receipt.
+  function handoverSummary(data) {
+    const collected = {};
+    (data.payments || []).concat(data.daily || []).forEach(function (r) {
+      const c = r.collector || '?';
+      collected[c] = (collected[c] || 0) + (Number(r.amount) || 0);
+    });
+    const handed = {}, pending = {};
+    (data.handovers || []).forEach(function (h) {
+      const c = h.from || h.collector || '?';
+      if (h.status === 'confirmed') handed[c] = (handed[c] || 0) + (Number(h.amount) || 0);
+      else pending[c] = (pending[c] || 0) + (Number(h.amount) || 0);
+    });
+    const names = {};
+    [collected, handed, pending].forEach(function (m) {
+      Object.keys(m).forEach(function (k) { names[k] = 1; });
+    });
+    return Object.keys(names).map(function (c) {
+      const col = collected[c] || 0, h = handed[c] || 0;
+      return { collector: c, collected: col, handedOver: h,
+               pending: pending[c] || 0, inHand: col - h };
+    }).sort(function (a, b) { return b.inHand - a.inHand; });
   }
 
   // Parties with outstanding due, biggest due first.
@@ -64,7 +102,7 @@
       .sort(function (a, b) { return b.due - a.due; });
   }
 
-  const api = { computeTotals: computeTotals, duesList: duesList };
+  const api = { computeTotals: computeTotals, duesList: duesList, handoverSummary: handoverSummary };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
 })();

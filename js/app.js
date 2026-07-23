@@ -53,7 +53,7 @@
     if (step.kind === 'amount') return fmtMoney(val);
     if (step.kind === 'choice') {
       const o = step.options.find(function (o) { return o.v === val; });
-      return o ? t(o.labelKey) : val;
+      return o ? (o.labelKey ? t(o.labelKey) : o.label) : val;
     }
     return val;
   }
@@ -97,7 +97,8 @@
       html += '<div class="bubble q now">' + esc(t(s.qKey)) + '</div></div>';
       if (s.kind === 'choice') {
         html += '<div class="chips">' + s.options.map(function (o) {
-          return '<button class="chip" data-v="' + esc(o.v) + '">' + esc(t(o.labelKey)) + '</button>';
+          return '<button class="chip" data-v="' + esc(o.v) + '">' +
+                 esc(o.labelKey ? t(o.labelKey) : o.label) + '</button>';
         }).join('') + '</div>';
       } else {
         html += '<div class="input-row">' +
@@ -171,7 +172,7 @@
       flowState.def.save(flowState.answers).then(function (afterOpts) {
         toast(t('saved')); updateBadge(); autoSync();
         if (afterOpts) renderAfter(afterOpts); else navigate(flowState.def.returnTo || 'home');
-      });
+      }).catch(function () { saveB.disabled = false; toast(t('amount_zero')); });
     };
     const cancelB = document.getElementById('cancel-btn');
     if (cancelB) cancelB.onclick = function () { flowState = null; navigate('home'); };
@@ -191,15 +192,37 @@
   function sideOptions() {
     return SIDES.map(function (s) { return { v: s, labelKey: 'side_' + s }; });
   }
+  function modeOptions(withNone) {
+    const o = [{ v: 'cash', labelKey: 'mode_cash' }, { v: 'upi', labelKey: 'mode_upi' },
+               { v: 'both', labelKey: 'mode_both' }];
+    if (withNone) o.unshift({ v: 'none', labelKey: 'mode_none' });
+    return o;
+  }
+  function needCash(a) { return a.payMode === 'cash' || a.payMode === 'both'; }
+  function needUpi(a) { return a.payMode === 'upi' || a.payMode === 'both'; }
+  function moneyOf(a) {
+    const cash = Number(a.cashAmount) || 0, upi = Number(a.upiAmount) || 0;
+    return { cash: cash, upi: upi, total: cash + upi };
+  }
+  // shared step block: mode chip + conditional cash/UPI amounts
+  function moneySteps(withNone) {
+    return [
+      { key: 'payMode', qKey: withNone ? 'q_pay_now_mode' : 'q_mode', kind: 'choice', options: modeOptions(withNone) },
+      { key: 'cashAmount', qKey: 'q_cash_amount', kind: 'amount', showIf: needCash },
+      { key: 'upiAmount', qKey: 'q_upi_amount', kind: 'amount', showIf: needUpi },
+    ];
+  }
   function savePartyAndFirstPayment(type, a) {
     const party = DB.newRow({
       type: type, name: a.name, owner: a.owner || '', side: a.side || '',
       phone: a.phone || '', pledged: a.pledged || 0,
     });
+    const m = moneyOf(a);
     return DB.put('parties', party).then(function () {
-      if (a.paidNow > 0) {
+      if (m.total > 0) {
         return DB.put('payments', DB.newRow({
-          partyId: party.id, partyName: party.name, amount: a.paidNow, date: todayISO(), note: '',
+          partyId: party.id, partyName: party.name, amount: m.total,
+          cashAmount: m.cash, upiAmount: m.upi, date: todayISO(), note: '',
         }));
       }
     }).then(function () { return party; });
@@ -214,8 +237,7 @@
         { key: 'side', qKey: 'q_side', kind: 'choice', options: sideOptions(), showIf: function () { return type === 'shop'; } },
         { key: 'phone', qKey: 'q_phone', kind: 'text', optional: true },
         { key: 'pledged', qKey: 'q_pledged', kind: 'amount' },
-        { key: 'paidNow', qKey: 'q_paid_now', kind: 'amount', optional: true },
-      ],
+      ].concat(moneySteps(true)),
       save: function (a) {
         return savePartyAndFirstPayment(type, a).then(function (party) {
           if (!bulk) return null;
@@ -232,17 +254,48 @@
     return {
       title: t('add_payment') + ' — ' + party.name,
       returnTo: 'list',
-      steps: [
-        { key: 'amount', qKey: 'q_amount', kind: 'amount' },
+      steps: moneySteps(false).concat([
         { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
-      ],
+      ]),
       save: function (a) {
+        const m = moneyOf(a);
+        if (m.total <= 0) return Promise.reject(new Error('zero'));
         return DB.put('payments', DB.newRow({
-          partyId: party.id, partyName: party.name, amount: a.amount,
+          partyId: party.id, partyName: party.name, amount: m.total,
+          cashAmount: m.cash, upiAmount: m.upi,
           date: todayISO(), note: a.note || '',
         })).then(function () { return null; });
       },
     };
+  }
+  function handoverFlow(cashierOpts) {
+    const toStep = cashierOpts && cashierOpts.length
+      ? { key: 'to', qKey: 'q_handover_to', kind: 'choice',
+          options: cashierOpts.map(function (n) { return { v: n, label: n }; }) }
+      : { key: 'to', qKey: 'q_handover_to', kind: 'text' };
+    return {
+      title: t('handover_title'),
+      steps: [toStep].concat(moneySteps(false), [
+        { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
+      ]),
+      save: function (a) {
+        const m = moneyOf(a);
+        if (m.total <= 0) return Promise.reject(new Error('zero'));
+        return DB.put('handovers', DB.newRow({
+          from: Settings.get('collectorName'), to: a.to,
+          amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
+          date: todayISO(), note: a.note || '',
+          status: 'pending', confirmedBy: '', confirmedAt: '',
+        })).then(function () { return null; });
+      },
+    };
+  }
+  function startHandover() {
+    if (navigator.onLine && Sync.configured()) {
+      Auth.call('cashiers', { token: Auth.token() })
+        .then(function (resp) { startFlow(handoverFlow(resp.cashiers || [])); })
+        .catch(function () { startFlow(handoverFlow(null)); });
+    } else startFlow(handoverFlow(null));
   }
   function dailyFlow(type) {
     return {
@@ -250,13 +303,16 @@
       steps: [
         { key: 'busName', qKey: 'q_bus_name', kind: 'text', showIf: function () { return type === 'bus'; } },
         { key: 'busNumber', qKey: 'q_bus_number', kind: 'text', showIf: function () { return type === 'bus'; } },
-        { key: 'amount', qKey: 'q_amount', kind: 'amount' },
+      ].concat(moneySteps(false), [
         { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
-      ],
+      ]),
       save: function (a) {
+        const m = moneyOf(a);
+        if (m.total <= 0) return Promise.reject(new Error('zero'));
         return DB.put('daily', DB.newRow({
           type: type, busName: a.busName || '', busNumber: a.busNumber || '',
-          amount: a.amount, date: todayISO(), note: a.note || '',
+          amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
+          date: todayISO(), note: a.note || '',
         })).then(function () {
           return { buttons: [
             { label: '➕ ' + t('daily_' + type), action: function () { startFlow(dailyFlow(type)); } },
@@ -310,7 +366,12 @@
           '<button class="tile" data-go="expense">🧾 ' + esc(t('expense')) + '</button>' +
         '</div>' +
         '<div class="grid one"><button class="tile wide" data-go="list">💰 ' + esc(t('add_payment')) +
-        ' / ' + esc(t('dues_only')) + '</button></div>';
+        ' / ' + esc(t('dues_only')) + '</button></div>' +
+        '<div class="grid" style="margin-top:10px">' +
+          '<button class="tile" data-go="handover">' + esc(t('handover')) + '</button>' +
+          (Auth.isCashier()
+            ? '<button class="tile" data-go="cashier">' + esc(t('confirm_handover')) + '</button>' : '') +
+        '</div>';
       document.querySelectorAll('[data-go]').forEach(function (b) {
         b.onclick = function () {
           const g = b.dataset.go;
@@ -318,6 +379,7 @@
           else if (g === 'bulk') startFlow(newPartyFlow('shop', {}, true));
           else if (g === 'road' || g === 'toto' || g === 'bus') startFlow(dailyFlow(g));
           else if (g === 'expense') startFlow(expenseFlow('general'));
+          else if (g === 'handover') startHandover();
           else navigate(g);
         };
       });
@@ -413,8 +475,61 @@
       '</div>' +
       '<div class="stat3"><div><span>' + esc(t('total_pledged')) + '</span><b>' + fmtMoney(tt.totalPledged) + '</b></div>' +
       '<div class="red"><span>' + esc(t('total_due')) + '</span><b>' + fmtMoney(tt.totalDue) + '</b></div><div></div></div>' +
+      '<div class="stat3"><div><span>' + esc(t('total_cash')) + '</span><b>' + fmtMoney(tt.totalCash) + '</b></div>' +
+      '<div><span>' + esc(t('total_upi')) + '</span><b>' + fmtMoney(tt.totalUpi) + '</b></div><div></div></div>' +
       typeRow('shop') + typeRow('person') + typeRow('member') +
       dailyRow('road') + dailyRow('toto') + dailyRow('bus') + '</div>';
+  }
+
+  function inHandTable(data) {
+    const rows = Aggregate.handoverSummary(data);
+    if (!rows.length) return '';
+    return '<div class="card"><div class="card-title">' + esc(t('in_hand_by_collector')) + '</div>' +
+      '<div class="row" style="cursor:default"><div class="row-sub">' + esc(t('by_collector')) + '</div>' +
+      '<div class="row-sub">' + esc(t('collected_col')) + ' − ' + esc(t('handed_col')) + ' = ' + esc(t('inhand_col')) + '</div></div>' +
+      rows.map(function (r) {
+        return '<div class="row" style="cursor:default"><div><b>' + esc(r.collector) + '</b>' +
+          (r.pending ? '<div class="row-sub">⏳ ' + esc(t('pending_handovers')) + ': ' + fmtMoney(r.pending) + '</div>' : '') +
+          '</div><div class="row-right">' + fmtMoney(r.collected) + ' − ' + fmtMoney(r.handedOver) +
+          ' = <span class="' + (r.inHand > 0 ? 'red' : 'green') + '"><b>' + fmtMoney(r.inHand) + '</b></span></div></div>';
+      }).join('') + '</div>';
+  }
+
+  function renderCashier() {
+    if (!Auth.isCashier()) { $view().innerHTML = '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
+    $view().innerHTML = '<div class="empty">' + esc(t('loading')) + '</div>';
+    Sync.fetchCentral().then(function (data) {
+      const me = Settings.get('collectorName');
+      const mine = (data.handovers || []).filter(function (h) { return h.to === me; });
+      const pending = mine.filter(function (h) { return h.status !== 'confirmed'; });
+      const done = mine.filter(function (h) { return h.status === 'confirmed'; })
+        .sort(function (a, b) { return String(b.confirmedAt).localeCompare(String(a.confirmedAt)); }).slice(0, 15);
+      function card(h, withBtn) {
+        return '<div class="row" style="flex-wrap:wrap;cursor:default"><div><b>' + esc(h.from) + '</b>' +
+          '<div class="row-sub">' + esc(h.date) + (h.note ? ' • ' + esc(h.note) : '') +
+          ' • ' + esc(t('cash')) + ' ' + fmtMoney(h.cashAmount) + ' + UPI ' + fmtMoney(h.upiAmount) + '</div></div>' +
+          '<b>' + fmtMoney(h.amount) + '</b>' +
+          (withBtn ? '<div style="flex-basis:100%;margin-top:8px"><button class="primary" data-hid="' +
+            esc(h.id) + '">' + esc(t('confirm_receive')) + '</button></div>' : '') + '</div>';
+      }
+      $view().innerHTML = '<div class="flow-title">' + esc(t('confirm_handover')) + '</div>' +
+        '<div class="section">' + esc(t('pending_handovers')) + ' (' + pending.length + ')</div>' +
+        (pending.length ? pending.map(function (h) { return card(h, true); }).join('')
+                        : '<div class="empty">' + esc(t('none_here')) + '</div>') +
+        '<div class="section">' + esc(t('confirmed_handovers')) + '</div>' +
+        (done.length ? done.map(function (h) { return card(h, false); }).join('')
+                     : '<div class="empty">' + esc(t('none_here')) + '</div>');
+      document.querySelectorAll('[data-hid]').forEach(function (b) {
+        b.onclick = function () {
+          b.disabled = true;
+          Auth.call('confirmHandover', { token: Auth.token(), id: b.dataset.hid })
+            .then(function () { toast(t('saved')); renderCashier(); })
+            .catch(function (e) { b.disabled = false; toast(errMsg(e)); });
+        };
+      });
+    }).catch(function () {
+      $view().innerHTML = '<div class="empty">' + esc(t('needs_net')) + '</div>';
+    });
   }
 
   function renderReport() {
@@ -428,14 +543,7 @@
         c.innerHTML = '<div class="empty">' + esc(t('loading')) + '</div>';
         Sync.fetchCentral().then(function (cd) {
           const ct = Aggregate.computeTotals(cd);
-          const coll = Object.keys(ct.byCollector).sort(function (a, b) {
-            return ct.byCollector[b] - ct.byCollector[a];
-          });
-          c.innerHTML = totalsHTML(ct, t('central_report')) +
-            '<div class="card"><div class="card-title">' + esc(t('by_collector')) + '</div>' +
-            coll.map(function (k) {
-              return '<div class="row"><div>' + esc(k) + '</div><b>' + fmtMoney(ct.byCollector[k]) + '</b></div>';
-            }).join('') + '</div>';
+          c.innerHTML = totalsHTML(ct, t('central_report')) + inHandTable(cd);
         }).catch(function () {
           c.innerHTML = '<div class="empty">' + esc(Sync.configured() ? t('fetch_fail') : t('sync_not_configured')) + '</div>';
         });
@@ -693,6 +801,7 @@
     else if (current.view === 'report') renderReport();
     else if (current.view === 'settings') renderSettings();
     else if (current.view === 'admin') { Auth.isAdmin() ? renderAdmin() : renderHome(); }
+    else if (current.view === 'cashier') renderCashier();
     else renderHome();
     updateBadge();
   }

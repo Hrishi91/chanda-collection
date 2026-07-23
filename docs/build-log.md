@@ -72,3 +72,22 @@
   https://hrishi91.github.io/chanda-collection/
 - Remaining to go fully live: Hrishi's Apps Script deploy → bake URL
   into js/config.js → real e2e sync test → collectors install.
+
+## 2026-07-23 — v2 Phase 2: cash/UPI split + handover ledger
+
+- Every money entry (installments incl. first payment, road/toto/bus)
+  now asks mode: নগদ / UPI / দুটোই — "both" captures cash+UPI amounts
+  separately (cashAmount/upiAmount cols added server-side; legacy rows
+  count as cash). Zero-total saves rejected.
+- Handover ledger: new `handovers` store/sheet (IndexedDB v2).
+  Collector: 🤝 জমা দিলাম → picks cashier (server `cashiers` list,
+  free-text offline) → cash/UPI amounts. Cashier: ✅ জমা নেওয়া confirm
+  view (server-truth via dump) → `confirmHandover` (cashier/admin only,
+  server-side status flip — no client row-ownership conflicts).
+- Central report: মোট নগদ/মোট UPI tiles + "কার হাতে কত টাকা" table
+  (collected − confirmed handovers = in hand; pending shown separately,
+  still counted as in-hand until confirmed).
+- Verified live against updated mock: both-mode payment
+  (100 cash + 150 UPI), handover "দুশো"→200 cash → cashier confirm →
+  pending(1)→confirmed, in-hand table shows 250−200=50, cash/UPI totals
+  100/150 correct. Tests 58 passed, 0 failed.

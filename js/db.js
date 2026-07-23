@@ -1,8 +1,8 @@
 // IndexedDB wrapper. Stores: parties, payments, daily, expenses.
 // Every row: {id: uuid, year, collector, createdAt, synced: 0|1, ...}
 const DB = (function () {
-  const NAME = 'chanda-khata', VER = 1;
-  const STORES = ['parties', 'payments', 'daily', 'expenses'];
+  const NAME = 'chanda-khata', VER = 2; // v2: + handovers store
+  const STORES = ['parties', 'payments', 'daily', 'expenses', 'handovers'];
   let dbp = null;
 
   function open() {
@@ -57,13 +57,15 @@ const DB = (function () {
 
   function allData() {
     return Promise.all(STORES.map(getAll)).then(function (r) {
-      return { parties: r[0], payments: r[1], daily: r[2], expenses: r[3] };
+      const out = {};
+      STORES.forEach(function (s, i) { out[s] = r[i]; });
+      return out;
     });
   }
   function unsyncedCount() {
     return allData().then(function (d) {
       return STORES.reduce(function (n, s) {
-        return n + d[s === 'parties' ? 'parties' : s].filter(function (r) { return !r.synced; }).length;
+        return n + d[s].filter(function (r) { return !r.synced; }).length;
       }, 0);
     });
   }

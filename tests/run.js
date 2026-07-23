@@ -1,6 +1,6 @@
 // Pure-logic tests: node tests/run.js
 const { parseAmount } = require('../js/numparse.js');
-const { computeTotals, duesList } = require('../js/aggregate.js');
+const { computeTotals, duesList, handoverSummary } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -79,6 +79,39 @@ eq(tt.byType.shop.pledged, 500, 'shop pledged');
 eq(tt.dailyByType.road, 700, 'road total');
 eq(tt.byCollector.X, 200 + 400 + 700, 'collector X');
 eq(tt.byCollector.Y, 300 + 250 + 150, 'collector Y');
+
+// ---- cash/UPI split ----
+const splitData = {
+  parties: [], expenses: [],
+  payments: [
+    { partyId: 'p1', amount: 500, cashAmount: 300, upiAmount: 200, collector: 'X' },
+    { partyId: 'p2', amount: 100, collector: 'X' }, // legacy row → counts as cash
+  ],
+  daily: [{ type: 'road', amount: 250, cashAmount: 0, upiAmount: 250, collector: 'Y' }],
+};
+const st = computeTotals(splitData);
+eq(st.totalCash, 300 + 100, 'split: total cash incl legacy');
+eq(st.totalUpi, 200 + 250, 'split: total upi');
+eq(st.totalCollection, 850, 'split: grand total');
+
+// ---- handover / in-hand ----
+const hoData = {
+  payments: [{ partyId: 'p1', amount: 700, collector: 'X' }],
+  daily: [{ type: 'toto', amount: 300, collector: 'X' }, { type: 'road', amount: 400, collector: 'Y' }],
+  handovers: [
+    { from: 'X', to: 'Cash Babu', amount: 600, status: 'confirmed' },
+    { from: 'X', to: 'Cash Babu', amount: 200, status: 'pending' },
+  ],
+};
+const hs = handoverSummary(hoData);
+const hx = hs.find(function (r) { return r.collector === 'X'; });
+const hy = hs.find(function (r) { return r.collector === 'Y'; });
+eq(hx.collected, 1000, 'handover: X collected');
+eq(hx.handedOver, 600, 'handover: X confirmed handover only');
+eq(hx.pending, 200, 'handover: X pending shown separately');
+eq(hx.inHand, 400, 'handover: X in hand ignores pending');
+eq(hy.inHand, 400, 'handover: Y never handed over');
+eq(hs[0].collector, hs[0].inHand >= hs[1].inHand ? hs[0].collector : hs[1].collector, 'handover: sorted by in-hand desc');
 
 const dues = duesList(parties, payments);
 eq(dues.length, 2, 'dues count (p2 600, p3 300; p1 cleared)');

@@ -1,5 +1,5 @@
 // App-shell cache. Bump VERSION on every deploy that changes app files.
-const VERSION = 'chanda-v2.0.0';
+const VERSION = 'chanda-v2.1.0';
 const ASSETS = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest', 'icons/icon.svg',
   'js/config.js', 'js/i18n.js', 'js/numparse.js', 'js/aggregate.js', 'js/db.js',

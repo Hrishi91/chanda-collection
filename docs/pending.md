@@ -31,10 +31,10 @@ Requirements given in chat; awaiting final go + UPI answer
       admin password reset, roles admin/cashier/collector~~
       (2026-07-23, verified against protocol mock; real Apps Script
       e2e still pending Hrishi's deploy)
-- [ ] Phase 2 — money: payment mode cash / UPI / both (split amounts,
-      reported separately); handover flow (collector "জমা দিলাম ₹X" →
-      cashier confirms "জমা নিলাম"); per-collector cash-in-hand
-      dashboard; UPI-to-committee counts as auto-settled
+- [x] ~~Phase 2 — cash/UPI/both split, handover ledger with cashier
+      confirm, per-collector in-hand dashboard~~ (2026-07-23; UPI goes
+      to personal numbers so it counts as in-hand until handover —
+      Hrishi's "within us only" decision)
 - [ ] Phase 3 — expenses: admin-managed category list, cashier picks
       category on expense entry (Hrishi will supply list later)
 - Decision (recommended, pending ok): NO per-entry cashier approval —
@@ -52,6 +52,12 @@ Requirements given in chat; awaiting final go + UPI answer
 
 - [ ] Year rollover flow (carry party master, fresh pledges)
 - [ ] Import last year's pledges as suggestions
+
+## Housekeeping
+
+- [ ] ⚠️ Hrishi's GitHub fine-grained PAT was shared in chat
+      (2026-07-23) and is still active on this Mac (gh keyring) —
+      revoke/regenerate it once his mobile is working again.
 
 ## Open questions
 

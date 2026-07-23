@@ -15,11 +15,14 @@
 
 var SHEETS = {
   parties:  ['id', 'year', 'type', 'name', 'owner', 'side', 'phone', 'pledged', 'collector', 'createdAt', 'receivedAt'],
-  payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'date', 'note', 'collector', 'createdAt', 'receivedAt'],
-  daily:    ['id', 'year', 'type', 'busName', 'busNumber', 'amount', 'date', 'note', 'collector', 'createdAt', 'receivedAt'],
+  payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt'],
+  daily:    ['id', 'year', 'type', 'busName', 'busNumber', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt'],
   expenses: ['id', 'year', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt'],
+  handovers: ['id', 'year', 'from', 'to', 'amount', 'cashAmount', 'upiAmount', 'date', 'note',
+              'status', 'confirmedBy', 'confirmedAt', 'collector', 'createdAt', 'receivedAt'],
 };
-var SHEET_TITLES = { parties: 'Parties', payments: 'Payments', daily: 'DailyCollections', expenses: 'Expenses' };
+var SHEET_TITLES = { parties: 'Parties', payments: 'Payments', daily: 'DailyCollections',
+                     expenses: 'Expenses', handovers: 'Handovers' };
 
 var USER_COLS = ['id', 'username', 'name', 'phone', 'passwordHash', 'salt', 'role',
                  'cashier', 'status', 'years', 'token', 'mustChange', 'createdAt', 'updatedAt'];
@@ -224,6 +227,43 @@ var ACTIONS = {
       data[store] = rows;
     });
     return { ok: true, data: data };
+  },
+
+  // approved cashiers (any logged-in user may ask — needed for handover)
+  cashiers: function (b) {
+    requireUser_(b.token);
+    var sh = usersSheet_();
+    var names = [];
+    if (sh.getLastRow() > 1) {
+      sh.getDataRange().getValues().slice(1).forEach(function (v) {
+        var row = {};
+        USER_COLS.forEach(function (c, j) { row[c] = v[j]; });
+        if (row.status === 'approved' && (Number(row.cashier) === 1 || row.role === 'admin')) {
+          names.push(row.name);
+        }
+      });
+    }
+    return { ok: true, cashiers: names };
+  },
+
+  // cashier (or admin) confirms receiving a handover addressed to them
+  confirmHandover: function (b) {
+    var u = requireUser_(b.token);
+    if (Number(u.row.cashier) !== 1 && u.row.role !== 'admin') throw new Error('not-cashier');
+    var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.handovers);
+    var cols = SHEETS.handovers;
+    if (sh.getLastRow() < 2) throw new Error('not-found');
+    var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(b.id)) {
+        var r = i + 2;
+        sh.getRange(r, cols.indexOf('status') + 1).setValue('confirmed');
+        sh.getRange(r, cols.indexOf('confirmedBy') + 1).setValue(u.row.name);
+        sh.getRange(r, cols.indexOf('confirmedAt') + 1).setValue(new Date().toISOString());
+        return { ok: true };
+      }
+    }
+    throw new Error('not-found');
   },
 
   // ---------- admin ----------
