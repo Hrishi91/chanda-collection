@@ -22,6 +22,25 @@
       (blocked on Hrishi doing setup-google.md steps)
 - [ ] Real-phone smoke test: install, mic permission, bn voice entry
 
+## P0.5 — v2: users, roles, money handling (Hrishi, 2026-07-23)
+
+Requirements given in chat; awaiting final go + UPI answer
+(committee UPI vs collectors' own UPI).
+
+- [ ] Phase 1 — auth: register (basic details) + login, Users sheet
+      with salted-hash passwords + device token; admin approves users
+      per year; admin resets forgotten passwords; roles:
+      admin / cashier / collector (cashier grantable by admin)
+- [ ] Phase 2 — money: payment mode cash / UPI / both (split amounts,
+      reported separately); handover flow (collector "জমা দিলাম ₹X" →
+      cashier confirms "জমা নিলাম"); per-collector cash-in-hand
+      dashboard; UPI-to-committee counts as auto-settled
+- [ ] Phase 3 — expenses: admin-managed category list, cashier picks
+      category on expense entry (Hrishi will supply list later)
+- Decision (recommended, pending ok): NO per-entry cashier approval —
+  entries post immediately; accountability comes from the handover
+  ledger instead, so collection never blocks on a busy cashier.
+
 ## P1 — nice-to-have before puja
 
 - [ ] Receipt image/PDF per payment (share via WhatsApp)
