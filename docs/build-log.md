@@ -1177,3 +1177,27 @@ the redeploy).
   committee name, donor, ₹500, paid/due, receipt no. and footer; an UNSYNCED
   payment opened the screen, synced, and adopted serial 2026-0042 into the DB.
   Help/guide updated. 105 tests pass.
+
+## Receipt redesign — authentic Bengali puja rasid + type-aware detailing
+
+Feedback: the tabular receipt looked like a data readout, not a puja রসিদ.
+Rebuilt it as a proper acknowledgement receipt.
+
+- `buildReceiptCanvas` redesigned: invocation "ॐ শ্রীশ্রীসিদ্ধিদাতা গণেশায় নমঃ",
+  committee name, "গণেশ পূজা <year> · প্রাপ্তি রসিদ", red serial, a prose
+  acknowledgement ("… এর নিকট হইতে শ্রীশ্রীগণেশ পূজার চাঁদা বাবদ — ৳X/- (words
+  টাকা মাত্র) সাদরে গৃহীত হইল।"), a totals strip, date + collector signature
+  line, footer, and a festive double border with corner diamonds (minimal keeps
+  a thin frame). Warm-paper background.
+- `banglaNumWords()` — integer rupees → Bengali words (Indian grouping, to
+  crores), unit-checked (500→পাঁচ শো, 151251→এক লক্ষ একান্ন হাজার দুই শো একান্ন).
+- Type-aware donor line (Hrishi's spec): person/member → "শ্রী/শ্রীমতী <name>";
+  shop → "শ্রী/শ্রীমতী <owner>, <shop name>"; bus → "<bus name> (নং <number>)"
+  with no honorific and no totals (one-off).
+- **Bus daily receipts:** daily bus entries now get a 🧾 in "my entries" →
+  the same receipt screen. `daily` sheet gains a `receiptNo` column and push
+  stamps a serial on new bus inserts (shared counter); sync adopts it for daily
+  too; the receipt screen + SMS text handle the daily source generically.
+- Verified live (harness): shop/person/bus receipts each render with the right
+  subject line, words, serial, and totals-or-not. 105 tests pass. Server bits
+  ride the pending redeploy.

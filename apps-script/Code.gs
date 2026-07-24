@@ -18,7 +18,7 @@ var SHEETS = {
   // existing sheets. Do not insert columns mid-array.
   parties:  ['id', 'year', 'type', 'name', 'owner', 'side', 'phone', 'pledged', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'location', 'collectorRole'],
   payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo'],
-  daily:    ['id', 'year', 'type', 'busName', 'busNumber', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole'],
+  daily:    ['id', 'year', 'type', 'busName', 'busNumber', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo'],
   expenses: ['id', 'year', 'subject', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole'],
   handovers: ['id', 'year', 'from', 'to', 'amount', 'cashAmount', 'upiAmount', 'date', 'note',
               'status', 'confirmedBy', 'confirmedAt', 'collector', 'createdAt', 'receivedAt', 'fromId', 'toId', 'collectorId', 'collectorRole'],
@@ -345,8 +345,9 @@ var ACTIONS = {
           row.collector = row.collector || user.row.name;
           row.collectorId = row.collectorId || user.row.username; // stable identity
           var isNew = !idRow[row.id];
-          // one receipt serial per payment, assigned once at first insert
-          if (store === 'payments' && isNew && !row.receiptNo) {
+          // one receipt serial, assigned once at first insert — every payment,
+          // and daily BUS collections (they get a name+number receipt too).
+          if (isNew && !row.receiptNo && (store === 'payments' || (store === 'daily' && row.type === 'bus'))) {
             row.receiptNo = nextReceiptNo_(Number(row.year) || new Date().getFullYear());
             receipts[row.id] = row.receiptNo;
           }

@@ -33,7 +33,7 @@ const Sync = (function () {
             const rows = data[s].filter(function (r) { return savedIds[r.id]; });
             rows.forEach(function (r) {
               r.synced = 1; r.syncedAt = new Date().toISOString();
-              if (s === 'payments' && receipts[r.id]) r.receiptNo = receipts[r.id]; // adopt the serial
+              if ((s === 'payments' || s === 'daily') && receipts[r.id]) r.receiptNo = receipts[r.id]; // adopt the serial
             });
             if (rows.length) updates.push(DB.bulkPut(s, rows));
           });

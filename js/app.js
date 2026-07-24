@@ -917,6 +917,23 @@
       b.onclick = function () { navigate('receipt', { partyId: p.id, payId: b.dataset.receipt }); };
     });
   }
+  // Integer rupees → Bengali words (Indian grouping), for "কথায়" on the receipt.
+  function banglaNumWords(num) {
+    num = Math.floor(Math.abs(Number(num)) || 0);
+    const O = ['শূন্য', 'এক', 'দুই', 'তিন', 'চার', 'পাঁচ', 'ছয়', 'সাত', 'আট', 'নয়', 'দশ', 'এগারো', 'বারো', 'তেরো', 'চৌদ্দ', 'পনেরো', 'ষোলো', 'সতেরো', 'আঠারো', 'উনিশ', 'কুড়ি', 'একুশ', 'বাইশ', 'তেইশ', 'চব্বিশ', 'পঁচিশ', 'ছাব্বিশ', 'সাতাশ', 'আটাশ', 'ঊনত্রিশ', 'ত্রিশ', 'একত্রিশ', 'বত্রিশ', 'তেত্রিশ', 'চৌত্রিশ', 'পঁয়ত্রিশ', 'ছত্রিশ', 'সাঁইত্রিশ', 'আটত্রিশ', 'ঊনচল্লিশ', 'চল্লিশ', 'একচল্লিশ', 'বিয়াল্লিশ', 'তেতাল্লিশ', 'চুয়াল্লিশ', 'পঁয়তাল্লিশ', 'ছেচল্লিশ', 'সাতচল্লিশ', 'আটচল্লিশ', 'ঊনপঞ্চাশ', 'পঞ্চাশ', 'একান্ন', 'বায়ান্ন', 'তিপ্পান্ন', 'চুয়ান্ন', 'পঞ্চান্ন', 'ছাপ্পান্ন', 'সাতান্ন', 'আটান্ন', 'ঊনষাট', 'ষাট', 'একষট্টি', 'বাষট্টি', 'তেষট্টি', 'চৌষট্টি', 'পঁয়ষট্টি', 'ছেষট্টি', 'সাতষট্টি', 'আটষট্টি', 'ঊনসত্তর', 'সত্তর', 'একাত্তর', 'বাহাত্তর', 'তিয়াত্তর', 'চুয়াত্তর', 'পঁচাত্তর', 'ছিয়াত্তর', 'সাতাত্তর', 'আটাত্তর', 'ঊনআশি', 'আশি', 'একাশি', 'বিরাশি', 'তিরাশি', 'চুরাশি', 'পঁচাশি', 'ছিয়াশি', 'সাতাশি', 'আটাশি', 'ঊননব্বই', 'নব্বই', 'একানব্বই', 'বিরানব্বই', 'তিরানব্বই', 'চুরানব্বই', 'পঁচানব্বই', 'ছিয়ানব্বই', 'সাতানব্বই', 'আটানব্বই', 'নিরানব্বই'];
+    if (num === 0) return O[0];
+    const p = [];
+    const cr = Math.floor(num / 10000000); num %= 10000000;
+    const lk = Math.floor(num / 100000); num %= 100000;
+    const th = Math.floor(num / 1000); num %= 1000;
+    const hu = Math.floor(num / 100); num %= 100;
+    if (cr) p.push(O[cr] + ' কোটি');
+    if (lk) p.push(O[lk] + ' লক্ষ');
+    if (th) p.push(O[th] + ' হাজার');
+    if (hu) p.push(O[hu] + ' শো');
+    if (num) p.push(O[num]);
+    return p.join(' ');
+  }
   // admin-configured receipt design (falls back to sensible defaults)
   function receiptConfig() {
     const c = centralConfig || {};
@@ -935,52 +952,78 @@
   function buildReceiptCanvas(rc, cfgOverride) {
     const cfg = cfgOverride || receiptConfig();
     return new Promise(function (resolve) {
-      const W = 720, H = 560, c = document.createElement('canvas');
+      const W = 720, H = 620, c = document.createElement('canvas');
       c.width = W; c.height = H;
-      const g = c.getContext('2d'), accent = cfg.color;
-      const draw = function (logoImg) {
-        g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
-        const drawLogo = function (x, y, s) { if (logoImg) { try { g.drawImage(logoImg, x, y, s, s); } catch (e) {} } };
-        if (cfg.layout === 'festive') {
-          g.strokeStyle = accent; g.lineWidth = 8; g.strokeRect(14, 14, W - 28, H - 28);
-          g.strokeStyle = accent; g.lineWidth = 1.5; g.strokeRect(26, 26, W - 52, H - 52);
-          drawLogo(40, 40, 60);
-          g.fillStyle = accent; g.textAlign = 'center'; g.font = 'bold 34px sans-serif';
-          g.fillText(cfg.committee, W / 2, 70);
-          g.font = '20px sans-serif'; g.fillText(t('receipt_title'), W / 2, 104);
-          g.textAlign = 'left';
-        } else if (cfg.layout === 'minimal') {
-          drawLogo(28, 34, 44);
-          g.fillStyle = '#666'; g.font = '20px sans-serif'; g.fillText(cfg.committee, cfg.logo ? 84 : 28, 52);
-          g.fillStyle = '#111'; g.font = 'bold 30px sans-serif'; g.fillText(t('receipt_title'), 28, 96);
-          g.strokeStyle = '#e0e0e0'; g.lineWidth = 1; g.beginPath(); g.moveTo(28, 116); g.lineTo(W - 28, 116); g.stroke();
-        } else { // classic
-          g.fillStyle = accent; g.fillRect(0, 0, W, 96);
-          drawLogo(W - 92, 18, 60);
-          g.fillStyle = '#fff'; g.font = 'bold 32px sans-serif'; g.fillText(cfg.committee, 28, 46);
-          g.font = '20px sans-serif'; g.fillText(t('receipt_title'), 28, 78);
+      const g = c.getContext('2d'), accent = cfg.color, ink = '#1e1a17', muted = '#7a7167';
+      const year = String(Settings.get('year') || '');
+      const wrap = function (text, x, y, maxW, lh, align) {
+        const words = String(text).split(' '); let line = '';
+        for (let i = 0; i < words.length; i++) {
+          const test = line ? line + ' ' + words[i] : words[i];
+          if (g.measureText(test).width > maxW && line) { g.fillText(line, align === 'center' ? W / 2 : x, y); line = words[i]; y += lh; }
+          else line = test;
         }
-        // receipt number (top-right, below any header)
-        g.textAlign = 'right'; g.fillStyle = cfg.layout === 'classic' ? '#fff' : '#999';
-        g.font = '16px sans-serif';
-        g.fillText(t('receipt_no') + ' ' + (rc.receiptNo || '—'), cfg.layout === 'classic' ? W - 100 : W - 40, cfg.layout === 'classic' ? 46 : 96);
+        if (line) { g.fillText(line, align === 'center' ? W / 2 : x, y); y += lh; }
+        return y;
+      };
+      const draw = function (logoImg) {
+        g.fillStyle = '#fffdf8'; g.fillRect(0, 0, W, H); // warm paper
+        const drawLogo = function (x, y, s) { if (logoImg) { try { g.drawImage(logoImg, x, y, s, s); } catch (e) {} } };
+        // ---- decorative frame ----
+        if (cfg.layout === 'minimal') {
+          g.strokeStyle = '#e6ddcf'; g.lineWidth = 1; g.strokeRect(18, 18, W - 36, H - 36);
+        } else {
+          g.strokeStyle = accent; g.lineWidth = 10; g.strokeRect(12, 12, W - 24, H - 24);
+          g.strokeStyle = accent; g.lineWidth = 2; g.strokeRect(26, 26, W - 52, H - 52);
+          // corner diamonds
+          [[26, 26], [W - 26, 26], [26, H - 26], [W - 26, H - 26]].forEach(function (pt) {
+            g.save(); g.translate(pt[0], pt[1]); g.rotate(Math.PI / 4); g.fillStyle = accent; g.fillRect(-7, -7, 14, 14); g.restore();
+          });
+        }
+        // ---- header: invocation + committee ----
+        g.textAlign = 'center';
+        g.fillStyle = accent; g.font = '19px serif';
+        g.fillText('ॐ  শ্রীশ্রীসিদ্ধিদাতা গণেশায় নমঃ', W / 2, 66);
+        drawLogo(W / 2 - 30, 78, 60);
+        g.fillStyle = accent; g.font = 'bold 34px sans-serif';
+        g.fillText(cfg.committee, W / 2, 176);
+        g.fillStyle = muted; g.font = '18px sans-serif';
+        g.fillText('গণেশ পূজা ' + year + '  ·  প্রাপ্তি রসিদ', W / 2, 204);
+        // divider
+        g.strokeStyle = '#e6ddcf'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(60, 224); g.lineTo(W - 60, 224); g.stroke();
         g.textAlign = 'left';
-        // shared field block
-        let y = 172;
-        const line = function (label, val) {
-          g.fillStyle = '#888'; g.font = '20px sans-serif'; g.fillText(label, 40, y);
-          g.fillStyle = '#111'; g.font = 'bold 22px sans-serif'; g.fillText(String(val == null ? '' : val), 300, y);
-          y += 42;
-        };
-        line(t('receipt_for'), rc.donorName + (rc.donorSub ? '  (' + rc.donorSub + ')' : ''));
-        line(t('date'), fmtDate(rc.date));
-        g.fillStyle = '#888'; g.font = '20px sans-serif'; g.fillText(t('receipt_amount'), 40, y);
-        g.fillStyle = accent; g.font = 'bold 38px sans-serif'; g.fillText(fmtMoney(rc.amount) + (rc.cashUpi ? '  ' + rc.cashUpi : ''), 300, y + 4); y += 52;
-        line(t('paid'), fmtMoney(rc.paidTotal) + ' / ' + fmtMoney(rc.pledged));
-        line(t('due'), fmtMoney(rc.due));
-        line(t('receipt_collector'), rc.collector || '');
-        g.fillStyle = accent; g.font = 'italic 22px sans-serif';
-        g.fillText(cfg.footer, 40, H - 40);
+        // ---- serial (red, right) ----
+        g.textAlign = 'right'; g.fillStyle = '#c0201a'; g.font = 'bold 20px sans-serif';
+        g.fillText('নং  ' + (rc.receiptNo || '—'), W - 60, 258);
+        g.textAlign = 'left';
+        // ---- body: prose acknowledgement ----
+        let y = 292; const lx = 62, maxW = W - 124;
+        g.fillStyle = ink; g.font = '22px sans-serif';
+        y = wrap(rc.donorLine + '  এর নিকট হইতে শ্রীশ্রীগণেশ পূজার চাঁদা বাবদ —', lx, y, maxW, 34);
+        y += 12;
+        g.fillStyle = accent; g.font = 'bold 30px sans-serif';
+        g.fillText('৳ ' + Number(rc.amount).toLocaleString('en-IN') + '/-', lx, y);
+        g.fillStyle = ink; g.font = 'italic 21px sans-serif';
+        g.fillText('(' + banglaNumWords(rc.amount) + ' টাকা মাত্র)', lx + 150, y); y += 40;
+        g.fillStyle = ink; g.font = '22px sans-serif';
+        g.fillText('সাদরে গৃহীত হইল।' + (rc.cashUpi ? '   ' + rc.cashUpi : ''), lx, y); y += 44;
+        // totals strip (party payments only — a bus/one-off has no pledge)
+        if (rc.showTotals) {
+          g.fillStyle = muted; g.font = '18px sans-serif';
+          g.fillText('প্রতিশ্রুত ' + fmtMoney(rc.pledged) + '    ·    মোট জমা ' + fmtMoney(rc.paidTotal) + '    ·    বাকি ' + fmtMoney(rc.due), lx, y);
+        }
+        // ---- date + signature ----
+        const sy = H - 92;
+        g.fillStyle = ink; g.font = '18px sans-serif';
+        g.fillText('তারিখ: ' + fmtDate(rc.date), lx, sy);
+        g.strokeStyle = '#bdb3a5'; g.lineWidth = 1; g.beginPath(); g.moveTo(W - 280, sy - 4); g.lineTo(W - 62, sy - 4); g.stroke();
+        g.textAlign = 'right'; g.fillStyle = muted; g.font = '16px sans-serif';
+        g.fillText('আদায়কারী — ' + (rc.collector || ''), W - 62, sy + 20);
+        g.textAlign = 'left';
+        // ---- footer ----
+        g.textAlign = 'center'; g.fillStyle = accent; g.font = 'italic 20px serif';
+        g.fillText(cfg.footer, W / 2, H - 44);
+        g.textAlign = 'left';
         resolve(c);
       };
       if (cfg.logo) { const im = new Image(); im.onload = function () { draw(im); }; im.onerror = function () { draw(null); }; im.src = cfg.logo; }
@@ -994,15 +1037,31 @@
         for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); res(new Blob([a], { type: 'image/png' })); }
     });
   }
-  // rc from a party + payment (Phase 3/4 wire share buttons; keep the history
-  // 🧾 button working meanwhile: build the image and share/download it).
+  const cashUpiNote = function (r) {
+    return (Number(r.upiAmount) > 0 && Number(r.cashAmount) > 0)
+      ? '(' + t('cash') + ' ' + fmtMoney(r.cashAmount) + ' + UPI ' + fmtMoney(r.upiAmount) + ')' : '';
+  };
+  // Acknowledgement subject, by donor type:
+  //  person/member → শ্রী/শ্রীমতী <name>
+  //  shop          → শ্রী/শ্রীমতী <owner>, <shop name>  (owner optional)
+  //  bus (daily)   → <bus name> (নং <number>) — no honorific
+  function partyDonorLine(p) {
+    if (p.type === 'shop') {
+      return p.owner ? 'শ্রী/শ্রীমতী ' + p.owner + ', ' + p.name : p.name;
+    }
+    return 'শ্রী/শ্রীমতী ' + p.name;
+  }
   function rcFromPayment(p, pay, paidTotal, due) {
-    return { donorName: p.name, donorSub: p.type ? t('type_' + p.type) : '',
-      date: pay.date || pay.createdAt, amount: pay.amount,
-      cashUpi: (Number(pay.upiAmount) > 0 && Number(pay.cashAmount) > 0)
-        ? '(' + t('cash') + ' ' + fmtMoney(pay.cashAmount) + ' + UPI ' + fmtMoney(pay.upiAmount) + ')' : '',
+    return { donorLine: partyDonorLine(p), showTotals: true,
+      date: pay.date || pay.createdAt, amount: pay.amount, cashUpi: cashUpiNote(pay),
       paidTotal: paidTotal, pledged: p.pledged, due: due, collector: pay.collector || '',
       receiptNo: pay.receiptNo || '' };
+  }
+  // Receipt for a daily bus collection (name + number, one-off → no totals).
+  function rcFromDailyBus(d) {
+    return { donorLine: (d.busName || t('type_bus')) + (d.busNumber ? ' (নং ' + d.busNumber + ')' : ''),
+      showTotals: false, date: d.date || d.createdAt, amount: d.amount, cashUpi: cashUpiNote(d),
+      collector: d.collector || '', receiptNo: d.receiptNo || '' };
   }
   // 📷 image receipt → Web Share (WhatsApp etc.); download fallback offline.
   function shareReceiptImage(rc) {
@@ -1022,9 +1081,9 @@
   function shareReceiptText(rc, phone) {
     const cfg = receiptConfig();
     const lines = [cfg.committee + ' — ' + t('receipt_title'),
-      t('receipt_for') + ': ' + rc.donorName,
-      t('receipt_amount') + ': ' + fmtMoney(rc.amount),
-      t('paid') + ': ' + fmtMoney(rc.paidTotal) + '/' + fmtMoney(rc.pledged) + '  ' + t('due') + ': ' + fmtMoney(rc.due),
+      rc.donorLine,
+      t('receipt_amount') + ': ৳' + Number(rc.amount).toLocaleString('en-IN') + '/- (' + banglaNumWords(rc.amount) + ' টাকা মাত্র)',
+      (rc.showTotals ? t('paid') + ': ' + fmtMoney(rc.paidTotal) + '/' + fmtMoney(rc.pledged) + '  ' + t('due') + ': ' + fmtMoney(rc.due) : ''),
       (rc.receiptNo ? t('receipt_no') + ' ' + rc.receiptNo : ''),
       cfg.footer].filter(Boolean).join('\n');
     const digits = String(phone || '').replace(/\D/g, '');
@@ -1032,35 +1091,44 @@
     // `?body=` works on Android; iOS is lenient with it too
     window.open('sms:' + num + '?body=' + encodeURIComponent(lines), '_blank');
   }
-  // Receipt screen: preview + the two send buttons. Ensures the server serial
-  // (syncs the payment first if it hasn't been assigned one yet).
+  // Receipt screen for a party payment ({partyId, payId}) OR a daily bus entry
+  // ({store:'daily', id}). Ensures the server serial (syncs first if needed).
   function renderReceiptShare(params) {
-    $view().innerHTML = backBar('party', { id: params.partyId }) + '<div class="empty">' + esc(t('loading')) + '</div>';
+    const isBus = params.store === 'daily';
+    const backView = isBus ? 'entries' : 'party', backParams = isBus ? undefined : { id: params.partyId };
+    $view().innerHTML = backBar(backView, backParams) + '<div class="empty">' + esc(t('loading')) + '</div>';
     viewData().then(function (data) {
-      const p = (data.parties || []).filter(function (x) { return x.id === params.partyId; })[0];
-      const pay = (data.payments || []).filter(function (x) { return x.id === params.payId; })[0];
-      if (!p || !pay) { navigate('list'); return; }
-      const voided = {}; (data.voids || []).forEach(function (v) { if (v.targetStore === 'payments') voided[v.targetId] = 1; });
-      const paid = (data.payments || []).filter(function (x) { return x.partyId === p.id && !voided[x.id]; })
-        .reduce(function (a, x) { return a + (Number(x.amount) || 0); }, 0);
-      const rc = rcFromPayment(p, pay, paid, (Number(p.pledged) || 0) - paid);
+      let rc, phone = '', store, id;
+      if (isBus) {
+        const d = (data.daily || []).filter(function (x) { return x.id === params.id; })[0];
+        if (!d) { navigate('entries'); return; }
+        rc = rcFromDailyBus(d); store = 'daily'; id = d.id;
+      } else {
+        const p = (data.parties || []).filter(function (x) { return x.id === params.partyId; })[0];
+        const pay = (data.payments || []).filter(function (x) { return x.id === params.payId; })[0];
+        if (!p || !pay) { navigate('list'); return; }
+        const voided = {}; (data.voids || []).forEach(function (v) { if (v.targetStore === 'payments') voided[v.targetId] = 1; });
+        const paid = (data.payments || []).filter(function (x) { return x.partyId === p.id && !voided[x.id]; })
+          .reduce(function (a, x) { return a + (Number(x.amount) || 0); }, 0);
+        rc = rcFromPayment(p, pay, paid, (Number(p.pledged) || 0) - paid); phone = p.phone; store = 'payments'; id = pay.id;
+      }
       const paint = function () {
-        $view().innerHTML = backBar('party', { id: params.partyId }) + '<div class="flow-title">' + esc(t('receipt_title')) + '</div>' +
+        $view().innerHTML = backBar(backView, backParams) + '<div class="flow-title">' + esc(t('receipt_title')) + '</div>' +
           '<img id="rcp-img" alt="" style="width:100%;max-width:420px;display:block;margin:0 auto 12px;border:1px solid #eee;border-radius:10px">' +
           (rc.receiptNo ? '' : '<div class="hint" style="text-align:center">' + esc(t('receipt_no_pending')) + '</div>') +
           '<button id="rcp-wa" class="primary big block">📷 ' + esc(t('receipt_send_img')) + '</button>' +
           '<button id="rcp-sms" class="ghost big block">💬 ' + esc(t('receipt_send_sms')) + '</button>';
         buildReceiptCanvas(rc).then(function (cv) { const im = document.getElementById('rcp-img'); if (im) im.src = cv.toDataURL('image/png'); });
         document.getElementById('rcp-wa').onclick = function () { shareReceiptImage(rc); };
-        document.getElementById('rcp-sms').onclick = function () { shareReceiptText(rc, p.phone); };
+        document.getElementById('rcp-sms').onclick = function () { shareReceiptText(rc, phone); };
       };
       paint();
-      // if no serial yet, try to obtain one (sync + pull), then redraw
+      // if no serial yet, sync + pull to obtain one, then redraw
       if (!rc.receiptNo && navigator.onLine && Sync.configured()) {
         Sync.syncNow().then(function () { return pullCentral(); }).then(function () {
           return viewData().then(function (d2) {
-            const p2 = (d2.payments || []).filter(function (x) { return x.id === params.payId; })[0];
-            if (p2 && p2.receiptNo && current.view === 'receipt') { rc.receiptNo = p2.receiptNo; paint(); }
+            const e2 = (d2[store] || []).filter(function (x) { return x.id === id; })[0];
+            if (e2 && e2.receiptNo && current.view === 'receipt') { rc.receiptNo = e2.receiptNo; paint(); }
           });
         }).catch(function () {});
       }
@@ -1153,9 +1221,11 @@
         const who = all ? ' • 🧑 ' + esc(r.collector || r.collectorId || '?') : ''; // who made it
         const tag = isVoid ? ' • <span class="void-tag">' + esc(t('voided_label')) + '</span>'
           : isFlag ? ' • <span class="void-tag">⚠️ ' + esc(t('flag_pending')) + '</span>' : '';
-        const action = (isVoid || isFlag) ? '' :
+        const busReceipt = (!isVoid && it.store === 'daily' && r.type === 'bus')
+          ? '<button class="chip" data-drcp="' + esc(r.id) + '">🧾</button>' : '';
+        const action = busReceipt + ((isVoid || isFlag) ? '' :
           (canVoid(r) ? '<button class="chip void-btn" data-vd="' + it.store + '|' + esc(r.id) + '">' + esc(t('void_btn')) + '</button>'
-                      : '<button class="chip void-btn" data-fl="' + it.store + '|' + esc(r.id) + '">' + esc(t('flag_btn')) + '</button>');
+                      : '<button class="chip void-btn" data-fl="' + it.store + '|' + esc(r.id) + '">' + esc(t('flag_btn')) + '</button>'));
         return '<div class="row' + (isVoid ? ' voided' : '') + '" style="cursor:default"><div style="flex:1 1 60%"><b>' +
           esc(entrySummary(it.store, r)) + '</b><div class="row-sub">' + esc(fmtDate(r.date || r.createdAt)) + who + tag + '</div></div>' +
           action + '</div>';
@@ -1176,6 +1246,9 @@
           const p = b.dataset.fl.split('|'), it = list.find(function (x) { return x.r.id === p[1]; });
           renderFlag(p[0], p[1], it ? entrySummary(p[0], it.r) : '', function () { navigate('entries'); });
         };
+      });
+      document.querySelectorAll('[data-drcp]').forEach(function (b) {
+        b.onclick = function () { navigate('receipt', { store: 'daily', id: b.dataset.drcp }); };
       });
     });
   }
