@@ -180,7 +180,7 @@
   function osNotify(body) {
     try {
       if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('🙏 ' + t('app_title'), { body: body, icon: 'icons/icon.svg', tag: 'chanda-notif' });
+        new Notification('🙏 ' + t('app_title'), { body: body, icon: 'icons/icon-192.png', tag: 'chanda-notif' });
       }
     } catch (e) { /* ignore */ }
   }
@@ -1456,7 +1456,8 @@
     renderLogin();
   }
   function renderLogin() {
-    $view().innerHTML = '<div class="card center onboard"><div class="big-emoji">🙏</div>' +
+    $view().innerHTML = '<div class="card center onboard">' +
+      '<img src="icons/icon-192.png" alt="" width="104" height="104" style="border-radius:22px;margin:4px auto 10px;display:block">' +
       '<h2>' + esc(t('welcome_title')) + '</h2>' + langChips() +
       '<div class="field"><label>' + esc(t('username')) + '</label>' +
       '<input id="lg-user" autocapitalize="none" autocomplete="username"></div>' +

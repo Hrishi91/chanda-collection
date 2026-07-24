@@ -1102,3 +1102,16 @@ road/toto/bus or expense had to ask that person to flag it.
   sizes, link tags resolve.
 - Note: already-installed phones keep the old icon until reinstall; new installs
   get this one.
+
+## v3.52.0 — Show the icon inside the app (header + login)
+
+Hrishi couldn't "see" the new icon because it only lived on the browser tab
+and the home-screen install — nothing in the app body rendered it (the header
+used a 🙏 emoji). Made the branding visible:
+
+- Header: a small 26px rounded icon before the "চাঁদা খাতা" title (index.html).
+- Login/welcome screen: the icon at 104px replaces the 🙏 big-emoji.
+- Notification icon and the removed old icon.svg → icon-192.png; deleted the
+  stale placeholder icon.svg.
+- Verified live (cache-busted harness): both header and login logos load and
+  render at their sizes.
