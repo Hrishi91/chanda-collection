@@ -771,6 +771,18 @@ var ACTIONS = {
     } finally { lock.releaseLock(); }
   },
 
+  // Clear a user's token so a stuck device is kicked and they can log in fresh.
+  // (Login already overwrites the token, but this is the explicit safety valve.)
+  releaseSession: function (b) {
+    var me = requireAdmin_(b.token);
+    var u = findUser_('id', b.userId);
+    if (!u) throw new Error('user not found');
+    u.row.token = '';
+    saveUser_(u);
+    logAudit_(me.row, 'session:release', '@' + u.row.username);
+    return { ok: true };
+  },
+
   setCashier: function (b) {
     var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);

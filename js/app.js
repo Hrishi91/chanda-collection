@@ -1803,6 +1803,7 @@
       'reports': { bn: '📊 report permission', en: '📊 Report perms' },
       'areas': { bn: '📍 এলাকা assign', en: '📍 Areas assigned' },
       'password:reset': { bn: '🔑 পাসওয়ার্ড রিসেট', en: '🔑 Password reset' },
+      'session:release': { bn: '🔓 সেশন ছাড়া', en: '🔓 Session released' },
       'subject:add': { bn: '➕ বিষয় যোগ', en: '➕ Subject added' },
       'subject:edit': { bn: '✏️ বিষয় বদল', en: '✏️ Subject edited' },
       'subject:remove': { bn: '🗑️ বিষয় সরানো', en: '🗑️ Subject removed' },
@@ -1953,6 +1954,7 @@
                   '<button class="chip" data-act="role" data-id="' + u.id + '" data-v="' + (u.role === 'admin' ? 'user' : 'admin') + '">' +
                   esc(u.role === 'admin' ? t('remove_admin') : t('make_admin')) + '</button>' +
                   '<button class="chip" data-act="reset" data-id="' + u.id + '">' + esc(t('reset_pw')) + '</button>' +
+                  '<button class="chip" data-act="release" data-id="' + u.id + '">' + esc(t('release_session')) + '</button>' +
                   (u.role === 'admin' ? '' : '<button class="chip" data-act="block" data-id="' + u.id + '">' + esc(t('block')) + '</button>');
         } else {
           btns = '<button class="chip" data-act="unblock" data-id="' + u.id + '">' + esc(t('unblock')) + '</button>';
@@ -2108,6 +2110,9 @@
           else if (b.dataset.act === 'reset') adminAction('resetPassword', { userId: id }, function (r) {
             alert(t('temp_pw_is') + ':\n\n' + r.tempPassword);
           });
+          else if (b.dataset.act === 'release') {
+            if (window.confirm(t('release_confirm'))) adminAction('releaseSession', { userId: id }, function () { toast(t('release_done')); });
+          }
         };
       });
       document.querySelectorAll('[data-rep-user]').forEach(function (b) {

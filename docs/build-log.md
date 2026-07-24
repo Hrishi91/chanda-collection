@@ -1326,3 +1326,12 @@ failed to sync silently — so two people could use one account.
 - Verified live (harness): with the token invalidated, a focus-triggered pull
   cleared the session and landed on the login screen with the message. 105
   tests pass. No server change — the single-token backend already exists.
+
+## Admin can release a stuck user session
+
+Safety valve for the one-device rule: `releaseSession` action (admin) clears a
+user's token (`u.row.token = ''`), so a stuck device is kicked (bad-token → the
+login bounce) and the user can log in fresh. Audit-logged as session:release.
+Admin panel: a "🔓 সেশন ছাড়ো" chip per approved user, behind a confirm.
+Verified live-mock: button present, sends releaseSession{userId}, success toast.
+Needs a redeploy (new server action). 105 tests pass.
