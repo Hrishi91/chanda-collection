@@ -153,6 +153,9 @@
       if (resp.cursor != null) centralCursor = String(resp.cursor);
       centralYear = year;
       if (resp.config) { centralConfig = resp.config; try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {} updateTrainingBar(); }
+      // notifications ride the pull now — apply them and stop the separate
+      // 60s notifications poll (halves the server calls per device)
+      if (resp.notif) { notifViaPull = true; applyNotifications(resp.notif.notifications, resp.notif.items); }
       // adopt the fresh user: admin's permission/role changes land within a
       // pull (≤60s) instead of waiting for a re-login
       if (resp.me && Auth.loggedIn()) {
@@ -266,39 +269,45 @@
           : Auth.call('confirmHandover', { token: tok, id: id });
         call.then(function () {
           toast(t('saved'));
-          checkNotifications();
+          if (notifViaPull) pullCentral(); else checkNotifications(); // refresh the feed
           if (!flowState && REFRESHABLE.indexOf(current.view) >= 0) render();
         }).catch(function (e) { b.disabled = false; toast(errMsg(e)); });
       };
     });
   }
+  // Apply a notification payload (from `pull` or the standalone action):
+  // update the banner, toast on new items, refresh the current data view.
+  function applyNotifications(n, items) {
+    n = n || { handovers: 0, approvals: 0, corrections: 0 };
+    const total = (n.handovers || 0) + (n.approvals || 0) + (n.corrections || 0);
+    const prev = (notifCounts.handovers || 0) + (notifCounts.approvals || 0) + (notifCounts.corrections || 0);
+    const changed = total !== prev;
+    notifCounts = n;
+    notifItems = items || { handovers: [], approvals: [], corrections: [] };
+    renderNotifBanner();
+    if (total > prev) { const m = notifText(); if (m) { toast('🔔 ' + m); osNotify(m); } }
+    // auto-refresh a data view (e.g. admin panel) when the count changes,
+    // so a new registration/handover shows without a manual refresh
+    if (changed && Auth.loggedIn() && !flowState && current.view !== 'home' &&
+        REFRESHABLE.indexOf(current.view) >= 0) render();
+  }
+  // once pull carries the feed, the standalone poll is redundant (halves calls)
+  let notifViaPull = false;
   function checkNotifications() {
     if (!Auth.loggedIn() || !navigator.onLine || !Sync.configured()) return;
     Auth.call('notifications', { token: Auth.token(), year: Settings.get('year') })
-      .then(function (resp) {
-        const n = resp.notifications || { handovers: 0, approvals: 0, corrections: 0 };
-        const total = (n.handovers || 0) + (n.approvals || 0) + (n.corrections || 0);
-        const prev = (notifCounts.handovers || 0) + (notifCounts.approvals || 0) + (notifCounts.corrections || 0);
-        const changed = total !== prev;
-        notifCounts = n;
-        notifItems = resp.items || { handovers: [], approvals: [], corrections: [] };
-        renderNotifBanner();
-        if (total > prev) { const m = notifText(); if (m) { toast('🔔 ' + m); osNotify(m); } }
-        // auto-refresh a data view (e.g. admin panel) when the count changes,
-        // so a new registration/handover shows without a manual refresh
-        if (changed && Auth.loggedIn() && !flowState && current.view !== 'home' &&
-            REFRESHABLE.indexOf(current.view) >= 0) render();
-      }).catch(function () { /* offline / not ready */ });
+      .then(function (resp) { applyNotifications(resp.notifications, resp.items); })
+      .catch(function () { /* offline / not ready */ });
   }
   // Returning to the app (or a pull-to-refresh) re-renders the current data
   // view so users never have to manually refresh — skipped mid-entry and on
   // transient screens.
   const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party', 'entries', 'review'];
   function onAppFocus() {
-    checkNotifications();
+    if (!notifViaPull) checkNotifications(); // old backend only — pull carries it otherwise
     autoSync(); // push anything still pending when the user returns
     Lists.refresh(); // pick up admin edits to areas/locations
-    pullCentral(); // refresh the central snapshot
+    pullCentral(); // refresh the central snapshot (incl. notifications + me)
     if (Auth.loggedIn() && !flowState && REFRESHABLE.indexOf(current.view) >= 0) render();
   }
   function startNotifPolling() {
@@ -309,9 +318,9 @@
       wirePullToRefresh();
     }
     if (!notifTimer) notifTimer = setInterval(function () {
-      if (!document.hidden) { checkNotifications(); Lists.refresh(); pullCentral(); }
+      if (!document.hidden) { if (!notifViaPull) checkNotifications(); Lists.refresh(); pullCentral(); }
     }, 60000);
-    checkNotifications();
+    if (!notifViaPull) checkNotifications();
     Lists.refresh(); // populate the areas/locations cache
     pullCentral(); // pull the central snapshot on login
   }
@@ -769,7 +778,7 @@
         };
       });
       renderNotifBanner();   // show cached counts immediately
-      checkNotifications();  // then refresh from server
+      if (!notifViaPull) checkNotifications();  // old backend only; pull refreshes otherwise
     });
   }
 
@@ -1532,12 +1541,33 @@
   function renderReport() {
     // Everything renders from the local pull snapshot (viewData) via Aggregate —
     // one aggregation path, instant, offline-capable, no per-report round-trip.
-    $view().innerHTML = '<div id="my-summary"><div class="empty">' + esc(t('loading')) + '</div></div>' +
+    $view().innerHTML = '<div id="reconcile-warn"></div>' +
+      '<div id="my-summary"><div class="empty">' + esc(t('loading')) + '</div></div>' +
       '<div class="section">' + esc(t('central_reports')) + '</div>' +
       '<div id="report-picker"></div>' +
       '<div id="report-body"></div>';
     loadMySummary();
     showReportButtons(myReports());   // permission list is local — no round-trip
+    checkReconcile();
+  }
+  // Surface the money invariant to admins/cashiers: Σ everyone's in-hand must
+  // equal total collected − total expenses. A mismatch means a broken entry —
+  // better a loud banner now than a dispute at the end of the puja.
+  function checkReconcile() {
+    if (!Auth.isCashier()) return; // admins are cashiers here too
+    viewData().then(function (data) {
+      const el = document.getElementById('reconcile-warn'); if (!el) return;
+      const r = Aggregate.reconcile(data);
+      const others = r.anomalies.filter(function (a) { return a.type !== 'unbalanced'; });
+      if (r.balanced && !others.length) { el.innerHTML = ''; return; }
+      let msg = '';
+      if (!r.balanced) {
+        msg += esc(t('reconcile_off').replace('{diff}', rcpMoney(Math.abs(r.totalInHand - r.expected)))) + '<br>';
+      }
+      if (others.length) msg += esc(t('reconcile_anoms').replace('{n}', others.length));
+      el.innerHTML = '<div class="card" style="border:1.5px solid #c0392b;background:#fdecea">' +
+        '<b>⚠️ ' + esc(t('reconcile_title')) + '</b><div class="row-sub" style="margin-top:4px">' + msg + '</div></div>';
+    });
   }
   function loadMySummary() {
     const ident = Settings.get('collectorUsername') || Settings.get('collectorName');

@@ -212,6 +212,47 @@ function nextReceiptNo_(year) {
   return '' + year + s; // e.g. 2026000001 — year prefix, no separator
 }
 
+// Notification counts + detail items for a user, computed from an already-read
+// year dataset (so `pull` can include it without a second sheet read).
+function notifData_(u, d) {
+  var out = { handovers: 0, approvals: 0, corrections: 0 };
+  var items = { handovers: [], approvals: [], corrections: [] };
+  var isCashier = Number(u.row.cashier) === 1 || u.row.role === 'admin';
+  if (isCashier) {
+    (d.handovers || []).forEach(function (h) {
+      if ((String(h.toId || h.to) === String(u.row.username) || h.to === u.row.name) && h.status !== 'confirmed') {
+        items.handovers.push({ id: h.id, from: h.from, amount: Number(h.amount) || 0, date: h.date });
+      }
+    });
+    out.handovers = items.handovers.length;
+    (d.corrections || []).forEach(function (c) {
+      if (c.status === 'pending') {
+        items.corrections.push({ id: c.id, targetStore: c.targetStore, targetId: c.targetId, reason: c.reason, by: c.collector, date: c.createdAt });
+      }
+    });
+    out.corrections = items.corrections.length;
+  }
+  if (u.row.role === 'admin') {
+    var us = usersSheet_();
+    if (us.getLastRow() > 1) {
+      us.getDataRange().getValues().slice(1).forEach(function (v) {
+        var row = {}; USER_COLS.forEach(function (c, j) { row[c] = v[j]; });
+        if (String(row.status) === 'pending') items.approvals.push({ userId: row.id, name: row.name, username: row.username });
+      });
+    }
+    out.approvals = items.approvals.length;
+  }
+  return { notifications: out, items: items };
+}
+
+// May this user insert rows of this entry kind? Mirrors the client's canEntry:
+// admin = all; empty entries = all (no accidental lockout); else listed only.
+function entryAllowed_(u, kind) {
+  if (u.row.role === 'admin') return true;
+  var set = String(u.row.entries || '').split(',').filter(function (x) { return x; });
+  return !set.length || set.indexOf(kind) >= 0;
+}
+
 // how many approved admins exist — guards the last-admin safeguard in setRole
 function countAdmins_() {
   var sh = usersSheet_(), n = 0;
@@ -327,10 +368,23 @@ var ACTIONS = {
     try {
       var ss = SpreadsheetApp.getActive();
       var savedIds = [];
+      var rejectedIds = []; // permission-blocked rows (UI never sends these; tampering does)
       var receipts = {}; // paymentId → assigned serial, so the client can adopt it
+      // server-side mirror of the client's entry gating — the UI hides what a
+      // user may not insert, but the server must not trust the client.
+      var STORE_KIND = { parties: 'party', payments: 'payment', daily: 'daily', handovers: 'handover' };
+      var isCashier = Number(user.row.cashier) === 1 || user.row.role === 'admin';
       var byStore = {};
       (b.records || []).forEach(function (r) {
         if (!SHEETS[r.store] || !r.row || !r.row.id) return;
+        // general puja expenses: cashier/admin only. Collection expenses
+        // (source==='collection', spent out of a road/toto/bus round) are made
+        // by whoever runs the daily round → gate on the 'daily' entry kind.
+        if (r.store === 'expenses') {
+          var okExp = (String(r.row.source) === 'collection') ? entryAllowed_(user, 'daily') : isCashier;
+          if (!okExp) { rejectedIds.push(r.row.id); return; }
+        }
+        if (STORE_KIND[r.store] && !entryAllowed_(user, STORE_KIND[r.store])) { rejectedIds.push(r.row.id); return; }
         (byStore[r.store] = byStore[r.store] || []).push(r.row);
       });
       Object.keys(byStore).forEach(function (store) {
@@ -362,7 +416,7 @@ var ACTIONS = {
           savedIds.push(row.id);
         });
       });
-      return { ok: true, savedIds: savedIds, receipts: receipts };
+      return { ok: true, savedIds: savedIds, receipts: receipts, rejectedIds: rejectedIds };
     } finally { lock.releaseLock(); }
   },
 
@@ -401,40 +455,12 @@ var ACTIONS = {
     }) };
   },
 
-  // actionable notification feed: counts + the detail items (who/amount/date)
-  // the banner needs to render inline approve/confirm/view actions.
+  // actionable notification feed: counts + the detail items (who/amount/date).
+  // Kept for older clients — new clients get the same payload inside `pull`.
   notifications: function (b) {
     var u = requireUser_(b.token);
-    var out = { handovers: 0, approvals: 0, corrections: 0 };
-    var items = { handovers: [], approvals: [], corrections: [] };
-    var isCashier = Number(u.row.cashier) === 1 || u.row.role === 'admin';
-    if (isCashier) {
-      var year = b.year ? Number(b.year) : new Date().getFullYear();
-      var d = readAll_(year);
-      d.handovers.forEach(function (h) {
-        if ((String(h.toId || h.to) === String(u.row.username) || h.to === u.row.name) && h.status !== 'confirmed') {
-          items.handovers.push({ id: h.id, from: h.from, amount: Number(h.amount) || 0, date: h.date });
-        }
-      });
-      out.handovers = items.handovers.length;
-      (d.corrections || []).forEach(function (c) {
-        if (c.status === 'pending') {
-          items.corrections.push({ id: c.id, targetStore: c.targetStore, targetId: c.targetId, reason: c.reason, by: c.collector, date: c.createdAt });
-        }
-      });
-      out.corrections = items.corrections.length;
-    }
-    if (u.row.role === 'admin') {
-      var us = usersSheet_();
-      if (us.getLastRow() > 1) {
-        us.getDataRange().getValues().slice(1).forEach(function (v) {
-          var row = {}; USER_COLS.forEach(function (c, j) { row[c] = v[j]; });
-          if (String(row.status) === 'pending') items.approvals.push({ userId: row.id, name: row.name, username: row.username });
-        });
-      }
-      out.approvals = items.approvals.length;
-    }
-    return { ok: true, notifications: out, items: items };
+    var d = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
+    return Object.assign({ ok: true }, notifData_(u, d));
   },
 
   // pending correction flags a cashier/admin can review
@@ -495,15 +521,16 @@ var ACTIONS = {
     var all = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
     var cursor = maxReceivedAt_(all);
     var me = publicUser_(u.row); // fresh user → permission changes reach devices without re-login
+    var notif = notifData_(u, all); // ride the notification feed in the same call (halves polling)
     if (b.since != null && b.since !== '') {
       var since = Number(b.since) || 0;
       var delta = {};
       Object.keys(all).forEach(function (store) {
         delta[store] = (all[store] || []).filter(function (r) { return toEpoch_(r.receivedAt) > since; });
       });
-      return { ok: true, mode: 'delta', data: delta, cursor: cursor, config: publicConfig_(), me: me };
+      return { ok: true, mode: 'delta', data: delta, cursor: cursor, config: publicConfig_(), me: me, notif: notif };
     }
-    return { ok: true, mode: 'full', data: all, cursor: cursor, config: publicConfig_(), me: me };
+    return { ok: true, mode: 'full', data: all, cursor: cursor, config: publicConfig_(), me: me, notif: notif };
   },
 
   // receipt-design config — any approved user reads it (needed to render a

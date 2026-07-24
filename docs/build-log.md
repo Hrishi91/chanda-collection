@@ -1448,3 +1448,32 @@ clears them.
 **Help updated:** new "💰 হিসাব কীভাবে হয় (সূত্র)" section (bn+en) in the in-app
 guide + app-guide.md — donor due across collectors, the in-hand formula, void
 exclusion, and the reconcile invariant, in plain words.
+
+## Backlog trio: reconcile banner + notifications-in-pull + server-side push gating
+
+The three audit recommendations, built together so the pending redeploy carries
+everything at once.
+
+1. **Reconcile warning (client):** the report screen (admin/cashier) now runs
+   `Aggregate.reconcile` on the snapshot and shows a red "⚠️ হিসাব মিলছে না!"
+   card when Σ in-hand ≠ collected − expenses, plus an anomaly count (overpaid
+   pledge / negative in-hand / orphan / duplicate). Silent when clean. Verified
+   live: a broken snapshot (never-collected handover → negative in-hand) shows
+   the banner; clean data shows nothing.
+2. **Notifications ride `pull`:** new `notifData_(u, d)` computes the feed from
+   the already-read year dataset; `pull` returns it as `notif` (no second sheet
+   read) and the standalone `notifications` action now reuses the helper (kept
+   for old clients). Client: `applyNotifications()` extracted; pullCentral
+   applies `resp.notif` and sets `notifViaPull`, which switches off the separate
+   60s notifications poll, the focus poll, and the home-screen poll — halving
+   per-device server calls. Feed action buttons refresh via pullCentral when
+   notif rides the pull. Verified live: banner filled from the pull payload and
+   no further `notifications` calls occurred after the first pull.
+3. **Server-side push gating:** push now mirrors the client's entry permissions
+   — party/payment/daily/handover checked via `entryAllowed_` (admin all,
+   empty entries = all), general expenses cashier/admin-only, and collection
+   expenses (source='collection') gated on the 'daily' kind since collectors
+   legitimately record them mid-round. Blocked rows are skipped and returned as
+   `rejectedIds` (the UI never produces them; only tampering does). Live proof
+   lands with the redeploy.
+108 tests pass. SW v3.71.0.
