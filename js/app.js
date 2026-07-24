@@ -101,6 +101,8 @@
 
   // ---------- pull-down: one central snapshot, render every screen local ----------
   let centralData = null, centralCursor = '', centralYear = '';
+  let centralConfig = {}; // receipt-design config (committee name/logo/footer/colour/layout)
+  try { centralConfig = JSON.parse(localStorage.getItem('ck_config') || '{}') || {}; } catch (e) { centralConfig = {}; }
   try { centralData = JSON.parse(localStorage.getItem('ck_central') || 'null'); } catch (e) { centralData = null; }
   try { centralCursor = localStorage.getItem('ck_central_cursor') || ''; } catch (e) { centralCursor = ''; }
   try { centralYear = localStorage.getItem('ck_central_year') || ''; } catch (e) { centralYear = ''; }
@@ -138,6 +140,7 @@
       }
       if (resp.cursor != null) centralCursor = String(resp.cursor);
       centralYear = year;
+      if (resp.config) { centralConfig = resp.config; try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {} }
       try {
         localStorage.setItem('ck_central', JSON.stringify(centralData));
         localStorage.setItem('ck_central_cursor', centralCursor);
@@ -917,35 +920,95 @@
       };
     });
   }
-  // Draw a donation receipt onto a canvas and share it (WhatsApp etc. via the
-  // Web Share API) or download it as a PNG. Purely on-device — no server.
-  function shareReceipt(p, pay, paidTotal, due) {
-    const W = 720, H = 520, c = document.createElement('canvas');
-    c.width = W; c.height = H;
-    const g = c.getContext('2d');
-    g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
-    g.fillStyle = '#c0392b'; g.fillRect(0, 0, W, 84);
-    g.fillStyle = '#ffffff'; g.font = 'bold 32px sans-serif';
-    g.fillText('🙏 ' + t('app_title'), 28, 54);
-    g.fillStyle = '#111111'; g.font = 'bold 26px sans-serif';
-    g.fillText(t('receipt_title'), 28, 140);
-    g.font = '22px sans-serif'; g.fillStyle = '#333333';
-    const line = function (label, val, y) {
-      g.fillStyle = '#777777'; g.fillText(label, 28, y);
-      g.fillStyle = '#111111'; g.font = 'bold 24px sans-serif'; g.fillText(String(val), 300, y);
-      g.font = '22px sans-serif';
+  // admin-configured receipt design (falls back to sensible defaults)
+  function receiptConfig() {
+    const c = centralConfig || {};
+    return {
+      layout: c.receipt_layout || 'classic',
+      committee: c.committee_name || t('app_title'),
+      footer: c.receipt_footer || t('receipt_thanks'),
+      color: c.receipt_color || '#c0392b',
+      logo: c.committee_logo || '',
     };
-    line(t('receipt_for'), p.name, 196);
-    line(t('date'), fmtDate(pay.date || pay.createdAt), 240);
-    g.fillStyle = '#c0392b'; g.font = 'bold 40px sans-serif';
-    g.fillText(fmtMoney(pay.amount), 300, 300);
-    g.fillStyle = '#777777'; g.font = '22px sans-serif'; g.fillText(t('receipt_amount'), 28, 300);
-    line(t('paid'), fmtMoney(paidTotal) + ' / ' + fmtMoney(p.pledged), 350);
-    line(t('due'), fmtMoney(due), 392);
-    line(t('receipt_collector'), pay.collector || '', 434);
-    g.fillStyle = '#c0392b'; g.font = 'italic 22px sans-serif';
-    g.fillText(t('receipt_thanks'), 28, 486);
-    const done = function (blob) {
+  }
+  // Build a donation-receipt canvas from a data object, honouring the admin's
+  // layout + branding. Async (a logo may need loading) → returns a Promise.
+  // rc: {donorName, donorSub, date, amount, cashUpi, paidTotal, pledged, due,
+  //      collector, receiptNo}
+  function buildReceiptCanvas(rc, cfgOverride) {
+    const cfg = cfgOverride || receiptConfig();
+    return new Promise(function (resolve) {
+      const W = 720, H = 560, c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      const g = c.getContext('2d'), accent = cfg.color;
+      const draw = function (logoImg) {
+        g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+        const drawLogo = function (x, y, s) { if (logoImg) { try { g.drawImage(logoImg, x, y, s, s); } catch (e) {} } };
+        if (cfg.layout === 'festive') {
+          g.strokeStyle = accent; g.lineWidth = 8; g.strokeRect(14, 14, W - 28, H - 28);
+          g.strokeStyle = accent; g.lineWidth = 1.5; g.strokeRect(26, 26, W - 52, H - 52);
+          drawLogo(40, 40, 60);
+          g.fillStyle = accent; g.textAlign = 'center'; g.font = 'bold 34px sans-serif';
+          g.fillText(cfg.committee, W / 2, 70);
+          g.font = '20px sans-serif'; g.fillText(t('receipt_title'), W / 2, 104);
+          g.textAlign = 'left';
+        } else if (cfg.layout === 'minimal') {
+          drawLogo(28, 34, 44);
+          g.fillStyle = '#666'; g.font = '20px sans-serif'; g.fillText(cfg.committee, cfg.logo ? 84 : 28, 52);
+          g.fillStyle = '#111'; g.font = 'bold 30px sans-serif'; g.fillText(t('receipt_title'), 28, 96);
+          g.strokeStyle = '#e0e0e0'; g.lineWidth = 1; g.beginPath(); g.moveTo(28, 116); g.lineTo(W - 28, 116); g.stroke();
+        } else { // classic
+          g.fillStyle = accent; g.fillRect(0, 0, W, 96);
+          drawLogo(W - 92, 18, 60);
+          g.fillStyle = '#fff'; g.font = 'bold 32px sans-serif'; g.fillText(cfg.committee, 28, 46);
+          g.font = '20px sans-serif'; g.fillText(t('receipt_title'), 28, 78);
+        }
+        // receipt number (top-right, below any header)
+        g.textAlign = 'right'; g.fillStyle = cfg.layout === 'classic' ? '#fff' : '#999';
+        g.font = '16px sans-serif';
+        g.fillText(t('receipt_no') + ' ' + (rc.receiptNo || '—'), cfg.layout === 'classic' ? W - 100 : W - 40, cfg.layout === 'classic' ? 46 : 96);
+        g.textAlign = 'left';
+        // shared field block
+        let y = 172;
+        const line = function (label, val) {
+          g.fillStyle = '#888'; g.font = '20px sans-serif'; g.fillText(label, 40, y);
+          g.fillStyle = '#111'; g.font = 'bold 22px sans-serif'; g.fillText(String(val == null ? '' : val), 300, y);
+          y += 42;
+        };
+        line(t('receipt_for'), rc.donorName + (rc.donorSub ? '  (' + rc.donorSub + ')' : ''));
+        line(t('date'), fmtDate(rc.date));
+        g.fillStyle = '#888'; g.font = '20px sans-serif'; g.fillText(t('receipt_amount'), 40, y);
+        g.fillStyle = accent; g.font = 'bold 38px sans-serif'; g.fillText(fmtMoney(rc.amount) + (rc.cashUpi ? '  ' + rc.cashUpi : ''), 300, y + 4); y += 52;
+        line(t('paid'), fmtMoney(rc.paidTotal) + ' / ' + fmtMoney(rc.pledged));
+        line(t('due'), fmtMoney(rc.due));
+        line(t('receipt_collector'), rc.collector || '');
+        g.fillStyle = accent; g.font = 'italic 22px sans-serif';
+        g.fillText(cfg.footer, 40, H - 40);
+        resolve(c);
+      };
+      if (cfg.logo) { const im = new Image(); im.onload = function () { draw(im); }; im.onerror = function () { draw(null); }; im.src = cfg.logo; }
+      else draw(null);
+    });
+  }
+  function canvasToBlob(c) {
+    return new Promise(function (res) {
+      if (c.toBlob) c.toBlob(res);
+      else { const u = c.toDataURL('image/png'), bin = atob(u.split(',')[1]), a = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); res(new Blob([a], { type: 'image/png' })); }
+    });
+  }
+  // rc from a party + payment (Phase 3/4 wire share buttons; keep the history
+  // 🧾 button working meanwhile: build the image and share/download it).
+  function rcFromPayment(p, pay, paidTotal, due) {
+    return { donorName: p.name, donorSub: p.type ? t('type_' + p.type) : '',
+      date: pay.date || pay.createdAt, amount: pay.amount,
+      cashUpi: (Number(pay.upiAmount) > 0 && Number(pay.cashAmount) > 0)
+        ? '(' + t('cash') + ' ' + fmtMoney(pay.cashAmount) + ' + UPI ' + fmtMoney(pay.upiAmount) + ')' : '',
+      paidTotal: paidTotal, pledged: p.pledged, due: due, collector: pay.collector || '',
+      receiptNo: pay.receiptNo || '' };
+  }
+  function shareReceipt(p, pay, paidTotal, due) {
+    buildReceiptCanvas(rcFromPayment(p, pay, paidTotal, due)).then(canvasToBlob).then(function (blob) {
       const file = new File([blob], 'receipt.png', { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         navigator.share({ files: [file], title: t('receipt_title'), text: p.name }).catch(function () {});
@@ -954,13 +1017,7 @@
         a.href = URL.createObjectURL(blob); a.download = 'receipt-' + (p.name || 'chanda') + '.png'; a.click();
         toast(t('receipt_saved'));
       }
-    };
-    if (c.toBlob) c.toBlob(done); else done(dataURLToBlob(c.toDataURL('image/png')));
-  }
-  function dataURLToBlob(u) {
-    const parts = u.split(','), bin = atob(parts[1]), arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-    return new Blob([arr], { type: 'image/png' });
+    });
   }
 
   // Void a payment (audit-preserving correction): records a reason into the
@@ -1608,6 +1665,95 @@
       const body = document.getElementById('audit-body'); if (body) body.innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>';
     });
   }
+  // Resize an uploaded logo to fit a Google Sheets cell (<50000 chars). Returns
+  // a dataURL under the limit, or rejects with an error key.
+  function fitLogo(file) {
+    return new Promise(function (resolve, reject) {
+      if (!/^image\/(png|jpeg)$/.test(file.type)) return reject('err_logo_type');
+      if (file.size > 3 * 1024 * 1024) return reject('err_logo_big');
+      const fr = new FileReader();
+      fr.onerror = function () { reject('err_logo_read'); };
+      fr.onload = function () {
+        const im = new Image();
+        im.onerror = function () { reject('err_logo_read'); };
+        im.onload = function () {
+          const sizes = [128, 112, 96, 80];
+          for (let i = 0; i < sizes.length; i++) {
+            const s = sizes[i], cv = document.createElement('canvas');
+            const scale = Math.min(s / im.width, s / im.height, 1);
+            cv.width = Math.round(im.width * scale); cv.height = Math.round(im.height * scale);
+            cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+            let url = cv.toDataURL('image/png');
+            if (url.length > 45000) url = cv.toDataURL('image/jpeg', 0.82);
+            if (url.length <= 45000) return resolve(url);
+          }
+          reject('err_logo_big');
+        };
+        im.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+  function renderReceiptConfig() {
+    const form = {
+      receipt_layout: centralConfig.receipt_layout || 'classic',
+      committee_name: centralConfig.committee_name || '',
+      receipt_footer: centralConfig.receipt_footer || '',
+      receipt_color: centralConfig.receipt_color || '#c0392b',
+      committee_logo: centralConfig.committee_logo || '',
+    };
+    const layouts = [['classic', t('rl_classic')], ['festive', t('rl_festive')], ['minimal', t('rl_minimal')]];
+    const colors = ['#c0392b', '#7b1113', '#1e7d3a', '#2a4d9b', '#8a5a00'];
+    const sampleRC = { donorName: 'কমল স্টোর্স', donorSub: t('type_shop'), date: todayISO(),
+      amount: 500, cashUpi: '', paidTotal: 500, pledged: 1000, due: 500,
+      collector: Settings.get('collectorName') || 'Ram', receiptNo: (Settings.get('year') || '2026') + '-0001' };
+    function drawPreview() {
+      buildReceiptCanvas(sampleRC, {
+        layout: form.receipt_layout, committee: form.committee_name || t('app_title'),
+        footer: form.receipt_footer || t('receipt_thanks'), color: form.receipt_color, logo: form.committee_logo,
+      }).then(function (cv) {
+        const img = document.getElementById('rc-preview'); if (img) img.src = cv.toDataURL('image/png');
+      });
+    }
+    function paint() {
+      $view().innerHTML = backBar('admin') + '<div class="flow-title">' + esc(t('receipt_design_title')) + '</div>' +
+        '<img id="rc-preview" alt="" style="width:100%;max-width:420px;display:block;margin:0 auto 12px;border:1px solid #eee;border-radius:10px">' +
+        '<div class="card">' +
+        '<div class="field"><label>' + esc(t('rl_layout')) + '</label><div class="chips">' +
+          layouts.map(function (l) { return '<button class="chip' + (form.receipt_layout === l[0] ? ' on' : '') + '" data-rl="' + l[0] + '">' + esc(l[1]) + '</button>'; }).join('') + '</div></div>' +
+        '<div class="field"><label>' + esc(t('rc_committee')) + '</label><input id="rc-name" value="' + esc(form.committee_name) + '" placeholder="' + esc(t('app_title')) + '"></div>' +
+        '<div class="field"><label>' + esc(t('rc_footer')) + '</label><input id="rc-footer" value="' + esc(form.receipt_footer) + '" placeholder="' + esc(t('receipt_thanks')) + '"></div>' +
+        '<div class="field"><label>' + esc(t('rc_color')) + '</label><div class="chips">' +
+          colors.map(function (c) { return '<button class="chip' + (form.receipt_color === c ? ' on' : '') + '" data-rcol="' + c + '" style="background:' + c + ';color:#fff">●</button>'; }).join('') + '</div></div>' +
+        '<div class="field"><label>' + esc(t('rc_logo')) + '</label>' +
+          '<input type="file" id="rc-logo" accept="image/png,image/jpeg">' +
+          (form.committee_logo ? ' <button class="chip" id="rc-logo-rm">' + esc(t('rc_logo_remove')) + '</button>' : '') +
+          '<div class="hint">' + esc(t('rc_logo_hint')) + '</div></div>' +
+        '</div>' +
+        '<button id="rc-save" class="primary big block">' + esc(t('save')) + '</button>';
+      drawPreview();
+      document.querySelectorAll('[data-rl]').forEach(function (b) { b.onclick = function () { form.receipt_layout = b.dataset.rl; paint(); }; });
+      document.querySelectorAll('[data-rcol]').forEach(function (b) { b.onclick = function () { form.receipt_color = b.dataset.rcol; paint(); }; });
+      document.getElementById('rc-name').oninput = function (e) { form.committee_name = e.target.value; drawPreview(); };
+      document.getElementById('rc-footer').oninput = function (e) { form.receipt_footer = e.target.value; drawPreview(); };
+      document.getElementById('rc-logo').onchange = function (e) {
+        const f = e.target.files && e.target.files[0]; if (!f) return;
+        fitLogo(f).then(function (url) { form.committee_logo = url; paint(); })
+          .catch(function (k) { toast(t(k) || t('err_logo_read')); });
+      };
+      const rm = document.getElementById('rc-logo-rm');
+      if (rm) rm.onclick = function () { form.committee_logo = ''; paint(); };
+      document.getElementById('rc-save').onclick = function () {
+        const btn = this; btn.disabled = true;
+        Auth.call('setConfig', { token: Auth.token(), config: form }).then(function () {
+          centralConfig = Object.assign({}, centralConfig, form);
+          try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {}
+          toast(t('saved')); navigate('admin');
+        }).catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
+      };
+    }
+    paint();
+  }
   function renderAdmin() {
     $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(t('loading')) + '</div>';
     Promise.all([
@@ -1697,6 +1843,7 @@
       $view().innerHTML = backBar('settings') + '<div class="flow-title">' + esc(t('admin_panel')) + '</div>' +
         '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
         '<button id="audit-btn" class="ghost block">' + esc(t('audit_btn')) + '</button>' +
+        '<button id="receipt-btn" class="ghost block">' + esc(t('receipt_design_btn')) + '</button>' +
         '<button id="rollover-btn" class="ghost block">' + esc(t('rollover_btn')) + '</button>' +
         subjectsCard +
         listMgmtCard('area', 'manage_areas', areas) +
@@ -1706,6 +1853,7 @@
         section('blocked_users', groups.blocked);
       document.getElementById('adm-refresh').onclick = renderAdmin;
       document.getElementById('audit-btn').onclick = function () { navigate('audit'); };
+      document.getElementById('receipt-btn').onclick = function () { navigate('receiptcfg'); };
       document.getElementById('rollover-btn').onclick = function () {
         const from = Number(Settings.get('year')), to = from + 1;
         if (!window.confirm(t('rollover_confirm').replace('{from}', from).replace('{to}', to))) return;
@@ -1823,6 +1971,7 @@
     else if (current.view === 'findparty') renderFindParty();
     else if (current.view === 'review') renderReviewCorrections();
     else if (current.view === 'audit') { Auth.isAdmin() ? renderAuditLog() : renderHome(); }
+    else if (current.view === 'receiptcfg') { Auth.isAdmin() ? renderReceiptConfig() : renderHome(); }
     else if (current.view === 'help') renderHelp();
     else renderHome();
     updateBadge();

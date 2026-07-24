@@ -1137,3 +1137,22 @@ client phases land).
   carries `config` so the design reaches every device with the snapshot.
 - Code.gs syntax-checked; serial format unit-checked. Server-only — live
   verification after the redeploy. 105 client tests still pass.
+
+## Receipt feature — Phase 2 (client): admin design screen + renderer
+
+- `buildReceiptCanvas(rc, cfgOverride)` — config-driven receipt renderer with 3
+  layouts (classic band / festive double-border / minimal rule), accent colour,
+  optional logo, receipt number, and a shared field block. Async (logo load) →
+  Promise<canvas>. `shareReceipt` now goes through it. Config comes from
+  `centralConfig` (cached from pull; persisted to localStorage.ck_config).
+- Admin panel → "🧾 রসিদ ডিজাইন" (`renderReceiptConfig`): layout chips, committee
+  name, footer message, 5 accent-colour chips, logo upload, and a **live
+  preview** that redraws on every change. Save → `setConfig`.
+- `fitLogo()` validation: PNG/JPG only, ≤3MB, auto-downscaled to ≤128px and
+  re-encoded (PNG→JPEG fallback) until the dataURL fits a Sheets cell
+  (<45000 chars). Bad type/size/read → clear toast.
+- Verified live (cache-busted harness): screen opens, 3 layouts + 5 colours,
+  name/footer/layout/colour edits update the preview instantly, bad-type logo
+  rejected + valid PNG accepted, save sends the right config. Classic AND
+  festive layouts screenshot-checked (Bengali renders correctly). 105 tests pass.
+- Still needs the redeploy for setConfig/getConfig to persist server-side.
