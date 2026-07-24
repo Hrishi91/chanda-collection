@@ -163,3 +163,11 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
   #print-area .stat3 > div { flex: 1; border: 1px solid #ccc; border-radius: 6px; padding: 6px; text-align: center; background: #fff; }
   #print-area .green b { color: #000; } #print-area .red b { color: #000; }
 }
+
+/* ---- admin panel collapsible groups ---- */
+.adm-fold { background: var(--card); border-radius: 14px; margin: 10px 0; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; }
+.adm-fold summary { list-style: none; cursor: pointer; padding: 14px 16px; font-weight: 700; font-size: 15.5px; display: flex; align-items: center; gap: 4px; }
+.adm-fold summary::-webkit-details-marker { display: none; }
+.adm-fold summary::after { content: '▸'; margin-left: auto; color: var(--sub); transition: transform .15s; }
+.adm-fold[open] summary::after { transform: rotate(90deg); }
+.adm-fold-body { padding: 0 10px 10px; }

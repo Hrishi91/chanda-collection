@@ -1387,3 +1387,18 @@ fully offline:
   report title / generated stamp / training tag / figures, window.print fires,
   and the area is hidden on screen. In-app guide updated (bn+en). Client-only.
   105 tests pass.
+
+## Admin panel — grouped into collapsible sections (step 4, UX pass done)
+
+The panel had become a wall of buttons + cards. Reorganised into three native
+<details> folds (no JS, works everywhere):
+- 👥 ইউজার ও permission — pending/approved/blocked user cards; opens by default
+  and shows a pending-count badge on the summary.
+- 🧾 রসিদ ও তালিকা — receipt design + expense subjects + area/location masters.
+- 🗂️ ডেটা ও হিসাব রক্ষা — activity log + year rollover.
+The training card + Go-Live stays on top, Refresh below it. `.adm-fold` CSS
+(rounded card, rotating ▸ marker). All existing handlers untouched — buttons
+just moved inside the folds.
+Verified live: three folds render (users open with badge "1", others closed),
+receipt/audit/rollover buttons live inside their folds and stay wired, approve
+chip works. Client-only. 105 tests pass.

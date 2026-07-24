@@ -2062,20 +2062,31 @@
               '<button class="chip" data-li-del="' + esc(it.id) + '">' + esc(t('del_btn')) + '</button></div></div>';
           }).join('') : '<div class="empty">' + esc(t('no_items')) + '</div>') + '</div>';
       }
+      // Grouped into collapsible sections (native <details>) so the admin sees
+      // four tidy groups instead of a wall of buttons and cards. Users opens by
+      // default (approvals are the most frequent job); a pending user forces it.
+      const fold = function (icon, titleKey, badge, inner, open) {
+        return '<details class="adm-fold"' + (open ? ' open' : '') + '><summary>' + icon + ' ' + esc(t(titleKey)) +
+          (badge ? ' <span class="badge warn" style="margin-left:6px">' + badge + '</span>' : '') +
+          '</summary><div class="adm-fold-body">' + inner + '</div></details>';
+      };
       $view().innerHTML = backBar('settings') + '<div class="flow-title">' + esc(t('admin_panel')) + '</div>' +
         (isLive() ? '' : '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
           '<b>🟡 ' + esc(t('training_mode')) + '</b><div class="row-sub">' + esc(t('training_admin_hint')) + '</div>' +
           '<button id="golive-btn" class="primary big block" style="margin-top:8px">🚀 ' + esc(t('golive_btn')) + '</button></div>') +
         '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
-        '<button id="audit-btn" class="ghost block">' + esc(t('audit_btn')) + '</button>' +
-        '<button id="receipt-btn" class="ghost block">' + esc(t('receipt_design_btn')) + '</button>' +
-        '<button id="rollover-btn" class="ghost block">' + esc(t('rollover_btn')) + '</button>' +
-        subjectsCard +
-        listMgmtCard('area', 'manage_areas', areas) +
-        listMgmtCard('location', 'manage_locations', locations) +
-        section('pending_users', groups.pending) +
-        section('approved_users', groups.approved) +
-        section('blocked_users', groups.blocked);
+        fold('👥', 'adm_users', groups.pending.length || '',
+          section('pending_users', groups.pending) +
+          section('approved_users', groups.approved) +
+          section('blocked_users', groups.blocked), true) +
+        fold('🧾', 'adm_lists', '',
+          '<button id="receipt-btn" class="ghost big block">' + esc(t('receipt_design_btn')) + '</button>' +
+          subjectsCard +
+          listMgmtCard('area', 'manage_areas', areas) +
+          listMgmtCard('location', 'manage_locations', locations), false) +
+        fold('🗂️', 'adm_data', '',
+          '<button id="audit-btn" class="ghost big block">' + esc(t('audit_btn')) + '</button>' +
+          '<button id="rollover-btn" class="ghost big block">' + esc(t('rollover_btn')) + '</button>', false);
       document.getElementById('adm-refresh').onclick = renderAdmin;
       const goLiveBtn = document.getElementById('golive-btn');
       if (goLiveBtn) goLiveBtn.onclick = function () {
