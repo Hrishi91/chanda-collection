@@ -13,7 +13,17 @@ const Auth = (function () {
     }).then(function (r) { return r.json(); })
       .catch(function () { throw new Error('network'); })
       .then(function (resp) {
-        if (!resp.ok) throw new Error(resp.error || 'server');
+        if (!resp.ok) {
+          // This device's session is no longer valid — the token was overwritten
+          // by a login on another device (one account = one active device), or
+          // the account was blocked. Drop the local session and tell the app.
+          if ((resp.error === 'bad-token' || resp.error === 'blocked') && payload && payload.token) {
+            localStorage.removeItem('ck_token');
+            localStorage.removeItem('ck_user');
+            try { window.dispatchEvent(new CustomEvent('ck-auth-invalid', { detail: resp.error })); } catch (e) {}
+          }
+          throw new Error(resp.error || 'server');
+        }
         return resp;
       });
   }

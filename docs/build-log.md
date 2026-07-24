@@ -1306,3 +1306,23 @@ follows the puja name the moment config arrives (login, pull). Falls back to
 "চাঁদা খাতা" until an admin sets the puja name. The static PWA name (manifest /
 <title>) stays as the app's install identity. Verified live: header and login
 both render "🙏 সিংহদহ সর্বজনীন গণেশ পূজা" from config. 105 tests pass.
+
+## Enforce one account = one active device
+
+The server already keeps a single token per user (login overwrites it), so a
+new-device login invalidates the old device's token. The gap was on the client:
+being offline-first, the old device kept running on its cached session and just
+failed to sync silently — so two people could use one account.
+
+- `Auth.call`: when an authenticated call (payload has a token) comes back with
+  `bad-token` or `blocked`, it now clears the local session
+  (ck_token/ck_user) and dispatches a `ck-auth-invalid` event.
+- `app.js`: a listener bounces the device to the login screen with a toast
+  ("অন্য একটি ফোনে এই account-এ login হয়েছে — আবার login করো"); guarded so a
+  burst of failing calls only kicks once. Unsynced local entries are kept and
+  sync once the rightful user logs back in.
+- So the moment someone logs in on a second phone, the first is kicked on its
+  next server call (≤60s via the poll, or immediately on focus/sync).
+- Verified live (harness): with the token invalidated, a focus-triggered pull
+  cleared the session and landed on the login screen with the message. 105
+  tests pass. No server change — the single-token backend already exists.

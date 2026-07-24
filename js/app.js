@@ -2185,6 +2185,16 @@
     // no scrollTo here: the browser's native scroll restoration returns Back to
     // where the user was on the previous screen, which is what we want.
   });
+  // Session invalidated (another device logged in with this account, or blocked):
+  // Auth.call already cleared the local session — bounce to login with a note.
+  let authKicked = false;
+  window.addEventListener('ck-auth-invalid', function (e) {
+    if (authKicked) return; authKicked = true;
+    Voice.stop(); flowState = null; authView = 'login';
+    toast(e.detail === 'blocked' ? t('err_blocked') : t('session_taken'));
+    navigate('home'); // render() → not logged in → login screen
+    setTimeout(function () { authKicked = false; }, 3000);
+  });
   // ask the browser not to evict our IndexedDB under storage pressure
   if (navigator.storage && navigator.storage.persist) { try { navigator.storage.persist(); } catch (e) {} }
   // warn before leaving/closing if there are entries not yet synced to the sheet

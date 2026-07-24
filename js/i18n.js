@@ -193,6 +193,7 @@ const I18N = {
   err_bad_login: { bn: 'ভুল username বা পাসওয়ার্ড', en: 'Wrong username or password' },
   err_pending: { bn: 'Admin এখনো approve করেনি — admin-কে বলো', en: 'Not approved yet — contact the admin' },
   err_blocked: { bn: 'তোমার access বন্ধ করা হয়েছে — admin-কে বলো', en: 'Your access is blocked — contact the admin' },
+  session_taken: { bn: 'অন্য একটি ফোনে এই account-এ login হয়েছে — আবার login করো', en: 'This account logged in on another phone — please log in again' },
   err_year: { bn: 'এই বছরের access নেই — admin-কে বলো', en: 'No access for this year — contact the admin' },
   err_username_taken: { bn: 'এই username আগেই নেওয়া — অন্যটা নাও', en: 'Username taken — pick another' },
   err_bad_username: { bn: 'Username হবে ৩-২০টা ইংরেজি ছোট অক্ষর/সংখ্যা', en: 'Username: 3-20 lowercase letters/digits' },
