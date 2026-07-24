@@ -974,3 +974,14 @@ Roadmap D4.
 - Verified live-mock: button present, click sends rolloverYear{2026→2027},
   done alert "2027 সালে 42 জন দাতা যোগ হলো". err_year_has_data mapped.
   105 tests pass. Ships in the pending Code.gs redeploy.
+
+## config.js — rebaked SCRIPT_URL for the full-feature deployment (AKfycbwm…)
+
+- New Apps Script deployment carries every server change from this session.
+  Probed live from a browser origin: `pull`, `auditLog`, `setRole` and
+  `rolloverYear` all return `{"ok":false,"error":"bad-token"}` (they reached
+  requireUser_/requireAdmin_), confirming the new code is deployed.
+- One-time step for the owner: run `setup()` once in the Apps Script editor so
+  the Users sheet gains the `areas` header and the Audit sheet is created with
+  its header row. (logAudit_ self-creates Audit if missing, but setup() gives
+  it the proper header.)
