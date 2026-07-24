@@ -153,6 +153,17 @@
       if (resp.cursor != null) centralCursor = String(resp.cursor);
       centralYear = year;
       if (resp.config) { centralConfig = resp.config; try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {} updateTrainingBar(); }
+      // adopt the fresh user: admin's permission/role changes land within a
+      // pull (≤60s) instead of waiting for a re-login
+      if (resp.me && Auth.loggedIn()) {
+        const prev = JSON.stringify(Auth.current() || {});
+        if (prev !== JSON.stringify(resp.me)) {
+          try { localStorage.setItem('ck_user', JSON.stringify(resp.me)); } catch (e) {}
+          Settings.set('collectorName', resp.me.name);
+          Settings.set('collectorRole', resp.me.role === 'admin' ? 'admin' : (resp.me.cashier === 1 ? 'cashier' : 'collector'));
+          changed = true; // re-render below so hidden/shown tiles update
+        }
+      }
       try {
         localStorage.setItem('ck_central', JSON.stringify(centralData));
         localStorage.setItem('ck_central_cursor', centralCursor);
@@ -781,7 +792,7 @@
       const tabs = [['all', t('all')], ['shop', t('type_shop')], ['person', t('type_person')],
                     ['member', t('type_member')], ['due', t('dues_only')]];
       $view().innerHTML =
-        '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' +
+        (canEntry('payment') ? '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' : '') +
         '<input id="search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(listQuery) + '">' +
         '<div class="chips tabs">' + tabs.map(function (tb) {
           return '<button class="chip' + (listFilter === tb[0] ? ' on' : '') + '" data-f="' + tb[0] + '">' + esc(tb[1]) + '</button>';
@@ -797,7 +808,8 @@
             (due > 0 ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
                      : '<span class="ok-chip">✅</span>') + '</div></div>';
         }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
-      document.getElementById('find-party').onclick = function () { findQuery = ''; navigate('findparty'); };
+      const fpBtn = document.getElementById('find-party');
+      if (fpBtn) fpBtn.onclick = function () { findQuery = ''; navigate('findparty'); };
       document.getElementById('search').oninput = function (e) { listQuery = e.target.value; renderList(); };
       document.querySelectorAll('[data-f]').forEach(function (c) {
         c.onclick = function () { listFilter = c.dataset.f; renderList(); };
@@ -810,6 +822,10 @@
   // balance — so a collector who receives a later installment can record it
   // even though they didn't create the party.
   function renderFindParty() {
+    // find-party exists to TAKE a payment — without the payment permission the
+    // whole screen is off-limits (the khata button is hidden, but guard the
+    // route too so Back/history can't reach it).
+    if (!canEntry('payment')) { navigate('list'); return; }
     $view().innerHTML = backBar('list') + '<div class="flow-title">' + esc(t('find_party_title')) + '</div>' +
       '<div class="hint" style="margin-bottom:8px">' + esc(t('find_party_hint')) + '</div>' +
       '<input id="fp-search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(findQuery) + '">' +
@@ -846,7 +862,7 @@
     el.querySelectorAll('[data-fp]').forEach(function (r) {
       r.onclick = function () {
         const p = findParties.find(function (x) { return x.id === r.dataset.fp; });
-        if (p) startFlow(paymentFlow(p));
+        if (p && canEntry('payment')) startFlow(paymentFlow(p));
       };
     });
   }

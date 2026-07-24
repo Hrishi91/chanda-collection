@@ -491,18 +491,19 @@ var ACTIONS = {
   // `cursor` is epoch-ms of the newest receivedAt so it compares correctly
   // whether the Sheet stored receivedAt as an ISO string or a Date cell.
   pull: function (b) {
-    requireUser_(b.token);
+    var u = requireUser_(b.token);
     var all = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
     var cursor = maxReceivedAt_(all);
+    var me = publicUser_(u.row); // fresh user → permission changes reach devices without re-login
     if (b.since != null && b.since !== '') {
       var since = Number(b.since) || 0;
       var delta = {};
       Object.keys(all).forEach(function (store) {
         delta[store] = (all[store] || []).filter(function (r) { return toEpoch_(r.receivedAt) > since; });
       });
-      return { ok: true, mode: 'delta', data: delta, cursor: cursor, config: publicConfig_() };
+      return { ok: true, mode: 'delta', data: delta, cursor: cursor, config: publicConfig_(), me: me };
     }
-    return { ok: true, mode: 'full', data: all, cursor: cursor, config: publicConfig_() };
+    return { ok: true, mode: 'full', data: all, cursor: cursor, config: publicConfig_(), me: me };
   },
 
   // receipt-design config — any approved user reads it (needed to render a

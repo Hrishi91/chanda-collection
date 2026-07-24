@@ -1402,3 +1402,23 @@ just moved inside the folds.
 Verified live: three folds render (users open with badge "1", others closed),
 receipt/audit/rollover buttons live inside their folds and stay wired, approve
 chip works. Client-only. 105 tests pass.
+
+## Audit fixes — payment-permission bypass + stale permissions
+
+Post-sprint self-audit found two real issues; both fixed and verified.
+
+1. **Payment bypass (bug):** a payment-restricted user could still take money
+   via khata → 🔍 find-party → tap donor (only the home tile and the party
+   pay-button were gated). Now the find-party button is hidden without the
+   payment permission, the findparty route bounces to the khata (so history/
+   Back can't reach it), and the result-tap is guarded too.
+2. **Stale permissions (gap):** ck_user was written only at login, so an
+   admin's permission/role change didn't reach the device until re-login.
+   `pull` now returns `me` (fresh publicUser_); pullCentral adopts it when it
+   differs — updates ck_user + collectorName/Role settings and re-renders — so
+   changes land within one pull (≤60s). Rides the pending redeploy.
+
+Verified live (harness): payment-less user has no find-party button, direct
+route bounces, and after a mock permission grant one pull updated the user,
+the home payment tile appeared (party still hidden) and find-party returned.
+105 tests pass.
