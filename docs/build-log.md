@@ -1237,3 +1237,28 @@ Hrishi's detailing:
   puja←committee. Removed collector from rc.
 - Verified live: festive receipt shows puja on top, "ধন্যবাদান্তে, <committee>"
   bottom-right, "তারিখ ও সময়: ২০২৬-০৭-২৪ ১৪:৪২", no আদায়কারী. 105 tests pass.
+
+## Training/Live mode + serial format 2026000001
+
+Hrishi: serials must never duplicate (already true — server-side atomic counter
+at push, assigned per entry save regardless of receipt); reformat, and add a
+training mode with a clean go-live.
+
+- **Serial format** → year + 6-digit, no separator, starting 000001:
+  "2026000001" (was "2026-0001"). `nextReceiptNo_` updated.
+- **Training mode** (default until admin goes live, `config.live_mode`):
+  receipts get a diagonal "নমুনা · SAMPLE" watermark; a "প্রশিক্ষণ মোড" banner
+  shows on home and the admin panel. `isLive()` reads centralConfig.
+- **Go live** (`goLive`, admin, one-way, destructive): backs up to Drive
+  (dailyBackup), clears every transactional sheet (parties/payments/daily/
+  expenses/handovers/voids/corrections — keeps users, config, master lists),
+  resets the serial counters, sets live_mode='on' + a new `data_epoch`, and
+  audit-logs. The admin panel button is gated by 3 steps: confirm → type "LIVE"
+  → final confirm.
+- **Epoch wipe:** `pull` carries `data_epoch`; when a device sees a new epoch it
+  runs `DB.clearAll()` and re-pulls fresh, so training entries never linger via
+  viewData's local-wins merge on any device. New `DB.clearAll()`.
+- Verified live (harness): training receipt shows the SAMPLE watermark + serial
+  2026000007; home + admin show the training banner; go-live (3-step) called
+  goLive, bumped the epoch, wiped the local DB (1→0 rows), flipped live_mode on,
+  and landed on home. 105 tests pass. Server bits ride the redeploy.

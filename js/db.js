@@ -62,6 +62,18 @@ const DB = (function () {
       return out;
     });
   }
+  // Wipe every store (used when the system goes live and training data is
+  // discarded). Clears all local rows across all stores.
+  function clearAll() {
+    return open().then(function (db) {
+      return Promise.all(STORES.map(function (s) {
+        return new Promise(function (res, rej) {
+          const r = db.transaction(s, 'readwrite').objectStore(s).clear();
+          r.onsuccess = function () { res(); }; r.onerror = function () { rej(r.error); };
+        });
+      }));
+    });
+  }
   function unsyncedCount() {
     return allData().then(function (d) {
       return STORES.reduce(function (n, s) {
@@ -83,7 +95,7 @@ const DB = (function () {
   }
 
   return { STORES: STORES, put: put, bulkPut: bulkPut, getAll: getAll, get: get,
-           allData: allData, unsyncedCount: unsyncedCount, newRow: newRow };
+           allData: allData, unsyncedCount: unsyncedCount, newRow: newRow, clearAll: clearAll };
 })();
 
 // Tiny localStorage settings helper.

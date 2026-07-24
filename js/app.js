@@ -131,6 +131,18 @@
     // ask for a delta only when we already hold a snapshot at a known cursor
     if (centralData && centralCursor) params.since = centralCursor;
     return Auth.call('pull', params).then(function (resp) {
+      // system reset (admin went live): a new data_epoch means the server
+      // discarded training data — wipe this device's local cache too, then
+      // re-pull fresh so training entries never linger via viewData's merge.
+      const newEpoch = (resp.config && resp.config.data_epoch) || '';
+      let seenEpoch = ''; try { seenEpoch = localStorage.getItem('ck_epoch') || ''; } catch (e) {}
+      if (newEpoch && newEpoch !== seenEpoch) {
+        try { localStorage.setItem('ck_epoch', newEpoch); } catch (e) {}
+        if (resp.config) { centralConfig = resp.config; try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {} }
+        centralData = null; centralCursor = '';
+        try { localStorage.removeItem('ck_central'); localStorage.removeItem('ck_central_cursor'); } catch (e) {}
+        return DB.clearAll().then(function () { return pullCentral(); }); // clean full pull
+      }
       let changed;
       if (resp.mode === 'delta' && centralData) {
         changed = mergeDelta(resp.data || {});
@@ -703,6 +715,8 @@
       }).reduce(function (a, r) { return a + Number(r.amount || 0); }, 0);
       $view().innerHTML =
         '<div id="notif-banner"></div>' +
+        (isLive() ? '' : '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8;text-align:center;padding:8px">' +
+          '🟡 <b>' + esc(t('training_mode')) + '</b> — ' + esc(t('training_hint')) + '</div>') +
         '<div class="hero"><div>🙏 ' + esc(t('welcome_title')) + ' ' + Settings.get('year') + '</div>' +
         '<div class="hero-sub">' + esc(Settings.get('collectorName')) + ' • ' + esc(t('my_today')) + ': <b>' + fmtMoney(myToday) + '</b></div></div>' +
         '<div class="section">' + esc(t('new_entry')) + '</div>' +
@@ -937,6 +951,8 @@
   function toBengaliDigits(s) { return String(s).replace(/[0-9]/g, function (d) { return '০১২৩৪৫৬৭৮৯'[d]; }); }
   // receipt money: ₹ + Indian grouping in Bengali digits — "₹১,৫০০".
   function rcpMoney(n) { return '₹' + toBengaliDigits(Number(n || 0).toLocaleString('en-IN')); }
+  // Live vs training. The system starts in training; admin flips it via goLive.
+  function isLive() { return (centralConfig || {}).live_mode === 'on'; }
   // admin-configured receipt design (falls back to sensible defaults)
   function receiptConfig() {
     const c = centralConfig || {};
@@ -1032,6 +1048,12 @@
         g.textAlign = 'center'; g.fillStyle = accent; g.font = 'italic 20px serif';
         g.fillText(cfg.footer, W / 2, H - 40);
         g.textAlign = 'left';
+        // ---- training watermark (diagonal, until admin goes live) ----
+        if (!isLive()) {
+          g.save(); g.translate(W / 2, H / 2); g.rotate(-Math.PI / 8);
+          g.fillStyle = 'rgba(180,120,120,0.22)'; g.font = 'bold 84px sans-serif'; g.textAlign = 'center';
+          g.fillText('নমুনা · SAMPLE', 0, 0); g.restore();
+        }
         resolve(c);
       };
       if (cfg.logo) { const im = new Image(); im.onload = function () { draw(im); }; im.onerror = function () { draw(null); }; im.src = cfg.logo; }
@@ -1973,6 +1995,9 @@
           }).join('') : '<div class="empty">' + esc(t('no_items')) + '</div>') + '</div>';
       }
       $view().innerHTML = backBar('settings') + '<div class="flow-title">' + esc(t('admin_panel')) + '</div>' +
+        (isLive() ? '' : '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
+          '<b>🟡 ' + esc(t('training_mode')) + '</b><div class="row-sub">' + esc(t('training_admin_hint')) + '</div>' +
+          '<button id="golive-btn" class="primary big block" style="margin-top:8px">🚀 ' + esc(t('golive_btn')) + '</button></div>') +
         '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
         '<button id="audit-btn" class="ghost block">' + esc(t('audit_btn')) + '</button>' +
         '<button id="receipt-btn" class="ghost block">' + esc(t('receipt_design_btn')) + '</button>' +
@@ -1984,6 +2009,19 @@
         section('approved_users', groups.approved) +
         section('blocked_users', groups.blocked);
       document.getElementById('adm-refresh').onclick = renderAdmin;
+      const goLiveBtn = document.getElementById('golive-btn');
+      if (goLiveBtn) goLiveBtn.onclick = function () {
+        // destructive + one-way → three gates: confirm, type LIVE, final confirm
+        if (!window.confirm(t('golive_confirm1'))) return;
+        const typed = window.prompt(t('golive_confirm2'));
+        if (String(typed || '').trim().toUpperCase() !== 'LIVE') { toast(t('golive_cancelled')); return; }
+        if (!window.confirm(t('golive_confirm3'))) return;
+        const btn = this; btn.disabled = true;
+        Auth.call('goLive', { token: Auth.token() }).then(function () {
+          toast(t('golive_done'));
+          pullCentral().then(function () { navigate('home'); }); // epoch bump wipes local training data
+        }).catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
+      };
       document.getElementById('audit-btn').onclick = function () { navigate('audit'); };
       document.getElementById('receipt-btn').onclick = function () { navigate('receiptcfg'); };
       document.getElementById('rollover-btn').onclick = function () {

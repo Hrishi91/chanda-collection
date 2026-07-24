@@ -206,8 +206,8 @@ function nextReceiptNo_(year) {
   var cfg = readConfig_(), key = 'receiptSeq_' + year;
   var n = (Number(cfg[key]) || 0) + 1;
   setConfig_(key, n);
-  var s = '' + n; while (s.length < 4) s = '0' + s;
-  return year + '-' + s;
+  var s = '' + n; while (s.length < 6) s = '0' + s; // 6-digit, starts at 000001
+  return '' + year + s; // e.g. 2026000001 — year prefix, no separator
 }
 
 // how many approved admins exist — guards the last-admin safeguard in setRole
@@ -516,6 +516,34 @@ var ACTIONS = {
     Object.keys(patch).forEach(function (k) { if (allow[k]) setConfig_(k, String(patch[k] == null ? '' : patch[k])); });
     logAudit_(me.row, 'config', Object.keys(patch).filter(function (k) { return allow[k]; }).join(','));
     return { ok: true };
+  },
+
+  // Go live: discard all training entries, keep the essentials (users, config,
+  // master lists), reset the serial counters, stamp live_mode + a new data
+  // epoch so every device wipes its local training cache on the next pull.
+  // Destructive + one-way → the client gates it behind a typed confirmation.
+  goLive: function (b) {
+    var me = requireAdmin_(b.token);
+    try { dailyBackup(); } catch (e) { /* best-effort safety snapshot */ }
+    var lock = LockService.getScriptLock(); lock.waitLock(30000);
+    try {
+      var ss = SpreadsheetApp.getActive();
+      Object.keys(SHEETS).forEach(function (store) { // clear every transactional sheet (keep header)
+        var sh = ss.getSheetByName(SHEET_TITLES[store]);
+        if (sh && sh.getLastRow() > 1) sh.deleteRows(2, sh.getLastRow() - 1);
+      });
+      var csh = configSheet_(); // drop the serial counters so live starts at 000001
+      if (csh.getLastRow() > 1) {
+        var vals = csh.getRange(2, 1, csh.getLastRow() - 1, 1).getValues();
+        for (var i = vals.length - 1; i >= 0; i--) {
+          if (String(vals[i][0]).indexOf('receiptSeq_') === 0) csh.deleteRow(i + 2);
+        }
+      }
+      setConfig_('live_mode', 'on');
+      setConfig_('data_epoch', String(Date.now()));
+      logAudit_(me.row, 'went-live', 'training data cleared');
+      return { ok: true };
+    } finally { lock.releaseLock(); }
   },
 
   // admin-only activity log, newest first (accountability view)
