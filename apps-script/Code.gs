@@ -17,7 +17,7 @@ var SHEETS = {
   // appends missing headers) keeps push's position-based writes aligned with
   // existing sheets. Do not insert columns mid-array.
   parties:  ['id', 'year', 'type', 'name', 'owner', 'side', 'phone', 'pledged', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'location', 'collectorRole'],
-  payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole'],
+  payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo'],
   daily:    ['id', 'year', 'type', 'busName', 'busNumber', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole'],
   expenses: ['id', 'year', 'subject', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole'],
   handovers: ['id', 'year', 'from', 'to', 'amount', 'cashAmount', 'upiAmount', 'date', 'note',
@@ -68,6 +68,8 @@ function setup() {
   if (es.getLastRow() === 0) { es.appendRow(['id', 'name', 'createdAt']); es.setFrozenRows(1); }
   var au = ss.getSheetByName('Audit') || ss.insertSheet('Audit');
   if (au.getLastRow() === 0) { au.appendRow(AUDIT_COLS); au.setFrozenRows(1); }
+  var cf = ss.getSheetByName('Config') || ss.insertSheet('Config');
+  if (cf.getLastRow() === 0) { cf.appendRow(['key', 'value']); cf.setFrozenRows(1); }
   // master lists (areas, person locations) — bilingual, admin-editable
   var ls = ss.getSheetByName('Lists') || ss.insertSheet('Lists');
   if (ls.getLastRow() === 0) { ls.appendRow(['id', 'kind', 'nameBn', 'nameEn', 'order', 'createdAt']); ls.setFrozenRows(1); }
@@ -165,6 +167,47 @@ function logAudit_(actor, action, detail) {
     sh.appendRow([Utilities.getUuid(), new Date().toISOString(),
       (actor && actor.name) || '', (actor && actor.username) || '', action, String(detail == null ? '' : detail)]);
   } catch (e) { /* audit is best-effort — never fail the caller */ }
+}
+
+// Key/value Config sheet (receipt design + counters). Small, admin-editable.
+function configSheet_() {
+  var ss = SpreadsheetApp.getActive();
+  var sh = ss.getSheetByName('Config') || ss.insertSheet('Config');
+  if (sh.getLastRow() === 0) { sh.appendRow(['key', 'value']); sh.setFrozenRows(1); }
+  return sh;
+}
+// config minus internal counters — safe to hand to any user / ride the pull
+function publicConfig_() {
+  var all = readConfig_(), out = {};
+  Object.keys(all).forEach(function (k) { if (k.indexOf('receiptSeq_') !== 0) out[k] = all[k]; });
+  return out;
+}
+function readConfig_() {
+  var sh = configSheet_(), out = {};
+  if (sh.getLastRow() > 1) {
+    sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(function (r) {
+      if (r[0] !== '' && r[0] != null) out[String(r[0])] = String(r[1] == null ? '' : r[1]);
+    });
+  }
+  return out;
+}
+function setConfig_(key, value) {
+  var sh = configSheet_(), rowIdx = 0;
+  if (sh.getLastRow() > 1) {
+    var keys = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < keys.length; i++) { if (String(keys[i][0]) === String(key)) { rowIdx = i + 2; break; } }
+  }
+  if (rowIdx) sh.getRange(rowIdx, 2).setValue(value);
+  else sh.appendRow([key, value]);
+}
+// Next receipt serial for a year, e.g. "2026-0001". Callers already hold the
+// script lock (push), so the read-increment-write is atomic → never duplicates.
+function nextReceiptNo_(year) {
+  var cfg = readConfig_(), key = 'receiptSeq_' + year;
+  var n = (Number(cfg[key]) || 0) + 1;
+  setConfig_(key, n);
+  var s = '' + n; while (s.length < 4) s = '0' + s;
+  return year + '-' + s;
 }
 
 // how many approved admins exist — guards the last-admin safeguard in setRole
@@ -282,6 +325,7 @@ var ACTIONS = {
     try {
       var ss = SpreadsheetApp.getActive();
       var savedIds = [];
+      var receipts = {}; // paymentId → assigned serial, so the client can adopt it
       var byStore = {};
       (b.records || []).forEach(function (r) {
         if (!SHEETS[r.store] || !r.row || !r.row.id) return;
@@ -300,8 +344,14 @@ var ACTIONS = {
           row.receivedAt = new Date().toISOString();
           row.collector = row.collector || user.row.name;
           row.collectorId = row.collectorId || user.row.username; // stable identity
+          var isNew = !idRow[row.id];
+          // one receipt serial per payment, assigned once at first insert
+          if (store === 'payments' && isNew && !row.receiptNo) {
+            row.receiptNo = nextReceiptNo_(Number(row.year) || new Date().getFullYear());
+            receipts[row.id] = row.receiptNo;
+          }
           var values = cols.map(function (c) { return row[c] !== undefined ? row[c] : ''; });
-          if (idRow[row.id]) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([values]);
+          if (!isNew) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([values]);
           else {
             sh.appendRow(values);
             if (store === 'voids') logAudit_(user.row, 'void', row.targetStore + '/' + row.targetId + (row.reason ? ' — ' + row.reason : ''));
@@ -309,7 +359,7 @@ var ACTIONS = {
           savedIds.push(row.id);
         });
       });
-      return { ok: true, savedIds: savedIds };
+      return { ok: true, savedIds: savedIds, receipts: receipts };
     } finally { lock.releaseLock(); }
   },
 
@@ -447,9 +497,24 @@ var ACTIONS = {
       Object.keys(all).forEach(function (store) {
         delta[store] = (all[store] || []).filter(function (r) { return toEpoch_(r.receivedAt) > since; });
       });
-      return { ok: true, mode: 'delta', data: delta, cursor: cursor };
+      return { ok: true, mode: 'delta', data: delta, cursor: cursor, config: publicConfig_() };
     }
-    return { ok: true, mode: 'full', data: all, cursor: cursor };
+    return { ok: true, mode: 'full', data: all, cursor: cursor, config: publicConfig_() };
+  },
+
+  // receipt-design config — any approved user reads it (needed to render a
+  // receipt); only admin writes. Counter keys (receiptSeq_*) are never returned.
+  getConfig: function (b) {
+    requireUser_(b.token);
+    return { ok: true, config: publicConfig_() };
+  },
+  setConfig: function (b) {
+    var me = requireAdmin_(b.token);
+    var allow = { receipt_layout: 1, committee_name: 1, receipt_footer: 1, receipt_color: 1, committee_logo: 1 };
+    var patch = b.config || {};
+    Object.keys(patch).forEach(function (k) { if (allow[k]) setConfig_(k, String(patch[k] == null ? '' : patch[k])); });
+    logAudit_(me.row, 'config', Object.keys(patch).filter(function (k) { return allow[k]; }).join(','));
+    return { ok: true };
   },
 
   // admin-only activity log, newest first (accountability view)

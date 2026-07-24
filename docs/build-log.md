@@ -1115,3 +1115,25 @@ used a 🙏 emoji). Made the branding visible:
   stale placeholder icon.svg.
 - Verified live (cache-busted harness): both header and login logos load and
   render at their sizes.
+
+## Receipt feature — Phase 1 (server): serials + config backend
+
+Approach decided with Hrishi: ready layouts + branded fields (no raw HTML),
+two share buttons (WhatsApp image / SMS text), year+sequence receipt numbers.
+This phase is the server groundwork (needs one redeploy; not usable until the
+client phases land).
+
+- `payments` gains a `receiptNo` column (appended at END, migration-safe).
+- `Config` key/value sheet (created in setup()) holds the receipt design
+  (committee_name, receipt_footer, receipt_color, committee_logo, receipt_layout)
+  and the per-year serial counter (receiptSeq_<year>).
+- `nextReceiptNo_(year)` — read-increment-write under the lock push already
+  holds, so serials never collide. Format "2026-0001" (widens past 9999).
+- `push` stamps a serial on each NEW payment insert (once, idempotent) and now
+  returns `receipts: {paymentId → serial}` so the client can adopt it locally
+  (otherwise viewData's local-wins merge would hide the server value).
+- `getConfig` (any approved user — needed to render receipts) / `setConfig`
+  (admin, whitelisted keys) actions; counters are never exposed. `pull` now
+  carries `config` so the design reaches every device with the snapshot.
+- Code.gs syntax-checked; serial format unit-checked. Server-only — live
+  verification after the redeploy. 105 client tests still pass.
