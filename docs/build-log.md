@@ -1284,3 +1284,14 @@ and asked before going live.
 New Apps Script deployment carries the receipt + training/live batch. Probed
 live: getConfig ok (Config sheet present), pull carries config + cursor,
 goLive deployed (bad-token → reached requireAdmin_, did not run). Baked the URL.
+
+## Training banner — persistent strip on every screen
+
+Hrishi wanted the training indicator visible everywhere, clearly. Replaced the
+home-only card with a persistent amber strip (`#training-bar`) that lives
+outside `#view` (in index.html, under the header), so no re-render can drop it.
+`updateTrainingBar()` shows a bold full-width "🟡 প্রশিক্ষণ মোড — …" bar on every
+screen while in training, and hides it once live; called from render() and after
+each pull (so it disappears the moment the admin goes live). Removed the
+redundant home card. Verified live: bar shows on home/khata/report/settings and
+auto-hides when live_mode flips on. 105 tests pass.

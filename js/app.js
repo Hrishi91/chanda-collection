@@ -152,7 +152,7 @@
       }
       if (resp.cursor != null) centralCursor = String(resp.cursor);
       centralYear = year;
-      if (resp.config) { centralConfig = resp.config; try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {} }
+      if (resp.config) { centralConfig = resp.config; try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {} updateTrainingBar(); }
       try {
         localStorage.setItem('ck_central', JSON.stringify(centralData));
         localStorage.setItem('ck_central_cursor', centralCursor);
@@ -715,8 +715,6 @@
       }).reduce(function (a, r) { return a + Number(r.amount || 0); }, 0);
       $view().innerHTML =
         '<div id="notif-banner"></div>' +
-        (isLive() ? '' : '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8;text-align:center;padding:8px">' +
-          '🟡 <b>' + esc(t('training_mode')) + '</b> — ' + esc(t('training_hint')) + '</div>') +
         '<div class="hero"><div>🙏 ' + esc(t('welcome_title')) + ' ' + Settings.get('year') + '</div>' +
         '<div class="hero-sub">' + esc(Settings.get('collectorName')) + ' • ' + esc(t('my_today')) + ': <b>' + fmtMoney(myToday) + '</b></div></div>' +
         '<div class="section">' + esc(t('new_entry')) + '</div>' +
@@ -953,6 +951,15 @@
   function rcpMoney(n) { return '₹' + toBengaliDigits(Number(n || 0).toLocaleString('en-IN')); }
   // Live vs training. The system starts in training; admin flips it via goLive.
   function isLive() { return (centralConfig || {}).live_mode === 'on'; }
+  // Persistent training strip under the header — shows on EVERY screen until the
+  // admin goes live (it lives outside #view, so a re-render can't drop it).
+  function updateTrainingBar() {
+    const el = document.getElementById('training-bar'); if (!el) return;
+    if (isLive() || !Auth.loggedIn()) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    el.style.cssText = 'display:block;background:#f6b93b;color:#5a3a00;text-align:center;' +
+      'font-weight:bold;font-size:14px;padding:7px 12px;border-bottom:2px solid #d9891a;line-height:1.35';
+    el.innerHTML = '🟡 ' + esc(t('training_mode')) + ' — ' + esc(t('training_hint'));
+  }
   // admin-configured receipt design (falls back to sensible defaults)
   function receiptConfig() {
     const c = centralConfig || {};
@@ -2134,6 +2141,7 @@
   }
   function render() {
     document.getElementById('app-title').textContent = '🙏 ' + t('app_title');
+    updateTrainingBar(); // persistent training strip, refreshed on every screen
     document.querySelectorAll('#bottomnav button').forEach(function (b) {
       b.classList.toggle('on', b.dataset.nav === current.view);
       b.querySelector('span').textContent = t(b.dataset.nav === 'list' ? 'khata' : b.dataset.nav);
