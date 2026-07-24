@@ -1221,3 +1221,19 @@ Hrishi: ₹ is fine to use (it was the ৳ taka glyph that looked bad). `rcpMone
 now prefixes ₹ to the Bengali-digit figure — "₹১,৫০০/-", totals "প্রতিশ্রুত
 ₹২,০০০ · মোট জমা ₹১,৫০০ · বাকি ₹৫০০"; dropped the now-redundant "টাকা" suffix.
 Verified live. 105 tests pass.
+
+## Receipt — puja name on top, committee as signatory, date+time, no collector
+
+Hrishi's detailing:
+- Top big name is now the **puja name** (`puja_name`, admin-maintained), not the
+  committee. Subline "প্রাপ্তি রসিদ · বর্ষ <year>" (Bengali digits).
+- Removed "আদায়কারী — <collector>". The bottom-right is now a signatory block:
+  "ধন্যবাদান্তে," (t('receipt_thanking'), en "Thanking you,") + the **committee
+  name** in accent.
+- Date line now shows **date + time** (fmtDateTime, Bengali digits) from the
+  entry's createdAt.
+- Config gains `puja_name` (setConfig whitelist + admin form field); receiptConfig
+  returns both puja (top) and committee (signatory); old configs fall back
+  puja←committee. Removed collector from rc.
+- Verified live: festive receipt shows puja on top, "ধন্যবাদান্তে, <committee>"
+  bottom-right, "তারিখ ও সময়: ২০২৬-০৭-২৪ ১৪:৪২", no আদায়কারী. 105 tests pass.

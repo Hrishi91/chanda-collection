@@ -942,7 +942,8 @@
     const c = centralConfig || {};
     return {
       layout: c.receipt_layout || 'classic',
-      committee: c.committee_name || t('app_title'),
+      puja: c.puja_name || c.committee_name || t('app_title'), // top, big
+      committee: c.committee_name || '',                        // bottom, signatory
       footer: c.receipt_footer || t('receipt_thanks'),
       color: c.receipt_color || '#c0392b',
       logo: c.committee_logo || '',
@@ -989,9 +990,9 @@
         g.fillText('ॐ  শ্রী শ্রী সিদ্ধিদাতা গণেশায় নমঃ', W / 2, 66);
         drawLogo(W / 2 - 30, 78, 60);
         g.fillStyle = accent; g.font = 'bold 34px sans-serif';
-        g.fillText(cfg.committee, W / 2, 176);
+        g.fillText(cfg.puja, W / 2, 176);
         g.fillStyle = muted; g.font = '18px sans-serif';
-        g.fillText('গণেশ পূজা ' + year + '  ·  প্রাপ্তি রসিদ', W / 2, 204);
+        g.fillText('প্রাপ্তি রসিদ  ·  বর্ষ ' + toBengaliDigits(year), W / 2, 204);
         // divider
         g.strokeStyle = '#e6ddcf'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(60, 224); g.lineTo(W - 60, 224); g.stroke();
         g.textAlign = 'left';
@@ -1017,17 +1018,19 @@
           g.fillStyle = muted; g.font = '18px sans-serif';
           g.fillText('প্রতিশ্রুত ' + rcpMoney(rc.pledged) + '    ·    মোট জমা ' + rcpMoney(rc.paidTotal) + '    ·    বাকি ' + rcpMoney(rc.due), lx, y);
         }
-        // ---- date + signature ----
-        const sy = H - 92;
-        g.fillStyle = ink; g.font = '18px sans-serif';
-        g.fillText('তারিখ: ' + fmtDate(rc.date), lx, sy);
-        g.strokeStyle = '#bdb3a5'; g.lineWidth = 1; g.beginPath(); g.moveTo(W - 280, sy - 4); g.lineTo(W - 62, sy - 4); g.stroke();
-        g.textAlign = 'right'; g.fillStyle = muted; g.font = '16px sans-serif';
-        g.fillText('আদায়কারী — ' + (rc.collector || ''), W - 62, sy + 20);
+        // ---- date+time (left) + signatory block (right) ----
+        const sy = H - 96;
+        g.fillStyle = ink; g.font = '17px sans-serif';
+        g.fillText('তারিখ ও সময়: ' + toBengaliDigits(fmtDateTime(rc.datetime || rc.date)), lx, sy);
+        g.textAlign = 'right';
+        g.fillStyle = muted; g.font = '17px sans-serif';
+        g.fillText(t('receipt_thanking'), W - 62, sy);
+        g.fillStyle = accent; g.font = 'bold 19px sans-serif';
+        g.fillText(cfg.committee || cfg.puja, W - 62, sy + 26);
         g.textAlign = 'left';
         // ---- footer ----
         g.textAlign = 'center'; g.fillStyle = accent; g.font = 'italic 20px serif';
-        g.fillText(cfg.footer, W / 2, H - 44);
+        g.fillText(cfg.footer, W / 2, H - 40);
         g.textAlign = 'left';
         resolve(c);
       };
@@ -1058,15 +1061,15 @@
   }
   function rcFromPayment(p, pay, paidTotal, due) {
     return { donorLine: partyDonorLine(p), showTotals: true,
-      date: pay.date || pay.createdAt, amount: pay.amount, cashUpi: cashUpiNote(pay),
-      paidTotal: paidTotal, pledged: p.pledged, due: due, collector: pay.collector || '',
-      receiptNo: pay.receiptNo || '' };
+      date: pay.date || pay.createdAt, datetime: pay.createdAt || pay.date,
+      amount: pay.amount, cashUpi: cashUpiNote(pay),
+      paidTotal: paidTotal, pledged: p.pledged, due: due, receiptNo: pay.receiptNo || '' };
   }
   // Receipt for a daily bus collection (name + number, one-off → no totals).
   function rcFromDailyBus(d) {
     return { donorLine: (d.busName || t('type_bus')) + (d.busNumber ? ' (নং ' + d.busNumber + ')' : ''),
-      showTotals: false, date: d.date || d.createdAt, amount: d.amount, cashUpi: cashUpiNote(d),
-      collector: d.collector || '', receiptNo: d.receiptNo || '' };
+      showTotals: false, date: d.date || d.createdAt, datetime: d.createdAt || d.date,
+      amount: d.amount, cashUpi: cashUpiNote(d), receiptNo: d.receiptNo || '' };
   }
   // 📷 image receipt → Web Share (WhatsApp etc.); download fallback offline.
   function shareReceiptImage(rc) {
@@ -1822,6 +1825,7 @@
   function renderReceiptConfig() {
     const form = {
       receipt_layout: centralConfig.receipt_layout || 'classic',
+      puja_name: centralConfig.puja_name || centralConfig.committee_name || '',
       committee_name: centralConfig.committee_name || '',
       receipt_footer: centralConfig.receipt_footer || '',
       receipt_color: centralConfig.receipt_color || '#c0392b',
@@ -1829,12 +1833,13 @@
     };
     const layouts = [['classic', t('rl_classic')], ['festive', t('rl_festive')], ['minimal', t('rl_minimal')]];
     const colors = ['#c0392b', '#7b1113', '#1e7d3a', '#2a4d9b', '#8a5a00'];
-    const sampleRC = { donorName: 'কমল স্টোর্স', donorSub: t('type_shop'), date: todayISO(),
+    const sampleRC = { donorLine: 'শ্রী/শ্রীমতী রমেশ সাহা, কমল স্টোর্স', showTotals: true,
+      date: todayISO(), datetime: new Date().toISOString(),
       amount: 500, cashUpi: '', paidTotal: 500, pledged: 1000, due: 500,
-      collector: Settings.get('collectorName') || 'Ram', receiptNo: (Settings.get('year') || '2026') + '-0001' };
+      receiptNo: (Settings.get('year') || '2026') + '-0001' };
     function drawPreview() {
       buildReceiptCanvas(sampleRC, {
-        layout: form.receipt_layout, committee: form.committee_name || t('app_title'),
+        layout: form.receipt_layout, puja: form.puja_name || t('app_title'), committee: form.committee_name,
         footer: form.receipt_footer || t('receipt_thanks'), color: form.receipt_color, logo: form.committee_logo,
       }).then(function (cv) {
         const img = document.getElementById('rc-preview'); if (img) img.src = cv.toDataURL('image/png');
@@ -1846,7 +1851,8 @@
         '<div class="card">' +
         '<div class="field"><label>' + esc(t('rl_layout')) + '</label><div class="chips">' +
           layouts.map(function (l) { return '<button class="chip' + (form.receipt_layout === l[0] ? ' on' : '') + '" data-rl="' + l[0] + '">' + esc(l[1]) + '</button>'; }).join('') + '</div></div>' +
-        '<div class="field"><label>' + esc(t('rc_committee')) + '</label><input id="rc-name" value="' + esc(form.committee_name) + '" placeholder="' + esc(t('app_title')) + '"></div>' +
+        '<div class="field"><label>' + esc(t('rc_puja')) + '</label><input id="rc-puja" value="' + esc(form.puja_name) + '" placeholder="' + esc(t('app_title')) + '"></div>' +
+        '<div class="field"><label>' + esc(t('rc_committee')) + '</label><input id="rc-name" value="' + esc(form.committee_name) + '"></div>' +
         '<div class="field"><label>' + esc(t('rc_footer')) + '</label><input id="rc-footer" value="' + esc(form.receipt_footer) + '" placeholder="' + esc(t('receipt_thanks')) + '"></div>' +
         '<div class="field"><label>' + esc(t('rc_color')) + '</label><div class="chips">' +
           colors.map(function (c) { return '<button class="chip' + (form.receipt_color === c ? ' on' : '') + '" data-rcol="' + c + '" style="background:' + c + ';color:#fff">●</button>'; }).join('') + '</div></div>' +
@@ -1859,6 +1865,7 @@
       drawPreview();
       document.querySelectorAll('[data-rl]').forEach(function (b) { b.onclick = function () { form.receipt_layout = b.dataset.rl; paint(); }; });
       document.querySelectorAll('[data-rcol]').forEach(function (b) { b.onclick = function () { form.receipt_color = b.dataset.rcol; paint(); }; });
+      document.getElementById('rc-puja').oninput = function (e) { form.puja_name = e.target.value; drawPreview(); };
       document.getElementById('rc-name').oninput = function (e) { form.committee_name = e.target.value; drawPreview(); };
       document.getElementById('rc-footer').oninput = function (e) { form.receipt_footer = e.target.value; drawPreview(); };
       document.getElementById('rc-logo').onchange = function (e) {

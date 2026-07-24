@@ -511,7 +511,7 @@ var ACTIONS = {
   },
   setConfig: function (b) {
     var me = requireAdmin_(b.token);
-    var allow = { receipt_layout: 1, committee_name: 1, receipt_footer: 1, receipt_color: 1, committee_logo: 1 };
+    var allow = { receipt_layout: 1, puja_name: 1, committee_name: 1, receipt_footer: 1, receipt_color: 1, committee_logo: 1 };
     var patch = b.config || {};
     Object.keys(patch).forEach(function (k) { if (allow[k]) setConfig_(k, String(patch[k] == null ? '' : patch[k])); });
     logAudit_(me.row, 'config', Object.keys(patch).filter(function (k) { return allow[k]; }).join(','));
