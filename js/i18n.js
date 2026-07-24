@@ -143,6 +143,7 @@ const I18N = {
   no_phone: { bn: 'এই দাতার ফোন নম্বর নেই', en: 'No phone number for this party' },
   date: { bn: 'তারিখ', en: 'Date' },
   field_required: { bn: 'এটা খালি রাখা যাবে না', en: "This can't be left empty" },
+  err_phone_in: { bn: 'ঠিক মোবাইল নম্বর দাও (১০ অঙ্ক, ৬-৯ দিয়ে শুরু)', en: 'Enter a valid mobile (10 digits, starts 6–9)' },
   amount_big_confirm: { bn: '{amt} — এত টাকা কি ঠিক? ভুল টাইপ হয়নি তো?', en: '{amt} — is that right? Check for a typo.' },
   receipt_title: { bn: 'চাঁদার রসিদ', en: 'Donation receipt' },
   receipt_for: { bn: 'দাতা', en: 'Donor' },

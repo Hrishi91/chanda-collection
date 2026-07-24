@@ -45,6 +45,15 @@
     if (isNaN(d.getTime())) return s;
     return new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
   }
+  // Indian mobile: strip spaces/dashes/brackets and an optional +91 / 91 / 0
+  // prefix, leaving the 10-digit national number.
+  function cleanPhoneIN(s) {
+    return String(s || '').replace(/[\s\-()]/g, '').replace(/^(\+?91|0)/, '');
+  }
+  // null if a valid Indian mobile (10 digits, starts 6–9), else an error key.
+  function phoneErrIN(s) {
+    return /^[6-9]\d{9}$/.test(cleanPhoneIN(s)) ? null : 'err_phone_in';
+  }
   // IST day + time "YYYY-MM-DD HH:MM" for the audit log (when matters there)
   function fmtDateTime(v) {
     if (!v) return '';
@@ -336,6 +345,12 @@
       // every text step is mandatory unless explicitly marked optional —
       // a blank name used to sail through and land as an unsearchable row.
       toast(t(step.required ? 'comment_required' : 'field_required')); return;
+    } else if (step.validate && raw !== null && String(raw || '').trim()) {
+      // value-level format check (e.g. phone). Only runs when something was
+      // actually entered, so an optional field can still be left blank.
+      const err = step.validate(String(raw).trim());
+      if (err) { toast(t(err)); return; }
+      if (step.clean) val = step.clean(String(raw).trim());
     }
     flowState.answers[step.key] = val;
     Voice.stop();
@@ -517,7 +532,8 @@
         { key: 'side', qKey: 'q_side', kind: 'choice', options: sideOptions(), showIf: function () { return type === 'shop'; } },
         { key: 'location', qKey: 'q_location', kind: 'choice', options: locationOptions(), optional: true,
           showIf: function () { return type !== 'shop' && Lists.get('location').length > 0; } },
-        { key: 'phone', qKey: 'q_phone', kind: 'text', optional: true },
+        { key: 'phone', qKey: 'q_phone', kind: 'text', optional: true,
+          validate: phoneErrIN, clean: cleanPhoneIN },
         { key: 'pledged', qKey: 'q_pledged', kind: 'amount' },
       ].concat(moneySteps(true)),
       save: function (a) {
@@ -1486,9 +1502,11 @@
       if (!USERNAME_RE.test(username)) { authError(t('err_bad_username')); return; }
       if (pw.length < 6) { authError(t('err_bad_input')); return; }
       if (pw !== pw2) { authError(t('pw_mismatch')); return; }
+      const phone = document.getElementById('rg-phone').value.trim();
+      if (phone && phoneErrIN(phone)) { authError(t('err_phone_in')); return; }
       const btn = this; btn.disabled = true;
       Auth.register({ name: name, username: username,
-        phone: document.getElementById('rg-phone').value.trim(), password: pw,
+        phone: phone ? cleanPhoneIN(phone) : '', password: pw,
       }).then(function (resp) {
         if (resp && resp.first) { authView = 'login'; toast(t('reg_admin_msg')); }
         else authView = 'regdone';

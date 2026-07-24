@@ -1049,3 +1049,20 @@ handover / daily saves already guard `total > 0`.
 Verified live in a cache-busted harness: blank name blocked with the toast,
 real name advances, owner skippable, big amount prompts and can be declined.
 105 tests pass.
+
+## v3.49.0 — Indian mobile-number validation
+
+- Phone was a free-text optional field — any junk was accepted, then the
+  receipt/remind features prepend +91 to it. Added a step-level `validate` +
+  `clean` hook to `submitAnswer` (runs only when a value was entered, so an
+  optional field can still be skipped).
+- `phoneErrIN` / `cleanPhoneIN`: strip spaces/dashes/brackets and an optional
+  +91 / 91 / 0 prefix; require a 10-digit national number starting 6–9. Valid
+  numbers are stored normalised to 10 digits, so the Sheet holds one format and
+  the WhatsApp +91 prefix always resolves correctly.
+- Applied to the party phone step and the register form (register also stores
+  the cleaned number).
+- Verified live: "12345" rejected with a toast; "+91 98765 43210" accepted and
+  saved as "9876543210"; empty still skippable. node edge-case sweep covers
+  +91/91/0/space/dash accepts and 5-prefix / wrong-length / Bengali-digit
+  rejects. 105 tests pass.
