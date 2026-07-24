@@ -1295,3 +1295,14 @@ screen while in training, and hides it once live; called from render() and after
 each pull (so it disappears the moment the admin goes live). Removed the
 redundant home card. Verified live: bar shows on home/khata/report/settings and
 auto-hides when live_mode flips on. 105 tests pass.
+
+## Puja name stands in for the app title everywhere it shows
+
+Hrishi: wherever "চাঁদা খাতা" appears it should be the admin-set puja name.
+Added `pujaName()` = centralConfig.puja_name || t('app_title'), and used it for
+the header title, the login/welcome heading, the home hero, and the OS
+notification title. `updateTrainingBar()` refreshes the header title too, so it
+follows the puja name the moment config arrives (login, pull). Falls back to
+"চাঁদা খাতা" until an admin sets the puja name. The static PWA name (manifest /
+<title>) stays as the app's install identity. Verified live: header and login
+both render "🙏 সিংহদহ সর্বজনীন গণেশ পূজা" from config. 105 tests pass.

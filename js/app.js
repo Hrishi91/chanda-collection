@@ -195,7 +195,7 @@
   function osNotify(body) {
     try {
       if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('🙏 ' + t('app_title'), { body: body, icon: 'icons/icon-192.png', tag: 'chanda-notif' });
+        new Notification('🙏 ' + pujaName(), { body: body, icon: 'icons/icon-192.png', tag: 'chanda-notif' });
       }
     } catch (e) { /* ignore */ }
   }
@@ -715,7 +715,7 @@
       }).reduce(function (a, r) { return a + Number(r.amount || 0); }, 0);
       $view().innerHTML =
         '<div id="notif-banner"></div>' +
-        '<div class="hero"><div>🙏 ' + esc(t('welcome_title')) + ' ' + Settings.get('year') + '</div>' +
+        '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
         '<div class="hero-sub">' + esc(Settings.get('collectorName')) + ' • ' + esc(t('my_today')) + ': <b>' + fmtMoney(myToday) + '</b></div></div>' +
         '<div class="section">' + esc(t('new_entry')) + '</div>' +
         '<div class="grid">' +
@@ -951,9 +951,15 @@
   function rcpMoney(n) { return '₹' + toBengaliDigits(Number(n || 0).toLocaleString('en-IN')); }
   // Live vs training. The system starts in training; admin flips it via goLive.
   function isLive() { return (centralConfig || {}).live_mode === 'on'; }
+  // The committee's puja name (admin-set) stands in for the app title everywhere
+  // it shows; falls back to "চাঁদা খাতা" until an admin sets it.
+  function pujaName() { return (centralConfig && centralConfig.puja_name) || t('app_title'); }
   // Persistent training strip under the header — shows on EVERY screen until the
-  // admin goes live (it lives outside #view, so a re-render can't drop it).
+  // admin goes live (it lives outside #view, so a re-render can't drop it). Also
+  // keeps the header title in sync with the puja name.
   function updateTrainingBar() {
+    const at = document.getElementById('app-title');
+    if (at && Auth.loggedIn()) at.textContent = '🙏 ' + pujaName();
     const el = document.getElementById('training-bar'); if (!el) return;
     if (isLive() || !Auth.loggedIn()) { el.style.display = 'none'; el.innerHTML = ''; return; }
     el.style.cssText = 'display:block;background:#f6b93b;color:#5a3a00;text-align:center;' +
@@ -1672,7 +1678,7 @@
   function renderLogin() {
     $view().innerHTML = '<div class="card center onboard">' +
       '<img src="icons/icon-192.png" alt="" width="104" height="104" style="border-radius:22px;margin:4px auto 10px;display:block">' +
-      '<h2>' + esc(t('welcome_title')) + '</h2>' + langChips() +
+      '<h2>🙏 ' + esc(pujaName()) + '</h2>' + langChips() +
       '<div class="field"><label>' + esc(t('username')) + '</label>' +
       '<input id="lg-user" autocapitalize="none" autocomplete="username"></div>' +
       '<div class="field"><label>' + esc(t('password')) + '</label>' +
@@ -2140,8 +2146,8 @@
     window.scrollTo(0, 0); // a user navigation starts at the top of the new screen
   }
   function render() {
-    document.getElementById('app-title').textContent = '🙏 ' + t('app_title');
-    updateTrainingBar(); // persistent training strip, refreshed on every screen
+    document.getElementById('app-title').textContent = '🙏 ' + pujaName();
+    updateTrainingBar(); // persistent training strip + header title, every screen
     document.querySelectorAll('#bottomnav button').forEach(function (b) {
       b.classList.toggle('on', b.dataset.nav === current.view);
       b.querySelector('span').textContent = t(b.dataset.nav === 'list' ? 'khata' : b.dataset.nav);
