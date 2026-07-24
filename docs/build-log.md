@@ -1422,3 +1422,29 @@ Verified live (harness): payment-less user has no find-party button, direct
 route bounces, and after a mock permission grant one pull updated the user,
 the home payment tile appeared (party still hidden) and find-party returned.
 105 tests pass.
+
+## Calculation audit — one cash-split bug fixed, formulas documented
+
+Full interdependency sweep of the money maths (a 2-collector scenario with a
+cross-collector party, a void, pending+confirmed handovers, a collection
+expense, a UPI split, a legacy cash-only row and a bus daily): 21/22 checks
+passed on the first run — party balance, per-person in-hand, pending handover
+handling, void exclusion, personal summary, dues/inhand reports and the
+reconcile invariant are all consistent with each other.
+
+**The one failure was real:** three different "legacy cash-only" checks existed.
+`computeTotals` only treated `undefined` split-fields as cash-only, so a row
+whose blank cells round-tripped through the Sheet as `''` contributed 0 to
+মোট নগদ — while `isCashOnly` (personalSummary, receipts) and the overview report
+counted it. The same data could show different "total cash" on different
+screens. Fixed: `computeTotals` and Code.gs `computeReport_('overview')` now
+use the one canonical check (isCashOnly / cashOnly_). 3 regression tests added
+(blank + undefined rows count as cash; overview === computeTotals) → 108 pass.
+
+Noted, not bugs: `computeTotals.byCollector` is name-keyed but unused by any
+screen (tests only); pre-login legacy handover rows key by name until go-live
+clears them.
+
+**Help updated:** new "💰 হিসাব কীভাবে হয় (সূত্র)" section (bn+en) in the in-app
+guide + app-guide.md — donor due across collectors, the in-hand formula, void
+exclusion, and the reconcile invariant, in plain words.

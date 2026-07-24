@@ -72,6 +72,18 @@ only when the cashier opens **✅ Confirm receipts** and taps "Received". Until
 confirmed, the money stays counted **in the collector's hand** (shown as
 "awaiting confirm"). This keeps "cash in hand by collector" always correct.
 
+## 💰 How the maths works
+
+- **Donor's due** = pledged − all payments, counted **across every collector**
+  (Salil takes 400 + Ram takes 600 → the donor's full 1000 is paid).
+- **In-hand** = collected (payments + daily) + handovers received (confirmed)
+  − handovers given (confirmed) − own expenses. Donor totals combine, but
+  whose hand the money sits in never mixes.
+- **Voided entries** drop out of every total (sums, dues, in-hand, reports)
+  but stay visible struck-through in the ledger — the audit trail remains.
+- **Reconciliation invariant:** everyone's in-hand added up = total collected
+  − total expenses, always. A mismatch means a wrong entry somewhere.
+
 ## 📒 Ledger & 📊 reports
 
 - **Ledger (খাতা)** — list of all donors; search, filter by "Dues only", tap a

@@ -51,10 +51,11 @@
     const totalExpense = sum(expenses, function (e) { return e.amount; });
     const totalPledged = byType.shop.pledged + byType.person.pledged + byType.member.pledged;
 
-    // cash/UPI split (legacy rows without split fields count as cash)
+    // cash/UPI split — isCashOnly is THE canonical legacy check (undefined OR
+    // '' — Sheet round-trips blank cells as ''), same as personalSummary.
     let totalCash = 0, totalUpi = 0;
     payments.concat(daily).forEach(function (r) {
-      if (r.cashAmount === undefined && r.upiAmount === undefined) {
+      if (isCashOnly(r)) {
         totalCash += Number(r.amount) || 0;
       } else {
         totalCash += Number(r.cashAmount) || 0;
@@ -257,7 +258,7 @@
       const dailyByType = { road: 0, toto: 0, bus: 0 };
       (d.daily || []).forEach(function (r) { if (r.type in dailyByType) dailyByType[r.type] += Number(r.amount) || 0; });
       let cash = 0, upi = 0;
-      money.forEach(function (r) {
+      money.forEach(function (r) { // same canonical isCashOnly as computeTotals
         if (isCashOnly(r)) cash += Number(r.amount) || 0;
         else { cash += Number(r.cashAmount) || 0; upi += Number(r.upiAmount) || 0; }
       });

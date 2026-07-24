@@ -1,6 +1,6 @@
 // Pure-logic tests: node tests/run.js
 const { parseAmount } = require('../js/numparse.js');
-const { computeTotals, duesList, inHandRows, personalSummary, reconcile } = require('../js/aggregate.js');
+const { computeTotals, duesList, inHandRows, personalSummary, reconcile, computeReport } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -257,6 +257,20 @@ const fullByRam = {
 };
 eq(personalSummary(fullByRam, 'ram').inHand, 1000, 'cross-collector: Ram holds the full 1000');
 eq(personalSummary(fullByRam, 'salil').inHand, 0, 'cross-collector: Salil (entry only) holds nothing');
+
+// ---- cash/UPI legacy consistency: '' (sheet round-trip) and undefined both
+// count as pure cash, and overview must agree with computeTotals ----
+const legacyCash = {
+  parties: [], daily: [], expenses: [], handovers: [], voids: [],
+  payments: [
+    { id: 'l1', partyId: 'P', amount: 400, cashAmount: 300, upiAmount: 100 }, // split
+    { id: 'l2', partyId: 'P', amount: 600, cashAmount: '', upiAmount: '' },   // sheet blank
+    { id: 'l3', partyId: 'P', amount: 200 },                                   // undefined
+  ],
+};
+eq(computeTotals(legacyCash).totalCash, 1100, 'legacy cash: blank+undefined rows count as cash');
+eq(computeTotals(legacyCash).totalUpi, 100, 'legacy cash: upi only from split rows');
+eq(computeReport('overview', legacyCash).totalCash, 1100, 'legacy cash: overview matches computeTotals');
 
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

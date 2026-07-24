@@ -1012,7 +1012,7 @@ function computeReport_(id, d) {
     d.daily.forEach(function (r) { if (r.type in dailyByType) dailyByType[r.type] += num_(r.amount); });
     var cash = 0, upi = 0;
     money.forEach(function (r) {
-      if (r.cashAmount === '' && r.upiAmount === '') cash += num_(r.amount);
+      if (cashOnly_(r)) cash += num_(r.amount); // canonical legacy check, same as personalSummary_
       else { cash += num_(r.cashAmount); upi += num_(r.upiAmount); }
     });
     var totalPledged = byType.shop.pledged + byType.person.pledged + byType.member.pledged;

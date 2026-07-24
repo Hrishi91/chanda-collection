@@ -156,6 +156,24 @@ window.HELP = [
     },
   },
   {
+    icon: '💰',
+    title: { bn: 'হিসাব কীভাবে হয় (সূত্র)', en: 'How the maths works' },
+    body: {
+      bn: [
+        '<b>দাতার বাকি</b> = কথা (pledge) − সব জমা। জমা <b>সব collector মিলিয়ে</b> ধরা হয় — সলিল ৪০০ আর রাম ৬০০ তুললে দাতার পুরো ১০০০-ই জমা।',
+        '<b>আমার হাতে</b> = আমি তুললাম (চাঁদা + রোড/টোটো/বাস) + আমার কাছে জমা (confirm হওয়া) − আমি জমা দিলাম (confirm হওয়া) − আমার খরচ। যদিও দাতার হিসাব সবাই মিলে, <b>টাকা কার হাতে তা কখনো মেশে না</b>।',
+        '<b>বাতিল (void) entry</b> সব হিসাব থেকে বাদ যায় — মোট, বাকি, হাতে, রিপোর্ট সব জায়গা থেকে; শুধু খাতায় কাটা অবস্থায় দেখা যায় (প্রমাণ থাকে)।',
+        '<b>মিলিয়ে দেখা:</b> সবার হাতের টাকার যোগফল = মোট আদায় − মোট খরচ — সবসময়। না মিললে বুঝবে কোথাও entry ভুল আছে।',
+      ],
+      en: [
+        "<b>A donor's due</b> = pledged − all payments, counted <b>across every collector</b> — if Salil takes 400 and Ram takes 600, the donor's full 1000 is paid.",
+        '<b>My in-hand</b> = what I collected (payments + road/toto/bus) + handovers received (confirmed) − handovers given (confirmed) − my expenses. Donor totals combine, but <b>whose hand the money is in never mixes</b>.',
+        '<b>Voided entries</b> drop out of every total — sums, dues, in-hand, reports — but stay visible struck-through in the ledger (audit trail).',
+        "<b>Reconciliation:</b> everyone's in-hand added up = total collected − total expenses, always. If it doesn't match, an entry is wrong somewhere.",
+      ],
+    },
+  },
+  {
     icon: '🧾',
     title: { bn: 'রসিদ ও বাকির তাগাদা', en: 'Receipts & dues reminders' },
     body: {
