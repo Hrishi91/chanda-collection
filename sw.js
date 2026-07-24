@@ -1,5 +1,5 @@
 // App-shell cache. Bump VERSION on every deploy that changes app files.
-const VERSION = 'chanda-v3.55.0';
+const VERSION = 'chanda-v3.56.0';
 // config.js is intentionally NOT precached — it carries the live backend URL
 // and is served network-first (no-store) by the fetch handler so it can never
 // be stale. Precaching it here would risk baking in a stale copy at install.

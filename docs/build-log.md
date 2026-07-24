@@ -1201,3 +1201,16 @@ Rebuilt it as a proper acknowledgement receipt.
 - Verified live (harness): shop/person/bus receipts each render with the right
   subject line, words, serial, and totals-or-not. 105 tests pass. Server bits
   ride the pending redeploy.
+
+## Receipt polish — spaces in the invocation + drop the currency glyph
+
+Two bits of Hrishi feedback:
+- "শ্রী শ্রী" now spaced — invocation "ॐ শ্রী শ্রী সিদ্ধিদাতা গণেশায় নমঃ" and the
+  prose "শ্রী শ্রী গণেশ পূজার".
+- The ₹/৳ currency icon looked bad on canvas → dropped it. Amounts render as
+  Bengali-digit figures with "/-" (rcpMoney → toBengaliDigits + Indian
+  grouping): the main amount "১,৫০০/-", the totals "প্রতিশ্রুত ২,০০০ · মোট জমা
+  ১,৫০০ · বাকি ৫০০ টাকা", and the SMS text likewise. The words line
+  ("… টাকা মাত্র") already carries the currency in Bengali.
+- Verified live: shop + bus receipts render with spaced invocation and
+  clean Bengali-digit amounts, no currency glyph. 105 tests pass.

@@ -934,6 +934,10 @@
     if (num) p.push(O[num]);
     return p.join(' ');
   }
+  function toBengaliDigits(s) { return String(s).replace(/[0-9]/g, function (d) { return '০১২৩৪৫৬৭৮৯'[d]; }); }
+  // receipt money: Indian grouping, Bengali digits, no currency glyph (the ₹/৳
+  // icon renders poorly on the canvas) — "১,৫০০/-" reads as a proper রসিদ.
+  function rcpMoney(n) { return toBengaliDigits(Number(n || 0).toLocaleString('en-IN')); }
   // admin-configured receipt design (falls back to sensible defaults)
   function receiptConfig() {
     const c = centralConfig || {};
@@ -983,7 +987,7 @@
         // ---- header: invocation + committee ----
         g.textAlign = 'center';
         g.fillStyle = accent; g.font = '19px serif';
-        g.fillText('ॐ  শ্রীশ্রীসিদ্ধিদাতা গণেশায় নমঃ', W / 2, 66);
+        g.fillText('ॐ  শ্রী শ্রী সিদ্ধিদাতা গণেশায় নমঃ', W / 2, 66);
         drawLogo(W / 2 - 30, 78, 60);
         g.fillStyle = accent; g.font = 'bold 34px sans-serif';
         g.fillText(cfg.committee, W / 2, 176);
@@ -999,18 +1003,20 @@
         // ---- body: prose acknowledgement ----
         let y = 292; const lx = 62, maxW = W - 124;
         g.fillStyle = ink; g.font = '22px sans-serif';
-        y = wrap(rc.donorLine + '  এর নিকট হইতে শ্রীশ্রীগণেশ পূজার চাঁদা বাবদ —', lx, y, maxW, 34);
+        y = wrap(rc.donorLine + '  এর নিকট হইতে শ্রী শ্রী গণেশ পূজার চাঁদা বাবদ —', lx, y, maxW, 34);
         y += 12;
-        g.fillStyle = accent; g.font = 'bold 30px sans-serif';
-        g.fillText('৳ ' + Number(rc.amount).toLocaleString('en-IN') + '/-', lx, y);
+        g.fillStyle = accent; g.font = 'bold 32px sans-serif';
+        const amtTxt = rcpMoney(rc.amount) + '/-';
+        g.fillText(amtTxt, lx, y);
+        const amtW = g.measureText(amtTxt).width;
         g.fillStyle = ink; g.font = 'italic 21px sans-serif';
-        g.fillText('(' + banglaNumWords(rc.amount) + ' টাকা মাত্র)', lx + 150, y); y += 40;
+        g.fillText('(' + banglaNumWords(rc.amount) + ' টাকা মাত্র)', lx + amtW + 24, y); y += 40;
         g.fillStyle = ink; g.font = '22px sans-serif';
         g.fillText('সাদরে গৃহীত হইল।' + (rc.cashUpi ? '   ' + rc.cashUpi : ''), lx, y); y += 44;
         // totals strip (party payments only — a bus/one-off has no pledge)
         if (rc.showTotals) {
           g.fillStyle = muted; g.font = '18px sans-serif';
-          g.fillText('প্রতিশ্রুত ' + fmtMoney(rc.pledged) + '    ·    মোট জমা ' + fmtMoney(rc.paidTotal) + '    ·    বাকি ' + fmtMoney(rc.due), lx, y);
+          g.fillText('প্রতিশ্রুত ' + rcpMoney(rc.pledged) + '    ·    মোট জমা ' + rcpMoney(rc.paidTotal) + '    ·    বাকি ' + rcpMoney(rc.due) + '  টাকা', lx, y);
         }
         // ---- date + signature ----
         const sy = H - 92;
@@ -1082,8 +1088,8 @@
     const cfg = receiptConfig();
     const lines = [cfg.committee + ' — ' + t('receipt_title'),
       rc.donorLine,
-      t('receipt_amount') + ': ৳' + Number(rc.amount).toLocaleString('en-IN') + '/- (' + banglaNumWords(rc.amount) + ' টাকা মাত্র)',
-      (rc.showTotals ? t('paid') + ': ' + fmtMoney(rc.paidTotal) + '/' + fmtMoney(rc.pledged) + '  ' + t('due') + ': ' + fmtMoney(rc.due) : ''),
+      t('receipt_amount') + ': ' + rcpMoney(rc.amount) + '/- (' + banglaNumWords(rc.amount) + ' টাকা মাত্র)',
+      (rc.showTotals ? t('paid') + ': ' + rcpMoney(rc.paidTotal) + '/' + rcpMoney(rc.pledged) + '  ' + t('due') + ': ' + rcpMoney(rc.due) : ''),
       (rc.receiptNo ? t('receipt_no') + ' ' + rc.receiptNo : ''),
       cfg.footer].filter(Boolean).join('\n');
     const digits = String(phone || '').replace(/\D/g, '');
