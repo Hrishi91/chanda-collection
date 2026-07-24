@@ -1278,3 +1278,9 @@ and asked before going live.
 - Verified live: digit chips render + select and drive the preview serial; a
   go-live with the prompt returning "5" sent goLive{digits:5} and config landed
   receipt_digits:"5", live_mode:"on". 105 tests pass. Rides the redeploy.
+
+## config.js — rebaked SCRIPT_URL for the receipt/training deployment (AKfycbzZ…)
+
+New Apps Script deployment carries the receipt + training/live batch. Probed
+live: getConfig ok (Config sheet present), pull carries config + cursor,
+goLive deployed (bad-token → reached requireAdmin_, did not run). Baked the URL.
