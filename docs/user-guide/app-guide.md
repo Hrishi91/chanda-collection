@@ -25,12 +25,18 @@ who collected what, who holds how much cash, what is still due.
 
 ## 👥 Roles — who can do what
 
-- **👑 Admin** — sees/controls everything: approve/block users, set cashiers,
-  report permissions, expense subjects, password resets.
+- **👑 Admin** — sees/controls everything: approve/block users, grant/remove
+  admin, set cashiers, report permissions, area duties, expense subjects and
+  area/location lists, password resets, activity log.
 - **💰 Cashier** — confirms cash handed over by collectors; records puja
-  expenses; gets the "cash in hand" report.
+  expenses; gets the "cash in hand" report; decides on correction requests.
 - **Collector** — makes entries and sees their own "My summary". Sees central
   reports only if the admin grants permission.
+
+**Who can undo a wrong entry** — admin: any; cashier: only a regular
+collector's entry (not their own, not another cashier's/admin's); collector:
+cannot void at all — they *request* a correction and a cashier/admin approves
+it, which creates the void.
 
 ## 🏠 Home screen
 
@@ -72,18 +78,56 @@ confirmed, the money stays counted **in the collector's hand** (shown as
   name for details + add payment.
 - **Report** — everyone's own **"My summary"** at the top (collected / handed
   over / in hand). Below are the **central reports** (overview, dues, cash in
-  hand, by collector, expenses, daily); each user sees only what the admin grants.
+  hand, by collector, **📍 by area**, expenses, daily); each user sees only what
+  the admin grants.
+- **📍 By area** — how much each road collected and what is still due, ranked by
+  collection (🥇🥈🥉).
+- **Opens instantly** — ledger and reports render from data already stored on the
+  phone and refresh in the background, so nothing blocks on the network and
+  everything works offline.
+
+## 🧾 Receipts & 📞 dues reminders
+
+- **🧾 Receipt** — on a donor's page, tap 🧾 next to any payment to create a
+  receipt image (donor, date, this payment, paid vs pledged, due, collector).
+  Share it straight to WhatsApp or save it. Drawn on the phone; nothing is
+  uploaded.
+- **📞 Remind** — shown on donors who still owe money *and* have a phone number.
+  It opens WhatsApp with the message pre-written (name + amount due); **you tap
+  send yourself** — nothing is sent automatically.
+
+## 🔔 Notifications — act right there
+
+The top of the home screen lists what is waiting for you **with details**, not
+just a count:
+
+- **🙋 New user** (admin) — name + username, with **✅ Approve** / **🚫 Decline**
+  inline.
+- **💰 Handover** (cashier) — who handed over how much and when, with
+  **✅ Received**.
+- **⚠️ Correction request** — the reason, with **👁 Review** to approve or reject.
+
+Refreshes every minute and whenever you return to the app.
 
 ## 👑 Admin panel (Settings → 👑)
 
 - A newly registered user appears under **"Awaiting approval"** → tap
   **✅ Approve**. **Tap "🔄 Refresh" after someone new registers** — the panel
   does not auto-update.
-- Per approved user: **💰 Make cashier**, **🔑 Reset password** (gives a
-  temporary password — tell them verbally), **🚫 Block**, and **📊 report
-  permissions** (tap chips to grant/revoke).
-- **🧾 Expense subjects** — add Pandal, Light, etc.; cashiers pick from these
-  when recording an expense.
+- Per approved user: **💰 Make cashier**, **👑 Make/remove admin**, **🔑 Reset
+  password** (gives a temporary password — tell them verbally), **🚫 Block**,
+  **📊 report permissions**, and **📍 Area duties** (which roads they cover).
+- **👑 Admin safeguards** — you cannot remove your own admin role, and the last
+  remaining admin cannot be removed, so the committee can never be locked out.
+- **🧾 Expense subjects** and **📍 Area / location lists** — add, rename or remove
+  here; each item needs a Bengali and an English name, and changes reach every
+  phone quickly.
+- **📜 Activity log** — who did what and when: voids, correction approve/reject,
+  handover confirms, admin/cashier changes, password resets, list edits.
+  Append-only, for accountability.
+- **🔄 Carry donors to new year** — copies last year's donor list into the new
+  year (no payments carried; pledges kept as the starting ask). Refuses if that
+  year already has donors, so it can never double-run.
 - Forgot password → reset here → they log in with the temporary one and set
   their own.
 

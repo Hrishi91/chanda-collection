@@ -75,24 +75,78 @@ setup() (auto-migrates columns) + clear the leftover test data.
 - [x] ~~in-app notifications (banner + OS) — Telegram deferred~~
 - [ ] Telegram alerts (Hrishi's bot) — deferred, discuss later
 
+## P0.8 — v3 sprint: sync architecture + roadmap A–D (2026-07-24, DONE, DEPLOYED)
+
+Backend redeployed 2026-07-24 (AKfycbwm…), config.js rebaked, live-verified
+with a real admin token. See build-log v3.34.0–v3.46.0 for details.
+
+**Sync architecture (the "too slow" fix)**
+- [x] ~~Pull-down sync: one `pull` returns the year dataset; client caches it
+      in localStorage and renders every screen from the local snapshot merged
+      with its own unsynced rows~~ (2026-07-24). Replaced the per-screen
+      `parties`/`partyPayments` round-trips.
+- [x] ~~Incremental delta pull (`since` + `cursor`): idle 60s polls return 0
+      rows instead of the whole year~~ (2026-07-24, verified live:
+      full=14 rows, delta=0 rows).
+- [x] ~~Reports render from the snapshot too — ONE aggregation path
+      (Aggregate.computeReport mirrors Code.gs), no per-report fetch~~
+      (2026-07-24; 5 of 6 reports byte-identical server vs client).
+- [x] ~~`fmtDate`/`fmtDateTime`: Sheet round-trips day cells as UTC ISO, now
+      always displayed as the IST day~~ (2026-07-24).
+
+**Roadmap A–D (the "hardcoded data / roles / notifications" list)**
+- [x] ~~A. Admin-editable master data (areas + person locations, bilingual;
+      expense-subject edit)~~ (2026-07-24)
+- [x] ~~B. Role gap: in-app admin grant/revoke with safeguards (can't demote
+      self, can't remove the last admin) + collector↔area assignment~~
+      (2026-07-24, safeguards verified live)
+- [x] ~~C. Rich notification feed: who/amount/date + inline approve · decline ·
+      confirm · view (was count-only)~~ (2026-07-24)
+- [x] ~~D1. Area-wise report / leaderboard (🥇🥈🥉 by collected)~~ (2026-07-24)
+- [x] ~~D3. Audit / activity log: append-only Audit sheet, every privileged and
+      money action logged, admin "📜 কার্যকলাপ" view~~ (2026-07-24)
+
+**UX**
+- [x] ~~Find-party "blinking" fix (background pull no longer rebuilds the
+      screen under the user)~~ (2026-07-24)
+- [x] ~~Scroll: top on navigate, position preserved on background refresh~~
+      (2026-07-24)
+
 ## P1 — nice-to-have before puja
 
-- [ ] Receipt image/PDF per payment (share via WhatsApp)
+- [x] ~~Receipt image per payment (canvas → WhatsApp share / download)~~
+      (2026-07-24, D2)
 - [x] ~~Edit/void entries with audit trail~~ (2026-07-23, payments; daily/
       expense void later — needs a per-entry browse screen)
-- [ ] Per-collector leaderboard on central report
+- [x] ~~Per-collector leaderboard on central report~~ (2026-07-23 as the
+      `collectors` report; area leaderboard added 2026-07-24)
+- [x] ~~Dues follow-up: WhatsApp reminder from party detail (name + due
+      pre-filled; collector taps send)~~ (2026-07-24, D5)
+- [ ] Report export (PDF/Excel) for the committee — D6, not started
+- [ ] Attach a bill / shop photo to an entry — D6, not started
 - [ ] PNG icons (maskable) alongside SVG
 
 ## P2 — next year
 
-- [ ] Year rollover flow (carry party master, fresh pledges)
-- [ ] Import last year's pledges as suggestions
+- [x] ~~Year rollover flow: `rolloverYear` carries the party master into the
+      new year (fresh ids, no payments, pledges kept as the starting ask),
+      refuses if the target year already has data~~ (2026-07-24, built +
+      wired; **not yet run** — run it when 2027 setup starts)
+- [x] ~~Import last year's pledges as suggestions~~ — covered by rollover
+      carrying pledges forward as the default ask
 
 ## Housekeeping
 
 - [ ] ⚠️ Hrishi's GitHub fine-grained PAT was shared in chat
       (2026-07-23) and is still active on this Mac (gh keyring) —
       revoke/regenerate it once his mobile is working again.
+- [ ] Rotate the admin session tokens pasted into chat during the
+      2026-07-23/24 verification sessions — just re-login in the app.
+- [ ] Run `setup()` once in the Apps Script editor after the 2026-07-24
+      deploy: adds the `areas` header to Users and creates the Audit sheet
+      header. (logAudit_ self-creates Audit, so this is cosmetic hygiene.)
+- [ ] Archive the orphaned Apps Script deployments (each redeploy minted a
+      new URL because "New version" doesn't repoint on this account).
 
 ## Open questions
 

@@ -985,3 +985,30 @@ Roadmap D4.
   the Users sheet gains the `areas` header and the Audit sheet is created with
   its header row. (logAudit_ self-creates Audit if missing, but setup() gives
   it the proper header.)
+
+## v3.47.0 — Docs catch-up: roadmap, context and the in-app guide
+
+Honest gap: through the whole 2026-07-24 sprint only `build-log.md` was kept
+current commit-by-commit. The roadmap, project context and user-facing guides
+were still describing the 2026-07-23 state. Fixed here in one pass.
+
+- `docs/pending.md` — new "P0.8 — v3 sprint" section marking the sync
+  architecture (pull-down, delta, one aggregation path) and roadmap A/B/C/D1/D3
+  done; P1 receipt + leaderboard + dues follow-up marked done; P2 year rollover
+  marked built-but-not-yet-run; D6 (report export, photo attach) added as the
+  remaining work; housekeeping items added (token rotation, run `setup()`,
+  archive orphaned deployments).
+- `docs/PROJECT_CONTEXT.md` — decisions table gains the pull-down snapshot,
+  delta pull, single aggregation path, whole-year-on-device tradeoff, area
+  assignment, admin-grant safeguards, audit log and the "structural enums stay
+  hardcoded" rule; architecture section rewritten with the read/write paths and
+  the full sheet list; new section explaining the two-dimensional
+  (partyId × collectorId) model that makes cross-collector collection work.
+- `js/help.js` — two new bilingual sections (🧾 receipts & dues reminders,
+  🔔 actionable notifications); roles, reports and admin sections updated for
+  area report, admin grant safeguards, area duties, activity log, rollover and
+  the void/correction permission rule. 12 sections, all bn+en.
+- `docs/user-guide/app-guide.md` + `collector-guide.md` — kept in sync with the
+  in-app guide.
+- Verified live: guide renders all new sections in Bengali AND English with no
+  language leakage. 105 tests pass.
