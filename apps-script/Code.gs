@@ -206,7 +206,8 @@ function nextReceiptNo_(year) {
   var cfg = readConfig_(), key = 'receiptSeq_' + year;
   var n = (Number(cfg[key]) || 0) + 1;
   setConfig_(key, n);
-  var s = '' + n; while (s.length < 6) s = '0' + s; // 6-digit, starts at 000001
+  var d = Math.min(9, Math.max(4, Number(cfg.receipt_digits) || 6)); // admin-set width
+  var s = '' + n; while (s.length < d) s = '0' + s; // starts at 000…001
   return '' + year + s; // e.g. 2026000001 — year prefix, no separator
 }
 
@@ -511,7 +512,7 @@ var ACTIONS = {
   },
   setConfig: function (b) {
     var me = requireAdmin_(b.token);
-    var allow = { receipt_layout: 1, puja_name: 1, committee_name: 1, receipt_footer: 1, receipt_color: 1, committee_logo: 1 };
+    var allow = { receipt_layout: 1, puja_name: 1, committee_name: 1, receipt_footer: 1, receipt_color: 1, committee_logo: 1, receipt_digits: 1 };
     var patch = b.config || {};
     Object.keys(patch).forEach(function (k) { if (allow[k]) setConfig_(k, String(patch[k] == null ? '' : patch[k])); });
     logAudit_(me.row, 'config', Object.keys(patch).filter(function (k) { return allow[k]; }).join(','));
@@ -524,6 +525,7 @@ var ACTIONS = {
   // Destructive + one-way → the client gates it behind a typed confirmation.
   goLive: function (b) {
     var me = requireAdmin_(b.token);
+    var digits = Math.min(9, Math.max(4, Number(b.digits) || 6)); // locked in at go-live
     try { dailyBackup(); } catch (e) { /* best-effort safety snapshot */ }
     var lock = LockService.getScriptLock(); lock.waitLock(30000);
     try {
@@ -539,9 +541,10 @@ var ACTIONS = {
           if (String(vals[i][0]).indexOf('receiptSeq_') === 0) csh.deleteRow(i + 2);
         }
       }
+      setConfig_('receipt_digits', digits);
       setConfig_('live_mode', 'on');
       setConfig_('data_epoch', String(Date.now()));
-      logAudit_(me.row, 'went-live', 'training data cleared');
+      logAudit_(me.row, 'went-live', 'training data cleared; digits=' + digits);
       return { ok: true };
     } finally { lock.releaseLock(); }
   },

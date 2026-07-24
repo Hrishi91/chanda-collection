@@ -1262,3 +1262,19 @@ training mode with a clean go-live.
   2026000007; home + admin show the training banner; go-live (3-step) called
   goLive, bumped the epoch, wiped the local DB (1→0 rows), flipped live_mode on,
   and landed on home. 105 tests pass. Server bits ride the redeploy.
+
+## Serial digit-width — admin-configurable, confirmed at go-live
+
+Hrishi: how many digits the serial has (the "000000" width) should be admin-set,
+and asked before going live.
+
+- Config `receipt_digits` (default 6, clamped 4–9). `nextReceiptNo_` pads to it:
+  digits=4 → "20260001", digits=6 → "2026000001".
+- Receipt-design screen: a digit-width chip row (৪/৫/৬/৭); the live preview's
+  sample serial reflects the choice. setConfig whitelist includes receipt_digits.
+- Go-live flow now asks the width: confirm → type LIVE → **digits prompt** →
+  final confirm that shows the resulting sample (e.g. "2026000001"). `goLive`
+  takes `digits`, clamps it, and stores it before resetting the counter.
+- Verified live: digit chips render + select and drive the preview serial; a
+  go-live with the prompt returning "5" sent goLive{digits:5} and config landed
+  receipt_digits:"5", live_mode:"on". 105 tests pass. Rides the redeploy.

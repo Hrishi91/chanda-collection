@@ -1852,14 +1852,17 @@
       receipt_footer: centralConfig.receipt_footer || '',
       receipt_color: centralConfig.receipt_color || '#c0392b',
       committee_logo: centralConfig.committee_logo || '',
+      receipt_digits: String(Number(centralConfig.receipt_digits) || 6),
     };
     const layouts = [['classic', t('rl_classic')], ['festive', t('rl_festive')], ['minimal', t('rl_minimal')]];
     const colors = ['#c0392b', '#7b1113', '#1e7d3a', '#2a4d9b', '#8a5a00'];
+    const digitOpts = ['4', '5', '6', '7'];
     const sampleRC = { donorLine: 'শ্রী/শ্রীমতী রমেশ সাহা, কমল স্টোর্স', showTotals: true,
       date: todayISO(), datetime: new Date().toISOString(),
-      amount: 500, cashUpi: '', paidTotal: 500, pledged: 1000, due: 500,
-      receiptNo: (Settings.get('year') || '2026') + '-0001' };
+      amount: 500, cashUpi: '', paidTotal: 500, pledged: 1000, due: 500, receiptNo: '' };
     function drawPreview() {
+      const d = Math.min(9, Math.max(4, Number(form.receipt_digits) || 6));
+      sampleRC.receiptNo = String(Settings.get('year') || '2026') + String(1).padStart(d, '0');
       buildReceiptCanvas(sampleRC, {
         layout: form.receipt_layout, puja: form.puja_name || t('app_title'), committee: form.committee_name,
         footer: form.receipt_footer || t('receipt_thanks'), color: form.receipt_color, logo: form.committee_logo,
@@ -1882,11 +1885,15 @@
           '<input type="file" id="rc-logo" accept="image/png,image/jpeg">' +
           (form.committee_logo ? ' <button class="chip" id="rc-logo-rm">' + esc(t('rc_logo_remove')) + '</button>' : '') +
           '<div class="hint">' + esc(t('rc_logo_hint')) + '</div></div>' +
+        '<div class="field"><label>' + esc(t('rc_digits')) + '</label><div class="chips">' +
+          digitOpts.map(function (d) { return '<button class="chip' + (form.receipt_digits === d ? ' on' : '') + '" data-rdig="' + d + '">' + esc(toBengaliDigits(d)) + '</button>'; }).join('') + '</div>' +
+          '<div class="hint">' + esc(t('rc_digits_hint')) + '</div></div>' +
         '</div>' +
         '<button id="rc-save" class="primary big block">' + esc(t('save')) + '</button>';
       drawPreview();
       document.querySelectorAll('[data-rl]').forEach(function (b) { b.onclick = function () { form.receipt_layout = b.dataset.rl; paint(); }; });
       document.querySelectorAll('[data-rcol]').forEach(function (b) { b.onclick = function () { form.receipt_color = b.dataset.rcol; paint(); }; });
+      document.querySelectorAll('[data-rdig]').forEach(function (b) { b.onclick = function () { form.receipt_digits = b.dataset.rdig; paint(); }; });
       document.getElementById('rc-puja').oninput = function (e) { form.puja_name = e.target.value; drawPreview(); };
       document.getElementById('rc-name').oninput = function (e) { form.committee_name = e.target.value; drawPreview(); };
       document.getElementById('rc-footer').oninput = function (e) { form.receipt_footer = e.target.value; drawPreview(); };
@@ -2015,9 +2022,15 @@
         if (!window.confirm(t('golive_confirm1'))) return;
         const typed = window.prompt(t('golive_confirm2'));
         if (String(typed || '').trim().toUpperCase() !== 'LIVE') { toast(t('golive_cancelled')); return; }
-        if (!window.confirm(t('golive_confirm3'))) return;
+        // ask the serial digit-width before locking it in (year + N digits)
+        const curDigits = Number(centralConfig.receipt_digits) || 6;
+        const dRaw = window.prompt(t('golive_digits'), String(curDigits));
+        if (dRaw === null) { toast(t('golive_cancelled')); return; }
+        const digits = Math.min(9, Math.max(4, Number(dRaw) || 6));
+        const sample = String(Settings.get('year') || '2026') + String(1).padStart(digits, '0');
+        if (!window.confirm(t('golive_confirm3').replace('{sample}', sample))) return;
         const btn = this; btn.disabled = true;
-        Auth.call('goLive', { token: Auth.token() }).then(function () {
+        Auth.call('goLive', { token: Auth.token(), digits: digits }).then(function () {
           toast(t('golive_done'));
           pullCentral().then(function () { navigate('home'); }); // epoch bump wipes local training data
         }).catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
