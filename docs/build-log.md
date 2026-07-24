@@ -1370,3 +1370,20 @@ Khata and find-party search were name+owner substring only. Now:
 - Verified live: search by phone, by area, by two-word owner, by name+area all
   filter correctly; node sanity covers the AND/normalise cases. Client-only.
   105 tests pass.
+
+## Report PDF — print-to-PDF (step 3)
+
+Reports can now be handed to the committee as PDFs, with zero libraries and
+fully offline:
+- Every central report gets a "📄 PDF বানাও / প্রিন্ট" button. It fills a
+  hidden `#print-area` with a headed copy of the report (puja name, report
+  title + year, generated date-time in Bengali digits, and a "প্রশিক্ষণ মোড"
+  tag while training) and calls `window.print()` — on a phone the user picks
+  "Save as PDF".
+- `@media print` CSS shows only #print-area, restyled for paper: black on
+  white, bordered cards/stat boxes, dotted row separators. On screen the area
+  stays display:none.
+- Verified live: button renders, click fills the print area with puja name /
+  report title / generated stamp / training tag / figures, window.print fires,
+  and the area is hidden on screen. In-app guide updated (bn+en). Client-only.
+  105 tests pass.

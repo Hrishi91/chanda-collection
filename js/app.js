@@ -1553,8 +1553,28 @@
     viewData().then(function (data) {
       const body = document.getElementById('report-body');
       if (!body) return; // view changed while computing
-      try { body.innerHTML = reportHTML(id, Aggregate.computeReport(id, data)); }
+      try {
+        body.innerHTML = reportHTML(id, Aggregate.computeReport(id, data)) +
+          '<button id="report-pdf" class="ghost big block">📄 ' + esc(t('report_pdf_btn')) + '</button>';
+        document.getElementById('report-pdf').onclick = function () { printReport(id); };
+      }
       catch (e) { body.innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>'; }
+    });
+  }
+  // Print the current report via the browser's print dialog — on a phone the
+  // user picks "Save as PDF". No library, works offline. A #print-area is
+  // filled with a headed copy of the report; @media print CSS shows only it.
+  function printReport(id) {
+    viewData().then(function (data) {
+      let area = document.getElementById('print-area');
+      if (!area) { area = document.createElement('div'); area.id = 'print-area'; document.body.appendChild(area); }
+      const now = toBengaliDigits(fmtDateTime(new Date().toISOString()));
+      area.innerHTML =
+        '<div class="p-head"><div class="p-puja">' + esc(pujaName()) + '</div>' +
+        '<div class="p-sub">' + esc(t('report_' + id)) + ' · ' + esc(String(Settings.get('year'))) + '</div>' +
+        '<div class="p-meta">' + esc(t('printed_on')) + ': ' + esc(now) + (isLive() ? '' : ' · ' + esc(t('training_mode'))) + '</div></div>' +
+        reportHTML(id, Aggregate.computeReport(id, data));
+      window.print();
     });
   }
 

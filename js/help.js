@@ -143,6 +143,7 @@ window.HELP = [
         'নিচে <b>কেন্দ্রীয় রিপোর্ট</b> — মোট হিসাব, বাকির তালিকা, কার হাতে কত, কে কত তুলল, <b>📍 এলাকা-ভিত্তিক</b>, খরচ, দৈনিক। admin যাকে যেটা permission দেবে সে সেটাই দেখবে।',
         '<b>📍 এলাকা-ভিত্তিক</b> — কোন রাস্তায় কত উঠল, কত বাকি; সবচেয়ে বেশি তোলা এলাকা উপরে (🥇🥈🥉)।',
         '<b>দ্রুত খোলে:</b> রিপোর্ট আর খাতা ফোনে জমানো তথ্য থেকে সঙ্গে সঙ্গে দেখায়, নেট থাকলে পিছনে নিজে থেকে আপডেট হয় — তাই অপেক্ষা করতে হয় না, offline-ও খোলে।',
+        '<b>📄 PDF:</b> যেকোনো কেন্দ্রীয় রিপোর্ট খুলে নিচের "PDF বানাও / প্রিন্ট" চাপো — ফোনের print থেকে <b>Save as PDF</b> বেছে নিলেই কমিটিকে দেওয়ার মতো ফাইল তৈরি।',
       ],
       en: [
         '<b>📒 Ledger</b> — list of all donors; search at top, filter by "Dues only", tap a name for details + add payment.',
@@ -150,6 +151,7 @@ window.HELP = [
         'Below are the <b>central reports</b> — overview, dues list, cash in hand, by collector, <b>📍 by area</b>, expenses, daily. Each user sees only what the admin grants.',
         '<b>📍 By area</b> — how much each road collected and what is still due, ranked by collection (🥇🥈🥉).',
         '<b>Opens instantly:</b> ledger and reports render from data already stored on the phone and refresh in the background — no waiting, and they work offline.',
+        '<b>📄 PDF:</b> open any central report and tap "Save as PDF / print" at the bottom — pick <b>Save as PDF</b> in the phone\'s print dialog for a committee-ready file.',
       ],
     },
   },

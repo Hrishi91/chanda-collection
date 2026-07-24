@@ -251,6 +251,8 @@ const I18N = {
   report_expenses: { bn: '🧾 খরচের হিসাব', en: '🧾 Expenses' },
   report_daily: { bn: '🛣️ দিনের রোড/টোটো/বাস', en: '🛣️ Daily road/toto/bus' },
   no_reports_msg: { bn: 'কেন্দ্রীয় রিপোর্ট দেখার permission নেই — দরকার হলে admin-কে বলো', en: 'No central-report permission — ask the admin if needed' },
+  report_pdf_btn: { bn: 'PDF বানাও / প্রিন্ট', en: 'Save as PDF / print' },
+  printed_on: { bn: 'তৈরি', en: 'Generated' },
   err_no_report_access: { bn: 'এই রিপোর্টের permission নেই — admin-কে বলো', en: 'No permission for this report — ask the admin' },
   report_perms: { bn: '📊 রিপোর্ট permission', en: '📊 Report permissions' },
   entry_perms: { bn: '✏️ কী কী ঢোকাতে পারবে', en: '✏️ Can enter' },

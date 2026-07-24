@@ -147,3 +147,19 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
   max-width: 90vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---- report print / save-as-PDF ---- */
+#print-area { display: none; }
+@media print {
+  body > *:not(#print-area) { display: none !important; }
+  #print-area { display: block; padding: 6mm; color: #000; background: #fff; }
+  #print-area .p-head { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 14px; }
+  #print-area .p-puja { font-size: 20px; font-weight: 700; }
+  #print-area .p-sub { font-size: 14px; margin-top: 3px; }
+  #print-area .p-meta { font-size: 11px; color: #444; margin-top: 3px; }
+  #print-area .card { border: 1px solid #bbb; border-radius: 6px; padding: 10px; margin-bottom: 10px; box-shadow: none; background: #fff; }
+  #print-area .row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted #ccc; }
+  #print-area .stat3 { display: flex; gap: 6px; }
+  #print-area .stat3 > div { flex: 1; border: 1px solid #ccc; border-radius: 6px; padding: 6px; text-align: center; background: #fff; }
+  #print-area .green b { color: #000; } #print-area .red b { color: #000; }
+}
