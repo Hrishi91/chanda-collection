@@ -1214,3 +1214,10 @@ Two bits of Hrishi feedback:
   ("… টাকা মাত্র") already carries the currency in Bengali.
 - Verified live: shop + bus receipts render with spaced invocation and
   clean Bengali-digit amounts, no currency glyph. 105 tests pass.
+
+## Receipt — ₹ back on the figures (Bengali digits)
+
+Hrishi: ₹ is fine to use (it was the ৳ taka glyph that looked bad). `rcpMoney`
+now prefixes ₹ to the Bengali-digit figure — "₹১,৫০০/-", totals "প্রতিশ্রুত
+₹২,০০০ · মোট জমা ₹১,৫০০ · বাকি ₹৫০০"; dropped the now-redundant "টাকা" suffix.
+Verified live. 105 tests pass.

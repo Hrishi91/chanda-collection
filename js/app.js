@@ -935,9 +935,8 @@
     return p.join(' ');
   }
   function toBengaliDigits(s) { return String(s).replace(/[0-9]/g, function (d) { return '০১২৩৪৫৬৭৮৯'[d]; }); }
-  // receipt money: Indian grouping, Bengali digits, no currency glyph (the ₹/৳
-  // icon renders poorly on the canvas) — "১,৫০০/-" reads as a proper রসিদ.
-  function rcpMoney(n) { return toBengaliDigits(Number(n || 0).toLocaleString('en-IN')); }
+  // receipt money: ₹ + Indian grouping in Bengali digits — "₹১,৫০০".
+  function rcpMoney(n) { return '₹' + toBengaliDigits(Number(n || 0).toLocaleString('en-IN')); }
   // admin-configured receipt design (falls back to sensible defaults)
   function receiptConfig() {
     const c = centralConfig || {};
@@ -1016,7 +1015,7 @@
         // totals strip (party payments only — a bus/one-off has no pledge)
         if (rc.showTotals) {
           g.fillStyle = muted; g.font = '18px sans-serif';
-          g.fillText('প্রতিশ্রুত ' + rcpMoney(rc.pledged) + '    ·    মোট জমা ' + rcpMoney(rc.paidTotal) + '    ·    বাকি ' + rcpMoney(rc.due) + '  টাকা', lx, y);
+          g.fillText('প্রতিশ্রুত ' + rcpMoney(rc.pledged) + '    ·    মোট জমা ' + rcpMoney(rc.paidTotal) + '    ·    বাকি ' + rcpMoney(rc.due), lx, y);
         }
         // ---- date + signature ----
         const sy = H - 92;
