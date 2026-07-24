@@ -1012,3 +1012,12 @@ were still describing the 2026-07-23 state. Fixed here in one pass.
   in-app guide.
 - Verified live: guide renders all new sections in Bengali AND English with no
   language leakage. 105 tests pass.
+
+## Roadmap correction — daily/expense void status
+
+`pending.md` claimed daily/expense void was "later". Verified in code:
+`renderMyEntries` already covers payments/daily/expenses/handovers with
+void-or-flag per the permission rule. The real remaining gap is narrower and
+now tracked: there is no way to browse *someone else's* daily/expense entries,
+so a cashier who spots another collector's wrong road/toto entry must ask that
+collector to flag it. Party detail already covers payments for all collectors.
