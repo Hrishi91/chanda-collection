@@ -1086,3 +1086,19 @@ road/toto/bus or expense had to ask that person to flag it.
   entries with ✖️ Void and their own with ⚠️ Flag; voiding Ram's road entry
   wrote a void (daily/d1, by cashi) and the row flipped to "• voided" while the
   Everyone's scope held. In-app guide + app-guide updated. 105 tests pass.
+
+## v3.51.0 — Real app icon (glowing OM + Ganesha)
+
+- Replaced the placeholder "চাঁ" SVG with the committee's chosen icon: a glowing
+  golden OM whose right side forms Ganesha's head/trunk, on a deep-indigo
+  mandala field. High contrast (gold on dark) → legible at home-screen size.
+- Source PNG (1024²) kept at icons/icon-src.png. Per Hrishi's instruction — no
+  colour fill — the dark glow corners are the icon's own; the emblem was
+  centre-cropped (sips, ~760/1024) to trim excess glow margin, then exported to
+  icons/icon-192.png and icons/icon-512.png.
+- manifest.webmanifest icons → the two PNGs (any + maskable). index.html
+  rel=icon → 192, apple-touch-icon → 512. sw.js ASSETS updated + VERSION bump.
+- Verified live: manifest valid, all four icon entries load at their declared
+  sizes, link tags resolve.
+- Note: already-installed phones keep the old icon until reinstall; new installs
+  get this one.
