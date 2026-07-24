@@ -142,6 +142,8 @@ const I18N = {
   remind_msg: { bn: 'নমস্কার {name}, পুজোর চাঁদার {due} বাকি আছে — সুবিধামতো দিয়ে দেবেন। ধন্যবাদ। 🙏', en: 'Hello {name}, {due} of the puja donation is still pending — please pay when convenient. Thank you. 🙏' },
   no_phone: { bn: 'এই দাতার ফোন নম্বর নেই', en: 'No phone number for this party' },
   date: { bn: 'তারিখ', en: 'Date' },
+  field_required: { bn: 'এটা খালি রাখা যাবে না', en: "This can't be left empty" },
+  amount_big_confirm: { bn: '{amt} — এত টাকা কি ঠিক? ভুল টাইপ হয়নি তো?', en: '{amt} — is that right? Check for a typo.' },
   receipt_title: { bn: 'চাঁদার রসিদ', en: 'Donation receipt' },
   receipt_for: { bn: 'দাতা', en: 'Donor' },
   receipt_amount: { bn: 'এই কিস্তি', en: 'This payment' },

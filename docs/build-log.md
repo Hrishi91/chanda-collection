@@ -1021,3 +1021,31 @@ void-or-flag per the permission rule. The real remaining gap is narrower and
 now tracked: there is no way to browse *someone else's* daily/expense entries,
 so a cashier who spots another collector's wrong road/toto entry must ask that
 collector to flag it. Party detail already covers payments for all collectors.
+
+## v3.48.0 — Field-validation audit + fixes
+
+Audited every input surface (entry flows, amount parser, auth). Findings:
+
+**Solid already** — `NumParse.parseAmount` rejects negatives, junk, Infinity,
+scientific notation, non-Bengali/Arabic digits, and accepts 0, decimals,
+Bengali digits and words ("পাঁচশ"). Register validation is strong (name
+required, username regex, password ≥6, confirm match, live hint). Payment /
+handover / daily saves already guard `total > 0`.
+
+**Bugs found + fixed:**
+1. **Blank text fields sailed through.** `required` was checked on exactly one
+   step (the "Other" expense comment); every other text field — including a
+   party's **name** — accepted empty, saving an unsearchable blank row that
+   also lands as an empty line in the Sheet. Now every text step is mandatory
+   unless explicitly `optional`; blank submit shows "এটা খালি রাখা যাবে না".
+2. **Owner made optional** (`newPartyFlow`) — a shop owner's name isn't always
+   known, so it must not become mandatory under the new rule.
+3. **Expense saves had no zero-guard** while payment/handover/daily did. Added
+   `amount > 0` to both `expenseFlow` and `collectionExpenseFlow`.
+4. **Fat-finger guard on amounts** — a stuck key turns ৫০০ into ৫০০০০০০ and
+   silently skews every total. Amounts over ₹1,00,000 now ask
+   "₹… — এত টাকা কি ঠিক?" before accepting.
+
+Verified live in a cache-busted harness: blank name blocked with the toast,
+real name advances, owner skippable, big amount prompts and can be declined.
+105 tests pass.

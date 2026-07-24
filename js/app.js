@@ -328,9 +328,14 @@
       else {
         val = NumParse.parseAmount(raw);
         if (isNaN(val)) { toast(t('invalid_amount')); return; }
+        // a stuck key turns ৫০০ into ৫০০০০০০ and silently skews every total;
+        // anything this large in a para chanda is a typo until confirmed.
+        if (val > 100000 && !window.confirm(t('amount_big_confirm').replace('{amt}', fmtMoney(val)))) return;
       }
-    } else if (step.required && !String(raw || '').trim()) {
-      toast(t('comment_required')); return; // mandatory text (e.g. "Other" comment)
+    } else if (raw !== null && !step.optional && !String(raw || '').trim()) {
+      // every text step is mandatory unless explicitly marked optional —
+      // a blank name used to sail through and land as an unsearchable row.
+      toast(t(step.required ? 'comment_required' : 'field_required')); return;
     }
     flowState.answers[step.key] = val;
     Voice.stop();
@@ -507,7 +512,8 @@
       presets: presets || {},
       steps: [
         { key: 'name', qKey: type === 'shop' ? 'q_shop_name' : 'q_person_name', kind: 'text' },
-        { key: 'owner', qKey: 'q_owner_name', kind: 'text', showIf: function () { return type === 'shop'; } },
+        { key: 'owner', qKey: 'q_owner_name', kind: 'text', optional: true,
+          showIf: function () { return type === 'shop'; } },
         { key: 'side', qKey: 'q_side', kind: 'choice', options: sideOptions(), showIf: function () { return type === 'shop'; } },
         { key: 'location', qKey: 'q_location', kind: 'choice', options: locationOptions(), optional: true,
           showIf: function () { return type !== 'shop' && Lists.get('location').length > 0; } },
@@ -633,6 +639,7 @@
           showIf: function (a) { return a.subject !== OTHER_SUBJECT; } },
       ],
       save: function (a) {
+        if (!(Number(a.amount) > 0)) return Promise.reject(new Error('zero'));
         const isOther = a.subject === OTHER_SUBJECT;
         return DB.put('expenses', DB.newRow({
           subject: isOther ? 'Other' : a.subject, desc: a.comment || '',
@@ -658,6 +665,7 @@
         { key: 'amount', qKey: 'q_amount', kind: 'amount' },
       ],
       save: function (a) {
+        if (!(Number(a.amount) > 0)) return Promise.reject(new Error('zero'));
         return DB.put('expenses', DB.newRow({
           subject: '', desc: a.desc, amount: a.amount, spentBy: Settings.get('collectorName'),
           source: 'collection', collectionType: collectionType || '', date: todayISO(),
