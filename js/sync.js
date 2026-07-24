@@ -27,10 +27,14 @@ const Sync = (function () {
         .then(function (resp) {
           const savedIds = {};
           (resp.savedIds || []).forEach(function (id) { savedIds[id] = 1; });
+          const receipts = resp.receipts || {}; // paymentId → server-assigned serial
           const updates = [];
           DB.STORES.forEach(function (s) {
             const rows = data[s].filter(function (r) { return savedIds[r.id]; });
-            rows.forEach(function (r) { r.synced = 1; r.syncedAt = new Date().toISOString(); });
+            rows.forEach(function (r) {
+              r.synced = 1; r.syncedAt = new Date().toISOString();
+              if (s === 'payments' && receipts[r.id]) r.receiptNo = receipts[r.id]; // adopt the serial
+            });
             if (rows.length) updates.push(DB.bulkPut(s, rows));
           });
           return Promise.all(updates).then(function () {

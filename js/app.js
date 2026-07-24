@@ -914,10 +914,7 @@
       b.onclick = function () { renderVoidReason('payments', b.dataset.void, function () { navigate('party', { id: p.id }); }); };
     });
     document.querySelectorAll('[data-receipt]').forEach(function (b) {
-      b.onclick = function () {
-        const pay = pays.filter(function (x) { return x.id === b.dataset.receipt; })[0];
-        if (pay) shareReceipt(p, pay, paid, due);
-      };
+      b.onclick = function () { navigate('receipt', { partyId: p.id, payId: b.dataset.receipt }); };
     });
   }
   // admin-configured receipt design (falls back to sensible defaults)
@@ -1007,15 +1004,65 @@
       paidTotal: paidTotal, pledged: p.pledged, due: due, collector: pay.collector || '',
       receiptNo: pay.receiptNo || '' };
   }
-  function shareReceipt(p, pay, paidTotal, due) {
-    buildReceiptCanvas(rcFromPayment(p, pay, paidTotal, due)).then(canvasToBlob).then(function (blob) {
+  // 📷 image receipt → Web Share (WhatsApp etc.); download fallback offline.
+  function shareReceiptImage(rc) {
+    buildReceiptCanvas(rc).then(canvasToBlob).then(function (blob) {
       const file = new File([blob], 'receipt.png', { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        navigator.share({ files: [file], title: t('receipt_title'), text: p.name }).catch(function () {});
+        navigator.share({ files: [file], title: t('receipt_title'), text: rc.donorName }).catch(function () {});
       } else {
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob); a.download = 'receipt-' + (p.name || 'chanda') + '.png'; a.click();
+        a.href = URL.createObjectURL(blob); a.download = 'receipt-' + (rc.donorName || 'chanda') + '.png'; a.click();
         toast(t('receipt_saved'));
+      }
+    });
+  }
+  // 💬 text receipt → SMS/message (an image can't ride SMS). Opens the messaging
+  // app with the text pre-filled; the collector taps send.
+  function shareReceiptText(rc, phone) {
+    const cfg = receiptConfig();
+    const lines = [cfg.committee + ' — ' + t('receipt_title'),
+      t('receipt_for') + ': ' + rc.donorName,
+      t('receipt_amount') + ': ' + fmtMoney(rc.amount),
+      t('paid') + ': ' + fmtMoney(rc.paidTotal) + '/' + fmtMoney(rc.pledged) + '  ' + t('due') + ': ' + fmtMoney(rc.due),
+      (rc.receiptNo ? t('receipt_no') + ' ' + rc.receiptNo : ''),
+      cfg.footer].filter(Boolean).join('\n');
+    const digits = String(phone || '').replace(/\D/g, '');
+    const num = digits ? (digits.length === 10 ? '+91' + digits : '+' + digits.replace(/^0/, '')) : '';
+    // `?body=` works on Android; iOS is lenient with it too
+    window.open('sms:' + num + '?body=' + encodeURIComponent(lines), '_blank');
+  }
+  // Receipt screen: preview + the two send buttons. Ensures the server serial
+  // (syncs the payment first if it hasn't been assigned one yet).
+  function renderReceiptShare(params) {
+    $view().innerHTML = backBar('party', { id: params.partyId }) + '<div class="empty">' + esc(t('loading')) + '</div>';
+    viewData().then(function (data) {
+      const p = (data.parties || []).filter(function (x) { return x.id === params.partyId; })[0];
+      const pay = (data.payments || []).filter(function (x) { return x.id === params.payId; })[0];
+      if (!p || !pay) { navigate('list'); return; }
+      const voided = {}; (data.voids || []).forEach(function (v) { if (v.targetStore === 'payments') voided[v.targetId] = 1; });
+      const paid = (data.payments || []).filter(function (x) { return x.partyId === p.id && !voided[x.id]; })
+        .reduce(function (a, x) { return a + (Number(x.amount) || 0); }, 0);
+      const rc = rcFromPayment(p, pay, paid, (Number(p.pledged) || 0) - paid);
+      const paint = function () {
+        $view().innerHTML = backBar('party', { id: params.partyId }) + '<div class="flow-title">' + esc(t('receipt_title')) + '</div>' +
+          '<img id="rcp-img" alt="" style="width:100%;max-width:420px;display:block;margin:0 auto 12px;border:1px solid #eee;border-radius:10px">' +
+          (rc.receiptNo ? '' : '<div class="hint" style="text-align:center">' + esc(t('receipt_no_pending')) + '</div>') +
+          '<button id="rcp-wa" class="primary big block">📷 ' + esc(t('receipt_send_img')) + '</button>' +
+          '<button id="rcp-sms" class="ghost big block">💬 ' + esc(t('receipt_send_sms')) + '</button>';
+        buildReceiptCanvas(rc).then(function (cv) { const im = document.getElementById('rcp-img'); if (im) im.src = cv.toDataURL('image/png'); });
+        document.getElementById('rcp-wa').onclick = function () { shareReceiptImage(rc); };
+        document.getElementById('rcp-sms').onclick = function () { shareReceiptText(rc, p.phone); };
+      };
+      paint();
+      // if no serial yet, try to obtain one (sync + pull), then redraw
+      if (!rc.receiptNo && navigator.onLine && Sync.configured()) {
+        Sync.syncNow().then(function () { return pullCentral(); }).then(function () {
+          return viewData().then(function (d2) {
+            const p2 = (d2.payments || []).filter(function (x) { return x.id === params.payId; })[0];
+            if (p2 && p2.receiptNo && current.view === 'receipt') { rc.receiptNo = p2.receiptNo; paint(); }
+          });
+        }).catch(function () {});
       }
     });
   }
@@ -1972,6 +2019,7 @@
     else if (current.view === 'review') renderReviewCorrections();
     else if (current.view === 'audit') { Auth.isAdmin() ? renderAuditLog() : renderHome(); }
     else if (current.view === 'receiptcfg') { Auth.isAdmin() ? renderReceiptConfig() : renderHome(); }
+    else if (current.view === 'receipt') renderReceiptShare(current.params);
     else if (current.view === 'help') renderHelp();
     else renderHome();
     updateBadge();

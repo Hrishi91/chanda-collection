@@ -1156,3 +1156,24 @@ client phases land).
   rejected + valid PNG accepted, save sends the right config. Classic AND
   festive layouts screenshot-checked (Bengali renders correctly). 105 tests pass.
 - Still needs the redeploy for setConfig/getConfig to persist server-side.
+
+## Receipt feature — Phase 3+4 (client): serial adoption + share screen
+
+Completes the receipt feature (client side; the whole feature goes live after
+the redeploy).
+
+- **Serial adoption (Phase 3):** `Sync.syncNow` now reads `resp.receipts`
+  {paymentId → serial} from push and writes each serial onto the local payment
+  row (so viewData's local-wins merge shows the server number, not a blank).
+- **Receipt screen (Phase 4):** the 🧾 button opens `renderReceiptShare`
+  (partyId+payId) — a preview of the designed receipt plus two buttons:
+  📷 WhatsApp/image (Web Share API with the PNG; download fallback) and
+  💬 SMS/message (a short text receipt via `sms:…?body=`, phone defaulted to
+  +91). If the payment has no serial yet, the screen syncs + pulls to fetch one,
+  shows a "number appears once synced" note meanwhile, then repaints.
+- Verified live (cache-busted harness): 🧾 → receipt preview + 2 buttons; a
+  synced payment shows serial 2026-0007 (no pending note); WhatsApp fires
+  navigator.share with receipt.png; SMS opens sms:+919998887776?body=… with the
+  committee name, donor, ₹500, paid/due, receipt no. and footer; an UNSYNCED
+  payment opened the screen, synced, and adopted serial 2026-0042 into the DB.
+  Help/guide updated. 105 tests pass.
