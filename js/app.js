@@ -1027,30 +1027,43 @@
   }
   // "My entries" — the device's own entries, each voidable (if permitted) or
   // flaggable (if it's your own and you can't self-void).
+  let entriesScope = 'mine'; // 'mine' = this device's own | 'all' = everyone's daily/expense (from the snapshot)
   function renderMyEntries() {
-    DB.allData().then(function (data) {
+    const all = entriesScope === 'all';
+    // "all" spans every collector, so it must read the central snapshot, not
+    // just this device. Payments stay out of "all" — party detail already shows
+    // every collector's payments, and all payments together would be a wall.
+    (all ? viewData() : DB.allData()).then(function (data) {
       const voided = {}; (data.voids || []).forEach(function (v) { voided[v.targetId] = 1; });
       const flagged = {}; (data.corrections || []).forEach(function (c) { if (c.status !== 'rejected') flagged[c.targetId] = 1; });
       const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
       const mine = function (r) { return (r.collectorId || r.collector) === meId; };
+      const stores = all ? ['daily', 'expenses'] : ['payments', 'daily', 'expenses', 'handovers'];
       const list = [];
-      ['payments', 'daily', 'expenses', 'handovers'].forEach(function (store) {
-        (data[store] || []).filter(mine).forEach(function (r) { list.push({ store: store, r: r }); });
+      stores.forEach(function (store) {
+        (data[store] || []).forEach(function (r) { if (all || mine(r)) list.push({ store: store, r: r }); });
       });
       list.sort(function (a, b) { return String(b.r.createdAt || '').localeCompare(String(a.r.createdAt || '')); });
       const rowsHTML = list.length ? list.map(function (it) {
         const r = it.r, isVoid = !!voided[r.id], isFlag = !!flagged[r.id];
+        const who = all ? ' • 🧑 ' + esc(r.collector || r.collectorId || '?') : ''; // who made it
         const tag = isVoid ? ' • <span class="void-tag">' + esc(t('voided_label')) + '</span>'
           : isFlag ? ' • <span class="void-tag">⚠️ ' + esc(t('flag_pending')) + '</span>' : '';
         const action = (isVoid || isFlag) ? '' :
           (canVoid(r) ? '<button class="chip void-btn" data-vd="' + it.store + '|' + esc(r.id) + '">' + esc(t('void_btn')) + '</button>'
                       : '<button class="chip void-btn" data-fl="' + it.store + '|' + esc(r.id) + '">' + esc(t('flag_btn')) + '</button>');
         return '<div class="row' + (isVoid ? ' voided' : '') + '" style="cursor:default"><div style="flex:1 1 60%"><b>' +
-          esc(entrySummary(it.store, r)) + '</b><div class="row-sub">' + esc(fmtDate(r.date || r.createdAt)) + tag + '</div></div>' +
+          esc(entrySummary(it.store, r)) + '</b><div class="row-sub">' + esc(fmtDate(r.date || r.createdAt)) + who + tag + '</div></div>' +
           action + '</div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>';
-      $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('my_entries_title')) + '</div>' +
-        '<div class="hint" style="margin-bottom:10px">' + esc(t('my_entries_hint')) + '</div>' + rowsHTML;
+      const tabs = '<div class="chips tabs" style="margin-bottom:10px">' +
+        '<button class="chip' + (all ? '' : ' on') + '" data-escope="mine">' + esc(t('entries_mine')) + '</button>' +
+        '<button class="chip' + (all ? ' on' : '') + '" data-escope="all">' + esc(t('entries_all')) + '</button></div>';
+      $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('my_entries_title')) + '</div>' + tabs +
+        '<div class="hint" style="margin-bottom:10px">' + esc(t(all ? 'entries_all_hint' : 'my_entries_hint')) + '</div>' + rowsHTML;
+      document.querySelectorAll('[data-escope]').forEach(function (b) {
+        b.onclick = function () { entriesScope = b.dataset.escope; renderMyEntries(); };
+      });
       document.querySelectorAll('[data-vd]').forEach(function (b) {
         b.onclick = function () { const p = b.dataset.vd.split('|'); renderVoidReason(p[0], p[1], function () { navigate('entries'); }); };
       });

@@ -255,6 +255,9 @@ const I18N = {
   // --- my entries + flag/correction ---
   my_entries_title: { bn: '✏️ আমার entry / সংশোধন', en: '✏️ My entries / fix' },
   my_entries_hint: { bn: 'ভুল entry? cashier/admin হলে ✖️ বাতিল; নিজেরটা হলে ⚠️ flag করো — cashier দেখে ঠিক করবে।', en: 'Wrong entry? cashier/admin can ✖️ void; for your own, ⚠️ flag it — a cashier will fix it.' },
+  entries_mine: { bn: 'আমার', en: 'Mine' },
+  entries_all: { bn: 'সবার দৈনিক/খরচ', en: "Everyone's daily/expense" },
+  entries_all_hint: { bn: 'সবার রোড/টোটো/বাস ও খরচের entry। ভুল দেখলে cashier/admin হলে ✖️ বাতিল, নাহলে ⚠️ flag। (payment দাতার পাতায় দেখো)', en: "Everyone's road/toto/bus & expense entries. Spot a wrong one — cashier/admin ✖️ void, else ⚠️ flag. (payments are on the donor's page)" },
   flag_btn: { bn: '⚠️ ভুল, flag', en: '⚠️ Flag' },
   flag_pending: { bn: 'flag করা — অপেক্ষায়', en: 'flagged — pending' },
   flag_title: { bn: 'এটা ভুল বলে জানাও', en: 'Flag as wrong' },

@@ -118,11 +118,12 @@ with a real admin token. See build-log v3.34.0–v3.46.0 for details.
       (2026-07-24, D2)
 - [x] ~~Edit/void entries with audit trail~~ (2026-07-23 payments via party
       detail; daily/expense/handover covered too via "my entries")
-- [ ] Browse **other people's** daily/expense entries to void or flag them —
-      party detail covers payments for every collector, but daily/expense are
-      only reachable through the owner's own "my entries" screen. A cashier
-      who spots a wrong road/toto entry by someone else currently has to ask
-      that person to flag it.
+- [x] ~~Browse **other people's** daily/expense entries to void or flag them~~
+      (2026-07-24): the "my entries" screen gained a Mine / Everyone's-daily-
+      expense toggle. "Everyone's" reads the central snapshot, lists all
+      collectors' daily + expense entries (payments stay on the donor page),
+      shows who made each, and offers void-or-flag per the permission rule.
+      Verified live: a cashier voided another collector's road entry.
 - [x] ~~Per-collector leaderboard on central report~~ (2026-07-23 as the
       `collectors` report; area leaderboard added 2026-07-24)
 - [x] ~~Dues follow-up: WhatsApp reminder from party detail (name + due

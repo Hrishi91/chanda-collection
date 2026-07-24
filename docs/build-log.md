@@ -1066,3 +1066,23 @@ real name advances, owner skippable, big amount prompts and can be declined.
   saved as "9876543210"; empty still skippable. node edge-case sweep covers
   +91/91/0/space/dash accepts and 5-prefix / wrong-length / Bengali-digit
   rejects. 105 tests pass.
+
+## v3.50.0 — Browse & void everyone's daily/expense entries
+
+Closed the last real gap: party detail already exposes every collector's
+payments, but daily/expense entries were only reachable through each owner's
+own "my entries" screen — so a cashier who spotted someone else's wrong
+road/toto/bus or expense had to ask that person to flag it.
+
+- The "my entries" screen gained a **Mine / Everyone's-daily-expense** toggle.
+  "Everyone's" reads the central snapshot (viewData), lists all collectors'
+  daily + expense entries newest-first, shows 🧑 who made each, and offers the
+  same void-or-flag control per the separation-of-duties rule. Payments are
+  deliberately excluded (the donor page covers them, and all payments together
+  would be a wall).
+- Reuses the existing void/flag flow untouched. `entriesScope` module state
+  persists across the re-render after a void/flag.
+- Verified live in a cache-busted harness as a cashier: sees Ram's & Yamini's
+  entries with ✖️ Void and their own with ⚠️ Flag; voiding Ram's road entry
+  wrote a void (daily/d1, by cashi) and the row flipped to "• voided" while the
+  Everyone's scope held. In-app guide + app-guide updated. 105 tests pass.
