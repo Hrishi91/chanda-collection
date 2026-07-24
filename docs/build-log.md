@@ -1335,3 +1335,24 @@ login bounce) and the user can log in fresh. Audit-logged as session:release.
 Admin panel: a "🔓 সেশন ছাড়ো" chip per approved user, behind a confirm.
 Verified live-mock: button present, sends releaseSession{userId}, success toast.
 Needs a redeploy (new server action). 105 tests pass.
+
+## Role-based screens — per-user entry permissions + a cleaner home (step 1)
+
+First step of the "make it simple, don't overwhelm" pass. Each user now sees
+only the entry tiles they're allowed, so a collector isn't faced with a wall of
+options.
+
+- Server: `entries` column on Users (append-only) + `setEntries` action (admin,
+  whitelisted to party/payment/daily/handover); publicUser_ returns it; audited.
+- Client: `canEntry(kind)` — admin = all; a normal collector with an empty
+  `entries` = all (nobody is accidentally locked out); otherwise only the listed
+  kinds. Home tiles are grouped and each group/section is hidden when the user
+  can't use it; the party-detail pay button is gated too. Expense stays
+  cashier-only; "my entries" stays for everyone.
+- Admin panel: an "✏️ কী কী ঢোকাতে পারবে" chip row per approved user (দাতা /
+  চাঁদা / রোড-টোটো-বাস / জমা), toggling `setEntries`. Empty is materialised to
+  all-4 before toggling so turning one off is unambiguous.
+- Verified live: a `daily`-only collector sees only road/toto/bus + my-entries;
+  an empty collector sees everything; toggling the party chip sends
+  setEntries[payment,daily,handover]. 105 tests pass. Needs the redeploy for the
+  entries column + setEntries.

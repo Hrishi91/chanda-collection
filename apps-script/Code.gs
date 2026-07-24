@@ -33,7 +33,8 @@ var SHEET_TITLES = { parties: 'Parties', payments: 'Payments', daily: 'DailyColl
 
 var USER_COLS = ['id', 'username', 'name', 'phone', 'passwordHash', 'salt', 'role',
                  'cashier', 'reports', 'status', 'years', 'token', 'mustChange', 'createdAt', 'updatedAt',
-                 'areas']; // append-only: comma-separated area ids this collector is responsible for
+                 'areas', // append-only: comma-separated area ids this collector is responsible for
+                 'entries']; // allowed entry kinds (party/payment/daily/handover); empty = all
 var AUDIT_COLS = ['id', 'ts', 'actor', 'actorId', 'action', 'detail'];
 
 // Per-report access: admin sees all; cashier gets 'inhand' by default;
@@ -154,7 +155,7 @@ function publicUser_(row) {
            role: row.role, cashier: Number(row.cashier) || 0,
            reports: String(row.reports || ''), status: row.status,
            years: String(row.years || ''), mustChange: Number(row.mustChange) || 0,
-           areas: String(row.areas || ''), createdAt: row.createdAt };
+           areas: String(row.areas || ''), entries: String(row.entries || ''), createdAt: row.createdAt };
 }
 // Append-only activity log for accountability (who did what, when). Logging
 // must never break the real action, so it is fully wrapped in try/catch.
@@ -820,6 +821,19 @@ var ACTIONS = {
     u.row.role = b.role;
     saveUser_(u);
     logAudit_(me.row, b.role === 'admin' ? 'admin:grant' : 'admin:revoke', '@' + u.row.username);
+    return { ok: true, user: publicUser_(u.row) };
+  },
+
+  // which entry kinds this user may insert (party/payment/daily/handover);
+  // empty = all (a normal collector). Admin restricts by listing a subset.
+  setEntries: function (b) {
+    var me = requireAdmin_(b.token);
+    var u = findUser_('id', b.userId);
+    if (!u) throw new Error('user not found');
+    var ok = { party: 1, payment: 1, daily: 1, handover: 1 };
+    u.row.entries = (b.entries || []).filter(function (e) { return ok[e]; }).join(',');
+    saveUser_(u);
+    logAudit_(me.row, 'entries', '@' + u.row.username + ' → [' + u.row.entries + ']');
     return { ok: true, user: publicUser_(u.row) };
   },
 

@@ -713,33 +713,32 @@
       const myToday = data.payments.concat(data.daily).filter(function (r) {
         return (r.collectorId || r.collector) === meId && (r.date === today || (r.createdAt || '').slice(0, 10) === today);
       }).reduce(function (a, r) { return a + Number(r.amount || 0); }, 0);
+      const cashier = Auth.isCashier();
+      const partyTiles = canEntry('party') ?
+        '<button class="tile" data-go="shop">🏪 ' + esc(t('new_shop')) + '</button>' +
+        '<button class="tile" data-go="person">🙍 ' + esc(t('new_person')) + '</button>' +
+        '<button class="tile" data-go="member">🤝 ' + esc(t('new_member')) + '</button>' +
+        '<button class="tile" data-go="bulk">🏪🏪 ' + esc(t('bulk_shop')) + '</button>' : '';
+      const dailyTiles =
+        (canEntry('daily') ?
+          '<button class="tile" data-go="road">🛣️ ' + esc(t('daily_road')) + '</button>' +
+          '<button class="tile" data-go="toto">🛺 ' + esc(t('daily_toto')) + '</button>' +
+          '<button class="tile" data-go="bus">🚌 ' + esc(t('daily_bus')) + '</button>' : '') +
+        (cashier ? '<button class="tile" data-go="expense">🧾 ' + esc(t('expense')) + '</button>' : '');
+      const paymentTile = canEntry('payment') ?
+        '<div class="grid one"><button class="tile wide" data-go="list">💰 ' + esc(t('add_payment')) + ' / ' + esc(t('dues_only')) + '</button></div>' : '';
+      const cashTiles =
+        (canEntry('handover') ? '<button class="tile" data-go="handover">' + esc(t('handover')) + '</button>' : '') +
+        (cashier ? '<button class="tile" data-go="cashier">' + esc(t('confirm_handover')) + '</button>' +
+          '<button class="tile" data-go="review">🛠️ ' + esc(t('review_title')) + '</button>' : '');
       $view().innerHTML =
         '<div id="notif-banner"></div>' +
         '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
         '<div class="hero-sub">' + esc(Settings.get('collectorName')) + ' • ' + esc(t('my_today')) + ': <b>' + fmtMoney(myToday) + '</b></div></div>' +
-        '<div class="section">' + esc(t('new_entry')) + '</div>' +
-        '<div class="grid">' +
-          '<button class="tile" data-go="shop">🏪 ' + esc(t('new_shop')) + '</button>' +
-          '<button class="tile" data-go="person">🙍 ' + esc(t('new_person')) + '</button>' +
-          '<button class="tile" data-go="member">🤝 ' + esc(t('new_member')) + '</button>' +
-          '<button class="tile" data-go="bulk">🏪🏪 ' + esc(t('bulk_shop')) + '</button>' +
-        '</div>' +
-        '<div class="section">' + esc(t('today_daily')) + '</div>' +
-        '<div class="grid">' +
-          '<button class="tile" data-go="road">🛣️ ' + esc(t('daily_road')) + '</button>' +
-          '<button class="tile" data-go="toto">🛺 ' + esc(t('daily_toto')) + '</button>' +
-          '<button class="tile" data-go="bus">🚌 ' + esc(t('daily_bus')) + '</button>' +
-          // puja expenses are recorded by the cashier/admin (who holds the money)
-          (Auth.isCashier() ? '<button class="tile" data-go="expense">🧾 ' + esc(t('expense')) + '</button>' : '') +
-        '</div>' +
-        '<div class="grid one"><button class="tile wide" data-go="list">💰 ' + esc(t('add_payment')) +
-        ' / ' + esc(t('dues_only')) + '</button></div>' +
-        '<div class="grid" style="margin-top:10px">' +
-          '<button class="tile" data-go="handover">' + esc(t('handover')) + '</button>' +
-          (Auth.isCashier()
-            ? '<button class="tile" data-go="cashier">' + esc(t('confirm_handover')) + '</button>' +
-              '<button class="tile" data-go="review">🛠️ ' + esc(t('review_title')) + '</button>' : '') +
-        '</div>' +
+        (partyTiles ? '<div class="section">' + esc(t('new_entry')) + '</div><div class="grid">' + partyTiles + '</div>' : '') +
+        (dailyTiles ? '<div class="section">' + esc(t('today_daily')) + '</div><div class="grid">' + dailyTiles + '</div>' : '') +
+        paymentTile +
+        (cashTiles ? '<div class="grid" style="margin-top:10px">' + cashTiles + '</div>' : '') +
         '<div class="grid one" style="margin-top:10px"><button class="tile wide" data-go="entries">✏️ ' +
           esc(t('my_entries_title')) + '</button></div>';
       // refresh the areas/locations cache (≤1.5s), then run — so an admin's
@@ -892,7 +891,7 @@
       '<div><span>' + esc(t('paid')) + '</span><b>' + fmtMoney(paid) + '</b></div>' +
       '<div class="' + (due > 0 ? 'red' : 'green') + '"><span>' + esc(t('due')) + '</span><b>' + fmtMoney(due) + '</b></div>' +
       '</div>' +
-      '<button id="pay-btn" class="primary big block">💰 ' + esc(t('add_payment')) + '</button>' +
+      (canEntry('payment') ? '<button id="pay-btn" class="primary big block">💰 ' + esc(t('add_payment')) + '</button>' : '') +
       (due > 0 && p.phone ? '<button id="remind-btn" class="ghost big block">📞 ' + esc(t('remind_btn')) + '</button>' : '') +
       '</div>' +
       (keys.length ? '<div class="section">' + esc(t('who_collected')) + '</div><div class="card">' +
@@ -911,7 +910,8 @@
           (isVoid ? '' : '<button class="chip" data-receipt="' + esc(x.id) + '">🧾</button>') +
           (isVoid || !canVoid(x) ? '' : '<button class="chip void-btn" data-void="' + esc(x.id) + '">' + esc(t('void_btn')) + '</button>') + '</div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
-    document.getElementById('pay-btn').onclick = function () { startFlow(paymentFlow(p)); };
+    const payBtn = document.getElementById('pay-btn');
+    if (payBtn) payBtn.onclick = function () { startFlow(paymentFlow(p)); };
     const remindBtn = document.getElementById('remind-btn');
     if (remindBtn) remindBtn.onclick = function () {
       // opens WhatsApp with a pre-filled reminder — the collector still taps
@@ -954,6 +954,14 @@
   // The committee's puja name (admin-set) stands in for the app title everywhere
   // it shows; falls back to "চাঁদা খাতা" until an admin sets it.
   function pujaName() { return (centralConfig && centralConfig.puja_name) || t('app_title'); }
+  // Which entry kinds this user may insert (admin sets it per user; empty = all
+  // for a normal collector, so nobody is accidentally locked out).
+  function canEntry(kind) {
+    const u = Auth.current(); if (!u) return false;
+    if (u.role === 'admin') return true;
+    const set = String(u.entries || '').split(',').filter(Boolean);
+    return !set.length || set.indexOf(kind) >= 0;
+  }
   // Persistent training strip under the header — shows on EVERY screen until the
   // admin goes live (it lives outside #view, so a re-render can't drop it). Also
   // keeps the header title in sync with the puja name.
@@ -1802,6 +1810,7 @@
       'status:pending': { bn: 'pending করা', en: 'Set pending' },
       'reports': { bn: '📊 report permission', en: '📊 Report perms' },
       'areas': { bn: '📍 এলাকা assign', en: '📍 Areas assigned' },
+      'entries': { bn: '✏️ entry permission', en: '✏️ Entry perms' },
       'password:reset': { bn: '🔑 পাসওয়ার্ড রিসেট', en: '🔑 Password reset' },
       'session:release': { bn: '🔓 সেশন ছাড়া', en: '🔓 Session released' },
       'subject:add': { bn: '➕ বিষয় যোগ', en: '➕ Subject added' },
@@ -1963,7 +1972,19 @@
           (u.role === 'admin' ? ' 👑' : '') + (u.cashier ? ' 💰' : '') +
           '<div class="row-sub">@' + esc(u.username) + (u.phone ? ' • 📞 ' + esc(u.phone) : '') +
           ' • ' + esc(u.years || '—') + '</div></div>' +
-          '<div class="chips" style="margin:8px 0 0">' + btns + '</div>' + reportChips(u) + areaChips(u) + '</div>';
+          '<div class="chips" style="margin:8px 0 0">' + btns + '</div>' + entriesChips(u) + reportChips(u) + areaChips(u) + '</div>';
+      }
+      // which entry kinds this user may insert (empty = all). Drives the home tiles.
+      function entriesChips(u) {
+        if (u.status !== 'approved' || u.role === 'admin') return '';
+        const set = String(u.entries || '').split(',').filter(Boolean);
+        const kinds = [['party', t('ec_party')], ['payment', t('ec_payment')], ['daily', t('ec_daily')], ['handover', t('ec_handover')]];
+        const chips = kinds.map(function (k) {
+          const on = !set.length || set.indexOf(k[0]) >= 0; // empty = all on
+          return '<button class="chip' + (on ? ' on' : '') + '" data-ent-user="' + u.id + '" data-ent-id="' + k[0] + '">' + esc(k[1]) + '</button>';
+        }).join('');
+        return '<div class="row-sub" style="flex-basis:100%;margin-top:10px">' + esc(t('entry_perms')) + '</div>' +
+          '<div class="chips" style="margin:4px 0 0">' + chips + '</div>';
       }
       // which master areas a collector is responsible for (drives area reports)
       function areaChips(u) {
@@ -2134,6 +2155,17 @@
           const i = set.indexOf(aid);
           if (i >= 0) set.splice(i, 1); else set.push(aid);
           adminAction('setAreas', { userId: uid, areas: set });
+        };
+      });
+      document.querySelectorAll('[data-ent-user]').forEach(function (b) {
+        b.onclick = function () {
+          const uid = b.dataset.entUser, kind = b.dataset.entId;
+          const u = resp.users.find(function (x) { return x.id === uid; });
+          let set = String(u.entries || '').split(',').filter(Boolean);
+          if (!set.length) set = ['party', 'payment', 'daily', 'handover']; // materialise "all" before toggling
+          const i = set.indexOf(kind);
+          if (i >= 0) set.splice(i, 1); else set.push(kind);
+          adminAction('setEntries', { userId: uid, entries: set });
         };
       });
     }).catch(function (e) { $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(errMsg(e)) + '</div>'; });

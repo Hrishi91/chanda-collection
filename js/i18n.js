@@ -253,6 +253,11 @@ const I18N = {
   no_reports_msg: { bn: 'কেন্দ্রীয় রিপোর্ট দেখার permission নেই — দরকার হলে admin-কে বলো', en: 'No central-report permission — ask the admin if needed' },
   err_no_report_access: { bn: 'এই রিপোর্টের permission নেই — admin-কে বলো', en: 'No permission for this report — ask the admin' },
   report_perms: { bn: '📊 রিপোর্ট permission', en: '📊 Report permissions' },
+  entry_perms: { bn: '✏️ কী কী ঢোকাতে পারবে', en: '✏️ Can enter' },
+  ec_party: { bn: 'দাতা', en: 'Donors' },
+  ec_payment: { bn: 'চাঁদা/payment', en: 'Payments' },
+  ec_daily: { bn: 'রোড/টোটো/বাস', en: 'Road/toto/bus' },
+  ec_handover: { bn: 'জমা দেওয়া', en: 'Handover' },
   inhand_auto_cashier: { bn: '(ক্যাশিয়ার হলে "কার হাতে কত" এমনিই থাকে)', en: '(cashiers always get "Cash in hand")' },
   // --- personal "my summary" ---
   my_summary: { bn: '📱 আমার হিসাব', en: '📱 My summary' },
