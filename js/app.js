@@ -777,12 +777,7 @@
       } else if (listFilter !== 'all') {
         rows = rows.filter(function (p) { return p.type === listFilter; });
       }
-      if (listQuery) {
-        const q = listQuery.toLowerCase();
-        rows = rows.filter(function (p) {
-          return (p.name || '').toLowerCase().includes(q) || (p.owner || '').toLowerCase().includes(q);
-        });
-      }
+      if (listQuery) rows = rows.filter(function (p) { return matchParty(p, listQuery); });
       const tabs = [['all', t('all')], ['shop', t('type_shop')], ['person', t('type_person')],
                     ['member', t('type_member')], ['due', t('dues_only')]];
       $view().innerHTML =
@@ -829,18 +824,16 @@
     return viewData().then(function (data) {              // local central snapshot — instant
       const paidBy = Aggregate.computeTotals(data).paidByParty;
       findParties = data.parties.map(function (p) {
-        return { id: p.id, name: p.name, type: p.type, side: p.side, owner: p.owner,
-                 collector: p.collector, pledged: Number(p.pledged) || 0, paid: paidBy[p.id] || 0 };
+        return { id: p.id, name: p.name, type: p.type, side: p.side, location: p.location, owner: p.owner,
+                 phone: p.phone, collector: p.collector, pledged: Number(p.pledged) || 0, paid: paidBy[p.id] || 0 };
       });
       renderFPResults();
     });
   }
   function renderFPResults() {
     const el = document.getElementById('fp-results'); if (!el) return;
-    const q = (findQuery || '').toLowerCase();
-    const rows = findParties.filter(function (p) {
-      return !q || (p.name || '').toLowerCase().includes(q) || (p.owner || '').toLowerCase().includes(q);
-    }).sort(function (a, b) { return ((b.pledged - b.paid) || 0) - ((a.pledged - a.paid) || 0); });
+    const rows = findParties.filter(function (p) { return matchParty(p, findQuery); })
+      .sort(function (a, b) { return ((b.pledged - b.paid) || 0) - ((a.pledged - a.paid) || 0); });
     el.innerHTML = rows.length ? rows.map(function (p) {
       const due = (p.pledged || 0) - (p.paid || 0);
       return '<div class="row" data-fp="' + esc(p.id) + '"><div><b>' + esc(p.name) + '</b><div class="row-sub">' +
@@ -954,6 +947,18 @@
   // The committee's puja name (admin-set) stands in for the app title everywhere
   // it shows; falls back to "চাঁদা খাতা" until an admin sets it.
   function pujaName() { return (centralConfig && centralConfig.puja_name) || t('app_title'); }
+  // Search normalisation: NFC (so Bengali composed/decomposed forms match),
+  // trim, collapse spaces, and lowercase (English). Bengali has no case, so
+  // this works for both scripts.
+  function normText(s) { return String(s == null ? '' : s).normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim(); }
+  // A party matches if EVERY word in the query appears somewhere across its
+  // name, owner, phone, area and location — so "কমল মালদা" or "9998 malda" work.
+  function matchParty(p, query) {
+    const q = normText(query); if (!q) return true;
+    const hay = normText([p.name, p.owner, p.phone,
+      p.side ? Lists.labelOf('area', p.side) : '', p.location ? Lists.labelOf('location', p.location) : ''].join(' '));
+    return q.split(' ').every(function (w) { return hay.indexOf(w) >= 0; });
+  }
   // Which entry kinds this user may insert (admin sets it per user; empty = all
   // for a normal collector, so nobody is accidentally locked out).
   function canEntry(kind) {

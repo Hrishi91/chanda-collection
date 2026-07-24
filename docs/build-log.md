@@ -1356,3 +1356,17 @@ options.
   an empty collector sees everything; toggling the party chip sends
   setEntries[payment,daily,handover]. 105 tests pass. Needs the redeploy for the
   entries column + setEntries.
+
+## Search upgrade — multi-field, multi-word, normalised (step 2)
+
+Khata and find-party search were name+owner substring only. Now:
+- `normText()` — NFC + lowercase + collapsed spaces, so Bengali (composed/
+  decomposed) and English both match cleanly.
+- `matchParty(p, q)` — every query WORD must appear across name, owner, phone,
+  area label and location label; so "কমল মালদা", "9998", or an area name all
+  narrow the list. No new UI clutter (the same search box does more).
+- Used in both drawList (khata) and renderFPResults (find-party); find-party's
+  row objects now carry phone + location too.
+- Verified live: search by phone, by area, by two-word owner, by name+area all
+  filter correctly; node sanity covers the AND/normalise cases. Client-only.
+  105 tests pass.
