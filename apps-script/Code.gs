@@ -229,7 +229,10 @@ function notifData_(u, d) {
   if (isCashier) {
     (d.handovers || []).forEach(function (h) {
       if ((String(h.toId || h.to) === String(u.row.username) || h.to === u.row.name) && h.status !== 'confirmed') {
-        items.handovers.push({ id: h.id, from: h.from, amount: Number(h.amount) || 0, date: h.date });
+        // breakdown rides along so the receiver's notification shows the same
+        // per-category / cash-UPI detail the giver picked
+        items.handovers.push({ id: h.id, from: h.from, amount: Number(h.amount) || 0,
+                               date: h.date, breakdown: h.breakdown || '' });
       }
     });
     out.handovers = items.handovers.length;

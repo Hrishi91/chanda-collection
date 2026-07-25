@@ -99,6 +99,7 @@
   // Pending outgoing handovers are shown separately and NOT subtracted
   // (the giver keeps credit until the cashier confirms receipt).
   function inHandRows(data) {
+    const orig = data;          // myAvailable does its own activeData()
     data = activeData(data);
     const collected = {}, received = {}, handed = {}, pending = {}, spent = {}, nameBy = {};
     const note = function (k, nm) { if (nm) nameBy[k] = nm; };
@@ -128,7 +129,11 @@
     return Object.keys(keys).map(function (k) {
       return { collector: nameBy[k] || k, collected: collected[k] || 0, received: received[k] || 0,
                handedOver: handed[k] || 0, pending: pending[k] || 0, spent: spent[k] || 0,
-               inHand: (collected[k] || 0) + (received[k] || 0) - (handed[k] || 0) - (spent[k] || 0) };
+               inHand: (collected[k] || 0) + (received[k] || 0) - (handed[k] || 0) - (spent[k] || 0),
+               // same source-category × cash/UPI split each person sees in
+               // their own summary — so the central report and every personal
+               // report read the identical numbers
+               byCat: myAvailable(orig, k).byCat };
     }).sort(function (a, b) { return b.inHand - a.inHand; });
   }
 

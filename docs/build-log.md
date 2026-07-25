@@ -2236,3 +2236,60 @@ same way — one lumped "🧾 চাঁদা" row was shallower than road/toto/
   unused type absent, totals unchanged by the split).
 
 sw → chanda-v3.79.1. Client-only — no redeploy.
+
+## v3.80.0 — Hand-over sheet: per-category cash AND UPI, partial amounts native
+
+Hrishi: "the submitter can select cash or upi for each category — there could
+be a chance the collector is not having the amount at the moment", then
+"every entry cash and upi selection". The old two-step flow (pick categories →
+pick cash/UPI/both) baked in two wrong assumptions: that a whole category
+always moves, and that the cash-vs-UPI choice is the same for every category.
+
+**One screen replaces three steps.** New `sheet` step kind: each source
+category is a row with its OWN 💵 cash and 📱 UPI box, prefilled with what is
+actually in hand, `[সব]`/`[কিছুই না]` shortcuts, and a live
+`💵 · 📱 · total`. Hand over everything → change nothing, tap Next. Give less
+→ edit that one box. A box is clamped to the available figure (typing more is
+capped, so books can never go negative) and parses Bengali digits; a category
+with no money of that type shows "—" instead of an input.
+
+**This removed the last approximation in the money model.** The old
+"✏️ অন্য পরিমাণ" escape wrote no breakdown, so partial handovers landed in the
+receiver's opaque `received` bucket and drained the giver's categories in a
+fixed order — documented as acceptable, but it was guesswork. The sheet *is*
+the breakdown, so every handover now carries an exact per-category,
+per-money-type split. Dead code removed with it: the `category` step kind, its
+wiring, `submitCategorySelection`, `submitCategoryCustom`, the unused `quick`
+amount-chip branch, and five now-orphaned i18n keys.
+
+**Receiver-side visibility (Hrishi's other point):** `breakdownLines()` renders
+a handover's stored split, now shown on the cashier's confirm card and in the
+handover notification — the approver sees exactly what the giver picked
+instead of a bare total. `notifData_` sends `breakdown` along (server change).
+
+**Reports in sync:** `inHandRows` gained `byCat` by delegating to
+`myAvailable`, so the central "কার হাতে কত" report shows each person's
+category × cash/UPI — the identical numbers as their own "কোন খাতে কত আছে"
+and as the handover sheet. One function feeds all three; they cannot drift.
+
+Verified live end to end: sheet renders per-row boxes (shop 300/200,
+person 100/200, bus 150/—, total ₹950); partial edit → ₹550; over-limit 9999
+clamps to the available 100; Bengali "৫০" parses; "কিছুই না" disables Next;
+saving shop-100-cash + bus-150 stores breakdown
+`{"shop":{"cash":100,"upi":0},"bus":{"cash":150,"upi":0}}` with the chat echo
+"₹250 (দোকান ₹100, বাস কালেকশন ₹150)"; after confirm the giver drops to
+shop 💵200·📱200 with bus emptied while the receiver gains shop 💵100 + bus
+💵150 — same categories, reconcile balanced; the cashier's confirm card shows
+that breakdown; the central report lists both people's category splits.
+No console errors. 141 tests pass (8 new, covering partial handovers,
+cashier→cashier→admin chains, and central-report/personal parity).
+
+sw → chanda-v3.80.0. ⚠️ One server-side line (`notifData_` sending
+`breakdown`) → needs a Code.gs redeploy for the *notification* to show the
+split; everything else, including the cashier's confirm card, works today.
+
+**Known divergence (deliberate):** Code.gs's legacy `inHandRows_` has no
+`byCat`. Every current client computes reports locally from the pull
+snapshot, so this has no live effect; the server report action only serves
+old clients. Porting `myAvailable` to Code.gs is deferred rather than
+pretended — noted here so it isn't mistaken for parity.

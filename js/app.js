@@ -286,7 +286,7 @@
         '<button class="chip" data-nav="admin">👁 ' + esc(t('view')) + '</button>');
     });
     (it.handovers || []).forEach(function (h) {
-      html += notifRow('💰 <b>' + esc(h.from) + '</b> — ' + fmtMoney(h.amount) + ' <span class="row-sub">' + esc(fmtDate(h.date)) + '</span>',
+      html += notifRow('💰 <b>' + esc(h.from) + '</b> — ' + fmtMoney(h.amount) + ' <span class="row-sub">' + esc(fmtDate(h.date)) + '</span>' + breakdownLines(h),
         '<button class="chip on" data-na="confirm-handover" data-id="' + esc(h.id) + '">✅ ' + esc(t('confirm_received')) + '</button>' +
         '<button class="chip" data-nav="cashier">👁 ' + esc(t('view')) + '</button>');
     });
@@ -408,13 +408,16 @@
       const o = opts.find(function (o) { return o.v === val; });
       return o ? (o.labelKey ? t(o.labelKey) : o.label) : val;
     }
-    if (step.kind === 'category') {
-      if (val === 'custom') return t('custom_amount');
-      // val is the selected category keys — show their labels
-      return (Array.isArray(val) ? val : [val]).map(function (k) {
-        const c = step.categories.find(function (x) { return x.key === k; });
-        return c ? t(c.labelKey) : k;
-      }).join(' + ');
+    if (step.kind === 'sheet') {
+      // show what the sheet actually hands over: total, then each category
+      let cash = 0, upi = 0;
+      const parts = Object.keys(val || {}).map(function (k) {
+        const c = Number(val[k].cash) || 0, u = Number(val[k].upi) || 0;
+        cash += c; upi += u;
+        const cat = step.categories.find(function (x) { return x.key === k; });
+        return (cat ? t(cat.labelKey) : k) + ' ' + fmtMoney(c + u);
+      });
+      return fmtMoney(cash + upi) + (parts.length ? ' (' + parts.join(', ') + ')' : '');
     }
     return val;
   }
@@ -532,45 +535,37 @@
         return '<button class="chip" data-v="' + esc(o.v) + '">' +
                esc(o.labelKey ? t(o.labelKey) : o.label) + '</button>';
       }).join('') + '</div>';
-    } else if (s.kind === 'category') {
-      // multi-select source-category chips (handover: চাঁদা/রোড/টোটো/বাস/
-      // received, each showing the real available amount) — toggle, see the
-      // running total, then confirm. No typing needed for the common "hand
-      // over what I have" case; "✏️ অন্য পরিমাণ" escapes to manual entry.
-      // Grouped under their super-type (নতুন এন্ট্রি / দৈনিক কালেকশন /
-      // অন্যের জমা) with each row showing 💵 cash · 📱 UPI · total, plus a
-      // per-group subtotal — so the collector sees the whole picture right
-      // here and never has to leave the screen to look a number up.
+    } else if (s.kind === 'sheet') {
+      // ONE screen for a handover: every source category gets its OWN cash and
+      // UPI box, prefilled with what's actually in hand. Hand over everything →
+      // change nothing, just Next. Hand over part → edit that one box. A box is
+      // capped at the available figure so the books can never go negative, and
+      // a category with no money of that type shows "—" instead of an input.
       const groups = [
         { key: 'entry', labelKey: 'grp_entry', cats: s.categories.filter(function (c) { return ['shop', 'person', 'member', 'payment'].indexOf(c.key) >= 0; }) },
         { key: 'daily', labelKey: 'grp_daily', cats: s.categories.filter(function (c) { return ['road', 'toto', 'bus'].indexOf(c.key) >= 0; }) },
         { key: 'other', labelKey: 'grp_received', cats: s.categories.filter(function (c) { return c.key === 'received'; }) },
       ].filter(function (g) { return g.cats.length; });
-      const money2 = function (cash, upi) {
-        return '<span class="cat-split">💵' + fmtMoney(cash) + ' · 📱' + fmtMoney(upi) + '</span>' +
-               '<b class="cat-tot">' + fmtMoney(cash + upi) + '</b>';
+      const cell = function (c, kind) {
+        const avail = kind === 'cash' ? c.cash : c.upi;
+        if (avail <= 0) return '<span class="sh-none">—</span>';
+        return '<span class="sh-cell"><input class="sh-in" data-cat="' + esc(c.key) + '" data-kind="' + kind +
+          '" data-max="' + avail + '" inputmode="numeric" value="' + avail + '">' +
+          '<span class="sh-max">/' + fmtMoney(avail) + '</span></span>';
       };
-      html += groups.map(function (g) {
-        const gc = g.cats.reduce(function (a, c) { return a + c.cash; }, 0);
-        const gu = g.cats.reduce(function (a, c) { return a + c.upi; }, 0);
-        return '<div class="cat-group"><div class="cat-group-head">' + esc(t(g.labelKey)) +
-          '<span class="cat-group-sum">' + money2(gc, gu) + '</span></div>' +
-          g.cats.map(function (c) {
-            return '<button class="cat-row" data-cat="' + esc(c.key) + '" data-cash="' + c.cash + '" data-upi="' + c.upi + '">' +
-              '<span class="cat-name">' + esc(t(c.labelKey)) + '</span>' + money2(c.cash, c.upi) + '</button>';
-          }).join('') + '</div>';
-      }).join('') +
-      '<div class="cat-selected" id="cat-total">' + esc(t('selected_total')) + ': ' + money2(0, 0) + '</div>' +
-      '<div class="flow-actions">' +
-        '<button id="cat-custom" class="ghost">' + esc(t('custom_amount')) + '</button>' +
-        '<button id="cat-next" class="primary" disabled>' + esc(t('next')) + '</button></div>';
+      html += '<div class="sh-actions"><button class="chip" id="sh-all">' + esc(t('sheet_all')) +
+        '</button><button class="chip" id="sh-none">' + esc(t('sheet_none')) + '</button></div>' +
+        groups.map(function (g) {
+          return '<div class="cat-group"><div class="cat-group-head">' + esc(t(g.labelKey)) + '</div>' +
+            g.cats.map(function (c) {
+              return '<div class="sh-row"><span class="cat-name">' + esc(t(c.labelKey)) + '</span>' +
+                '<span class="sh-pair">💵' + cell(c, 'cash') + '</span>' +
+                '<span class="sh-pair">📱' + cell(c, 'upi') + '</span></div>';
+            }).join('') + '</div>';
+        }).join('') +
+        '<div class="cat-selected" id="sh-total"></div>' +
+        '<div class="flow-actions"><button id="sh-next" class="primary">' + esc(t('next')) + '</button></div>';
     } else {
-      // an 'amount' step can carry a known figure (e.g. handover's actual
-      // cash/UPI in hand) — one tap uses it exactly, no typing or misremembering.
-      if (s.kind === 'amount' && s.quick) {
-        html += '<div class="chips"><button class="chip" data-v="' + s.quick + '">' +
-          esc(t('use_available')) + ' ' + fmtMoney(s.quick) + '</button></div>';
-      }
       html += '<div class="input-row">' +
         '<input id="flow-input" ' + (s.kind === 'amount' ? 'inputmode="text" placeholder="৫০০ / পাঁচশো"' : '') +
         ' autocomplete="off">' +
@@ -624,50 +619,62 @@
     };
     const backB = document.getElementById('back-btn');
     if (backB) backB.onclick = goBack;
-    if (s.kind === 'category') {
-      const catChips = document.querySelectorAll('.cat-row');
-      const totalEl = document.getElementById('cat-total');
-      const nextB = document.getElementById('cat-next');
+    if (s.kind === 'sheet') {
+      const ins = Array.prototype.slice.call(document.querySelectorAll('.sh-in'));
+      const totalEl = document.getElementById('sh-total');
+      const nextB = document.getElementById('sh-next');
+      // read a box, clamped to 0..available — typing more than you hold is
+      // silently capped rather than rejected, so the books stay non-negative
+      const valOf = function (el) {
+        const max = Number(el.dataset.max) || 0;
+        let v = NumParse.parseAmount(el.value);
+        if (isNaN(v) || v < 0) v = 0;
+        return Math.min(v, max);
+      };
       const refresh = function () {
-        let cash = 0, upi = 0, any = false;
-        catChips.forEach(function (c) {
-          if (!c.classList.contains('on')) return;
-          cash += Number(c.dataset.cash) || 0; upi += Number(c.dataset.upi) || 0; any = true;
+        let cash = 0, upi = 0;
+        ins.forEach(function (el) {
+          const v = valOf(el);
+          if (el.dataset.kind === 'cash') cash += v; else upi += v;
         });
-        // live cash/UPI split + grand total of what's currently selected
-        totalEl.innerHTML = esc(t('selected_total')) + ': ' +
+        totalEl.innerHTML = esc(t('sheet_total')) + ': ' +
           '<span class="cat-split">💵' + fmtMoney(cash) + ' · 📱' + fmtMoney(upi) + '</span>' +
           '<b class="cat-tot">' + fmtMoney(cash + upi) + '</b>';
-        nextB.disabled = !any;
+        nextB.disabled = (cash + upi) <= 0;
       };
-      catChips.forEach(function (c) { c.onclick = function () { c.classList.toggle('on'); refresh(); }; });
+      ins.forEach(function (el) { el.oninput = refresh; });
+      document.getElementById('sh-all').onclick = function () {
+        ins.forEach(function (el) { el.value = el.dataset.max; }); refresh();
+      };
+      document.getElementById('sh-none').onclick = function () {
+        ins.forEach(function (el) { el.value = '0'; }); refresh();
+      };
       refresh();
       nextB.onclick = function () {
-        const sel = Array.prototype.filter.call(catChips, function (c) { return c.classList.contains('on'); })
-          .map(function (c) { return c.dataset.cat; });
-        submitCategorySelection(sel);
+        const per = {};
+        ins.forEach(function (el) {
+          const v = valOf(el);
+          if (v <= 0) return;
+          const k = el.dataset.cat;
+          per[k] = per[k] || { cash: 0, upi: 0 };
+          per[k][el.dataset.kind] += v;
+        });
+        submitSheet(per);
       };
-      document.getElementById('cat-custom').onclick = function () { submitCategoryCustom(); };
     }
   }
   // The category step's confirm — sets cashAmount/upiAmount directly from the
   // selected chips (bypassing the hidden manual payMode/cashAmount/upiAmount
   // steps entirely) and advances like a normal submitAnswer.
-  function submitCategorySelection(selectedKeys) {
+  // The sheet's answer IS the breakdown: {cat: {cash, upi}} of exactly what
+  // is being handed over. No mode question afterwards — each row already
+  // said cash and UPI separately.
+  function submitSheet(per) {
     const step = flowState.def.steps[flowState.idx];
-    flowState.answers[step.key] = selectedKeys; // array of category keys
+    flowState.answers[step.key] = per;
     flowState.idx++; skipHidden();
     if (flowState.idx >= flowState.def.steps.length) finishFlow(); else renderEntry();
   }
-  // "✏️ অন্য পরিমাণ" — escapes to the manual mode→cash→upi steps (their
-  // showIf checks this exact key/value) for a partial or unusual handover.
-  function submitCategoryCustom() {
-    const step = flowState.def.steps[flowState.idx];
-    flowState.answers[step.key] = 'custom';
-    flowState.idx++; skipHidden();
-    if (flowState.idx >= flowState.def.steps.length) finishFlow(); else renderEntry();
-  }
-
   function renderAfter(opts) {
     $view().innerHTML = '<div class="card center"><div class="big-emoji">✅</div>' +
       opts.buttons.map(function (b, i) {
@@ -832,39 +839,11 @@
       const c = Math.max(0, byCat[k].cash), u = Math.max(0, byCat[k].upi);
       return { key: k, labelKey: CAT_LABELS[k], amount: c + u, cash: c, upi: u };
     });
-    const isCustom = function (a) { return a.srcCats === 'custom'; };
-    // sum the selected categories' cash/upi (what the dynamic mode chips show)
-    const selSums = function (a) {
-      let c = 0, u = 0;
-      (Array.isArray(a.srcCats) ? a.srcCats : []).forEach(function (k) {
-        const cat = categories.find(function (x) { return x.key === k; });
-        if (cat) { c += cat.cash; u += cat.upi; }
-      });
-      return { cash: c, upi: u };
-    };
+    // ONE sheet when there is money in hand: each category gets its own cash
+    // and UPI box (see the 'sheet' step kind). Nothing available yet (a brand
+    // new collector, or books already at zero) → the plain manual entry.
     const moneySteps_ = categories.length
-      ? [
-          { key: 'srcCats', qKey: 'q_handover_cats', kind: 'category', categories: categories },
-          // selection path: mode chips carry the real amounts of the chosen
-          // categories; only modes with money in them are offered.
-          { key: 'payMode', qKey: 'q_handover_mode', kind: 'choice',
-            showIf: function (a) { return Array.isArray(a.srcCats); },
-            optionsFn: function (a) {
-              const s = selSums(a), o = [];
-              if (s.cash > 0) o.push({ v: 'cash', label: t('mode_cash') + ' ' + fmtMoney(s.cash) });
-              if (s.upi > 0) o.push({ v: 'upi', label: t('mode_upi') + ' ' + fmtMoney(s.upi) });
-              if (s.cash > 0 && s.upi > 0) o.push({ v: 'both', label: t('mode_both') + ' ' + fmtMoney(s.cash + s.upi) });
-              return o;
-            } },
-          // custom path: the old manual mode → typed amounts
-          { key: 'payMode', qKey: 'q_mode', kind: 'choice', options: modeOptions(false), showIf: isCustom },
-          { key: 'cashAmount', qKey: 'q_cash_amount', kind: 'amount',
-            showIf: function (a) { return isCustom(a) && needCash(a); } },
-          { key: 'upiAmount', qKey: 'q_upi_amount', kind: 'amount',
-            showIf: function (a) { return isCustom(a) && needUpi(a); } },
-        ]
-      // nothing available (e.g. brand-new collector) — no point offering a
-      // category screen with nothing to pick, straight to manual entry.
+      ? [{ key: 'sheet', qKey: 'q_handover_sheet', kind: 'sheet', categories: categories }]
       : [
           { key: 'payMode', qKey: 'q_mode', kind: 'choice', options: modeOptions(false) },
           { key: 'cashAmount', qKey: 'q_cash_amount', kind: 'amount', showIf: needCash },
@@ -878,16 +857,12 @@
       ]),
       save: function (a) {
         let m, breakdown = null;
-        if (Array.isArray(a.srcCats)) {
-          // category path: amounts come from the selected categories + mode,
-          // and the handover records exactly which category gave what — so
-          // both sides' per-category books stay exact after this handover.
+        if (a.sheet && typeof a.sheet === 'object') {
+          // the sheet already IS the per-category, per-money-type split —
+          // store it verbatim so both sides' books stay exact
           breakdown = {}; let cash = 0, upi = 0;
-          a.srcCats.forEach(function (k) {
-            const cat = categories.find(function (x) { return x.key === k; });
-            if (!cat) return;
-            const c = a.payMode !== 'upi' ? cat.cash : 0;
-            const u = a.payMode !== 'cash' ? cat.upi : 0;
+          Object.keys(a.sheet).forEach(function (k) {
+            const c = Number(a.sheet[k].cash) || 0, u = Number(a.sheet[k].upi) || 0;
             if (c > 0 || u > 0) { breakdown[k] = { cash: c, upi: u }; cash += c; upi += u; }
           });
           m = { cash: cash, upi: upi, total: cash + upi };
@@ -1734,6 +1709,19 @@
           '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(r.due) + '</span></div></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
   }
+  // compact per-category line for the central in-hand report (the full table
+  // lives in each person's own summary)
+  function byCatInline(byCat) {
+    if (!byCat) return '';
+    const parts = Object.keys(CAT_LABEL_KEYS).filter(function (k) {
+      return byCat[k] && (byCat[k].cash || byCat[k].upi);
+    }).map(function (k) {
+      const c = byCat[k].cash, u = byCat[k].upi;
+      return esc(t(CAT_LABEL_KEYS[k])) + ' ' + fmtMoney(c + u) +
+        ' <span class="bd-split">💵' + fmtMoney(c) + '·📱' + fmtMoney(u) + '</span>';
+    });
+    return parts.length ? '<div class="row-sub bd-line">' + parts.join(' &nbsp;•&nbsp; ') + '</div>' : '';
+  }
   function reportInhandHTML(d) {
     const rows = d.rows || [];
     if (!rows.length) return '<div class="empty">' + esc(t('no_entries')) + '</div>';
@@ -1746,6 +1734,7 @@
         return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 60%"><b>' + esc(r.collector) + '</b>' +
           '<div class="row-sub">' + parts.join(' • ') + '</div>' +
           (r.pending ? '<div class="row-sub">⏳ ' + esc(t('my_pending')) + ': ' + fmtMoney(r.pending) + '</div>' : '') +
+          byCatInline(r.byCat) +
           '</div><div class="row-right"><span class="' + (r.inHand > 0 ? 'red' : 'green') + '"><b>' +
           fmtMoney(r.inHand) + '</b></span><div class="row-sub">' + esc(t('inhand_col')) + '</div></div></div>';
       }).join('') + '</div>';
@@ -1860,6 +1849,21 @@
     return '';
   }
 
+  // A handover's stored breakdown → "দোকান 💵₹300 · 📱₹200" lines, so the
+  // RECEIVER sees exactly the same detail the giver picked. Falls back to
+  // nothing for legacy rows that carry no breakdown.
+  function breakdownLines(h) {
+    if (!h || !h.breakdown) return '';
+    let bd; try { bd = JSON.parse(h.breakdown); } catch (e) { return ''; }
+    if (!bd || typeof bd !== 'object') return '';
+    const parts = Object.keys(bd).map(function (k) {
+      const c = Number(bd[k].cash) || 0, u = Number(bd[k].upi) || 0;
+      const label = CAT_LABEL_KEYS[k] ? t(CAT_LABEL_KEYS[k]) : k;
+      return '<span class="bd-item">' + esc(label) + ' <b>' + fmtMoney(c + u) + '</b>' +
+        '<span class="bd-split">💵' + fmtMoney(c) + ' · 📱' + fmtMoney(u) + '</span></span>';
+    });
+    return parts.length ? '<div class="bd-line">' + parts.join('') + '</div>' : '';
+  }
   function renderCashier() {
     if (!Auth.isCashier()) { $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
     $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('loading')) + '</div>';
@@ -1873,6 +1877,7 @@
           '<div class="row-sub">' + esc(fmtDate(h.date)) + (h.note ? ' • ' + esc(h.note) : '') +
           ' • ' + esc(t('cash')) + ' ' + fmtMoney(h.cashAmount) + ' + UPI ' + fmtMoney(h.upiAmount) + '</div></div>' +
           '<b>' + fmtMoney(h.amount) + '</b>' +
+          '<div style="flex-basis:100%">' + breakdownLines(h) + '</div>' +
           (withBtn ? '<div style="flex-basis:100%;margin-top:8px"><button class="primary" data-hid="' +
             esc(h.id) + '">' + esc(t('confirm_receive')) + '</button></div>' : '') + '</div>';
       }

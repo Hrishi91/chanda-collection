@@ -204,3 +204,23 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
   font-size: 14px; font-weight: 700;
 }
 .cat-selected .cat-split { margin-left: auto; font-weight: 400; }
+
+/* ---- handover sheet: per-category cash & UPI boxes ---- */
+.sh-actions { display: flex; gap: 8px; margin-bottom: 10px; }
+.sh-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.sh-row .cat-name { flex: 1 1 100%; font-weight: 600; font-size: 15px; }
+.sh-pair { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--sub); }
+.sh-cell { display: flex; align-items: baseline; gap: 3px; }
+.sh-in {
+  width: 82px; padding: 8px 10px; font-size: 15px; font-weight: 700; text-align: right;
+  border: 1.5px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink);
+}
+.sh-in:focus { outline: none; border-color: var(--saffron); }
+.sh-max { font-size: 11.5px; color: var(--sub); }
+.sh-none { font-size: 14px; color: var(--sub); padding: 0 6px; }
+
+/* ---- a handover's stored category breakdown, shown to the receiver ---- */
+.bd-line { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 12.5px; color: var(--sub); }
+.bd-item { display: inline-flex; align-items: baseline; gap: 4px; }
+.bd-item b { color: var(--ink); font-size: 13px; }
+.bd-split { font-size: 11.5px; color: var(--sub); }

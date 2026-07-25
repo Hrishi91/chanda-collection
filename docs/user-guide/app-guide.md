@@ -70,19 +70,19 @@ syncs immediately if online.
 
 ## 🤝 Handover & confirmation
 
-Tap **🤝 Hand over** → choose a cashier. Pick **which collections**, grouped
-as 📥 New entries/Chanda (shop/person/member) and 🛣️ Daily collection
-(road/toto/bus) — every line
-shows 💵 cash · 📱 UPI · total with a per-group subtotal, and the "Selected"
-line adds up live, so the whole picture is on that one screen and you never
-have to look a number up elsewhere. Then pick cash / UPI / both (those
-buttons carry the picked categories' real amounts too). No typing — unless
-you want a partial amount, via "✏️ Different amount".
+Tap **🤝 Hand over** → choose a cashier → then one **hand-over sheet**: every
+source (shop / person / member / road / toto / bus) has its **own 💵 cash and
+📱 UPI box**, prefilled with what you actually hold, with a live total.
+Handing over everything? Change nothing and tap Next. Giving less? Edit that
+one box — you cannot enter more than you hold, so the books can never go
+negative.
 
-The handover stores the **category split**, so the receiving cashier's own
-hand shows that money under the same categories (a cashier handing on to
-another cashier stays category-aware). The same breakdown appears in the
-report as **"What I hold, by source"**.
+The sheet *is* the stored breakdown, so a partial handover keeps its category
+exactly: the giver keeps the remainder under the same category and the
+receiver gains it under that same category (cashier→cashier→admin chains stay
+category-aware). The receiving cashier **sees that same breakdown before
+approving**, and it also appears in the central "cash in hand" report and in
+every user's own **"What I hold, by source"**.
 
 It becomes confirmed only when the cashier opens **✅ Confirm receipts** and
 taps "Received". Until confirmed the money stays counted **in the

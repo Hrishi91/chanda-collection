@@ -120,13 +120,13 @@ window.HELP = [
     title: { bn: 'জমা দেওয়া ও confirm', en: 'Handover & confirmation' },
     body: {
       bn: [
-        'তোমার হাতে টাকা জমে গেলে <b>🤝 জমা দিলাম</b> → কোন cashier। তারপর <b>কোন খাতের টাকা</b> — <b>📥 নতুন এন্ট্রি/চাঁদা</b> (দোকান/ব্যক্তি/সদস্য আলাদা) আর <b>🛣️ দৈনিক কালেকশন</b> (রোড/টোটো/বাস) — দুই ভাগেই একই গভীরতা, প্রতিটা লাইনে <b>💵 নগদ · 📱 UPI · মোট</b> আর প্রতি ভাগের সাবটোটাল — অর্থাৎ সব হিসাব এই এক স্ক্রিনেই, অন্য পাতায় গিয়ে দেখার দরকার নেই। এক বা একাধিক বাছো, নিচে "বেছেছ" লাইনে নগদ/UPI/মোট সাথে সাথে যোগ হয়। তারপর <b>নগদ / UPI / দুটোই</b> — এখানেও বাছাই-করা খাতগুলোর আসল টাকা লেখা। কোথাও টাইপ করতে হয় না। ভিন্ন (আংশিক) amount দিতে <b>"✏️ অন্য পরিমাণ"</b> চেপে টাইপ করো।',
-        'Cashier <b>✅ জমা নেওয়া confirm</b>-এ গিয়ে "জমা নিলাম" চাপলে তবেই সেটা confirmed হয়।',
+        'তোমার হাতে টাকা জমে গেলে <b>🤝 জমা দিলাম</b> → কোন cashier → তারপর একটাই <b>জমার ছক</b>: প্রতিটা খাতের (দোকান/ব্যক্তি/সদস্য/রোড/টোটো/বাস) নিজস্ব <b>💵 নগদ</b> আর <b>📱 UPI</b> ঘর, আগে থেকেই তোমার হাতের পুরো টাকা বসানো। <b>সবটা দিলে কিছু বদলাতে হবে না</b> — শুধু "পরের প্রশ্ন"। <b>কম দিতে চাইলে সেই ঘরে কম লেখো</b> (হাতে যা আছে তার বেশি লেখা যাবে না)। নিচে মোট সাথে সাথে যোগ হয়।',
+        'Cashier <b>✅ জমা নেওয়া confirm</b>-এ গিয়ে "জমা নিলাম" চাপলে তবেই সেটা confirmed হয় — আর সে <b>ঠিক একই ভাঙা দেখতে পায়</b> (কোন খাতের কত, নগদ/UPI আলাদা), তাই না দেখে অনুমোদন করতে হয় না।',
         'Confirm হওয়ার আগ পর্যন্ত টাকা <b>তোমার হাতেই</b> ধরা থাকে (report-এ "confirm বাকি" দেখায়)।',
         'এতে "কার হাতে কত টাকা" সবসময় ঠিক থাকে — কোনো বিবাদ নেই।',
       ],
       en: [
-        'When cash builds up, tap <b>🤝 Hand over</b> → choose a cashier. Then pick <b>which collections</b> — chanda / road / toto / bus / received — each button shows the real amount (categories with no money don\'t appear at all); pick one or more and the <b>total</b> adds up automatically. Then <b>cash / UPI / both</b> — those buttons also carry the picked categories\' real amounts. No typing anywhere. For a different (partial) amount, tap <b>"✏️ Different amount"</b> to type it instead.',
+        'When cash builds up, tap <b>🤝 Hand over</b> → choose a cashier → then one <b>hand-over sheet</b>: every source (shop/person/member/road/toto/bus) has its own <b>💵 cash</b> and <b>📱 UPI</b> box, prefilled with what you actually hold. <b>Handing over everything? Change nothing</b>, just tap Next. <b>Giving less? Edit that one box</b> (you cannot enter more than you hold). The total adds up live.',
         'It becomes confirmed only when the cashier opens <b>✅ Confirm receipts</b> and taps "Received".',
         'Until confirmed, the money stays counted <b>in your hand</b> (shown as "awaiting confirm").',
         'This keeps "cash in hand by collector" always correct — no disputes.',

@@ -227,6 +227,38 @@ eq(Object.keys(bcP.byCat).reduce(function (s, k) { return s + bcP.byCat[k].cash 
    bcP.inHand, 'byCat: sums to in-hand');
 eq(bcP.byCat.road.cash, 0, 'byCat: road drained by its own collection expense');
 
+// PARTIAL handover with an exact per-category / per-money-type breakdown:
+// both sides' books must stay exact, and the chain must survive cashier→cashier
+const partialChain = {
+  parties: [{ id: 's1', type: 'shop' }, { id: 'p1', type: 'person' }],
+  payments: [
+    { collectorId: 'R', partyId: 's1', amount: 500, cashAmount: 300, upiAmount: 200 },
+    { collectorId: 'R', partyId: 'p1', amount: 300, cashAmount: 100, upiAmount: 200 },
+  ],
+  daily: [{ collectorId: 'R', type: 'bus', amount: 150, cashAmount: 150, upiAmount: 0 }],
+  expenses: [], voids: [],
+  handovers: [
+    // R hands over only PART of shop cash + all of bus
+    { id: 'h1', fromId: 'R', toId: 'C1', amount: 250, cashAmount: 250, upiAmount: 0, status: 'confirmed',
+      breakdown: '{"shop":{"cash":100,"upi":0},"bus":{"cash":150,"upi":0}}' },
+    // C1 passes the bus part on to the admin
+    { id: 'h2', fromId: 'C1', toId: 'ADMIN', amount: 150, cashAmount: 150, upiAmount: 0, status: 'confirmed',
+      breakdown: '{"bus":{"cash":150,"upi":0}}' },
+  ],
+};
+const pcR = myAvailable(partialChain, 'R');
+eq(pcR.byCat.shop, { cash: 200, upi: 200 }, 'partial: giver keeps the untouched part of the category');
+eq(pcR.byCat.person, { cash: 100, upi: 200 }, 'partial: untouched category unaffected');
+eq(pcR.byCat.bus, { cash: 0, upi: 0 }, 'partial: fully-handed category emptied');
+const pcC1 = myAvailable(partialChain, 'C1');
+eq(pcC1.byCat.shop, { cash: 100, upi: 0 }, 'partial: receiver gets it under the SAME category');
+eq(pcC1.byCat.bus, { cash: 0, upi: 0 }, 'chain: cashier passed the bus money on');
+eq(myAvailable(partialChain, 'ADMIN').byCat.bus, { cash: 150, upi: 0 }, 'chain: admin holds it still as bus');
+eq(reconcile(partialChain).balanced, true, 'partial+chain: books balance');
+// the central in-hand report must read the identical per-category numbers
+const pcRow = inHandRows(partialChain).find(function (r) { return r.collector === 'C1'; });
+eq(pcRow.byCat, pcC1.byCat, 'central report byCat === personal byCat');
+
 const dues = duesList(parties, payments);
 eq(dues.length, 2, 'dues count (p2 600, p3 300; p1 cleared)');
 eq(dues[0].party.id, 'p2', 'biggest due first');
