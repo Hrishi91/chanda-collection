@@ -1719,3 +1719,49 @@ routing change — `data-go="bus"` still opens `dailyFlow('bus')` regardless
 of which section it's drawn in. Verified live: bus tile renders under নতুন
 এন্ট্রি next to দোকান/ব্যক্তি/সদস্য, opens the bus flow correctly, no console
 errors. 108 tests pass. sw → chanda-v3.74.1. Client-only.
+
+## v3.75.0 — Handover shows real available amount, one-tap "use all"
+
+Hrishi: collectors only ever have what they've actually collected, so at
+handover time (and for a cashier handing money further up) the app should
+show the category-wise available amount and let them select it instead of
+typing. His first framing ("category wise amount") was ambiguous — a follow-
+up question round got the real intent: not currency-denomination chips or
+donation tiers, but the collector's/cashier's actual current cash and UPI
+in hand, computed from their own records, so they don't have to recall or
+calculate it. Kept typing available too (not asked to remove it, and a
+partial handover — keeping some cash back — is a legitimate real case).
+
+- **New `Aggregate.myAvailable(data, ident)`** (aggregate.js, unit-tested):
+  net cash/UPI a person currently holds = collected (payments+daily, cash/
+  UPI split) + received via **confirmed** handovers − handed over via
+  **confirmed** handovers − expenses (cash only, same assumption `isCashOnly`/
+  `reconcile` use elsewhere). Pending handovers don't reduce it — matches the
+  existing in-hand rule (the giver keeps credit until the cashier confirms).
+  Works identically for a plain collector or a cashier who's also received
+  from others — same formula, just keyed by whoever `ident` is.
+- **`handoverFlow(cashierOpts, available)`** — title now shows
+  "তোমার হাতে: 💵₹X · 📱₹Y" whenever there's anything to show. The cashAmount/
+  upiAmount steps (a new `moneyStepsQuick`, specific to this flow — the
+  shared `moneySteps()` used by payment/daily/new-party is untouched, since
+  "available amount" only makes sense when handing over *existing* money,
+  not collecting fresh money) carry a `quick` value.
+- **`renderEntry()`**: an `amount` step with `.quick` set now renders a
+  "সবটাই — ₹X" / "Use all — ₹X" chip above the input — reuses the existing
+  generic `.chip` → `submitAnswer(dataset.v)` wiring (just gave the button a
+  `data-v`), so no new event-handling path was needed. Typing still works
+  alongside it.
+- **`startHandover()`** now also pulls `viewData()` and computes `available`
+  via `Aggregate.myAvailable` (in parallel with the existing cashiers-list
+  fetch) before opening the flow.
+- Verified live: after a ₹500 cash + ₹200 UPI road entry, opening handover
+  showed "তোমার হাতে: 💵₹500 · 📱₹200" in the title; the cash step showed
+  "সবটাই — ₹500" (tapped → ₹500 recorded exactly), the UPI step showed
+  "সবটাই — ₹200" (same); saved handover row confirmed cash:500/upi:200.
+  Reopening handover right after (still pending, not yet cashier-confirmed)
+  correctly still showed the full ₹500/₹200 available — pending handovers
+  don't reduce it, matching the existing rule. No console errors.
+- In-app guide, app-guide.md, collector-guide.md updated. 115 tests pass (7
+  new for `myAvailable`, incl. the confirmed-vs-pending and cross-person
+  received/handed cases). sw → chanda-v3.75.0. Client-only, static-files
+  redeploy.

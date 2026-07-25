@@ -1,6 +1,6 @@
 // Pure-logic tests: node tests/run.js
 const { parseAmount } = require('../js/numparse.js');
-const { computeTotals, duesList, inHandRows, personalSummary, reconcile, computeReport } = require('../js/aggregate.js');
+const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -138,6 +138,25 @@ const pmSplit = personalSummary({
 }, 'Z');
 eq(pmSplit.cash, 300, 'personal split cash (200+100)');
 eq(pmSplit.upi, 300, 'personal split upi');
+
+// ---- myAvailable (category-wise available amount at handover time) ----
+eq(myAvailable(hoData, 'X').cash, 400, 'available: X cash in hand (legacy = all cash)');
+eq(myAvailable(hoData, 'X').upi, 0, 'available: X upi in hand (none)');
+eq(myAvailable(hoData, 'Cash Babu').cash, 500, 'available: cashier cash (received - expense)');
+const availSplit = {
+  payments: [{ collector: 'Z', amount: 500, cashAmount: 200, upiAmount: 300 }],
+  daily: [], expenses: [{ amount: 50, collector: 'Z' }],
+  handovers: [
+    { fromId: 'Z', toId: 'W', cashAmount: 100, upiAmount: 50, amount: 150, status: 'confirmed' },
+    { fromId: 'Z', toId: 'W', cashAmount: 999, upiAmount: 999, amount: 1998, status: 'pending' },
+  ],
+};
+const availZ = myAvailable(availSplit, 'Z');
+eq(availZ.cash, 50, 'available: Z cash = collected 200 - expense 50 - handed(confirmed) 100');
+eq(availZ.upi, 250, 'available: Z upi = collected 300 - handed(confirmed) 50');
+const availW = myAvailable(availSplit, 'W');
+eq(availW.cash, 100, 'available: W received cash (confirmed only, pending excluded)');
+eq(availW.upi, 50, 'available: W received upi (confirmed only, pending excluded)');
 
 const dues = duesList(parties, payments);
 eq(dues.length, 2, 'dues count (p2 600, p3 300; p1 cleared)');

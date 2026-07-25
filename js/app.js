@@ -505,6 +505,12 @@
                esc(o.labelKey ? t(o.labelKey) : o.label) + '</button>';
       }).join('') + '</div>';
     } else {
+      // an 'amount' step can carry a known figure (e.g. handover's actual
+      // cash/UPI in hand) — one tap uses it exactly, no typing or misremembering.
+      if (s.kind === 'amount' && s.quick) {
+        html += '<div class="chips"><button class="chip" data-v="' + s.quick + '">' +
+          esc(t('use_available')) + ' ' + fmtMoney(s.quick) + '</button></div>';
+      }
       html += '<div class="input-row">' +
         '<input id="flow-input" ' + (s.kind === 'amount' ? 'inputmode="text" placeholder="৫০০ / পাঁচশো"' : '') +
         ' autocomplete="off">' +
@@ -677,7 +683,13 @@
       },
     };
   }
-  function handoverFlow(cashierOpts) {
+  // available: {cash, upi} — what this collector/cashier actually has right
+  // now (Aggregate.myAvailable). Shown in the title and offered as a
+  // one-tap "use all" on the matching amount step, so a handover matches
+  // reality instead of a typed/misremembered figure. Typing still works —
+  // a partial handover (keeping some back) is common and legitimate.
+  function handoverFlow(cashierOpts, available) {
+    const avail = available || { cash: 0, upi: 0 };
     // cashierOpts: [{username, name}] (new server) or [name] (older server) or
     // null/[] → free-text. Normalise both shapes.
     const opts = (cashierOpts || []).map(function (c) {
@@ -689,9 +701,17 @@
       ? { key: 'to', qKey: 'q_handover_to', kind: 'choice',
           options: opts.map(function (c) { return { v: c.username, label: c.name }; }) }
       : { key: 'to', qKey: 'q_handover_to', kind: 'text' };
+    const moneyStepsQuick = [
+      { key: 'payMode', qKey: 'q_mode', kind: 'choice', options: modeOptions(false) },
+      { key: 'cashAmount', qKey: 'q_cash_amount', kind: 'amount', showIf: needCash,
+        quick: avail.cash > 0 ? avail.cash : null },
+      { key: 'upiAmount', qKey: 'q_upi_amount', kind: 'amount', showIf: needUpi,
+        quick: avail.upi > 0 ? avail.upi : null },
+    ];
     return {
-      title: t('handover_title'),
-      steps: [toStep].concat(moneySteps(false), [
+      title: t('handover_title') + (avail.cash || avail.upi
+        ? ' — ' + t('you_have') + ': 💵' + fmtMoney(avail.cash) + ' · 📱' + fmtMoney(avail.upi) : ''),
+      steps: [toStep].concat(moneyStepsQuick, [
         { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
       ]),
       save: function (a) {
@@ -718,11 +738,15 @@
     };
   }
   function startHandover() {
+    const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
+    const availP = viewData().then(function (data) { return Aggregate.myAvailable(data, ident); });
     if (navigator.onLine && Sync.configured()) {
       Auth.call('cashiers', { token: Auth.token() })
-        .then(function (resp) { startFlow(handoverFlow(resp.cashiers || [])); })
-        .catch(function () { startFlow(handoverFlow(null)); });
-    } else startFlow(handoverFlow(null));
+        .then(function (resp) { return availP.then(function (avail) { startFlow(handoverFlow(resp.cashiers || [], avail)); }); })
+        .catch(function () { availP.then(function (avail) { startFlow(handoverFlow(null, avail)); }); });
+    } else {
+      availP.then(function (avail) { startFlow(handoverFlow(null, avail)); });
+    }
   }
   function dailyFlow(type) {
     return {

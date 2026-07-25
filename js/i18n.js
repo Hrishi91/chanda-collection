@@ -225,6 +225,8 @@ const I18N = {
   upi: { bn: 'UPI', en: 'UPI' },
   handover: { bn: '🤝 জমা দিলাম', en: '🤝 Hand over' },
   handover_title: { bn: 'ক্যাশিয়ারকে জমা', en: 'Hand over to cashier' },
+  use_available: { bn: 'সবটাই —', en: 'Use all —' },
+  you_have: { bn: 'তোমার হাতে', en: 'You have' },
   q_handover_to: { bn: 'কোন ক্যাশিয়ারকে দিলে?', en: 'Which cashier?' },
   confirm_handover: { bn: '✅ জমা নেওয়া confirm', en: '✅ Confirm receipts' },
   pending_handovers: { bn: 'Confirm-এর অপেক্ষায়', en: 'Awaiting confirmation' },

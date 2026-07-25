@@ -164,6 +164,33 @@
              inHand: collected + received - handedOver - expenseTotal };
   }
 
+  // What a person actually has in their pocket RIGHT NOW, split by category
+  // (cash vs UPI) — collected + received(confirmed handovers TO them) −
+  // handed over(confirmed handovers FROM them) − expenses(cash only, same
+  // assumption as isCashOnly/reconcile elsewhere). Used to show a collector
+  // or cashier their real available amount at handover time, instead of
+  // making them recall/type it from memory.
+  function myAvailable(data, ident) {
+    data = activeData(data);
+    const mine = function (r) { return ck(r) === String(ident) || r.collector === ident; };
+    let cash = 0, upi = 0;
+    (data.payments || []).concat(data.daily || []).filter(mine).forEach(function (r) {
+      if (isCashOnly(r)) cash += Number(r.amount) || 0;
+      else { cash += Number(r.cashAmount) || 0; upi += Number(r.upiAmount) || 0; }
+    });
+    const isTo = function (h) { return String(h.toId || h.to) === String(ident) || h.to === ident; };
+    const isFrom = function (h) { return String(h.fromId || h.from) === String(ident) || h.from === ident; };
+    (data.handovers || []).filter(function (h) { return h.status === 'confirmed'; }).forEach(function (h) {
+      const c = isCashOnly(h) ? Number(h.amount) || 0 : Number(h.cashAmount) || 0;
+      const u = isCashOnly(h) ? 0 : Number(h.upiAmount) || 0;
+      if (isTo(h)) { cash += c; upi += u; }
+      if (isFrom(h)) { cash -= c; upi -= u; }
+    });
+    const expenseTotal = (data.expenses || []).filter(mine).reduce(function (a, e) { return a + (Number(e.amount) || 0); }, 0);
+    cash -= expenseTotal;
+    return { cash: cash, upi: upi };
+  }
+
   // Parties with outstanding due, biggest due first.
   function duesList(parties, payments, voids) {
     const v = voidedIds({ voids: voids });
@@ -341,7 +368,7 @@
 
   const api = { computeTotals: computeTotals, duesList: duesList,
                 inHandRows: inHandRows, personalSummary: personalSummary,
-                reconcile: reconcile, computeReport: computeReport,
+                myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
