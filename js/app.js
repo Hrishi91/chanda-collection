@@ -1898,6 +1898,24 @@
     if (!rows.length) return '';
     return '<div class="section" style="margin-top:14px">' + esc(t('my_by_cat')) + '</div>' + rows.join('');
   }
+  // "কাকে কত জমা দিয়েছি" — each receiver by name, then the categories that went
+  // to them. Read straight off one's own outgoing handovers, which already
+  // record both, so this can never disagree with the receiver's own screen.
+  function handedToHTML(list) {
+    if (!list || !list.length) return '';
+    return '<div class="section" style="margin-top:14px">' + esc(t('my_handed_to')) + '</div>' +
+      list.map(function (r) {
+        return '<div class="row" style="cursor:default;flex-wrap:wrap"><div style="flex:1 1 60%"><b>🧑 ' +
+          esc(r.name) + '</b>' +
+          (r.pending ? '<div class="row-sub">⏳ ' + esc(t('my_pending')) + ' ' + fmtMoney(r.pending) + '</div>' : '') +
+          '</div><span class="cat-split">💵' + fmtMoney(r.cash) + ' · 📱' + fmtMoney(r.upi) + '</span>' +
+          '<b class="cat-tot">' + fmtMoney(r.total) + '</b>' +
+          (r.cats.length ? '<div style="flex-basis:100%">' + r.cats.map(function (c) {
+            return '<div class="bd-line">' + esc(t(CAT_LABEL_KEYS[c.key] || 'cat_other')) + ' — 💵' +
+              fmtMoney(c.cash) + ' · 📱' + fmtMoney(c.upi) + '</div>';
+          }).join('') + '</div>' : '') + '</div>';
+      }).join('');
+  }
   function mySummaryHTML(d, deviceOnly) {
     return '<div class="card"><div class="card-title">' + esc(t('my_summary')) + '</div>' +
       (deviceOnly ? '<div class="row-sub" style="margin-bottom:8px">' + esc(t('my_device_note')) + '</div>' : '') +
@@ -1916,6 +1934,7 @@
       // with its cash/UPI split AND groups bus with the new entries, so the old
       // strip only repeated the same money under a second, wrong grouping.
       byCatHTML(d.byCat) +
+      handedToHTML(d.handedTo) +
       '</div>' +
       (d.expenses && d.expenses.length ?
         '<div class="card"><div class="card-title">' + esc(t('my_expenses')) + ' — ' + fmtMoney(d.expenseTotal) + '</div>' +

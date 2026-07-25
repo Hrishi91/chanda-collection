@@ -180,17 +180,48 @@
     let received = 0, handedOver = 0, pending = 0;
     const isTo = function (h) { return String(h.toId || h.to || '?') === String(ident); };
     const isFrom = function (h) { return String(h.fromId || h.from || '?') === String(ident); };
+    // Who this person handed money TO, by name and category. Nothing is derived
+    // — the outgoing row already names the receiver and carries the breakdown,
+    // so this is just that record read back the way a person would ask for it:
+    // "কাকে কত জমা দিয়েছি".
+    const toWhom = {};
+    const bump = function (h, catKey, part, isPending) {
+      const id = String(h.toId || h.to || '?');
+      const e = toWhom[id] || (toWhom[id] = { id: id, name: h.to || id, cash: 0, upi: 0, pending: 0, cats: {} });
+      if (h.to) e.name = h.to;
+      if (isPending) { e.pending += part.cash + part.upi; return; } // in transit, not yet theirs
+      e.cash += part.cash; e.upi += part.upi;
+      const c = e.cats[catKey] || (e.cats[catKey] = { cash: 0, upi: 0 });
+      c.cash += part.cash; c.upi += part.upi;
+    };
     (data.handovers || []).forEach(function (h) {
       const amt = Number(h.amount) || 0;
       if (isTo(h) && h.status === 'confirmed') received += amt;
-      if (isFrom(h) && h.status === 'confirmed') handedOver += amt;
-      if (isFrom(h) && h.status !== 'confirmed') pending += amt;
+      if (!isFrom(h)) return;
+      const isPending = h.status !== 'confirmed';
+      if (isPending) pending += amt; else handedOver += amt;
+      let bd = null;
+      try { const b = JSON.parse(h.breakdown || 'null'); if (b && typeof b === 'object') bd = b; } catch (e) {}
+      if (bd) {
+        Object.keys(bd).forEach(function (k) {
+          bump(h, k, { cash: Number(bd[k].cash) || 0, upi: Number(bd[k].upi) || 0 }, isPending);
+        });
+      } else { // pre-breakdown row: amount only, no category to attribute it to
+        bump(h, 'other', splitOf(h), isPending);
+      }
     });
+    const handedTo = Object.keys(toWhom).map(function (id) {
+      const e = toWhom[id];
+      return { id: e.id, name: e.name, cash: e.cash, upi: e.upi, total: e.cash + e.upi, pending: e.pending,
+               cats: Object.keys(e.cats).filter(function (k) { return e.cats[k].cash || e.cats[k].upi; })
+                 .map(function (k) { return { key: k, cash: e.cats[k].cash, upi: e.cats[k].upi }; }) };
+    }).filter(function (e) { return e.total > 0 || e.pending > 0; })
+      .sort(function (a, b) { return (b.total + b.pending) - (a.total + a.pending); });
     const expenseTotal = myExp.reduce(function (a, e) { return a + (Number(e.amount) || 0); }, 0);
     const expenses = myExp.map(function (e) { return { date: e.date, desc: e.desc, amount: Number(e.amount) || 0 }; })
       .sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
     return { collected: collected, cash: cash, upi: upi, dailyByType: dailyByType,
-             received: received, handedOver: handedOver, pending: pending,
+             received: received, handedOver: handedOver, pending: pending, handedTo: handedTo,
              expenseTotal: expenseTotal, expenses: expenses,
              inHand: collected + received - handedOver - expenseTotal,
              // what is STILL in this person's hand, split by source category

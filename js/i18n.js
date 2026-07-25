@@ -234,6 +234,7 @@ const I18N = {
   q_cash_amount: { bn: 'নগদ কত টাকা?', en: 'Cash amount?' },
   q_upi_amount: { bn: 'UPI-তে কত টাকা?', en: 'UPI amount?' },
   cat_payment: { bn: '🧾 চাঁদা (পুরোনো)', en: '🧾 Chanda (older)' },
+  my_handed_to: { bn: '🤝 কাকে কত জমা দিয়েছি', en: '🤝 Handed over to' },
   cat_other: { bn: 'অন্যান্য (নির্দিষ্ট নয়)', en: 'Other (unassigned)' },
   cat_received: { bn: '🤝 অন্যের জমা', en: '🤝 Received' },
   grp_entry: { bn: '📥 নতুন এন্ট্রি (চাঁদা / বাস)', en: '📥 New entries (chanda / bus)' },

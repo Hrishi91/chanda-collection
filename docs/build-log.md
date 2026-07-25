@@ -2807,3 +2807,40 @@ VERIFIED
 
 STILL OPEN: "কাকে কত জমা দিয়েছি, নাম ধরে + category-wise" in আমার হিসাব (next),
 then the handover report, edit-after-flag, admin-only backup import.
+
+## v3.88.0 — "কাকে কত জমা দিয়েছি" in আমার হিসাব
+
+Hrishi, asked what to add to the personal summary: "কাকে কত জমা দিয়েছি, নাম ধরে"
+— and category-wise.
+
+আমার হিসাব had a single **জমা দিয়েছি** number. Whether that ₹2,100 went to one
+person or three, and out of which categories, was not recoverable from the
+screen. It now lists each receiver by name with cash / UPI / total, and under
+each the categories that went to them:
+
+    🤝 কাকে কত জমা দিয়েছি
+      🧑 Jadav mahato          💵১২০০ · 📱৫০০      ১৭০০
+         ⏳ অপেক্ষায় ২৫০
+         দোকান — 💵১২০০ · 📱০
+         বাস কালেকশন — 💵০ · 📱৫০০
+      🧑 hrishikesh mahato     💵৪০০ · 📱০         ৪০০
+         রোড কালেকশন — 💵৪০০ · 📱০
+
+Nothing is derived: an outgoing handover already names its receiver and carries
+the breakdown, so this is that record read back the way a person would ask for
+it. No schema change, no server change.
+
+Money still awaiting the receiver's confirmation is shown on its own line and is
+NOT counted as handed over — it is still the giver's until confirmed, which is
+the same rule `inHandRows` and `myAvailable` have always used.
+
+VERIFIED
+- 12 new tests, the load-bearing two being that the per-receiver rows add up
+  to the summary's own `handedOver` and `pending` figures — so the detail can
+  never drift from the total printed above it. Also: a pending row is kept out
+  of the categories, and a pre-breakdown row still counts, filed under `other`
+  rather than having a category invented for it. **287 passed, 0 failed.**
+- browser, three handovers to two people: `handedOver 2100`, `pending 250`, and
+  the two rows split 1700 / 400 with their categories. No console errors.
+
+STILL OPEN: the handover report, edit-after-flag, admin-only backup import.

@@ -508,6 +508,39 @@ eq(permAllowed(busOnly, permForRow('payments', {})), true, 'perms: bus-only coll
 eq(permAllowed(busOnly, permForRow('handovers', {})), true, 'perms: bus-only collector may still hand money over');
 eq(permAllowed(null, 'bus'), false, 'perms: no user, no permission');
 
+// ---- "কাকে কত জমা দিয়েছি" ----------------------------------------------------
+// Read straight off one's own outgoing rows, which already name the receiver
+// and carry the breakdown — so it can never disagree with the receiver's screen.
+const htData = {
+  parties: [], payments: [], daily: [], expenses: [], voids: [], corrections: [],
+  handovers: [
+    { id: 'a', fromId: 'yamini', toId: 'jadav', to: 'Jadav mahato', amount: 1700, cashAmount: 1200, upiAmount: 500,
+      status: 'confirmed', breakdown: JSON.stringify({ shop: { cash: 1200, upi: 0 }, bus: { cash: 0, upi: 500 } }) },
+    { id: 'b', fromId: 'yamini', toId: 'hrishi', to: 'hrishikesh mahato', amount: 400, cashAmount: 400, upiAmount: 0,
+      status: 'confirmed', breakdown: JSON.stringify({ road: { cash: 400, upi: 0 } }) },
+    { id: 'c', fromId: 'yamini', toId: 'jadav', to: 'Jadav mahato', amount: 250, cashAmount: 250, upiAmount: 0,
+      status: 'pending', breakdown: JSON.stringify({ toto: { cash: 250, upi: 0 } }) },
+  ],
+};
+const ht = personalSummary(htData, 'yamini').handedTo;
+eq(ht.length, 2, 'handedTo: one row per receiver');
+eq(ht[0].name, 'Jadav mahato', 'handedTo: biggest first, by name');
+eq([ht[0].cash, ht[0].upi, ht[0].total], [1200, 500, 1700], 'handedTo: cash / UPI / total');
+eq(ht[0].cats, [{ key: 'shop', cash: 1200, upi: 0 }, { key: 'bus', cash: 0, upi: 500 }], 'handedTo: category-wise');
+eq(ht[0].pending, 250, 'handedTo: money still awaiting confirmation is shown apart');
+eq(ht[0].cats.some(function (c) { return c.key === 'toto'; }), false, 'handedTo: pending is NOT counted as handed over');
+eq(ht[1].name, 'hrishikesh mahato', 'handedTo: second receiver');
+eq(ht[1].total, 400, 'handedTo: second receiver total');
+// the per-receiver totals must add up to the summary's own handedOver figure
+const htSum = personalSummary(htData, 'yamini');
+eq(ht.reduce(function (a, r) { return a + r.total; }, 0), htSum.handedOver, 'handedTo: rows add up to handedOver');
+eq(ht.reduce(function (a, r) { return a + r.pending; }, 0), htSum.pending, 'handedTo: pending adds up to pending');
+// a pre-breakdown row still names its receiver
+const htLegacy = personalSummary({ parties: [], payments: [], daily: [], expenses: [], voids: [], corrections: [],
+  handovers: [{ id: 'x', fromId: 'yamini', toId: 'jadav', to: 'Jadav mahato', amount: 90, status: 'confirmed' }] }, 'yamini').handedTo;
+eq(htLegacy[0].total, 90, 'handedTo: legacy row without a breakdown still counted');
+eq(htLegacy[0].cats[0].key, 'other', 'handedTo: …its category is "other", nothing invented');
+
 // ---- own money vs other people's parcels -----------------------------------
 // The handover sheet shows what you collected apart from what someone handed
 // you, by giver. Provenance is never inferred: the giver picks a named line, so
