@@ -170,25 +170,84 @@
   // assumption as isCashOnly/reconcile elsewhere). Used to show a collector
   // or cashier their real available amount at handover time, instead of
   // making them recall/type it from memory.
+  // Money-source categories, in the fixed order legacy (breakdown-less)
+  // subtractions drain them. 'payment' = party chanda; road/toto/bus = daily;
+  // 'received' = handovers received without a category breakdown.
+  const AVAIL_CATS = ['payment', 'road', 'toto', 'bus', 'received'];
+  function splitOf(r) {
+    return isCashOnly(r)
+      ? { cash: Number(r.amount) || 0, upi: 0 }
+      : { cash: Number(r.cashAmount) || 0, upi: Number(r.upiAmount) || 0 };
+  }
+  // Subtract `amt` from cats[..][field] in AVAIL_CATS order (deterministic
+  // fallback for legacy handovers/expenses that don't say which category the
+  // money came from). May leave the last touched cat negative if the books
+  // themselves don't balance — mirrored nowhere else, so totals stay honest.
+  function drain(cats, amt, field) {
+    for (let i = 0; i < AVAIL_CATS.length && amt > 0; i++) {
+      const e = cats[AVAIL_CATS[i]];
+      if (!e || e[field] <= 0) continue;
+      const take = Math.min(e[field], amt);
+      e[field] -= take; amt -= take;
+    }
+    if (amt > 0) { // over-drained books: charge the first category
+      const e = cats[AVAIL_CATS[0]] || (cats[AVAIL_CATS[0]] = { cash: 0, upi: 0 });
+      e[field] -= amt;
+    }
+  }
+  // What a person holds RIGHT NOW, split by source category AND by cash/UPI.
+  // Category-exact where the data allows it: handovers carry a `breakdown`
+  // JSON ({cat:{cash,upi}}) since v3.76.0, so both the giver's subtraction
+  // and the receiver's addition stay in the right categories. Legacy rows
+  // (no breakdown) fall back to drain()/the 'received' bucket.
   function myAvailable(data, ident) {
     data = activeData(data);
     const mine = function (r) { return ck(r) === String(ident) || r.collector === ident; };
-    let cash = 0, upi = 0;
-    (data.payments || []).concat(data.daily || []).filter(mine).forEach(function (r) {
-      if (isCashOnly(r)) cash += Number(r.amount) || 0;
-      else { cash += Number(r.cashAmount) || 0; upi += Number(r.upiAmount) || 0; }
+    const cats = {};
+    const add = function (cat, s) {
+      const e = cats[cat] || (cats[cat] = { cash: 0, upi: 0 });
+      e.cash += s.cash; e.upi += s.upi;
+    };
+    const parseBd = function (h) {
+      if (!h.breakdown) return null;
+      try { const b = JSON.parse(h.breakdown); return (b && typeof b === 'object') ? b : null; }
+      catch (e) { return null; }
+    };
+    (data.payments || []).filter(mine).forEach(function (r) { add('payment', splitOf(r)); });
+    (data.daily || []).filter(mine).forEach(function (r) {
+      add(AVAIL_CATS.indexOf(r.type) >= 0 ? r.type : 'road', splitOf(r));
     });
     const isTo = function (h) { return String(h.toId || h.to) === String(ident) || h.to === ident; };
     const isFrom = function (h) { return String(h.fromId || h.from) === String(ident) || h.from === ident; };
     (data.handovers || []).filter(function (h) { return h.status === 'confirmed'; }).forEach(function (h) {
-      const c = isCashOnly(h) ? Number(h.amount) || 0 : Number(h.cashAmount) || 0;
-      const u = isCashOnly(h) ? 0 : Number(h.upiAmount) || 0;
-      if (isTo(h)) { cash += c; upi += u; }
-      if (isFrom(h)) { cash -= c; upi -= u; }
+      const bd = parseBd(h), s = splitOf(h);
+      if (isTo(h)) {
+        if (bd) Object.keys(bd).forEach(function (k) {
+          add(AVAIL_CATS.indexOf(k) >= 0 ? k : 'received',
+              { cash: Number(bd[k].cash) || 0, upi: Number(bd[k].upi) || 0 });
+        });
+        else add('received', s);
+      }
+      if (isFrom(h)) {
+        if (bd) Object.keys(bd).forEach(function (k) {
+          add(AVAIL_CATS.indexOf(k) >= 0 ? k : 'received',
+              { cash: -(Number(bd[k].cash) || 0), upi: -(Number(bd[k].upi) || 0) });
+        });
+        else { drain(cats, s.cash, 'cash'); drain(cats, s.upi, 'upi'); }
+      }
     });
-    const expenseTotal = (data.expenses || []).filter(mine).reduce(function (a, e) { return a + (Number(e.amount) || 0); }, 0);
-    cash -= expenseTotal;
-    return { cash: cash, upi: upi };
+    (data.expenses || []).filter(mine).forEach(function (e) {
+      const amt = Number(e.amount) || 0;
+      // a collection expense says which round it came out of; general
+      // expenses (cashier) drain the pool in the fixed order. Cash only —
+      // nobody spends UPI-in-personal-account on pandal bamboo mid-round.
+      if (e.source === 'collection' && AVAIL_CATS.indexOf(e.collectionType) >= 0 && cats[e.collectionType]) {
+        cats[e.collectionType].cash -= amt;
+      } else drain(cats, amt, 'cash');
+    });
+    let cash = 0, upi = 0;
+    Object.keys(cats).forEach(function (k) { cash += cats[k].cash; upi += cats[k].upi; });
+    return { cash: cash, upi: upi, byCat: cats };
   }
 
   // Parties with outstanding due, biggest due first.

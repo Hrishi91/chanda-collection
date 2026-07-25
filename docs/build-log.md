@@ -1835,3 +1835,53 @@ is meaningless (you can't hand money to yourself).
   "tester") — the "to" step correctly listed only the other two, own name
   gone. No console errors. 115 tests pass (no shared-logic change).
   sw → chanda-v3.75.2. Client-only, static-files redeploy.
+
+## v3.76.0 — Handover by SOURCE category: চাঁদা/রোড/টোটো/বাস, cash-UPI as subtypes
+
+Hrishi's refinement of the handover screen: "category" should mean the
+money's SOURCE (chanda, road, toto, bus…), not cash/UPI — those are subtypes
+of every category. Flow he specified: pick categories → pick cash/UPI/both →
+the amount shows; access-wise (a category the user can't even enter is
+noise); "the calculation and all should be done perfectly".
+
+The "perfectly" part forced a data-model addition: once someone hands over
+PART of their money, per-category remaining is mathematically undefined
+unless the handover itself records which categories it came from. So:
+
+- **Handover rows now carry a `breakdown`** — JSON `{cat:{cash,upi}}` of the
+  selected source categories. Both sides stay exact forever after: the giver's
+  per-category balance drops in exactly those categories, and the RECEIVER's
+  hand shows the money under the same categories (so a cashier handing over
+  to another cashier sees চাঁদা/রোড/বাস chips too, not one opaque "received"
+  lump — Hrishi's "he got the amount from the other collectors and all").
+  `SHEETS.handovers` gained the column (appended at END, migration-safe).
+- **`Aggregate.myAvailable` rewritten** to return `{cash, upi, byCat}`:
+  payments → `payment`; daily by its type; confirmed received handovers →
+  merged per their breakdown (legacy breakdown-less ones → a `received`
+  bucket); confirmed outgoing → subtracted per breakdown, or for legacy rows
+  drained deterministically in fixed category order; collection expenses hit
+  their own `collectionType` category's cash, general expenses drain in
+  order. Totals unchanged (all 10 pre-existing myAvailable tests still pass
+  untouched).
+- **Flow**: the category step now lists source categories (label + real
+  amount; empty categories don't appear — which is also the access story,
+  since you can only hold money in kinds you can enter). Then a mode step
+  whose chips are computed from the SELECTED categories (`optionsFn` — new
+  generic flow-engine support for answer-dependent choice options): "💵 নগদ
+  ₹450 / 📱 UPI ₹200 / 💵+📱 দুটোই ₹650", only modes with money offered. Save
+  derives cashAmount/upiAmount from selection+mode and writes the breakdown.
+  "✏️ অন্য পরিমাণ" still escapes to manual typed entry (no breakdown → the
+  receiver gets it as 'received', still correct in total).
+- Verified live (seeded IndexedDB: chanda 300c+200u, bus 150c, road 80c):
+  title ₹530/₹200 ✓; category chips চাঁদা ₹500 · রোড ₹80 · বাস ₹150 (no toto
+  — no money) ✓; selected চাঁদা+বাস → মোট ₹650 ✓; mode chips নগদ ₹450 / UPI
+  ₹200 / দুটোই ₹650 ✓; saved row amount 650, cash 450, upi 200, breakdown
+  `{"payment":{"cash":300,"upi":200},"bus":{"cash":150,"upi":0}}` ✓; after
+  confirming that handover, giver has only road ₹80 left and the cashier's
+  byCat shows payment 300/200 + bus 150/0 — both sides exact ✓. No console
+  errors. 125 tests pass (10 new byCat cases: breakdown add/subtract, legacy
+  drain order, collection-expense category hit, legacy receive bucket).
+- ⚠️ **Code.gs redeploy needed** (handovers `breakdown` column). Until then
+  the server ignores the extra field — handovers still sync fine, the
+  receiver just sees them as 'received' instead of per-category. Run setup()
+  after deploying to append the header column.

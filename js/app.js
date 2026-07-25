@@ -395,12 +395,17 @@
     if (val === null || val === undefined || val === '') return '—';
     if (step.kind === 'amount') return fmtMoney(val);
     if (step.kind === 'choice') {
-      const o = step.options.find(function (o) { return o.v === val; });
+      const opts = step.optionsFn ? step.optionsFn(flowState.answers) : step.options;
+      const o = opts.find(function (o) { return o.v === val; });
       return o ? (o.labelKey ? t(o.labelKey) : o.label) : val;
     }
     if (step.kind === 'category') {
       if (val === 'custom') return t('custom_amount');
-      return fmtMoney((Number(flowState.answers.cashAmount) || 0) + (Number(flowState.answers.upiAmount) || 0));
+      // val is the selected category keys — show their labels
+      return (Array.isArray(val) ? val : [val]).map(function (k) {
+        const c = step.categories.find(function (x) { return x.key === k; });
+        return c ? t(c.labelKey) : k;
+      }).join(' + ');
     }
     return val;
   }
@@ -504,15 +509,17 @@
     const s = steps[flowState.idx];
     html += '<div class="bubble q now">' + esc(t(s.qKey)) + '</div></div>';
     if (s.kind === 'choice') {
-      html += '<div class="chips">' + s.options.map(function (o) {
+      // optionsFn: options that depend on earlier answers (e.g. handover's
+      // cash/UPI chips showing the selected categories' actual amounts)
+      html += '<div class="chips">' + (s.optionsFn ? s.optionsFn(flowState.answers) : s.options).map(function (o) {
         return '<button class="chip" data-v="' + esc(o.v) + '">' +
                esc(o.labelKey ? t(o.labelKey) : o.label) + '</button>';
       }).join('') + '</div>';
     } else if (s.kind === 'category') {
-      // multi-select category chips (e.g. handover: which of cash/UPI, each
-      // showing the real available amount) — toggle, see the running total,
-      // then confirm. No typing needed for the common "hand over what I
-      // have" case; "✏️ অন্য পরিমাণ" escapes to manual mode/amount entry.
+      // multi-select source-category chips (handover: চাঁদা/রোড/টোটো/বাস/
+      // received, each showing the real available amount) — toggle, see the
+      // running total, then confirm. No typing needed for the common "hand
+      // over what I have" case; "✏️ অন্য পরিমাণ" escapes to manual entry.
       html += '<div class="chips">' + s.categories.map(function (c) {
         return '<button class="chip cat-chip" data-cat="' + esc(c.key) + '" data-amt="' + c.amount + '">' +
                esc(t(c.labelKey)) + ' ' + fmtMoney(c.amount) + '</button>';
@@ -590,7 +597,7 @@
       nextB.onclick = function () {
         const sel = Array.prototype.filter.call(catChips, function (c) { return c.classList.contains('on'); })
           .map(function (c) { return c.dataset.cat; });
-        submitCategorySelection(sel, s.categories);
+        submitCategorySelection(sel);
       };
       document.getElementById('cat-custom').onclick = function () { submitCategoryCustom(); };
     }
@@ -598,18 +605,9 @@
   // The category step's confirm — sets cashAmount/upiAmount directly from the
   // selected chips (bypassing the hidden manual payMode/cashAmount/upiAmount
   // steps entirely) and advances like a normal submitAnswer.
-  function submitCategorySelection(selectedKeys, categories) {
-    let cash = 0, upi = 0;
-    selectedKeys.forEach(function (k) {
-      const c = categories.find(function (x) { return x.key === k; });
-      if (!c) return;
-      if (k === 'cash') cash = c.amount; else if (k === 'upi') upi = c.amount;
-    });
+  function submitCategorySelection(selectedKeys) {
     const step = flowState.def.steps[flowState.idx];
-    flowState.answers[step.key] = 'selected';
-    flowState.answers.payMode = (cash > 0 && upi > 0) ? 'both' : (upi > 0 ? 'upi' : 'cash');
-    flowState.answers.cashAmount = cash;
-    flowState.answers.upiAmount = upi;
+    flowState.answers[step.key] = selectedKeys; // array of category keys
     flowState.idx++; skipHidden();
     if (flowState.idx >= flowState.def.steps.length) finishFlow(); else renderEntry();
   }
@@ -765,17 +763,46 @@
       ? { key: 'to', qKey: 'q_handover_to', kind: 'choice',
           options: opts.map(function (c) { return { v: c.username, label: c.name }; }) }
       : { key: 'to', qKey: 'q_handover_to', kind: 'text' };
-    // Categories the collector/cashier actually has — tap to select (one or
-    // both), see the running total, confirm. No typing for the common "hand
-    // over what I have" case. "✏️ অন্য পরিমাণ" escapes to manual mode→cash→
-    // UPI entry (its steps only appear when that escape hatch was used).
-    const categories = [];
-    if (avail.cash > 0) categories.push({ key: 'cash', labelKey: 'mode_cash', amount: avail.cash });
-    if (avail.upi > 0) categories.push({ key: 'upi', labelKey: 'mode_upi', amount: avail.upi });
-    const isCustom = function (a) { return a.moneycat === 'custom'; };
+    // Source categories the collector/cashier actually holds money in —
+    // চাঁদা / রোড / টোটো / বাস / অন্যের-জমা. Only categories with money
+    // appear (which also makes the list permission-shaped: you can't hold
+    // bus money without bus access). Flow: pick categories → pick নগদ/UPI/
+    // দুটোই (each chip shows the selected categories' real amount) → save.
+    // "✏️ অন্য পরিমাণ" escapes to manual typed entry for partial handovers.
+    const CAT_LABELS = { payment: 'cat_payment', road: 'daily_road', toto: 'daily_toto',
+                         bus: 'daily_bus', received: 'cat_received' };
+    const byCat = avail.byCat || {};
+    const categories = Object.keys(CAT_LABELS).filter(function (k) {
+      return byCat[k] && (byCat[k].cash + byCat[k].upi) > 0;
+    }).map(function (k) {
+      return { key: k, labelKey: CAT_LABELS[k], amount: byCat[k].cash + byCat[k].upi,
+               cash: Math.max(0, byCat[k].cash), upi: Math.max(0, byCat[k].upi) };
+    });
+    const isCustom = function (a) { return a.srcCats === 'custom'; };
+    // sum the selected categories' cash/upi (what the dynamic mode chips show)
+    const selSums = function (a) {
+      let c = 0, u = 0;
+      (Array.isArray(a.srcCats) ? a.srcCats : []).forEach(function (k) {
+        const cat = categories.find(function (x) { return x.key === k; });
+        if (cat) { c += cat.cash; u += cat.upi; }
+      });
+      return { cash: c, upi: u };
+    };
     const moneySteps_ = categories.length
       ? [
-          { key: 'moneycat', qKey: 'q_handover_amount', kind: 'category', categories: categories },
+          { key: 'srcCats', qKey: 'q_handover_cats', kind: 'category', categories: categories },
+          // selection path: mode chips carry the real amounts of the chosen
+          // categories; only modes with money in them are offered.
+          { key: 'payMode', qKey: 'q_handover_mode', kind: 'choice',
+            showIf: function (a) { return Array.isArray(a.srcCats); },
+            optionsFn: function (a) {
+              const s = selSums(a), o = [];
+              if (s.cash > 0) o.push({ v: 'cash', label: t('mode_cash') + ' ' + fmtMoney(s.cash) });
+              if (s.upi > 0) o.push({ v: 'upi', label: t('mode_upi') + ' ' + fmtMoney(s.upi) });
+              if (s.cash > 0 && s.upi > 0) o.push({ v: 'both', label: t('mode_both') + ' ' + fmtMoney(s.cash + s.upi) });
+              return o;
+            } },
+          // custom path: the old manual mode → typed amounts
           { key: 'payMode', qKey: 'q_mode', kind: 'choice', options: modeOptions(false), showIf: isCustom },
           { key: 'cashAmount', qKey: 'q_cash_amount', kind: 'amount',
             showIf: function (a) { return isCustom(a) && needCash(a); } },
@@ -796,7 +823,21 @@
         { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
       ]),
       save: function (a) {
-        const m = moneyOf(a);
+        let m, breakdown = null;
+        if (Array.isArray(a.srcCats)) {
+          // category path: amounts come from the selected categories + mode,
+          // and the handover records exactly which category gave what — so
+          // both sides' per-category books stay exact after this handover.
+          breakdown = {}; let cash = 0, upi = 0;
+          a.srcCats.forEach(function (k) {
+            const cat = categories.find(function (x) { return x.key === k; });
+            if (!cat) return;
+            const c = a.payMode !== 'upi' ? cat.cash : 0;
+            const u = a.payMode !== 'cash' ? cat.upi : 0;
+            if (c > 0 || u > 0) { breakdown[k] = { cash: c, upi: u }; cash += c; upi += u; }
+          });
+          m = { cash: cash, upi: upi, total: cash + upi };
+        } else m = moneyOf(a);
         if (m.total <= 0) return Promise.reject(new Error('zero'));
         // when picked from the list, a.to is a username → resolve name + id;
         // when typed free (offline), a.to is a name with no id.
@@ -808,6 +849,7 @@
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
           date: todayISO(), note: a.note || '',
           status: 'pending', confirmedBy: '', confirmedAt: '',
+          breakdown: breakdown ? JSON.stringify(breakdown) : '',
         });
         return DB.put('handovers', row).then(function () {
           return { undo: [{ store: 'handovers', id: row.id }], after: { buttons: [

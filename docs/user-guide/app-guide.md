@@ -70,9 +70,13 @@ syncs immediately if online.
 
 ## 🤝 Handover & confirmation
 
-Tap **🤝 Hand over** → choose a cashier. Pick your real cash and/or UPI from
-buttons showing the exact amount — the total adds up automatically, no
-typing ("✏️ Different amount" for a partial handover instead). It becomes
+Tap **🤝 Hand over** → choose a cashier. Pick **which collections** (chanda /
+road / toto / bus / received) — each button shows your real amount, only
+categories holding money appear — then pick cash / UPI / both (those buttons
+carry the picked categories' real amounts too). The total adds up
+automatically, no typing ("✏️ Different amount" for a partial handover
+instead). The handover records the category split, so the receiving
+cashier's own hand shows the money under the same categories. It becomes
 confirmed only when the
 cashier opens **✅ Confirm receipts** and taps "Received". Until
 confirmed, the money stays counted **in the collector's hand** (shown as

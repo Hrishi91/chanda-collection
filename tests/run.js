@@ -157,6 +157,42 @@ eq(availZ.upi, 250, 'available: Z upi = collected 300 - handed(confirmed) 50');
 const availW = myAvailable(availSplit, 'W');
 eq(availW.cash, 100, 'available: W received cash (confirmed only, pending excluded)');
 eq(availW.upi, 50, 'available: W received upi (confirmed only, pending excluded)');
+// legacy (breakdown-less) handovers land in the receiver's 'received' bucket
+eq(availW.byCat.received.cash, 100, 'available: W legacy receive → received cat');
+
+// ---- myAvailable byCat (source-category split for the handover screen) ----
+const catData = {
+  payments: [{ collector: 'K', amount: 500, cashAmount: 300, upiAmount: 200 }],
+  daily: [
+    { collector: 'K', type: 'bus', amount: 150, cashAmount: 150, upiAmount: 0 },
+    { collector: 'K', type: 'road', amount: 80 },              // legacy → all cash
+  ],
+  expenses: [{ collector: 'K', amount: 30, source: 'collection', collectionType: 'road' }],
+  handovers: [
+    // K handed the bus money to M with an exact breakdown
+    { fromId: 'K', toId: 'M', amount: 150, cashAmount: 150, upiAmount: 0,
+      status: 'confirmed', breakdown: '{"bus":{"cash":150,"upi":0}}' },
+  ],
+};
+const availK = myAvailable(catData, 'K');
+eq(availK.byCat.payment.cash, 300, 'byCat: K chanda cash intact');
+eq(availK.byCat.payment.upi, 200, 'byCat: K chanda upi intact');
+eq(availK.byCat.road.cash, 50, 'byCat: K road 80 - collection expense 30');
+eq(availK.byCat.bus.cash, 0, 'byCat: K bus emptied by breakdown handover');
+eq(availK.cash, 350, 'byCat: K total cash 300+50');
+const availM = myAvailable(catData, 'M');
+eq(availM.byCat.bus.cash, 150, 'byCat: M received the bus money AS bus (breakdown)');
+// legacy outgoing handover (no breakdown) drains categories in fixed order
+const legacyOut = {
+  payments: [{ collector: 'L', amount: 100, cashAmount: 100, upiAmount: 0 }],
+  daily: [{ collector: 'L', type: 'toto', amount: 60, cashAmount: 60, upiAmount: 0 }],
+  expenses: [],
+  handovers: [{ fromId: 'L', toId: 'M', amount: 120, cashAmount: 120, upiAmount: 0, status: 'confirmed' }],
+};
+const availL = myAvailable(legacyOut, 'L');
+eq(availL.byCat.payment.cash, 0, 'byCat: legacy drain empties payment first');
+eq(availL.byCat.toto.cash, 40, 'byCat: legacy drain takes remainder from toto');
+eq(availL.cash, 40, 'byCat: legacy drain total right');
 
 const dues = duesList(parties, payments);
 eq(dues.length, 2, 'dues count (p2 600, p3 300; p1 cleared)');

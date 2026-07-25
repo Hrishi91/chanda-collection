@@ -21,7 +21,10 @@ var SHEETS = {
   daily:    ['id', 'year', 'type', 'busName', 'busNumber', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo'],
   expenses: ['id', 'year', 'subject', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole'],
   handovers: ['id', 'year', 'from', 'to', 'amount', 'cashAmount', 'upiAmount', 'date', 'note',
-              'status', 'confirmedBy', 'confirmedAt', 'collector', 'createdAt', 'receivedAt', 'fromId', 'toId', 'collectorId', 'collectorRole'],
+              'status', 'confirmedBy', 'confirmedAt', 'collector', 'createdAt', 'receivedAt', 'fromId', 'toId', 'collectorId', 'collectorRole',
+              // JSON {cat:{cash,upi}} of which source categories the money
+              // came from — keeps both sides' per-category in-hand exact
+              'breakdown'],
   // audit-preserving corrections: a void points at another record's id
   voids: ['id', 'year', 'targetStore', 'targetId', 'reason', 'collector', 'createdAt', 'receivedAt', 'collectorId'],
   // a collector's "this is wrong" flag → a cashier/admin approves(void)/rejects

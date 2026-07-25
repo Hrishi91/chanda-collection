@@ -120,13 +120,13 @@ window.HELP = [
     title: { bn: 'জমা দেওয়া ও confirm', en: 'Handover & confirmation' },
     body: {
       bn: [
-        'তোমার হাতে টাকা জমে গেলে <b>🤝 জমা দিলাম</b> → কোন cashier। তারপর তোমার আসল <b>নগদ</b> আর <b>UPI</b> — দুটোই আলাদা বোতামে অঙ্কসহ দেখাবে; একটা বা দুটোই চেপে বাছো, নিচে <b>মোট</b> নিজে থেকে যোগ হয়ে দেখাবে — টাইপ করতে হয় না। ভিন্ন কোনো (আংশিক) amount দিতে চাইলে <b>"✏️ অন্য পরিমাণ"</b> চেপে টাইপ করে দাও।',
+        'তোমার হাতে টাকা জমে গেলে <b>🤝 জমা দিলাম</b> → কোন cashier। তারপর <b>কোন খাতের টাকা</b> — চাঁদা / রোড / টোটো / বাস / অন্যের-জমা — প্রতিটা বোতামে আসল অঙ্কসহ দেখাবে (যে খাতে টাকা নেই সেটা দেখাবেই না); এক বা একাধিক বাছো, নিচে <b>মোট</b> নিজে থেকে যোগ হবে। তারপর <b>নগদ / UPI / দুটোই</b> — এখানেও প্রতিটা বোতামে বাছাই-করা খাতগুলোর আসল টাকা লেখা থাকবে। কোথাও টাইপ করতে হয় না। ভিন্ন (আংশিক) amount দিতে <b>"✏️ অন্য পরিমাণ"</b> চেপে টাইপ করো।',
         'Cashier <b>✅ জমা নেওয়া confirm</b>-এ গিয়ে "জমা নিলাম" চাপলে তবেই সেটা confirmed হয়।',
         'Confirm হওয়ার আগ পর্যন্ত টাকা <b>তোমার হাতেই</b> ধরা থাকে (report-এ "confirm বাকি" দেখায়)।',
         'এতে "কার হাতে কত টাকা" সবসময় ঠিক থাকে — কোনো বিবাদ নেই।',
       ],
       en: [
-        'When cash builds up, tap <b>🤝 Hand over</b> → choose a cashier. Then pick your real <b>cash</b> and/or <b>UPI</b> from buttons that show the exact amount — the <b>total</b> adds up automatically, no typing. For a different (partial) amount, tap <b>"✏️ Different amount"</b> to type it instead.',
+        'When cash builds up, tap <b>🤝 Hand over</b> → choose a cashier. Then pick <b>which collections</b> — chanda / road / toto / bus / received — each button shows the real amount (categories with no money don\'t appear at all); pick one or more and the <b>total</b> adds up automatically. Then <b>cash / UPI / both</b> — those buttons also carry the picked categories\' real amounts. No typing anywhere. For a different (partial) amount, tap <b>"✏️ Different amount"</b> to type it instead.',
         'It becomes confirmed only when the cashier opens <b>✅ Confirm receipts</b> and taps "Received".',
         'Until confirmed, the money stays counted <b>in your hand</b> (shown as "awaiting confirm").',
         'This keeps "cash in hand by collector" always correct — no disputes.',

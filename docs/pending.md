@@ -208,6 +208,17 @@ on his phone after the redeploy).
       back to free-text if that leaves zero other cashiers. No server
       change needed (not a security gate — a self-handover would net to
       zero anyway)~~ (2026-07-25, v3.75.2)
+- [x] ~~Handover v3: category = money's SOURCE (চাঁদা/রোড/টোটো/বাস/
+      received), cash-UPI as subtypes. Pick categories (each chip shows
+      the real amount; empty categories hidden = access-shaped) → pick
+      নগদ/UPI/দুটোই (chips carry the selected categories' amounts) → save.
+      Handover rows now record a `breakdown` JSON so BOTH sides' per-
+      category books stay exact — the receiving cashier sees the money
+      under the original categories too (cashier→cashier shows চাঁদা/বাস…
+      chips, not one lump)~~ (2026-07-25, v3.76.0)
+- ⚠️ v3.76.0 needs a **Code.gs redeploy** (handovers `breakdown` column,
+  appended at end) + run setup(). Until then handovers sync fine but the
+  receiver sees them as 'received' instead of per-category.
 - Declined by Hrishi (asked first, not guessed): generic amount quick-tap
   presets for entry flows (payment/daily/new-party), and softening the
   persistent training banner — both left as-is.
