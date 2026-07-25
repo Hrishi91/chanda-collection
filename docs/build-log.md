@@ -1986,3 +1986,28 @@ notifData_/pendingHandovers). Probed live: `login` → "bad-login", `pull` →
 network-first + excluded from the SW precache, so no VERSION bump needed —
 devices pick the new URL up on next open. Remaining server step: Hrishi
 runs `setup()` once (appends the `breakdown` header to Handovers).
+
+## Full functional verification against the LIVE breakdown deployment
+
+Hrishi shared a fresh session token (hrishi91/admin); ran the complete
+matrix against AKfycby9… — read-only first, then disposable training-mode
+writes (all "AUDIT TEST"-labelled, all voided afterwards; Go Live wipes
+them regardless). No admin operations performed, per the standing boundary.
+
+| Check | Result |
+|---|---|
+| `pull` full: me/notif/config ride along, live_mode=training | ✓ |
+| Handovers rows carry the `breakdown` key → setup() ran | ✓ |
+| Reconcile on real data | ✓ balanced 8200−200=8000 (only the 4 pre-known test-data anomalies) |
+| `myAvailable(hrishi91)` byCat matches what his phone showed (💵6800/📱10500) | ✓ |
+| push: road entry + handover with breakdown JSON | ✓ savedIds, no rejections |
+| breakdown round-trips byte-identical through the Sheet | ✓ `{"road":{"cash":2,"upi":0}}` |
+| **A7 live**: pendingHandovers lists the pending audit handover, then hides it the moment its void lands | ✓ |
+| Receipt serial on new payment | ✓ `2026000010` (year+6-digit atomic counter) |
+| Cleanup voids (handover, road, payment, party) accepted | ✓ |
+| Post-cleanup reconcile identical to pre-test; notif zero; availability unchanged | ✓ |
+| Delta cursor present for incremental pulls | ✓ |
+
+Token is Hrishi's to rotate (re-login) now that verification is done.
+The audit-* rows stay in the Sheet as voided history until Go Live wipes
+everything — nothing to hand-clean.
