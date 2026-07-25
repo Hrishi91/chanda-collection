@@ -107,11 +107,6 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
 .chip.on { background: var(--saffron); border-color: var(--saffron); color: #fff; }
 .flow-actions { display: flex; gap: 10px; margin-top: 10px; }
 .flow-actions .primary { flex: 1; }
-.summary .sum-row {
-  display: flex; justify-content: space-between; gap: 10px; padding: 10px 0;
-  border-bottom: 1px solid var(--line); font-size: 15px; cursor: pointer;
-}
-.summary .sum-row span { color: var(--sub); }
 .search {
   width: 100%; padding: 12px 14px; font-size: 16px; border: 1.5px solid var(--line);
   border-radius: 12px; margin-bottom: 10px; background: var(--card);
@@ -147,6 +142,19 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
   max-width: 90vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast-undo {
+  display: flex; align-items: center; gap: 12px; white-space: normal;
+}
+.toast-undo-btn {
+  background: none; border: 0; color: var(--gold); font-size: 15px; font-weight: 700;
+  padding: 2px 0; cursor: pointer; text-transform: uppercase; letter-spacing: .3px;
+}
+
+/* ---- flow step transition: a light slide-in so rapid taps feel responsive
+   instead of a jarring instant redraw (no JS, pure CSS on the newest bubble) ---- */
+.bubble.q.now { animation: bubble-in .18s ease-out; }
+@keyframes bubble-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+.chips, .input-row, .flow-actions { animation: bubble-in .18s ease-out; }
 
 /* ---- report print / save-as-PDF ---- */
 #print-area { display: none; }

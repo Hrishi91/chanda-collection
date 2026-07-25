@@ -158,6 +158,26 @@ full detail behind each line.
       loops) + server-side push permission gating (mirrors client
       entryAllowed_, rejects tampered pushes)~~
 
+## P0.10 — UX speed pass: instant save + Undo (2026-07-25, DONE, needs a client-only redeploy)
+
+Hrishi: the collection process shouldn't feel slow/suffocating. See
+build-log v3.72.0 for the full detail; live-verified in a local harness
+(no real login token available this session — Hrishi should still spot-check
+on his phone after the redeploy).
+
+- [x] ~~Removed the separate confirm/summary screen — the last answer in any
+      entry flow now saves instantly, with a 5s "ফিরিয়ে নাও / Undo" toast as
+      the safety net instead~~
+- [x] ~~Undo respects the void-permission rule: unsynced rows delete cleanly,
+      already-synced rows are left alone with a pointer to "আমার এন্ট্রি"~~
+- [x] ~~Zero-amount / declined-duplicate failures rewind to the field that
+      needs fixing instead of losing the whole entry~~
+- Declined by Hrishi (asked first, not guessed): amount quick-tap presets,
+  and softening the persistent training banner — both left as-is.
+- ⚠️ Static-files-only redeploy needed (GitHub Pages push, no Code.gs
+  change) — sw bumped to v3.72.0 so the new app.js/db.js/i18n.js/css reach
+  every device on next open.
+
 ## Next decision — Go Live
 
 Training mode is still ON (default since it shipped). Every entry made so

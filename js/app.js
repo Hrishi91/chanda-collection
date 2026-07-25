@@ -27,6 +27,42 @@
     setTimeout(function () { el.classList.add('show'); }, 10);
     setTimeout(function () { el.classList.remove('show'); setTimeout(function () { el.remove(); }, 300); }, 2200);
   }
+  // Toast with an inline Undo action (5s window) — used after an instant save
+  // so entry stays fast (no confirm screen) without losing an escape hatch.
+  function toastUndo(msg, onUndo) {
+    const el = document.createElement('div');
+    el.className = 'toast toast-undo';
+    el.innerHTML = '<span>' + esc(msg) + '</span><button class="toast-undo-btn">' + esc(t('undo')) + '</button>';
+    document.body.appendChild(el);
+    let done = false;
+    const finish = function () {
+      if (done) return; done = true;
+      el.classList.remove('show'); setTimeout(function () { el.remove(); }, 300);
+    };
+    setTimeout(function () { el.classList.add('show'); }, 10);
+    const timer = setTimeout(finish, 5000);
+    el.querySelector('.toast-undo-btn').onclick = function () {
+      clearTimeout(timer); finish(); onUndo();
+    };
+  }
+  // Retract the rows a just-finished save created — only the ones that never
+  // left the device (synced:0) can be cleanly deleted; anything already synced
+  // is left alone (undo_partial tells the user to void it from "my entries"
+  // instead, respecting the void-permission rule rather than bypassing it).
+  function attemptUndo(list) {
+    let skipped = false;
+    Promise.all((list || []).map(function (u) {
+      return DB.get(u.store, u.id).then(function (row) {
+        if (!row) return;
+        if (row.synced) { skipped = true; return; }
+        return DB.del(u.store, u.id);
+      });
+    })).then(function () {
+      toast(t(skipped ? 'undo_partial' : 'undo_done'));
+      updateBadge();
+      render();
+    });
+  }
   // Calendar date in IST (UTC+5:30), independent of the device timezone —
   // a plain toISOString() is UTC, so a midnight–5:30am IST entry would get
   // stamped with the previous day.
@@ -342,7 +378,7 @@
   // ---------- flow engine ----------
   // step: {key, qKey, kind:text|amount|choice, options:[{v,labelKey}], optional, showIf(answers)}
   function startFlow(def) {
-    flowState = { def: def, answers: Object.assign({}, def.presets || {}), idx: 0, editIdx: -1 };
+    flowState = { def: def, answers: Object.assign({}, def.presets || {}), idx: 0 };
     try { history.pushState({ v: 'entry' }, ''); } catch (e) {} // Back cancels the entry
     skipHidden();
     renderEntry();
@@ -389,9 +425,51 @@
     }
     flowState.answers[step.key] = val;
     Voice.stop();
-    if (flowState.editIdx >= 0) { flowState.editIdx = -1; flowState.idx = flowState.def.steps.length; }
-    else { flowState.idx++; skipHidden(); }
-    renderEntry();
+    flowState.idx++; skipHidden();
+    if (flowState.idx >= flowState.def.steps.length) finishFlow();
+    else renderEntry();
+  }
+  // Save immediately once the last step is answered — no separate confirm
+  // screen (the chat transcript above already shows every answer). A failed
+  // save (e.g. total ₹0) rewinds to the field that needs fixing instead of
+  // losing the rest of the answers.
+  function finishFlow() {
+    const def = flowState.def;
+    def.save(flowState.answers).then(function (result) {
+      const r = result || {};
+      flowState = null;
+      updateBadge(); autoSync();
+      if (r.after) renderAfter(r.after); else navigate(def.returnTo || 'home');
+      if (r.undo && r.undo.length) toastUndo(t('saved'), function () { attemptUndo(r.undo); });
+      else toast(t('saved'));
+    }).catch(function (e) {
+      const msg = String(e && e.message);
+      if (msg === 'zero') { toast(t('amount_zero')); rewindToAmount() || goBack(); }
+      else if (msg === 'cancelled') { rewindToKey('name') || goBack(); }
+      else { toast(t('amount_zero')); rewindToAmount() || goBack(); }
+    });
+  }
+  // Land back on the money-amount step after a zero-total rejection.
+  function rewindToAmount() {
+    const steps = flowState.def.steps;
+    for (let i = steps.length - 1; i >= 0; i--) {
+      if (visible(steps[i]) && steps[i].kind === 'amount') {
+        delete flowState.answers[steps[i].key];
+        flowState.idx = i; renderEntry();
+        return true;
+      }
+    }
+    return false;
+  }
+  // Land back on a named step (e.g. 'name', after a declined duplicate-party
+  // confirm) so the user can change exactly the field that caused the issue.
+  function rewindToKey(key) {
+    const steps = flowState.def.steps;
+    const i = steps.findIndex(function (s) { return s.key === key; });
+    if (i < 0) return false;
+    delete flowState.answers[key];
+    flowState.idx = i; renderEntry();
+    return true;
   }
   function goBack() {
     Voice.stop();
@@ -405,6 +483,9 @@
     renderEntry();
   }
 
+  // Only ever called with flowState.idx pointing at an unanswered, visible
+  // step — the last step's submitAnswer routes straight to finishFlow()
+  // instead of back here, so there is no separate confirm screen to render.
   function renderEntry() {
     const def = flowState.def, steps = def.steps;
     let html = '<div class="flow"><div class="flow-title">' + esc(def.title) + '</div><div class="chat">';
@@ -414,38 +495,24 @@
       html += '<div class="bubble q">' + esc(t(s.qKey)) + '</div>';
       html += '<div class="bubble a">' + esc(answerDisplay(s, flowState.answers[s.key])) + '</div>';
     }
-    if (flowState.idx < steps.length) {
-      const s = steps[flowState.idx];
-      html += '<div class="bubble q now">' + esc(t(s.qKey)) + '</div></div>';
-      if (s.kind === 'choice') {
-        html += '<div class="chips">' + s.options.map(function (o) {
-          return '<button class="chip" data-v="' + esc(o.v) + '">' +
-                 esc(o.labelKey ? t(o.labelKey) : o.label) + '</button>';
-        }).join('') + '</div>';
-      } else {
-        html += '<div class="input-row">' +
-          '<input id="flow-input" ' + (s.kind === 'amount' ? 'inputmode="text" placeholder="৫০০ / পাঁচশো"' : '') +
-          ' autocomplete="off">' +
-          (Voice.supported() ? '<button id="mic-btn" class="mic">🎤</button>' : '') +
-          '<button id="next-btn" class="primary">' + esc(t('next')) + '</button></div>' +
-          '<div class="hint" id="flow-hint">' + esc(Voice.supported() ? t('mic_hint') : '') + '</div>';
-      }
-      html += '<div class="flow-actions">' +
-        (s.optional ? '<button id="skip-btn" class="ghost">' + esc(t('skip')) + '</button>' : '') +
-        '<button id="back-btn" class="ghost">' + esc(t('back')) + '</button></div>';
+    const s = steps[flowState.idx];
+    html += '<div class="bubble q now">' + esc(t(s.qKey)) + '</div></div>';
+    if (s.kind === 'choice') {
+      html += '<div class="chips">' + s.options.map(function (o) {
+        return '<button class="chip" data-v="' + esc(o.v) + '">' +
+               esc(o.labelKey ? t(o.labelKey) : o.label) + '</button>';
+      }).join('') + '</div>';
     } else {
-      // summary + confirm
-      html += '</div><div class="card summary"><div class="card-title">' + esc(t('confirm_title')) + '</div>' +
-        '<div class="hint" style="margin:-4px 0 8px">' + esc(t('edit_hint')) + '</div>';
-      steps.forEach(function (s, i) {
-        if (!visible(s) || flowState.answers[s.key] === undefined) return;
-        html += '<div class="sum-row" data-i="' + i + '"><span>' + esc(t(s.qKey)) + '</span>' +
-                '<b>' + esc(answerDisplay(s, flowState.answers[s.key])) + '</b> ✏️</div>';
-      });
-      html += '</div><div class="flow-actions">' +
-        '<button id="save-btn" class="primary big">' + esc(t('save')) + '</button>' +
-        '<button id="cancel-btn" class="ghost">' + esc(t('cancel')) + '</button></div>';
+      html += '<div class="input-row">' +
+        '<input id="flow-input" ' + (s.kind === 'amount' ? 'inputmode="text" placeholder="৫০০ / পাঁচশো"' : '') +
+        ' autocomplete="off">' +
+        (Voice.supported() ? '<button id="mic-btn" class="mic">🎤</button>' : '') +
+        '<button id="next-btn" class="primary">' + esc(t('next')) + '</button></div>' +
+        '<div class="hint" id="flow-hint">' + esc(Voice.supported() ? t('mic_hint') : '') + '</div>';
     }
+    html += '<div class="flow-actions">' +
+      (s.optional ? '<button id="skip-btn" class="ghost">' + esc(t('skip')) + '</button>' : '') +
+      '<button id="back-btn" class="ghost">' + esc(t('back')) + '</button></div>';
     html += '</div>';
     $view().innerHTML = html;
 
@@ -481,27 +548,6 @@
     if (skipB) skipB.onclick = function () { submitAnswer(flowState.def.steps[flowState.idx].kind === 'amount' ? null : ''); };
     const backB = document.getElementById('back-btn');
     if (backB) backB.onclick = goBack;
-    document.querySelectorAll('.sum-row').forEach(function (r) {
-      r.onclick = function () {
-        const i = Number(r.dataset.i);
-        flowState.editIdx = i; flowState.idx = i;
-        delete flowState.answers[flowState.def.steps[i].key];
-        renderEntry();
-      };
-    });
-    const saveB = document.getElementById('save-btn');
-    if (saveB) saveB.onclick = function () {
-      saveB.disabled = true;
-      flowState.def.save(flowState.answers).then(function (afterOpts) {
-        toast(t('saved')); updateBadge(); autoSync();
-        if (afterOpts) renderAfter(afterOpts); else navigate(flowState.def.returnTo || 'home');
-      }).catch(function (e) {
-        saveB.disabled = false;
-        if (String(e && e.message) !== 'cancelled') toast(t('amount_zero'));
-      });
-    };
-    const cancelB = document.getElementById('cancel-btn');
-    if (cancelB) cancelB.onclick = function () { flowState = null; navigate('home'); };
   }
 
   function renderAfter(opts) {
@@ -547,14 +593,17 @@
       location: a.location || '', phone: a.phone || '', pledged: a.pledged || 0,
     });
     const m = moneyOf(a);
+    let paymentId = null;
     return DB.put('parties', party).then(function () {
       if (m.total > 0) {
-        return DB.put('payments', DB.newRow({
+        const pay = DB.newRow({
           partyId: party.id, partyName: party.name, amount: m.total,
           cashAmount: m.cash, upiAmount: m.upi, date: todayISO(), note: '',
-        }));
+        });
+        paymentId = pay.id;
+        return DB.put('payments', pay);
       }
-    }).then(function () { return party; });
+    }).then(function () { return { party: party, paymentId: paymentId }; });
   }
   function newPartyFlow(type, presets, bulk) {
     return {
@@ -577,13 +626,15 @@
           const dup = existing.some(function (p) { return String(p.name || '').trim().toLowerCase() === nm; });
           if (dup && !window.confirm(t('dup_party_warn'))) throw new Error('cancelled');
           return savePartyAndFirstPayment(type, a);
-        }).then(function (party) {
-          if (!bulk) return null;
-          return { buttons: [
+        }).then(function (res) {
+          const undo = [{ store: 'parties', id: res.party.id }];
+          if (res.paymentId) undo.push({ store: 'payments', id: res.paymentId });
+          if (!bulk) return { undo: undo };
+          return { undo: undo, after: { buttons: [
             { label: t('one_more_shop'), action: function () {
-                startFlow(newPartyFlow('shop', { side: party.side }, true)); } },
+                startFlow(newPartyFlow('shop', { side: res.party.side }, true)); } },
             { label: t('done_for_now'), action: function () { navigate('home'); } },
-          ] };
+          ] } };
         });
       },
     };
@@ -598,11 +649,12 @@
       save: function (a) {
         const m = moneyOf(a);
         if (m.total <= 0) return Promise.reject(new Error('zero'));
-        return DB.put('payments', DB.newRow({
+        const row = DB.newRow({
           partyId: party.id, partyName: party.name, amount: m.total,
           cashAmount: m.cash, upiAmount: m.upi,
           date: todayISO(), note: a.note || '',
-        })).then(function () { return null; });
+        });
+        return DB.put('payments', row).then(function () { return { undo: [{ store: 'payments', id: row.id }] }; });
       },
     };
   }
@@ -630,13 +682,14 @@
         // when typed free (offline), a.to is a name with no id.
         const toId = byUser[a.to] !== undefined ? a.to : '';
         const toName = byUser[a.to] !== undefined ? byUser[a.to] : a.to;
-        return DB.put('handovers', DB.newRow({
+        const row = DB.newRow({
           from: Settings.get('collectorName'), fromId: Settings.get('collectorUsername') || '',
           to: toName, toId: toId,
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
           date: todayISO(), note: a.note || '',
           status: 'pending', confirmedBy: '', confirmedAt: '',
-        })).then(function () { return null; });
+        });
+        return DB.put('handovers', row).then(function () { return { undo: [{ store: 'handovers', id: row.id }] }; });
       },
     };
   }
@@ -659,16 +712,17 @@
       save: function (a) {
         const m = moneyOf(a);
         if (m.total <= 0) return Promise.reject(new Error('zero'));
-        return DB.put('daily', DB.newRow({
+        const row = DB.newRow({
           type: type, busName: a.busName || '', busNumber: a.busNumber || '',
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
           date: todayISO(), note: a.note || '',
-        })).then(function () {
-          return { buttons: [
+        });
+        return DB.put('daily', row).then(function () {
+          return { undo: [{ store: 'daily', id: row.id }], after: { buttons: [
             { label: '➕ ' + t('daily_' + type), action: function () { startFlow(dailyFlow(type)); } },
             { label: t('coll_expense'), action: function () { startFlow(collectionExpenseFlow(type)); } },
             { label: t('done_for_now'), action: function () { navigate('home'); } },
-          ] };
+          ] } };
         });
       },
     };
@@ -692,11 +746,12 @@
       save: function (a) {
         if (!(Number(a.amount) > 0)) return Promise.reject(new Error('zero'));
         const isOther = a.subject === OTHER_SUBJECT;
-        return DB.put('expenses', DB.newRow({
+        const row = DB.newRow({
           subject: isOther ? 'Other' : a.subject, desc: a.comment || '',
           amount: a.amount, spentBy: Settings.get('collectorName'),
           source: 'general', collectionType: '', date: todayISO(),
-        })).then(function () { return null; });
+        });
+        return DB.put('expenses', row).then(function () { return { undo: [{ store: 'expenses', id: row.id }] }; });
       },
     };
   }
@@ -717,10 +772,11 @@
       ],
       save: function (a) {
         if (!(Number(a.amount) > 0)) return Promise.reject(new Error('zero'));
-        return DB.put('expenses', DB.newRow({
+        const row = DB.newRow({
           subject: '', desc: a.desc, amount: a.amount, spentBy: Settings.get('collectorName'),
           source: 'collection', collectionType: collectionType || '', date: todayISO(),
-        })).then(function () { return null; });
+        });
+        return DB.put('expenses', row).then(function () { return { undo: [{ store: 'expenses', id: row.id }] }; });
       },
     };
   }

@@ -1534,3 +1534,66 @@ whether the docs were current — they weren't.
 
 Hrishi: not needed. Struck off `docs/pending.md` P1. No code existed for it
 (was never started), so no code change — docs only.
+
+## v3.72.0 — UX speed pass: instant save + Undo (no confirm screen)
+
+Hrishi: the collection process shouldn't feel slow or "suffocating". Audited
+the guided-entry engine's real step/tap counts (not a guess): a simple cash
+payment was mode→amount→note→**confirm screen**→Save = 4 taps across 4 full
+screen redraws; a new shop was ~7 steps + the same confirm screen. Asked
+Hrishi 3 concrete tradeoff questions before touching code (AskUserQuestion):
+keep the confirm screen or replace it with instant-save+Undo (→ instant+undo,
+recommended); add quick-tap amount-preset chips (→ no, keep typing); soften
+the persistent training banner (→ no, leave it). Implemented only what was
+asked for.
+
+- **Removed the separate confirm/summary screen.** Answering a flow's last
+  step now calls `finishFlow()` directly — saves immediately (every answer is
+  already visible above in the chat transcript, so there's nothing new to
+  review) and shows a `toastUndo()` with a 5-second **"ফিরিয়ে নাও / Undo"**
+  button instead of `toast('saved')`. Cuts one full screen + one tap from
+  every single entry (payment/daily/handover/expense/new-party) — the biggest
+  lever available given hundreds of entries expected during the actual puja.
+- **Undo is correctness-aware, not a blind delete.** Each flow's `save()` now
+  resolves `{undo:[{store,id}], after}` (was `null`/`{buttons}`) — a list of
+  the row(s) it just created (new-party creates both a party AND a first
+  payment; both are undoable together). `attemptUndo()` checks each row's
+  `synced` flag before deleting: unsynced (still local-only, the common case
+  within a 5s tap) → clean `DB.del`, no trace anywhere; already-synced →
+  left alone with an `undo_partial` toast pointing to "আমার এন্ট্রি" (void),
+  because a collector silently retracting a row that already reached the
+  Sheet would run straight into the existing void-permission rule (a
+  collector can't void their own entry) — undo respects that boundary instead
+  of bypassing it. New `DB.del(store,id)` primitive in db.js.
+- **Failure recovery without losing progress.** A zero-total save (typed "0")
+  rewinds to the money-amount step (`rewindToAmount()`); a declined
+  duplicate-party confirm rewinds to the name step (`rewindToKey('name')`) —
+  both keep every other already-answered field intact instead of restarting
+  the flow.
+- **Cleanup**: the now-dead summary-screen CSS (`.summary .sum-row`),
+  `editIdx` tap-to-edit machinery, and the `confirm_title`/`edit_hint` i18n
+  keys were removed rather than left stubbed. Added a small `bubble-in` CSS
+  transition on each new question so rapid-fire tapping feels responsive
+  instead of an instant jarring redraw (no tradeoff, pure polish).
+- **Docs**: in-app guide, app-guide.md and collector-guide.md updated to
+  describe instant-save + Undo instead of the old tap-✏️-to-edit summary.
+- sw → chanda-v3.72.0 (bumped; this touches app.js/db.js/i18n.js/css, all
+  precached). 108 tests pass (no logic under test changed — this is UI/flow
+  wiring). **Live-verified** in a local harness (fake session + unreachable
+  SCRIPT_URL, since no real login token was available this session): a full
+  road-collection entry (cash → ₹50 → skip note) landed on the "add another"
+  screen instantly with the Undo toast visible, no confirm screen; the
+  heaviest flow (bulk new-shop: name→owner→area→phone→pledge→mode→amount)
+  saved both the party (pledged ₹1,000) and its first payment (₹300 cash) in
+  one instant save; the undo delete-path was verified functionally correct
+  against real IndexedDB rows (unsynced row removed, synced rows untouched).
+  Caught and fixed a real testing pitfall along the way: the service worker's
+  cache-first `app.js` was serving a stale pre-edit copy even after
+  unregistering + clearing CacheStorage, because `addAll()`'s install-time
+  fetch reused the browser's own HTTP disk cache from an earlier test in the
+  same tab — worked around by testing on a fresh port (new origin, empty HTTP
+  cache); real devices are unaffected since the VERSION bump forces a normal
+  SW update path on next visit.
+- ⚠️ Needs a normal redeploy of the **static files only** (no Code.gs/backend
+  change this time — GitHub Pages push is enough, same as any client-only
+  release).

@@ -52,9 +52,11 @@ it, which creates the void.
 ## ✍️ Making an entry
 
 Guided step by step — one question at a time; type or tap 🎤 to speak. Amounts
-work as **digits or words** ("500" or "five hundred"). A **summary** appears at
-the end — tap ✏️ on any line to fix it, then Save. On save the entry is stored
-on the phone and syncs immediately if online.
+work as **digits or words** ("500" or "five hundred"). Answering the last
+question **saves instantly** — no separate confirm screen; every answer stays
+visible above in the chat. The save toast shows an **"Undo"** button for 5
+seconds in case of a mistake. On save the entry is stored on the phone and
+syncs immediately if online.
 
 ## 💵 Cash / UPI, pledge & dues
 

@@ -33,6 +33,9 @@ const DB = (function () {
   }
 
   function put(store, obj) { return tx(store, 'readwrite', function (s) { s.put(obj); return obj; }); }
+  // Only safe to call on a row that never left the device (synced:0) — used by
+  // the entry-flow Undo toast to cleanly retract an unsynced save.
+  function del(store, id) { return tx(store, 'readwrite', function (s) { s.delete(id); }); }
   function bulkPut(store, objs) {
     return tx(store, 'readwrite', function (s) { objs.forEach(function (o) { s.put(o); }); return objs.length; });
   }
@@ -94,7 +97,7 @@ const DB = (function () {
     }, extra);
   }
 
-  return { STORES: STORES, put: put, bulkPut: bulkPut, getAll: getAll, get: get,
+  return { STORES: STORES, put: put, del: del, bulkPut: bulkPut, getAll: getAll, get: get,
            allData: allData, unsyncedCount: unsyncedCount, newRow: newRow, clearAll: clearAll };
 })();
 

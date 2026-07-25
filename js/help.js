@@ -86,13 +86,15 @@ window.HELP = [
       bn: [
         'প্রশ্ন-উত্তর ধাপে ধাপে এগোয় — একটা করে প্রশ্ন, তুমি টাইপ করো বা 🎤 চেপে বলো।',
         'টাকা <b>সংখ্যায় বা কথায়</b> দুভাবেই চলে — "৫০০" বা "পাঁচশো" দুটোই বোঝে।',
-        'শেষে একটা <b>summary</b> দেখাবে — যেকোনো লাইনে ✏️ চেপে ঠিক করা যায়। ঠিক থাকলে "সেভ করো"।',
+        'শেষ প্রশ্নের উত্তর দিলেই সাথে সাথে <b>সেভ হয়ে যায়</b> — আলাদা confirm screen নেই, উপরে চ্যাটেই সব উত্তর দেখা যায়।',
+        'ভুল করে ফেললে সেভের পরের toast-এ ৫ সেকেন্ড <b>"ফিরিয়ে নাও"</b> বোতাম থাকে — চাপলে entry মুছে যায়।',
         'Save হলে entry তোমার ফোনে জমা, আর নেট থাকলে তখনই sync হয়ে যায়।',
       ],
       en: [
         'It goes step by step — one question at a time; type, or tap 🎤 to speak.',
         'Amounts work as <b>digits or words</b> — "500" or "five hundred" both understood.',
-        'At the end you get a <b>summary</b> — tap ✏️ on any line to fix it. If correct, tap "Save".',
+        'Answering the last question <b>saves it instantly</b> — no separate confirm screen; every answer is visible above in the chat.',
+        'Made a mistake? The save toast shows an <b>"Undo"</b> button for 5 seconds — tap it to remove the entry.',
         'On save the entry is stored on your phone, and syncs immediately if you are online.',
       ],
     },
