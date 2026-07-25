@@ -2403,3 +2403,19 @@ Verified live side by side: home shows নতুন এন্ট্রি → �
 📥 নতুন এন্ট্রি (চাঁদা / বাস) → দোকান | বাস কালেকশন and 🛣️ রোড / টোটো →
 রোড | টোটো; the report lists দোকান → বাস → রোড → টোটো. No console errors.
 146 tests pass. sw → chanda-v3.81.1. Client-only.
+
+## Rebake config.js for the expense-columns deployment
+
+New `/exec` baked in after Hrishi redeployed Code.gs (New deployment — the
+only thing that repoints on this account, see `docs/user-guide/setup-google.md`).
+This deployment carries the expense cash/UPI split (`cashAmount`, `upiAmount`,
+`srcCat`), the handover `breakdown` in `notifData_`, and the cash/upi detail in
+the `handover:confirm` audit row.
+
+Verified the new build is actually serving: `listBackups` reaches its token
+gate (`bad-token`) while a nonsense action returns `unknown action` — so the
+newer actions exist in the deployed copy, not just in the repo.
+
+Still owner-side: run `setup()` once in the Apps Script editor. Header
+migration is append-only (`setup()` lines 62–65), so until it runs the three
+new Expenses columns have no header and the split stays device-local.
