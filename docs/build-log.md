@@ -1704,3 +1704,18 @@ expense/handover too, which he confirmed are needed.
   "শেষ, হোমে ফিরি". No console errors throughout. 108 tests pass (no
   shared-logic change). sw → chanda-v3.74.0. Client-only, static-files
   redeploy.
+
+## v3.74.1 — Bus moved into the "নতুন এন্ট্রি" section
+
+Hrishi: bus collection belongs with the new-entry tiles, not with road/toto.
+Makes sense given v3.74.0 — bus produces a receipt just like a new
+shop/person/member does, while road/toto don't (no donor identity), so bus
+was already behaving like a "new entry" and the home layout hadn't caught
+up. Moved the 🚌 tile from the daily-collection grid into the new-entry
+grid; still gated on the `daily` permission independently of `party` (a
+collector could have one without the other). "আজকের রোড/টোটো/বাস" section
+title trimmed to "আজকের রোড/টোটো" since bus no longer lives there. No
+routing change — `data-go="bus"` still opens `dailyFlow('bus')` regardless
+of which section it's drawn in. Verified live: bus tile renders under নতুন
+এন্ট্রি next to দোকান/ব্যক্তি/সদস্য, opens the bus flow correctly, no console
+errors. 108 tests pass. sw → chanda-v3.74.1. Client-only.

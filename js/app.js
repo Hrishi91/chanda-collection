@@ -829,15 +829,19 @@
         return (r.collectorId || r.collector) === meId && (r.date === today || (r.createdAt || '').slice(0, 10) === today);
       }).reduce(function (a, r) { return a + Number(r.amount || 0); }, 0);
       const cashier = Auth.isCashier();
-      const partyTiles = canEntry('party') ?
-        '<button class="tile" data-go="shop">🏪 ' + esc(t('new_shop')) + '</button>' +
-        '<button class="tile" data-go="person">🙍 ' + esc(t('new_person')) + '</button>' +
-        '<button class="tile" data-go="member">🤝 ' + esc(t('new_member')) + '</button>' : '';
+      // bus lives with the other new-entry tiles (it makes a receipt, same as
+      // a new shop/person/member) — still gated on the 'daily' permission,
+      // independent of whether this collector may also add parties.
+      const partyTiles =
+        (canEntry('party') ?
+          '<button class="tile" data-go="shop">🏪 ' + esc(t('new_shop')) + '</button>' +
+          '<button class="tile" data-go="person">🙍 ' + esc(t('new_person')) + '</button>' +
+          '<button class="tile" data-go="member">🤝 ' + esc(t('new_member')) + '</button>' : '') +
+        (canEntry('daily') ? '<button class="tile" data-go="bus">🚌 ' + esc(t('daily_bus')) + '</button>' : '');
       const dailyTiles =
         (canEntry('daily') ?
           '<button class="tile" data-go="road">🛣️ ' + esc(t('daily_road')) + '</button>' +
-          '<button class="tile" data-go="toto">🛺 ' + esc(t('daily_toto')) + '</button>' +
-          '<button class="tile" data-go="bus">🚌 ' + esc(t('daily_bus')) + '</button>' : '') +
+          '<button class="tile" data-go="toto">🛺 ' + esc(t('daily_toto')) + '</button>' : '') +
         (cashier ? '<button class="tile" data-go="expense">🧾 ' + esc(t('expense')) + '</button>' : '');
       const paymentTile = canEntry('payment') ?
         '<div class="grid one"><button class="tile wide" data-go="list">💰 ' + esc(t('add_payment')) + ' / ' + esc(t('dues_only')) + '</button></div>' : '';

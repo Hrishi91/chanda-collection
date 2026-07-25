@@ -95,7 +95,7 @@ const I18N = {
   fetch_fail: { bn: 'আনা গেল না — network/URL দেখো', en: 'Fetch failed — check network/URL' },
   no_entries: { bn: 'এখনো কোনো এন্ট্রি নেই', en: 'No entries yet' },
   entries: { bn: 'এন্ট্রি', en: 'entries' },
-  today_daily: { bn: 'আজকের রোড/টোটো/বাস', en: "Today's road/toto/bus" },
+  today_daily: { bn: 'আজকের রোড/টোটো', en: "Today's road/toto" },
   parsed_hint: { bn: 'বুঝলাম', en: 'Understood' },
   // --- auth ---
   login_title: { bn: 'লগইন করো', en: 'Log in' },
