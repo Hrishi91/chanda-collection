@@ -194,6 +194,24 @@ eq(availL.byCat.payment.cash, 0, 'byCat: legacy drain empties payment first');
 eq(availL.byCat.toto.cash, 40, 'byCat: legacy drain takes remainder from toto');
 eq(availL.cash, 40, 'byCat: legacy drain total right');
 
+// chanda splits by DONOR TYPE the same way daily splits by road/toto/bus
+const dtData = {
+  parties: [ { id: 's1', type: 'shop', name: 'Shop' }, { id: 'm1', type: 'member', name: 'Mem' } ],
+  payments: [
+    { collector: 'D', partyId: 's1', amount: 500, cashAmount: 300, upiAmount: 200 },
+    { collector: 'D', partyId: 'm1', amount: 100, cashAmount: 100, upiAmount: 0 },
+    { collector: 'D', partyId: 'gone', amount: 70, cashAmount: 70, upiAmount: 0 }, // donor not in dataset
+  ],
+  daily: [{ collector: 'D', type: 'bus', amount: 150, cashAmount: 150, upiAmount: 0 }],
+  expenses: [], handovers: [],
+};
+const dtA = myAvailable(dtData, 'D');
+eq(dtA.byCat.shop, { cash: 300, upi: 200 }, 'donor-type: shop chanda separate');
+eq(dtA.byCat.member, { cash: 100, upi: 0 }, 'donor-type: member chanda separate');
+eq(dtA.byCat.payment, { cash: 70, upi: 0 }, 'donor-type: unknown donor → legacy bucket');
+eq(dtA.byCat.person, undefined, 'donor-type: unused type absent');
+eq(dtA.cash + dtA.upi, 820, 'donor-type: totals unchanged by the split (500+100+70+150)');
+
 // personalSummary.byCat must always equal myAvailable.byCat and sum to inHand
 // (the handover chips and the report read the same numbers — they can never drift)
 const bcData = {

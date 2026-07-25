@@ -71,7 +71,8 @@ syncs immediately if online.
 ## 🤝 Handover & confirmation
 
 Tap **🤝 Hand over** → choose a cashier. Pick **which collections**, grouped
-as 📥 New entries/Chanda and 🛣️ Daily collection (road/toto/bus) — every line
+as 📥 New entries/Chanda (shop/person/member) and 🛣️ Daily collection
+(road/toto/bus) — every line
 shows 💵 cash · 📱 UPI · total with a per-group subtotal, and the "Selected"
 line adds up live, so the whole picture is on that one screen and you never
 have to look a number up elsewhere. Then pick cash / UPI / both (those

@@ -2209,3 +2209,30 @@ section lists all four categories with their cash/UPI/total. No console
 errors. 128 tests pass (3 new: byCat report/handover parity, byCat sums to
 in-hand, collection-expense drains its own category). In-app guide +
 both user guides updated. sw → chanda-v3.79.0. Client-only — no redeploy.
+
+## v3.79.1 — "নতুন এন্ট্রি" split by donor type, matching দৈনিক কালেকশন
+
+Hrishi: দৈনিক কালেকশন is fine, but নতুন এন্ট্রি should be broken down the
+same way — one lumped "🧾 চাঁদা" row was shallower than road/toto/bus.
+
+- `myAvailable` now attributes each payment to its donor's **type**
+  (shop / person / member) by joining `partyId → parties.type`, so chanda
+  splits exactly like daily does. `AVAIL_CATS` gained the three types;
+  `payment` survives as the LEGACY bucket for rows whose donor isn't in the
+  dataset and for handover breakdowns written before this change — old data
+  keeps working and still shows up (labelled "চাঁদা (পুরোনো)").
+- Label maps updated in both places that render categories (handover chips
+  and the report table), and the entry group now collects
+  shop/person/member/payment.
+- Verified live with one donor of each type + road + bus: the group renders
+  দোকান ₹500 · ব্যক্তি ₹300 · সদস্য ₹200 with subtotal 💵₹600 · 📱₹400 =
+  ₹1,000 beside দৈনিক 💵₹230 = ₹230; selecting ব্যক্তি + বাস gives
+  💵₹250 · 📱₹200 = ₹450, mode chips match, and the saved row carries
+  `{"person":{"cash":100,"upi":200},"bus":{"cash":150,"upi":0}}` — the
+  donor type reaches the stored breakdown, so the receiving cashier sees it
+  under the same category. Report lists all five categories. No console
+  errors.
+- 133 tests pass (5 new: per-type split, unknown-donor → legacy bucket,
+  unused type absent, totals unchanged by the split).
+
+sw → chanda-v3.79.1. Client-only — no redeploy.

@@ -542,7 +542,7 @@
       // per-group subtotal — so the collector sees the whole picture right
       // here and never has to leave the screen to look a number up.
       const groups = [
-        { key: 'entry', labelKey: 'grp_entry', cats: s.categories.filter(function (c) { return c.key === 'payment'; }) },
+        { key: 'entry', labelKey: 'grp_entry', cats: s.categories.filter(function (c) { return ['shop', 'person', 'member', 'payment'].indexOf(c.key) >= 0; }) },
         { key: 'daily', labelKey: 'grp_daily', cats: s.categories.filter(function (c) { return ['road', 'toto', 'bus'].indexOf(c.key) >= 0; }) },
         { key: 'other', labelKey: 'grp_received', cats: s.categories.filter(function (c) { return c.key === 'received'; }) },
       ].filter(function (g) { return g.cats.length; });
@@ -820,7 +820,8 @@
     // bus money without bus access). Flow: pick categories → pick নগদ/UPI/
     // দুটোই (each chip shows the selected categories' real amount) → save.
     // "✏️ অন্য পরিমাণ" escapes to manual typed entry for partial handovers.
-    const CAT_LABELS = { payment: 'cat_payment', road: 'daily_road', toto: 'daily_toto',
+    const CAT_LABELS = { shop: 'new_shop', person: 'new_person', member: 'new_member',
+                         payment: 'cat_payment', road: 'daily_road', toto: 'daily_toto',
                          bus: 'daily_bus', received: 'cat_received' };
     const byCat = avail.byCat || {};
     const categories = Object.keys(CAT_LABELS).filter(function (k) {
@@ -1752,7 +1753,8 @@
   // "কোন খাতে কত আছে" — the same source-category × cash/UPI table the
   // handover screen uses, so a collector can answer "how much bus money do I
   // still hold?" from the report too, not only mid-handover.
-  const CAT_LABEL_KEYS = { payment: 'cat_payment', road: 'daily_road', toto: 'daily_toto',
+  const CAT_LABEL_KEYS = { shop: 'new_shop', person: 'new_person', member: 'new_member',
+                           payment: 'cat_payment', road: 'daily_road', toto: 'daily_toto',
                            bus: 'daily_bus', received: 'cat_received' };
   function byCatHTML(byCat) {
     if (!byCat) return '';

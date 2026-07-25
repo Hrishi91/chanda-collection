@@ -180,7 +180,9 @@
   // Money-source categories, in the fixed order legacy (breakdown-less)
   // subtractions drain them. 'payment' = party chanda; road/toto/bus = daily;
   // 'received' = handovers received without a category breakdown.
-  const AVAIL_CATS = ['payment', 'road', 'toto', 'bus', 'received'];
+  // 'payment' is the LEGACY bucket: rows whose donor can't be resolved (and
+  // old handover breakdowns written before payments were split by donor type).
+  const AVAIL_CATS = ['shop', 'person', 'member', 'payment', 'road', 'toto', 'bus', 'received'];
   function splitOf(r) {
     return isCashOnly(r)
       ? { cash: Number(r.amount) || 0, upi: 0 }
@@ -220,9 +222,17 @@
       try { const b = JSON.parse(h.breakdown); return (b && typeof b === 'object') ? b : null; }
       catch (e) { return null; }
     };
-    (data.payments || []).filter(mine).forEach(function (r) { add('payment', splitOf(r)); });
+    // chanda is split by DONOR TYPE (দোকান/ব্যক্তি/সদস্য) exactly the way
+    // daily is split by road/toto/bus — same granularity on both sides.
+    // A payment whose donor isn't in this dataset falls back to 'payment'.
+    const partyType = {};
+    (data.parties || []).forEach(function (p) { if (p && p.id) partyType[p.id] = p.type; });
+    (data.payments || []).filter(mine).forEach(function (r) {
+      const ty = partyType[r.partyId];
+      add(['shop', 'person', 'member'].indexOf(ty) >= 0 ? ty : 'payment', splitOf(r));
+    });
     (data.daily || []).filter(mine).forEach(function (r) {
-      add(AVAIL_CATS.indexOf(r.type) >= 0 ? r.type : 'road', splitOf(r));
+      add(['road', 'toto', 'bus'].indexOf(r.type) >= 0 ? r.type : 'road', splitOf(r));
     });
     const isTo = function (h) { return String(h.toId || h.to) === String(ident) || h.to === ident; };
     const isFrom = function (h) { return String(h.fromId || h.from) === String(ident) || h.from === ident; };

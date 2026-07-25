@@ -234,7 +234,7 @@ const I18N = {
   q_upi_amount: { bn: 'UPI-তে কত টাকা?', en: 'UPI amount?' },
   q_handover_cats: { bn: 'কোন খাতের টাকা জমা দিচ্ছ? (এক বা একাধিক বাছো)', en: 'Which collections are you handing over? (pick one or more)' },
   q_handover_mode: { bn: 'নগদ, UPI না দুটোই?', en: 'Cash, UPI or both?' },
-  cat_payment: { bn: '🧾 চাঁদা', en: '🧾 Chanda' },
+  cat_payment: { bn: '🧾 চাঁদা (পুরোনো)', en: '🧾 Chanda (older)' },
   cat_received: { bn: '🤝 অন্যের জমা', en: '🤝 Received' },
   grp_entry: { bn: '📥 নতুন এন্ট্রি / চাঁদা', en: '📥 New entries / Chanda' },
   grp_daily: { bn: '🛣️ দৈনিক কালেকশন', en: '🛣️ Daily collection' },
