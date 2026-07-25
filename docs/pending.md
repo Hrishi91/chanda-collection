@@ -179,10 +179,17 @@ on his phone after the redeploy).
       straight to the receipt screen — no more hunting through party detail
       for the 🧾 button. Road/toto unchanged (no donor identity to receipt)~~
       (2026-07-25, v3.73.0)
+- [x] ~~Bulk shop mode retired — every 🏪/🙍/🤝 entry now offers a fast
+      "➕ আরেকটা" continue after saving (side sticky for shops), so the
+      separate bulk tile was redundant. The continue button is
+      context-aware: a payment reached via search/list goes back to that
+      search instead of offering "new entry" (no natural "next" to create
+      there); expense/collection-expense/handover also gained the same
+      continue-or-done pattern~~ (2026-07-25, v3.74.0)
 - Declined by Hrishi (asked first, not guessed): amount quick-tap presets,
   and softening the persistent training banner — both left as-is.
 - ⚠️ Static-files-only redeploy needed (GitHub Pages push, no Code.gs
-  change) — sw is at v3.73.0 now, covers all of the above; every device
+  change) — sw is at v3.74.0 now, covers all of the above; every device
   picks it up on next open.
 
 ## Next decision — Go Live

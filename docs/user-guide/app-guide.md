@@ -41,8 +41,9 @@ it, which creates the void.
 ## 🏠 Home screen
 
 - **🏪 Shop / 🙍 Person / 🤝 Member** — add a new donor (pledged amount + any
-  amount paid now).
-- **🏪🏪 Bulk shops** — add many shops on the same road quickly.
+  amount paid now). After saving, an "➕ One more" button on the receipt (or
+  continue) screen adds the next one quickly, area remembered for shops — no
+  separate bulk mode needed.
 - **🛣️ Road / 🛺 Toto / 🚌 Bus** — daily road collections (bus asks name +
   number).
 - **💰 Add payment / dues** — a later installment against a balance.
@@ -102,10 +103,13 @@ confirmed, the money stays counted **in the collector's hand** (shown as
 
 ## 🧾 Receipts & 📞 dues reminders
 
-- **🧾 Receipt** — on a donor's page, tap 🧾 next to any payment to create a
-  receipt image (donor, date, this payment, paid vs pledged, due, collector).
-  Share it straight to WhatsApp or save it. Drawn on the phone; nothing is
-  uploaded.
+- **🧾 Receipt** — taking a payment (a new donor's first payment, an
+  installment, or a bus collection) opens the receipt page automatically on
+  save (donor, date, this payment, paid vs pledged, due). Share it straight
+  to WhatsApp or SMS; drawn on the phone, nothing is uploaded. Below the
+  share buttons: "🔍 Back to list" if you came from search (to catch the next
+  donor), "➕ One more" for a new shop/person/member/bus, and always "Done, go
+  home". Old receipts stay reachable via 🧾 on a donor's page.
 - **📞 Remind** — shown on donors who still owe money *and* have a phone number.
   It opens WhatsApp with the message pre-written (name + amount due); **you tap
   send yourself** — nothing is sent automatically.

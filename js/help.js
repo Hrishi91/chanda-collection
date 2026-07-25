@@ -62,16 +62,14 @@ window.HELP = [
     title: { bn: 'হোম স্ক্রিন — কী কী করা যায়', en: 'Home screen — what you can do' },
     body: {
       bn: [
-        '<b>🏪 দোকান / 🙍 ব্যক্তি / 🤝 সদস্য</b> — নতুন চাঁদাদাতা যোগ করা (কত টাকা কথা হলো + এখন কিছু দিলে সেটা)।',
-        '<b>🏪🏪 পরপর দোকান</b> — একই রাস্তার অনেক দোকান দ্রুত পরপর তোলা।',
+        '<b>🏪 দোকান / 🙍 ব্যক্তি / 🤝 সদস্য</b> — নতুন চাঁদাদাতা যোগ করা (কত টাকা কথা হলো + এখন কিছু দিলে সেটা)। সেভের পর "➕ আরেকটা" বোতাম দিয়ে একই রাস্তায় পরের দোকান দ্রুত তোলা যায় (এলাকা মনে রাখে)।',
         '<b>🛣️ রোড / 🛺 টোটো / 🚌 বাস</b> — দিনের রাস্তার কালেকশন (বাসে নাম+নম্বর)।',
         '<b>💰 টাকা জমা / বাকি</b> — কারো বাকি টাকা পরে জমা নেওয়া (খাতা list-এ যায়)।',
         '<b>🤝 জমা দিলাম</b> — তোমার হাতের টাকা cashier-কে জমা দেওয়া।',
         '<b>🧾 খরচ</b> (শুধু cashier/admin) ও <b>✅ জমা নেওয়া confirm</b> (শুধু cashier)।',
       ],
       en: [
-        '<b>🏪 Shop / 🙍 Person / 🤝 Member</b> — add a new donor (pledged amount + anything paid now).',
-        '<b>🏪🏪 Bulk shops</b> — quickly add many shops on the same road one after another.',
+        '<b>🏪 Shop / 🙍 Person / 🤝 Member</b> — add a new donor (pledged amount + anything paid now). After saving, an "➕ One more" button lets you quickly add the next shop on the same road (area remembered).',
         '<b>🛣️ Road / 🛺 Toto / 🚌 Bus</b> — daily road collections (bus asks name + number).',
         '<b>💰 Add payment / dues</b> — take a later installment against someone\'s balance (opens the ledger).',
         '<b>🤝 Hand over</b> — give the cash in your hand to a cashier.',
@@ -180,14 +178,16 @@ window.HELP = [
     title: { bn: 'রসিদ ও বাকির তাগাদা', en: 'Receipts & dues reminders' },
     body: {
       bn: [
-        '<b>🧾 রসিদ</b> — দাতার পাতায় জমার পাশে 🧾 চাপলে রসিদের পাতা খোলে (দাতা, তারিখ, এই কিস্তি, মোট জমা/কথা, বাকি, সংগ্রাহক, <b>রসিদ নং</b>)। দুটো বোতাম: <b>📷 WhatsApp/ছবি</b> (ছবি রসিদ) আর <b>💬 SMS/message</b> (দাতার WhatsApp না থাকলে — সংক্ষিপ্ত লেখা)।',
+        '<b>🧾 রসিদ</b> — টাকা জমা নিলে (নতুন দাতার প্রথম জমা হোক বা কিস্তি) সেভের সাথে সাথে রসিদ পাতা <b>নিজে থেকেই খোলে</b> (দাতা, তারিখ, এই কিস্তি, মোট জমা/কথা, বাকি, <b>রসিদ নং</b>)। দুটো বোতাম: <b>📷 WhatsApp/ছবি</b> (ছবি রসিদ) আর <b>💬 SMS/message</b> (দাতার WhatsApp না থাকলে — সংক্ষিপ্ত লেখা)। বাস কালেকশনেও একই — নাম+নম্বর দিয়ে সাথে সাথে রসিদ।',
+        'রসিদ পাঠানোর পর নিচে দুটো বোতাম: তালিকা/খোঁজা থেকে এসেছ তো "🔍 তালিকায় ফিরি" (পরের দাতা ধরতে), নতুন দোকান/ব্যক্তি/সদস্য/বাস হলে "➕ আরেকটা" (একই টাইপের পরের এন্ট্রি) — আর সবসময় "শেষ, হোমে ফিরি"।',
         'রসিদ নম্বর (যেমন 2026-0007) প্রতিটা জমায় আলাদা, sync হলে বসে — কখনো ডবল হয় না।',
         '<b>ডিজাইন admin ঠিক করে</b> — Admin → 🧾 রসিদ ডিজাইন-এ layout, কমিটির নাম, লোগো, রঙ, নিচের বার্তা বসানো যায়; live preview দেখায়।',
         '<b>📞 মনে করাও</b> — যে দাতার <b>বাকি আছে আর ফোন নম্বর দেওয়া আছে</b>, তার পাতায় এই বোতাম। চাপলে WhatsApp খুলে বার্তা আগে থেকেই লেখা থাকে (নাম + কত বাকি) — <b>তুমি নিজে send করবে</b>।',
         'রসিদের ছবি তোমার ফোনেই তৈরি — কোথাও আপলোড হয় না।',
       ],
       en: [
-        '<b>🧾 Receipt</b> — tap 🧾 next to a payment to open the receipt page (donor, date, this payment, paid vs pledged, due, collector, <b>receipt no.</b>). Two buttons: <b>📷 WhatsApp/image</b> (the image receipt) and <b>💬 SMS/message</b> (a short text version for donors without WhatsApp).',
+        '<b>🧾 Receipt</b> — taking a payment (a new donor\'s first payment or an installment) <b>opens the receipt page automatically</b> on save (donor, date, this payment, paid vs pledged, due, <b>receipt no.</b>). Two buttons: <b>📷 WhatsApp/image</b> and <b>💬 SMS/message</b>. Bus collections work the same way.',
+        'Below the share buttons: if you came from the list/search, "🔍 Back to list" (to catch the next donor); for a new shop/person/member/bus, "➕ One more" (same type again); and always "Done, go home".',
         'The receipt number (e.g. 2026-0007) is unique per payment and appears once synced — never duplicated.',
         '<b>The design is set by the admin</b> — Admin → 🧾 Receipt design lets you choose a layout, committee name, logo, colour and footer message, with a live preview.',
         '<b>📞 Remind</b> — appears on donors who <b>still owe money and have a phone number</b>; opens WhatsApp with the message pre-written (name + amount due) — <b>you tap send yourself</b>.',

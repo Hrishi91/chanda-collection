@@ -1650,3 +1650,57 @@ with a first payment, an installment on an existing party, and bus daily.
   errors. 108 tests pass (no shared-logic change — this is flow wiring).
 - sw → chanda-v3.73.0. Client-only, static-files redeploy (no Code.gs
   change).
+
+## v3.74.0 — Bulk mode retired: every entry loops fast, receipt-aware
+
+Hrishi's follow-up: after sharing a receipt the app can't navigate away on
+its own (the share sheet is a native overlay, the underlying page never
+changes), so the collector was stuck tapping "← পেছনে" back through party
+detail before starting the next entry. He proposed the fix and, crucially,
+spotted the one place a generic "➕ new entry" button would be wrong: a
+payment reached via search (find-party or khata list) isn't "create the next
+one" the way a fresh shop/person/member/bus is — there's no natural "next"
+to create, the right move is back to the same search results. Confirmed the
+exact scope over two more rounds of questions (his first answer parsed two
+ways; asked a direct 2-option follow-up rather than guess) before touching
+code — landed on: retire bulk mode entirely (redundant once every entry
+loops), and extend the same "➕ আরেকটা / Skip" pattern to expense/collection
+expense/handover too, which he confirmed are needed.
+
+- **Bulk shop mode removed.** Home lost the "🏪🏪 পরপর দোকান (bulk)" tile;
+  `newPartyFlow(type, presets)` dropped its `bulk` flag — a plain 🏪/🙍/🤝
+  tile now behaves exactly like bulk used to (sticky area for shops),
+  whether or not a first payment was taken.
+- **`paymentFlow(party, origin)`** — `origin` is `'list'` or `'findparty'`,
+  set by the two call sites (party detail's 💰 button, find-party's direct
+  pay-from-search). Threaded through to the receipt screen's params.
+- **`renderReceiptShare` grew three context-aware continue buttons**,
+  replacing the old dead-end (back-only) screen:
+  - bus → "➕ আরেকটা বাস" (unambiguous, no search involved).
+  - a payment with `params.origin` set → "🔍 তালিকায় ফিরি" straight back to
+    that search (`listQuery`/`findQuery` are already-persisted module state,
+    so the same filter/results reappear) — deliberately **no** "new entry"
+    button here.
+  - a brand-new party's first payment (no origin) → "➕ আরেকটা [same type]",
+    side sticky for shops — this is what replaces bulk mode.
+  - every branch also gets "শেষ, হোমে ফিরি" (reused the existing
+    `done_for_now` label rather than inventing new wording).
+- **Expense, collection expense, and handover** — all three used to
+  `navigate('home')` straight after saving with no continue option. Now
+  each returns `after:{buttons:[➕ আরেকটা …, শেষ]}`, matching the pattern the
+  daily flow already had for road/toto.
+- Dead code removed: `one_more_shop` and `bulk_shop` i18n keys (superseded
+  by the generic `one_more` + type-label pattern).
+- In-app guide, app-guide.md and collector-guide.md updated — also caught
+  and fixed a miss from the previous commit (27b673d): app-guide.md's
+  receipts section still described the old tap-🧾-on-party-detail flow, not
+  the auto-open behaviour that shipped there.
+- Verified live in the local harness: bulk tile gone from home; a new shop
+  with payment → receipt → "➕ আরেকটা দোকান" → next flow opens with
+  হরিরামপুর রোড pre-filled (sticky area confirmed); a payment taken via
+  🔍 find-party → receipt → "🔍 তালিকায় ফিরি" → back on find-party with the
+  paid party's new total visible (₹350/₹300); a bus entry → receipt →
+  "➕ আরেকটা বাস" → fresh bus flow opens; an expense entry → "➕ আরেকটা খরচ" +
+  "শেষ, হোমে ফিরি". No console errors throughout. 108 tests pass (no
+  shared-logic change). sw → chanda-v3.74.0. Client-only, static-files
+  redeploy.

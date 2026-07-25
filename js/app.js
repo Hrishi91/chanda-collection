@@ -607,7 +607,12 @@
       }
     }).then(function () { return { party: party, paymentId: paymentId }; });
   }
-  function newPartyFlow(type, presets, bulk) {
+  // Every new party — with or without a first payment — offers a fast
+  // continue (➕ another same-type entry, side sticky for shops) so a
+  // collector working door-to-door never has to detour through home. This
+  // replaced the old separate "bulk shop" mode: a single 🏪/🙍/🤝 tile now
+  // behaves the same way every time.
+  function newPartyFlow(type, presets) {
     return {
       title: t('new_entry') + ' — ' + t('type_' + type),
       presets: presets || {},
@@ -632,21 +637,24 @@
           const undo = [{ store: 'parties', id: res.party.id }];
           if (res.paymentId) undo.push({ store: 'payments', id: res.paymentId });
           // a first payment was taken → straight to the receipt (something to
-          // hand the donor); no payment yet ("পরে দেবে") → the old bulk-mode
-          // shortcut still applies, nothing to receipt for.
+          // hand the donor); the receipt screen itself offers "➕ আরেকটা [type]".
           if (res.paymentId) return { undo: undo,
             after: { navigateTo: 'receipt', params: { partyId: res.party.id, payId: res.paymentId } } };
-          if (!bulk) return { undo: undo };
+          // no payment yet ("পরে দেবে") → straight to the continue screen.
           return { undo: undo, after: { buttons: [
-            { label: t('one_more_shop'), action: function () {
-                startFlow(newPartyFlow('shop', { side: res.party.side }, true)); } },
+            { label: t('one_more') + ' ' + t('new_' + type), action: function () {
+                startFlow(newPartyFlow(type, type === 'shop' ? { side: res.party.side } : {})); } },
             { label: t('done_for_now'), action: function () { navigate('home'); } },
           ] } };
         });
       },
     };
   }
-  function paymentFlow(party) {
+  // origin: 'list' | 'findparty' — where the collector was browsing/searching
+  // before opening this party, so the receipt screen can send them straight
+  // back to the same search results (not a "new entry" — a payment is
+  // against a party someone already picked, unlike a fresh shop/person/bus).
+  function paymentFlow(party, origin) {
     return {
       title: t('add_payment') + ' — ' + party.name,
       steps: moneySteps(false).concat([
@@ -664,7 +672,7 @@
         // payment: something to hand the donor on the spot.
         return DB.put('payments', row).then(function () {
           return { undo: [{ store: 'payments', id: row.id }],
-            after: { navigateTo: 'receipt', params: { partyId: party.id, payId: row.id } } };
+            after: { navigateTo: 'receipt', params: { partyId: party.id, payId: row.id, origin: origin || 'list' } } };
         });
       },
     };
@@ -700,7 +708,12 @@
           date: todayISO(), note: a.note || '',
           status: 'pending', confirmedBy: '', confirmedAt: '',
         });
-        return DB.put('handovers', row).then(function () { return { undo: [{ store: 'handovers', id: row.id }] }; });
+        return DB.put('handovers', row).then(function () {
+          return { undo: [{ store: 'handovers', id: row.id }], after: { buttons: [
+            { label: t('one_more') + ' ' + t('handover_title'), action: function () { startHandover(); } },
+            { label: t('done_for_now'), action: function () { navigate('home'); } },
+          ] } };
+        });
       },
     };
   }
@@ -767,7 +780,12 @@
           amount: a.amount, spentBy: Settings.get('collectorName'),
           source: 'general', collectionType: '', date: todayISO(),
         });
-        return DB.put('expenses', row).then(function () { return { undo: [{ store: 'expenses', id: row.id }] }; });
+        return DB.put('expenses', row).then(function () {
+          return { undo: [{ store: 'expenses', id: row.id }], after: { buttons: [
+            { label: t('one_more') + ' ' + t('expense'), action: function () { startExpense(); } },
+            { label: t('done_for_now'), action: function () { navigate('home'); } },
+          ] } };
+        });
       },
     };
   }
@@ -792,7 +810,12 @@
           subject: '', desc: a.desc, amount: a.amount, spentBy: Settings.get('collectorName'),
           source: 'collection', collectionType: collectionType || '', date: todayISO(),
         });
-        return DB.put('expenses', row).then(function () { return { undo: [{ store: 'expenses', id: row.id }] }; });
+        return DB.put('expenses', row).then(function () {
+          return { undo: [{ store: 'expenses', id: row.id }], after: { buttons: [
+            { label: t('one_more') + ' ' + t('coll_expense'), action: function () { startFlow(collectionExpenseFlow(collectionType)); } },
+            { label: t('done_for_now'), action: function () { navigate('home'); } },
+          ] } };
+        });
       },
     };
   }
@@ -809,8 +832,7 @@
       const partyTiles = canEntry('party') ?
         '<button class="tile" data-go="shop">🏪 ' + esc(t('new_shop')) + '</button>' +
         '<button class="tile" data-go="person">🙍 ' + esc(t('new_person')) + '</button>' +
-        '<button class="tile" data-go="member">🤝 ' + esc(t('new_member')) + '</button>' +
-        '<button class="tile" data-go="bulk">🏪🏪 ' + esc(t('bulk_shop')) + '</button>' : '';
+        '<button class="tile" data-go="member">🤝 ' + esc(t('new_member')) + '</button>' : '';
       const dailyTiles =
         (canEntry('daily') ?
           '<button class="tile" data-go="road">🛣️ ' + esc(t('daily_road')) + '</button>' +
@@ -842,7 +864,6 @@
         b.onclick = function () {
           const g = b.dataset.go;
           if (g === 'shop' || g === 'person' || g === 'member') freshThen(function () { startFlow(newPartyFlow(g)); });
-          else if (g === 'bulk') freshThen(function () { startFlow(newPartyFlow('shop', {}, true)); });
           else if (g === 'road' || g === 'toto' || g === 'bus') startFlow(dailyFlow(g));
           else if (g === 'expense') startExpense();
           else if (g === 'handover') startHandover();
@@ -943,7 +964,7 @@
     el.querySelectorAll('[data-fp]').forEach(function (r) {
       r.onclick = function () {
         const p = findParties.find(function (x) { return x.id === r.dataset.fp; });
-        if (p && canEntry('payment')) startFlow(paymentFlow(p));
+        if (p && canEntry('payment')) startFlow(paymentFlow(p, 'findparty'));
       };
     });
   }
@@ -1001,7 +1022,7 @@
           (isVoid || !canVoid(x) ? '' : '<button class="chip void-btn" data-void="' + esc(x.id) + '">' + esc(t('void_btn')) + '</button>') + '</div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
     const payBtn = document.getElementById('pay-btn');
-    if (payBtn) payBtn.onclick = function () { startFlow(paymentFlow(p)); };
+    if (payBtn) payBtn.onclick = function () { startFlow(paymentFlow(p, 'list')); };
     const remindBtn = document.getElementById('remind-btn');
     if (remindBtn) remindBtn.onclick = function () {
       // opens WhatsApp with a pre-filled reminder — the collector still taps
@@ -1251,7 +1272,7 @@
     const backView = isBus ? 'entries' : 'party', backParams = isBus ? undefined : { id: params.partyId };
     $view().innerHTML = backBar(backView, backParams) + '<div class="empty">' + esc(t('loading')) + '</div>';
     viewData().then(function (data) {
-      let rc, phone = '', store, id;
+      let rc, phone = '', store, id, party = null;
       if (isBus) {
         const d = (data.daily || []).filter(function (x) { return x.id === params.id; })[0];
         if (!d) { navigate('entries'); return; }
@@ -1264,16 +1285,49 @@
         const paid = (data.payments || []).filter(function (x) { return x.partyId === p.id && !voided[x.id]; })
           .reduce(function (a, x) { return a + (Number(x.amount) || 0); }, 0);
         rc = rcFromPayment(p, pay, paid, (Number(p.pledged) || 0) - paid); phone = p.phone; store = 'payments'; id = pay.id;
+        party = p;
+      }
+      // Fast-continue, same idea as the daily add-another screen:
+      //  - bus → another bus entry (unambiguous, no search involved).
+      //  - a payment reached via search/list (params.origin set) → back to
+      //    that same search, NOT a "new entry" (a payment targets a party
+      //    someone already picked, so there's no natural "next" to create).
+      //  - a brand-new party's first payment (no origin) → another same-type
+      //    party, side sticky for shops — this is what "bulk mode" used to do.
+      let contHtml = '', contWire = function () {};
+      if (isBus) {
+        contHtml = '<button id="rcp-again" class="ghost big block">➕ ' + esc(t('daily_bus')) + '</button>' +
+          '<button id="rcp-skip" class="ghost big block">' + esc(t('done_for_now')) + '</button>';
+        contWire = function () {
+          document.getElementById('rcp-again').onclick = function () { startFlow(dailyFlow('bus')); };
+          document.getElementById('rcp-skip').onclick = function () { navigate('home'); };
+        };
+      } else if (params.origin) {
+        contHtml = '<button id="rcp-again" class="ghost big block">' + esc(t('back_to_search')) + '</button>' +
+          '<button id="rcp-skip" class="ghost big block">' + esc(t('done_for_now')) + '</button>';
+        contWire = function () {
+          document.getElementById('rcp-again').onclick = function () { navigate(params.origin); };
+          document.getElementById('rcp-skip').onclick = function () { navigate('home'); };
+        };
+      } else {
+        contHtml = '<button id="rcp-again" class="ghost big block">' + esc(t('one_more')) + ' ' + esc(t('new_' + party.type)) + '</button>' +
+          '<button id="rcp-skip" class="ghost big block">' + esc(t('done_for_now')) + '</button>';
+        contWire = function () {
+          document.getElementById('rcp-again').onclick = function () {
+            startFlow(newPartyFlow(party.type, party.type === 'shop' ? { side: party.side } : {})); };
+          document.getElementById('rcp-skip').onclick = function () { navigate('home'); };
+        };
       }
       const paint = function () {
         $view().innerHTML = backBar(backView, backParams) + '<div class="flow-title">' + esc(t('receipt_title')) + '</div>' +
           '<img id="rcp-img" alt="" style="width:100%;max-width:420px;display:block;margin:0 auto 12px;border:1px solid #eee;border-radius:10px">' +
           (rc.receiptNo ? '' : '<div class="hint" style="text-align:center">' + esc(t('receipt_no_pending')) + '</div>') +
           '<button id="rcp-wa" class="primary big block">📷 ' + esc(t('receipt_send_img')) + '</button>' +
-          '<button id="rcp-sms" class="ghost big block">💬 ' + esc(t('receipt_send_sms')) + '</button>';
+          '<button id="rcp-sms" class="ghost big block">💬 ' + esc(t('receipt_send_sms')) + '</button>' + contHtml;
         buildReceiptCanvas(rc).then(function (cv) { const im = document.getElementById('rcp-img'); if (im) im.src = cv.toDataURL('image/png'); });
         document.getElementById('rcp-wa').onclick = function () { shareReceiptImage(rc); };
         document.getElementById('rcp-sms').onclick = function () { shareReceiptText(rc, phone); };
+        contWire();
       };
       paint();
       // if no serial yet, sync + pull to obtain one, then redraw
