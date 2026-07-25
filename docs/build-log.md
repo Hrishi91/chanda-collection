@@ -2090,3 +2090,38 @@ the code:
   permissions are UI shaping not secrecy, token in localStorage, UPI to
   personal numbers, Telegram deferred.
 - The operational checklist Hrishi still owns is at the end of that file.
+
+## v3.78.0 — Disaster recovery closed: auto trigger, mandatory Go-Live backup, real restore
+
+The one genuinely dangerous gap from docs/residual-risks.md §1, fixed in
+code rather than left as an operational to-do:
+
+- **`setup()` installs the backup trigger itself** (`ensureBackupTrigger_`,
+  idempotent) — automatic daily backups no longer depend on Hrishi
+  remembering a manual editor step, which was unverified and might never
+  have existed.
+- **`dailyBackup()` hardened**: returns its filename, timestamps to the
+  minute (a manual backup right before Go Live can't overwrite the daily
+  one), and now also captures ExpenseSubjects / Lists / Config / Audit —
+  previously only the transactional sheets + Users were saved, so a restore
+  would have lost the master data and receipt design.
+- **`goLive` no longer wipes on a failed backup.** It was `try{...}catch{}`
+  best-effort before a one-way irreversible wipe; now a backup failure
+  aborts with `backup-failed` (mapped to a clear Bengali message) and the
+  data is untouched. The audit entry records which snapshot protects it.
+- **A restore path exists at last**: `backupNow`, `listBackups`,
+  `restoreBackup` (admin-only). Restore is guarded by admin token + explicit
+  fileId + a typed "RESTORE", takes a safety backup of the CURRENT state
+  first (so the restore itself is reversible), rebuilds each sheet from the
+  snapshot, and bumps `data_epoch` so every device drops its cache and
+  re-pulls.
+- Admin panel 🗂️ fold gained 💾 এখনই backup নাও · ♻️ Backup থেকে ফেরাও.
+
+Verified in the harness: all four buttons render in Bengali; restore's three
+gates each block correctly (wrong typed word → no call, declined confirm →
+no call), the happy path sends `{fileId, confirm:'RESTORE'}` and clears the
+local cache afterwards; backupNow reports the filename. No console errors.
+125 tests pass. sw → chanda-v3.78.0.
+
+⚠️ Server-side → needs one more Code.gs redeploy (New deployment → URL →
+rebake) and **run `setup()` after it** — that's what installs the trigger.

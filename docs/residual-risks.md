@@ -1,12 +1,35 @@
 # Residual risks & untested paths — 2026-07-25
 
+> **UPDATE (v3.78.0):** §1 (disaster recovery) is now **closed in code** —
+> `setup()` installs the daily backup trigger itself, `goLive` aborts if its
+> safety backup fails, and a real **restore path** exists (admin: 💾 Back up
+> now / ♻️ Restore from backup). The rest of this file still stands.
+
 Everything in `docs/final-audit.md` is fixed and verified. This file is the
 honest remainder: things that are **built but never exercised**, or
 **deliberately out of scope**, or **operational steps only Hrishi can do**.
 Nothing here is a known bug — they are the places where a surprise could
 still come from.
 
-## 1. Disaster recovery is HALF built — the biggest real gap
+## 1. Disaster recovery — WAS half built, now closed (v3.78.0)
+
+**Fixed:** `setup()` now calls `ensureBackupTrigger_()` (idempotent), so the
+daily 2am Drive backup no longer depends on remembering a manual editor
+step. `dailyBackup()` returns its filename, is timestamped to the minute
+(several backups a day never overwrite), and now also snapshots
+ExpenseSubjects / Lists / Config / Audit — not just the transactional
+sheets + Users. `goLive` treats its snapshot as **mandatory**: if the backup
+throws, Go Live aborts with `backup-failed` and the data is untouched.
+New admin actions: `backupNow`, `listBackups`, `restoreBackup` (guarded by
+admin token + explicit fileId + typed "RESTORE", and it takes a safety
+backup of the CURRENT state first, so a restore is itself reversible; it
+also bumps `data_epoch` so every device re-pulls). Admin panel → 🗂️ ডেটা
+ও হিসাব রক্ষা → 💾 এখনই backup নাও · ♻️ Backup থেকে ফেরাও.
+
+**Still true:** Google Sheets' own version history remains the fastest
+recovery for small accidents.
+
+### (original text, for the record)
 
 - `dailyBackup()` writes a full JSON snapshot (all sheets + users) to Drive
   folder `ChandaKhata-Backups`. **But:**

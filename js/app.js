@@ -2446,6 +2446,8 @@
           listMgmtCard('location', 'manage_locations', locations), false) +
         fold('🗂️', 'adm_data', '',
           '<button id="audit-btn" class="ghost big block">' + esc(t('audit_btn')) + '</button>' +
+          '<button id="backup-btn" class="ghost big block">' + esc(t('backup_now_btn')) + '</button>' +
+          '<button id="restore-btn" class="ghost big block">' + esc(t('restore_btn')) + '</button>' +
           '<button id="rollover-btn" class="ghost big block">' + esc(t('rollover_btn')) + '</button>', false);
       document.getElementById('adm-refresh').onclick = renderAdmin;
       const goLiveBtn = document.getElementById('golive-btn');
@@ -2469,6 +2471,32 @@
       };
       document.getElementById('audit-btn').onclick = function () { navigate('audit'); };
       document.getElementById('receipt-btn').onclick = function () { navigate('receiptcfg'); };
+      // on-demand snapshot — the cheap insurance before anything one-way
+      document.getElementById('backup-btn').onclick = function () {
+        const b = this; b.disabled = true;
+        Auth.call('backupNow', { token: Auth.token() })
+          .then(function (r) { b.disabled = false; alert(t('backup_done').replace('{f}', r.file)); })
+          .catch(function (e) { b.disabled = false; toast(errMsg(e)); });
+      };
+      // restore: pick a snapshot, then type RESTORE — the server takes a
+      // safety backup of the CURRENT state first, so this is itself undoable
+      document.getElementById('restore-btn').onclick = function () {
+        Auth.call('listBackups', { token: Auth.token() }).then(function (r) {
+          const list = r.backups || [];
+          if (!list.length) { alert(t('restore_none')); return; }
+          const menu = list.slice(0, 10).map(function (f, i) { return (i + 1) + '. ' + f.name; }).join('\n');
+          const pick = window.prompt(t('restore_pick') + '\n\n' + menu);
+          const idx = Number(pick) - 1;
+          if (!(idx >= 0 && idx < list.length)) return;
+          if (!window.confirm(t('restore_confirm').replace('{f}', list[idx].name))) return;
+          if (String(window.prompt(t('restore_type')) || '').trim().toUpperCase() !== 'RESTORE') return;
+          Auth.call('restoreBackup', { token: Auth.token(), fileId: list[idx].id, confirm: 'RESTORE' })
+            .then(function (res) {
+              alert(t('restore_done').replace('{n}', (res.restored || []).join(', ')).replace('{s}', res.safetyBackup));
+              DB.clearAll().then(function () { location.reload(); }); // re-pull the restored data
+            }).catch(function (e) { toast(errMsg(e)); });
+        }).catch(function (e) { toast(errMsg(e)); });
+      };
       document.getElementById('rollover-btn').onclick = function () {
         const from = Number(Settings.get('year')), to = from + 1;
         if (!window.confirm(t('rollover_confirm').replace('{from}', from).replace('{to}', to))) return;

@@ -89,6 +89,10 @@ function setup() {
       ls.appendRow([a[0], 'area', a[1], a[2], i, new Date().toISOString()]);
     });
   }
+  // automatic daily backup — no longer a manual editor step to remember
+  var trig = ensureBackupTrigger_();
+  Logger.log('setup complete · daily backup trigger: ' + trig);
+  return 'setup ok · backup trigger ' + trig;
 }
 
 /** Run once from the editor after the first registration, e.g. makeAdmin('hrishi') */
@@ -567,7 +571,13 @@ var ACTIONS = {
   goLive: function (b) {
     var me = requireAdmin_(b.token);
     var digits = Math.min(9, Math.max(4, Number(b.digits) || 6)); // locked in at go-live
-    try { dailyBackup(); } catch (e) { /* best-effort safety snapshot */ }
+    // The safety snapshot is MANDATORY, not best-effort: goLive is one-way and
+    // wipes every transactional sheet. If the backup can't be written (Drive
+    // permission, quota…) we must NOT proceed — losing training data is
+    // survivable, losing it with no snapshot and no undo is not.
+    var backupFile;
+    try { backupFile = dailyBackup(); }
+    catch (e) { throw new Error('backup-failed: ' + (e && e.message || e)); }
     var lock = LockService.getScriptLock(); lock.waitLock(30000);
     try {
       var ss = SpreadsheetApp.getActive();
@@ -585,8 +595,60 @@ var ACTIONS = {
       setConfig_('receipt_digits', digits);
       setConfig_('live_mode', 'on');
       setConfig_('data_epoch', String(Date.now()));
-      logAudit_(me.row, 'went-live', 'training data cleared; digits=' + digits);
-      return { ok: true };
+      logAudit_(me.row, 'went-live', 'training data cleared; digits=' + digits + '; backup=' + backupFile);
+      return { ok: true, backup: backupFile };
+    } finally { lock.releaseLock(); }
+  },
+
+  // ---------- backup / restore (admin) ----------
+  // On-demand snapshot — the cheap insurance to take right before Go Live.
+  backupNow: function (b) {
+    var me = requireAdmin_(b.token);
+    var name = dailyBackup();
+    logAudit_(me.row, 'backup', name);
+    return { ok: true, file: name, trigger: ensureBackupTrigger_() };
+  },
+  // What snapshots exist, newest first.
+  listBackups: function (b) {
+    requireAdmin_(b.token);
+    var it = backupFolder_().getFiles(), out = [];
+    while (it.hasNext()) {
+      var f = it.next();
+      out.push({ id: f.getId(), name: f.getName(), size: f.getSize(),
+                 created: f.getDateCreated().toISOString() });
+    }
+    out.sort(function (a, c) { return String(c.created).localeCompare(String(a.created)); });
+    return { ok: true, backups: out.slice(0, 30) };
+  },
+  // Restore a snapshot back into the sheets. DESTRUCTIVE: replaces the whole
+  // contents of every sheet present in the backup. Guarded three ways —
+  // admin token, an explicit file id, and a typed confirm string — and it
+  // takes a fresh backup of the CURRENT state first, so a restore is itself
+  // undoable. This is the recovery path that was missing entirely.
+  restoreBackup: function (b) {
+    var me = requireAdmin_(b.token);
+    if (String(b.confirm) !== 'RESTORE') throw new Error('confirm-required');
+    var file = DriveApp.getFileById(String(b.fileId)); // throws if not found
+    var data = JSON.parse(file.getBlob().getDataAsString());
+    var safety = dailyBackup(); // current state first — restore is reversible
+    var ss = SpreadsheetApp.getActive();
+    var lock = LockService.getScriptLock(); lock.waitLock(30000);
+    var restored = [];
+    try {
+      Object.keys(data).forEach(function (key) {
+        var title = SHEET_TITLES[key] || key; // transactional stores + Users/Lists/Config/Audit
+        var rows = data[key];
+        if (!rows || !rows.length) return;
+        var sh = ss.getSheetByName(title) || ss.insertSheet(title);
+        sh.clear();
+        sh.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+        sh.setFrozenRows(1);
+        restored.push(title + ':' + (rows.length - 1));
+      });
+      // every device must drop its cached snapshot and re-pull the restored data
+      setConfig_('data_epoch', String(Date.now()));
+      logAudit_(me.row, 'restore', file.getName() + ' → [' + restored.join(', ') + '] (safety: ' + safety + ')');
+      return { ok: true, restored: restored, safetyBackup: safety };
     } finally { lock.releaseLock(); }
   },
 
@@ -1134,6 +1196,15 @@ function computeReport_(id, d) {
  * Daily JSON snapshot of all sheets into Drive folder "ChandaKhata-Backups".
  * Add a time-driven trigger (daily, e.g. 2-3 AM) pointing at this function.
  */
+var BACKUP_FOLDER = 'ChandaKhata-Backups';
+function backupFolder_() {
+  var f = DriveApp.getFoldersByName(BACKUP_FOLDER);
+  return f.hasNext() ? f.next() : DriveApp.createFolder(BACKUP_FOLDER);
+}
+// Full snapshot (every sheet incl. Users) → Drive. Returns the file name so
+// callers can log/report exactly which snapshot they took. Timestamped to the
+// minute so several backups in one day (e.g. a manual one right before Go
+// Live) never overwrite each other.
 function dailyBackup() {
   var ss = SpreadsheetApp.getActive();
   var data = {};
@@ -1142,8 +1213,22 @@ function dailyBackup() {
     data[store] = sh ? sh.getDataRange().getValues() : [];
   });
   data.users = usersSheet_() ? usersSheet_().getDataRange().getValues() : [];
-  var folders = DriveApp.getFoldersByName('ChandaKhata-Backups');
-  var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder('ChandaKhata-Backups');
-  var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
-  folder.createFile('chanda-backup-' + stamp + '.json', JSON.stringify(data), 'application/json');
+  ['ExpenseSubjects', 'Lists', 'Config', 'Audit'].forEach(function (n) {
+    var sh = ss.getSheetByName(n);
+    data[n] = sh ? sh.getDataRange().getValues() : [];
+  });
+  var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
+  var name = 'chanda-backup-' + stamp + '.json';
+  backupFolder_().createFile(name, JSON.stringify(data), 'application/json');
+  return name;
+}
+// Idempotent: install the daily backup trigger if it isn't already there, so
+// automatic backups don't depend on remembering a manual editor step.
+function ensureBackupTrigger_() {
+  var has = ScriptApp.getProjectTriggers().some(function (t) {
+    return t.getHandlerFunction() === 'dailyBackup';
+  });
+  if (has) return 'already';
+  ScriptApp.newTrigger('dailyBackup').timeBased().atHour(2).everyDays(1).create();
+  return 'created';
 }
