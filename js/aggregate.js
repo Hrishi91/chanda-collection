@@ -217,6 +217,10 @@
   // arrived, then silently moved to দোকান. The total was always right; the
   // split was not reproducible.
   const AVAIL_CATS = ['shop', 'person', 'member', 'payment', 'bus', 'road', 'toto', 'received', 'other'];
+  // The reserved source id for money a person collected themselves, as opposed
+  // to a parcel handed to them by someone else. It can never collide with a
+  // username: usernames are /^[a-z0-9._-]{3,20}$/ (Code.gs register).
+  const OWN_SRC = '__own';
   function splitOf(r) {
     return isCashOnly(r)
       ? { cash: Number(r.amount) || 0, upi: 0 }
@@ -270,19 +274,43 @@
     });
     const isTo = function (h) { return String(h.toId || h.to || '?') === String(ident); };
     const isFrom = function (h) { return String(h.fromId || h.from || '?') === String(ident); };
+    // Where each parcel of money came from, kept alongside the category totals.
+    // givers[srcId] = { name, cats: { cat: {cash, upi} } }, where OWN_SRC is the
+    // money this person collected themselves. Nothing is inferred: an outgoing
+    // handover records its source in `breakdown[cat].src`, because the giver
+    // picked a named line on the handover sheet. Rows written before `src`
+    // existed carry none, and are read as OWN_SRC — which is what they were.
+    const givers = {};
+    const moveSrc = function (srcId, name, cat, s) {
+      const g = givers[srcId] || (givers[srcId] = { id: srcId, name: name || srcId, cats: {} });
+      if (name) g.name = name;
+      const e = g.cats[cat] || (g.cats[cat] = { cash: 0, upi: 0 });
+      e.cash += s.cash; e.upi += s.upi;
+    };
     (data.handovers || []).filter(function (h) { return h.status === 'confirmed'; }).forEach(function (h) {
       const bd = parseBd(h), s = splitOf(h);
       if (isTo(h)) {
+        const from = String(h.fromId || h.from || '?');
         if (bd) Object.keys(bd).forEach(function (k) {
-          add(AVAIL_CATS.indexOf(k) >= 0 ? k : 'received',
-              { cash: Number(bd[k].cash) || 0, upi: Number(bd[k].upi) || 0 });
+          const cat = AVAIL_CATS.indexOf(k) >= 0 ? k : 'received';
+          const part = { cash: Number(bd[k].cash) || 0, upi: Number(bd[k].upi) || 0 };
+          add(cat, part);
+          moveSrc(from, h.from, cat, part);
         });
-        else add('received', s);
+        else { add('received', s); moveSrc(from, h.from, 'received', s); }
       }
       if (isFrom(h)) {
         if (bd) Object.keys(bd).forEach(function (k) {
-          add(AVAIL_CATS.indexOf(k) >= 0 ? k : 'received',
-              { cash: -(Number(bd[k].cash) || 0), upi: -(Number(bd[k].upi) || 0) });
+          const cat = AVAIL_CATS.indexOf(k) >= 0 ? k : 'received';
+          add(cat, { cash: -(Number(bd[k].cash) || 0), upi: -(Number(bd[k].upi) || 0) });
+          const src = bd[k].src;
+          if (src && typeof src === 'object') {
+            Object.keys(src).forEach(function (sid) {
+              moveSrc(sid, null, cat, { cash: -(Number(src[sid].cash) || 0), upi: -(Number(src[sid].upi) || 0) });
+            });
+          } else { // pre-`src` row: it can only have been one's own money
+            moveSrc(OWN_SRC, null, cat, { cash: -(Number(bd[k].cash) || 0), upi: -(Number(bd[k].upi) || 0) });
+          }
         });
         else { drain(cats, s.cash, 'cash'); drain(cats, s.upi, 'upi'); }
       }
@@ -311,7 +339,34 @@
     });
     let cash = 0, upi = 0;
     Object.keys(cats).forEach(function (k) { cash += cats[k].cash; upi += cats[k].upi; });
-    return { cash: cash, upi: upi, byCat: cats };
+    // What is still held from each OTHER person's parcels (drop emptied ones,
+    // and drop OWN_SRC — "own" is not a giver). Expenses are charged to one's
+    // own money, so a parcel only shrinks when it is actually passed on.
+    const byGiver = Object.keys(givers).filter(function (id) { return id !== OWN_SRC; })
+      .map(function (id) {
+        const g = givers[id];
+        let gc = 0, gu = 0;
+        const catList = Object.keys(g.cats).filter(function (k) {
+          return g.cats[k].cash > 0 || g.cats[k].upi > 0;
+        }).map(function (k) {
+          gc += Math.max(0, g.cats[k].cash); gu += Math.max(0, g.cats[k].upi);
+          return { key: k, cash: Math.max(0, g.cats[k].cash), upi: Math.max(0, g.cats[k].upi) };
+        });
+        return { id: g.id, name: g.name, cats: catList, cash: gc, upi: gu, total: gc + gu };
+      }).filter(function (g) { return g.total > 0; })
+      .sort(function (a, b) { return b.total - a.total; });
+    // Own money per category = the category total minus every giver's share, so
+    // the handover sheet can show "what I collected" apart from "what I was
+    // handed" without counting anything twice.
+    const own = {};
+    Object.keys(cats).forEach(function (k) { own[k] = { cash: cats[k].cash, upi: cats[k].upi }; });
+    byGiver.forEach(function (g) {
+      g.cats.forEach(function (c) {
+        const e = own[c.key] || (own[c.key] = { cash: 0, upi: 0 });
+        e.cash -= c.cash; e.upi -= c.upi;
+      });
+    });
+    return { cash: cash, upi: upi, byCat: cats, byGiver: byGiver, byCatOwn: own };
   }
 
   // Parties with outstanding due, biggest due first.
@@ -550,7 +605,7 @@
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,
                 roleOf: roleOf, rowRole: rowRole,
                 ENTRY_KINDS: ENTRY_KINDS, PERM_KEYS: PERM_KEYS,
-                permForRow: permForRow, permAllowed: permAllowed };
+                permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
 })();

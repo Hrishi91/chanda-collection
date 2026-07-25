@@ -209,6 +209,16 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
 .sh-actions { display: flex; gap: 8px; margin-bottom: 10px; }
 .sh-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .sh-row .cat-name { flex: 1 1 auto; font-weight: 600; font-size: 15px; }
+/* who handed this parcel over — a sub-heading inside the 🤝 group, so a
+   giver's categories read as one block instead of a flat list of amounts */
+.sh-giver {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  padding: 9px 12px 4px; border-top: 1px solid var(--line);
+  font-weight: 700; font-size: 14px;
+}
+.sh-giver-tot { margin-left: auto; font-weight: 400; font-size: 12.5px; color: var(--sub); white-space: nowrap; }
+.sh-giver + .sh-row { border-top: 0; }
+.sh-giver ~ .sh-row .cat-name { padding-left: 14px; font-weight: 500; }
 .sh-picks { display: flex; gap: 6px; flex: 0 0 auto; }
 .sh-pick {
   border: 1.5px solid var(--line); background: var(--card); color: var(--sub);

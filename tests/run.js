@@ -508,6 +508,59 @@ eq(permAllowed(busOnly, permForRow('payments', {})), true, 'perms: bus-only coll
 eq(permAllowed(busOnly, permForRow('handovers', {})), true, 'perms: bus-only collector may still hand money over');
 eq(permAllowed(null, 'bus'), false, 'perms: no user, no permission');
 
+// ---- own money vs other people's parcels -----------------------------------
+// The handover sheet shows what you collected apart from what someone handed
+// you, by giver. Provenance is never inferred: the giver picks a named line, so
+// the outgoing row records `breakdown[cat].src` and every later reading agrees.
+const jd = {
+  parties: [{ id: 's1', type: 'shop', name: 'S' }], voids: [], corrections: [], expenses: [], daily: [],
+  payments: [{ id: 'p', collectorId: 'jadav', partyId: 's1', amount: 500, cashAmount: 500, upiAmount: 0 }],
+  handovers: [
+    { id: 'h1', fromId: 'yamini', from: 'Yamini mahato', toId: 'jadav', amount: 1700, cashAmount: 1200, upiAmount: 500,
+      status: 'confirmed', breakdown: JSON.stringify({ shop: { cash: 1200, upi: 0 }, bus: { cash: 0, upi: 500 } }) },
+    { id: 'h2', fromId: 'biplab', from: 'Biplab', toId: 'jadav', amount: 300, cashAmount: 300, upiAmount: 0,
+      status: 'confirmed', breakdown: JSON.stringify({ road: { cash: 300, upi: 0 } }) },
+  ],
+};
+const jv = myAvailable(jd, 'jadav');
+eq(jv.byCat.shop, { cash: 1700, upi: 0 }, 'parcels: the category total still counts own + received');
+eq(jv.byCatOwn.shop, { cash: 500, upi: 0 }, 'parcels: own shop money is only what jadav collected');
+eq(jv.byGiver.length, 2, 'parcels: two people have handed money over');
+eq(jv.byGiver[0].name, 'Yamini mahato', 'parcels: biggest giver first');
+eq(jv.byGiver[0].total, 1700, 'parcels: Yamini parcel total');
+eq(jv.byGiver[0].cats, [{ key: 'shop', cash: 1200, upi: 0 }, { key: 'bus', cash: 0, upi: 500 }], 'parcels: kept category-wise');
+eq(jv.byGiver[1].name, 'Biplab', 'parcels: second giver');
+eq(jv.byGiver[1].total, 300, 'parcels: Biplab parcel total');
+// nothing double-counts: own + every parcel === the category totals
+const recombined = {};
+Object.keys(jv.byCatOwn).forEach(function (k) { recombined[k] = { cash: jv.byCatOwn[k].cash, upi: jv.byCatOwn[k].upi }; });
+jv.byGiver.forEach(function (g) { g.cats.forEach(function (c) {
+  const e = recombined[c.key] || (recombined[c.key] = { cash: 0, upi: 0 });
+  e.cash += c.cash; e.upi += c.upi; }); });
+eq(recombined, jv.byCat, 'parcels: own + all parcels adds back up to byCat exactly');
+
+// pass Yamini's shop 1200 on, naming the source (what picking her line writes)
+jd.handovers.push({ id: 'h3', fromId: 'jadav', toId: 'hrishi', amount: 1200, cashAmount: 1200, upiAmount: 0,
+  status: 'confirmed', breakdown: JSON.stringify({ shop: { cash: 1200, upi: 0, src: { yamini: { cash: 1200, upi: 0 } } } }) });
+const jv2 = myAvailable(jd, 'jadav');
+eq(jv2.byCatOwn.shop, { cash: 500, upi: 0 }, 'parcels: passing Yamini\'s money on leaves own money alone');
+eq(jv2.byGiver.length, 2, 'parcels: Yamini still has a parcel (her bus UPI)');
+eq(jv2.byGiver.find(function (g) { return g.id === 'yamini'; }).cats, [{ key: 'bus', cash: 0, upi: 500 }],
+   'parcels: only the shop part of Yamini\'s parcel was consumed');
+// …and if jadav had passed his OWN shop money instead, hers would be untouched
+const jdOwn = JSON.parse(JSON.stringify(jd));
+jdOwn.handovers[2].breakdown = JSON.stringify({ shop: { cash: 500, upi: 0, src: { __own: { cash: 500, upi: 0 } } } });
+jdOwn.handovers[2].amount = 500; jdOwn.handovers[2].cashAmount = 500;
+const jv3 = myAvailable(jdOwn, 'jadav');
+eq(jv3.byCatOwn.shop, { cash: 0, upi: 0 }, 'parcels: naming own money spends own money');
+eq(jv3.byGiver.find(function (g) { return g.id === 'yamini'; }).cats[0], { key: 'shop', cash: 1200, upi: 0 },
+   'parcels: …and Yamini\'s shop parcel is untouched');
+// a pre-`src` outgoing row can only have been one's own money
+const jdLegacy = JSON.parse(JSON.stringify(jd));
+jdLegacy.handovers[2].breakdown = JSON.stringify({ shop: { cash: 500, upi: 0 } });
+jdLegacy.handovers[2].amount = 500; jdLegacy.handovers[2].cashAmount = 500;
+eq(myAvailable(jdLegacy, 'jadav').byCatOwn.shop, { cash: 0, upi: 0 }, 'parcels: a pre-src row is read as own money');
+
 // ---- an expense must not wander between categories ---------------------------
 // The bug: an expense with no named source pot was drained from whatever pots
 // held money AT THE MOMENT OF CALCULATION. So the same bill sat under টোটো until

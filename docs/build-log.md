@@ -2751,3 +2751,59 @@ VERIFIED
   by any of it, and pre-`srcCat` rows keep the old drain. **260 passed, 0 failed.**
 - browser, same scenario: `{toto:1000, other:-198}` before, `{toto:1000,
   shop:1200, other:-198}` after, total 2002. No console errors.
+
+## v3.87.0 — other people's money gets its own portion on the handover sheet
+
+Hrishi: "in hand over we have not shown the handed over amount from other users,
+it also can be handed over to other users" → then, choosing the shape: category-
+wise, in a separate portion, **with the giver's name**.
+
+Money handed to a cashier used to be merged straight into the category totals.
+Jadav collecting ₹500 of shop cash and being handed ₹1200 of shop cash by Yamini
+read as one line, **দোকান ৳১৭০০** — no way to see whose it was. The sheet now has
+a third portion:
+
+    🤝 অন্যের কাছ থেকে পাওয়া
+      🧑 Yamini mahato            💵১২০০ · 📱৫০০ · ১৭০০
+         দোকান          💵 ১২০০      —
+         বাস কালেকশন     —          📱 ৫০০
+      🧑 Biplab                    💵৩০০ · 📱০ · ৩০০
+         রোড কালেকশন    💵 ৩০০       —
+
+THE APPROXIMATION I WAS BRACED FOR NEVER ARRIVES. Asking "how much of Jadav's
+remaining shop cash is still Yamini's" is unanswerable after a second hop — the
+outgoing row records category and money type, not whose parcel it came from. I
+had planned a first-in-first-out convention to guess it. Hrishi's choice of a
+per-giver screen removes the guess entirely: **the giver taps a named line, so
+the selection IS the provenance.** Each chip carries `data-src` (a username, or
+`__own`), and the outgoing breakdown records it:
+
+    {"shop": {"cash":1200, "upi":0, "src": {"yamini": {"cash":1200,"upi":0}}}}
+
+DB: **no new column, no `setup()`.** `breakdown` is already one JSON cell, and
+`src` nests inside each category, so `Object.keys(bd)` still yields category
+names and `.cash`/`.upi` still read the same. Old rows have no `src` and are read
+as one's own money — which is what they were, since nothing else could be passed
+on before parcels were tracked. `Code.gs` is untouched: breakdown is an opaque
+string to it, and it computes no `byCat` at all.
+
+`myAvailable` now also returns `byGiver` (parcels still held, by giver, category-
+wise) and `byCatOwn` (category totals minus every parcel). `byCat` is unchanged,
+so reconcile and every existing report read exactly what they always did.
+
+Edge case handled: a cashier holding ONLY other people's parcels and none of
+their own still gets the sheet — the old gate was `categories.length`, which
+would have dropped them to manual typed entry with nothing selectable.
+
+VERIFIED
+- 15 new tests, including the one that matters — own + every parcel adds back up
+  to `byCat` exactly, so nothing is counted twice — plus: passing Yamini's money
+  leaves own money alone, passing own money leaves her parcel untouched, and a
+  pre-`src` row reads as own money. **275 passed, 0 failed.**
+- browser, the same three-way scenario: own `{shop:500}`, Yamini `1700` split
+  `shop 1200 / bus 500 upi`, Biplab `300 road`. No console errors.
+- NOT verified end-to-end: the sheet itself needs a logged-in session — on the
+  post-redeploy list with the ledger tabs.
+
+STILL OPEN: "কাকে কত জমা দিয়েছি, নাম ধরে + category-wise" in আমার হিসাব (next),
+then the handover report, edit-after-flag, admin-only backup import.

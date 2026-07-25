@@ -552,21 +552,36 @@
       // cash and UPI are SEPARATE tap-to-select chips carrying the real
       // figure — nothing is typed; the total is simply what is selected.
       // Everything starts selected, so handing over the lot = change nothing.
-      const cell = function (c, kind) {
+      // Every chip says whose money it is (`data-src`): OWN for what this person
+      // collected, else the giver's username. That is the whole provenance
+      // mechanism — the giver PICKS the line, so nothing has to be inferred
+      // later about which parcel a handover came out of.
+      const cell = function (c, kind, src) {
         const avail = kind === 'cash' ? c.cash : c.upi;
         if (avail <= 0) return '<span class="sh-none">—</span>';
         return '<button class="sh-pick on" data-cat="' + esc(c.key) + '" data-kind="' + kind +
-          '" data-amt="' + avail + '">' + (kind === 'cash' ? '💵' : '📱') + ' ' + fmtMoney(avail) + '</button>';
+          '" data-src="' + esc(src || OWN_SRC) + '" data-amt="' + avail + '">' +
+          (kind === 'cash' ? '💵' : '📱') + ' ' + fmtMoney(avail) + '</button>';
+      };
+      const catRow = function (c, src) {
+        return '<div class="sh-row"><span class="cat-name">' + esc(t(c.labelKey || CAT_LABEL_KEYS[c.key] || 'cat_other')) + '</span>' +
+          '<span class="sh-picks">' + cell(c, 'cash', src) + cell(c, 'upi', src) + '</span></div>';
       };
       html += '<div class="sh-actions"><button class="chip" id="sh-all">' + esc(t('sheet_all')) +
         '</button><button class="chip" id="sh-none">' + esc(t('sheet_none')) + '</button></div>' +
         groups.map(function (g) {
           return '<div class="cat-group"><div class="cat-group-head">' + esc(t(g.labelKey)) + '</div>' +
-            g.cats.map(function (c) {
-              return '<div class="sh-row"><span class="cat-name">' + esc(t(c.labelKey)) + '</span>' +
-                '<span class="sh-picks">' + cell(c, 'cash') + cell(c, 'upi') + '</span></div>';
-            }).join('') + '</div>';
+            g.cats.map(function (c) { return catRow(c, OWN_SRC); }).join('') + '</div>';
         }).join('') +
+        // What other people handed over and this person has not passed on yet —
+        // its own portion, by giver, so it never blends into one's own takings.
+        ((s.givers || []).length ? '<div class="cat-group"><div class="cat-group-head">' +
+          esc(t('grp_received')) + '</div>' +
+          s.givers.map(function (g) {
+            return '<div class="sh-giver">🧑 ' + esc(g.name) + '<span class="sh-giver-tot">💵' +
+              fmtMoney(g.cash) + ' · 📱' + fmtMoney(g.upi) + ' · <b>' + fmtMoney(g.total) + '</b></span></div>' +
+              g.cats.map(function (c) { return catRow(c, g.id); }).join('');
+          }).join('') + '</div>' : '') +
         '<div class="cat-selected" id="sh-total"></div>' +
         '<div class="flow-actions"><button id="sh-next" class="primary">' + esc(t('next')) + '</button></div>';
     } else {
@@ -651,9 +666,12 @@
         const per = {};
         picks.forEach(function (b) {
           if (!b.classList.contains('on')) return;
-          const k = b.dataset.cat;
-          per[k] = per[k] || { cash: 0, upi: 0 };
-          per[k][b.dataset.kind] += Number(b.dataset.amt) || 0;
+          const k = b.dataset.cat, kind = b.dataset.kind, amt = Number(b.dataset.amt) || 0;
+          const src = b.dataset.src || OWN_SRC;
+          per[k] = per[k] || { cash: 0, upi: 0, src: {} };
+          per[k][kind] += amt;
+          per[k].src[src] = per[k].src[src] || { cash: 0, upi: 0 };
+          per[k].src[src][kind] += amt;
         });
         submitSheet(per);
       };
@@ -827,20 +845,32 @@
                          payment: 'cat_payment', bus: 'daily_bus',
                          road: 'daily_road', toto: 'daily_toto', received: 'cat_received',
                          other: 'cat_other' };
-    const byCat = avail.byCat || {};
-    const categories = Object.keys(CAT_LABELS).filter(function (k) {
-      return byCat[k] && (byCat[k].cash + byCat[k].upi) > 0;
-    }).map(function (k) {
-      // clamp BOTH the chip total and the selectable subtypes the same way,
-      // so the label always equals what selecting the chip actually gives
-      const c = Math.max(0, byCat[k].cash), u = Math.max(0, byCat[k].upi);
-      return { key: k, labelKey: CAT_LABELS[k], amount: c + u, cash: c, upi: u };
-    });
+    // The categories section shows what this person collected THEMSELVES; money
+    // handed to them by others gets its own section, by giver, so the two never
+    // blend into one figure.
+    const byCat = avail.byCatOwn || avail.byCat || {};
+    const catsOf = function (src) {
+      return Object.keys(CAT_LABELS).filter(function (k) {
+        return src[k] && (src[k].cash + src[k].upi) > 0;
+      }).map(function (k) {
+        // clamp BOTH the chip total and the selectable subtypes the same way,
+        // so the label always equals what selecting the chip actually gives
+        const c = Math.max(0, src[k].cash), u = Math.max(0, src[k].upi);
+        return { key: k, labelKey: CAT_LABELS[k], amount: c + u, cash: c, upi: u };
+      });
+    };
+    const categories = catsOf(byCat);
+    const givers = (avail.byGiver || []).map(function (g) {
+      const m = {}; g.cats.forEach(function (c) { m[c.key] = { cash: c.cash, upi: c.upi }; });
+      return { id: g.id, name: g.name, cash: g.cash, upi: g.upi, total: g.total, cats: catsOf(m) };
+    }).filter(function (g) { return g.cats.length; });
     // ONE sheet when there is money in hand: each category gets its own cash
     // and UPI box (see the 'sheet' step kind). Nothing available yet (a brand
     // new collector, or books already at zero) → the plain manual entry.
-    const moneySteps_ = categories.length
-      ? [{ key: 'sheet', qKey: 'q_handover_sheet', kind: 'sheet', categories: categories }]
+    // a cashier may be holding ONLY other people's parcels and none of their
+    // own — the sheet must still open, or they could not pass anything on
+    const moneySteps_ = (categories.length || givers.length)
+      ? [{ key: 'sheet', qKey: 'q_handover_sheet', kind: 'sheet', categories: categories, givers: givers }]
       : [
           { key: 'payMode', qKey: 'q_mode', kind: 'choice', options: modeOptions(false) },
           { key: 'cashAmount', qKey: 'q_cash_amount', kind: 'amount', showIf: needCash },
@@ -1850,6 +1880,7 @@
   // still hold?" from the report too, not only mid-handover.
   // order = how every report lists the pots; bus grouped with the new-entry
   // types to match the home screen and the handover sheet
+  const OWN_SRC = Aggregate.OWN_SRC;
   const CAT_LABEL_KEYS = { shop: 'new_shop', person: 'new_person', member: 'new_member',
                            payment: 'cat_payment', bus: 'daily_bus',
                            road: 'daily_road', toto: 'daily_toto', received: 'cat_received',
