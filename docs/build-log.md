@@ -2065,3 +2065,28 @@ re-run against the new deployment immediately.
 
 Old tokens from the earlier passes are dead (each login rotates); the two
 current ones are Hrishi's to rotate by re-login when he's done.
+
+## docs/residual-risks.md — the honest remainder
+
+Hrishi: "any other concept got missed from your side?" — rather than claim
+completeness, wrote down what genuinely isn't covered, verified by reading
+the code:
+
+- **Disaster recovery is half-built** (the biggest one): `dailyBackup()`
+  writes full JSON snapshots to Drive, but only if a time-driven trigger
+  was installed by hand — unverified, Hrishi must confirm. And there is
+  **no restore path** anywhere in Code.gs; the client's import only
+  restores that phone's own export. Realistic recovery is Google Sheets'
+  own version history — worth knowing before it's needed.
+- **Never-run flows**: goLive (one-way, wipes everything, its backup is
+  best-effort), rolloverYear, password-reset end-to-end, bn-IN voice on
+  hardware, PWA install/offline on a real phone.
+- **Concurrency/quota edges**: `waitLock(20000)` can throw under a
+  simultaneous 10-phone sync — data-safe (whole batch inside the lock,
+  rows requeue) but visible as a sync failure at the worst moment; quota
+  exhaustion would look like a generic network error.
+- **Deliberately out of scope**, restated so nobody "fixes" them by
+  surprise: no entry editing (void + re-enter by design), report
+  permissions are UI shaping not secrecy, token in localStorage, UPI to
+  personal numbers, Telegram deferred.
+- The operational checklist Hrishi still owns is at the end of that file.

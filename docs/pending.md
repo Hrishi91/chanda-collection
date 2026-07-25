@@ -235,6 +235,11 @@ it — needs: collectors briefed/installed, master lists (areas/expense
 subjects) finalised, receipt design set, and the leftover test-data cleanup
 below done first (goLive wipes it anyway, but cleaner to not rely on that).
 
+**→ `docs/residual-risks.md`** — what is built-but-never-run, out of scope
+by design, and the operational steps only Hrishi can do (incl. ⚠️ confirming
+the `dailyBackup` trigger actually exists, and that there is **no restore
+path** — Sheets version history is the realistic recovery route).
+
 **→ Full final-stage audit: `docs/final-audit.md` (2026-07-25).** All six
 findings (A1 undo-vs-sync race HIGH, A2 rejectedIds MED, A3 dup-check MED,
 A4–A6 LOW) **FIXED in v3.77.0**, each verified by reproducing its failure
