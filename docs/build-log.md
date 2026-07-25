@@ -2473,3 +2473,76 @@ migration ran on the current deployment.
 
 New `/exec` after Hrishi redeployed Code.gs carrying the `personalSummary_`
 identity fix (A10). No new columns in this one, so no `setup()` run was needed.
+
+## v3.83.0 — one role vocabulary: the cashier gets their job back
+
+Found by the full three-role live pass (admin hrishi91 · cashier jadav90 ·
+collector yamini05): 71 of 72 checks green, and the one failure was
+
+    cashier resolveCorrection → {"ok":false,"error":"not-allowed"}
+
+A cashier could NEVER approve a plain collector's correction flag. Only the
+admin could — so the cashier role was half-mute.
+
+CAUSE — a regression from my own A9 fix. Entry rows carry `collectorRole` in the
+separation-of-duties vocabulary `'admin' | 'cashier' | 'collector'`; the client
+had always translated into it (`js/auth.js`, `js/app.js`). A9 moved the stamping
+server-side and wrote the raw Users-sheet word instead:
+
+    row.collectorRole = user.row.role || 'collector';   // a collector is 'user'
+
+The Users sheet says `role: 'admin' | 'user'` with a SEPARATE `cashier` flag, so
+every collector's row got `'user'` — a word no rule tests for:
+
+    Code.gs resolveCorrection:  targetCollectorRole_(…) !== 'collector' → blocked
+    js/app.js canVoid:          (entry.collectorRole || 'collector') === 'collector' → false
+
+The second one is the same bug on the client: a cashier saw NO Undo/void on any
+collector's entry. It never surfaced in a live API test because it is pure UI.
+
+FIX — one translation, in one place, used on both write and read:
+
+    roleOf(role, cashier)  → 'admin' | 'cashier' | 'collector'   (way IN)
+    rowRole(stored)        → anything not admin/cashier is a collector (way OUT)
+
+Added to `js/aggregate.js` (the shared, tested module) and mirrored as
+`roleOf_`/`rowRole_` in `Code.gs`. `push` now stamps `roleOf_(role, cashier)`;
+`targetCollectorRole_` and `canVoid` read through the normaliser, which also
+heals the rows already written as `'user'`. A9's guarantee is untouched — the
+value still comes from the token alone, it is just spelled correctly now.
+
+Call sites unified: `js/auth.js:42` and `js/app.js:211` both had the translation
+inline; both now call `Aggregate.roleOf`.
+
+VERIFIED
+- 16 new tests (roleOf, rowRole, and the cashier-may-act rule they feed,
+  including the legacy `'user'` row): 170 passed, 0 failed.
+- browser on a fresh port: `Aggregate.roleOf/rowRole` present and correct, app
+  renders, no console errors.
+- ⚠️ the server half needs a Code.gs redeploy before the cashier can actually
+  resolve a flag; re-run the three-role pass afterwards.
+
+### What the same pass proved green (72 checks, unchanged code)
+- role gates: 10 collector-denied, 5 cashier-denied, 2 cashier-allowed,
+  4 admin-allowed — every one correct
+- A9 holds: a forged `collectorId: 'hrishi91'` from the collector's session
+  stored as `yamini05`
+- push gating: a collector's GENERAL puja expense rejected, a cashier's accepted,
+  a collector's COLLECTION expense accepted
+- three-hop chain collector → cashier → admin: shop CASH 1200 + bus UPI 500
+  arrived in the admin's shop/bus pots after TWO hops, nothing in the legacy
+  `received` lump, each sender left holding exactly the remainder
+- a handover addressed to the cashier does NOT show in the admin's queue
+- receipt serials unique (2026000021/22), delta pull returns 0 after a full pull
+- `srcCat` expense hit the toto pot and left bus untouched; cash/upi/srcCat
+  persisted in the Sheet
+- A10 mirror: server `myReport` inHand === client `personalSummary` for all
+  three roles; byCat sums to inHand on all 7 in-hand rows; reconcile balanced
+
+### Noted for Hrishi, not code bugs
+- `yamini05` has an EMPTY reports list — she can open no report at all beyond
+  her own summary. Deliberate or not, it is a go-live setting.
+- A general puja expense by someone holding nothing drives a category negative
+  through the fixed-order `drain()` (seen as `shop: -99` for the cashier in the
+  test). The books still reconcile; whether to block over-spend the way the
+  handover sheet does is an open question.

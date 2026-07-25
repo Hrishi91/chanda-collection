@@ -208,7 +208,7 @@
         if (prev !== JSON.stringify(resp.me)) {
           try { localStorage.setItem('ck_user', JSON.stringify(resp.me)); } catch (e) {}
           Settings.set('collectorName', resp.me.name);
-          Settings.set('collectorRole', resp.me.role === 'admin' ? 'admin' : (resp.me.cashier === 1 ? 'cashier' : 'collector'));
+          Settings.set('collectorRole', Aggregate.roleOf(resp.me.role, resp.me.cashier));
           changed = true; // re-render below so hidden/shown tiles update
         }
       }
@@ -1564,7 +1564,10 @@
     if (u.role === 'admin') return true;
     const myId = Settings.get('collectorUsername') || u.username;
     if (entry.collectorId && entry.collectorId === myId) return false; // never one's own
-    if (u.cashier === 1) return (entry.collectorRole || 'collector') === 'collector';
+    // rowRole, not a raw compare: the server used to store the Users-sheet word
+    // ('user'), which never equalled 'collector' — so this silently returned
+    // false for every collector's entry and the cashier saw no Undo at all.
+    if (u.cashier === 1) return Aggregate.rowRole(entry.collectorRole) === 'collector';
     return false;
   }
   // one-line description of any entry (for lists + a flag's stored summary)

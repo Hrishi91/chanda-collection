@@ -243,6 +243,23 @@ on his phone after the redeploy).
       Clients compute their own reports, so nothing is broken until then —
       only the server's `myReport` action carries the old behaviour.
 
+## v3.83.0 — one role vocabulary (2026-07-26, DONE)
+
+- [x] Full three-role live pass (admin · cashier · collector), 72 checks.
+      71 green; the failure was a cashier being unable to resolve a plain
+      collector's correction flag, plus the same bug hiding Undo from the
+      cashier in the UI. Fixed as A11 in `docs/final-audit.md`.
+- ⚠️ **Code.gs redeploy needed** for the server half (`push` stamping +
+      `targetCollectorRole_`). No new columns, so no `setup()`. Re-run the
+      three-role pass after redeploying to turn that last check green.
+
+### Open questions for Hrishi (raised 2026-07-26, not decided)
+- `yamini05`'s reports list is EMPTY — she can open no report at all. Set
+  each collector's reports before go-live, or confirm this is intended.
+- A general puja expense by someone holding no money drives a category
+  negative via the fixed-order `drain()`. The books still reconcile. Block
+  over-spend the way the handover sheet does, or leave it?
+
 ## Next decision — Go Live
 
 Training mode is still ON (default since it shipped). Every entry made so

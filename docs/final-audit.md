@@ -233,6 +233,27 @@ disagreeing money figures side by side, so it is closed pre-launch.
 **Regression test:** `dual-identity` in `tests/run.js` — 4 assertions fail on the
 old code, pass on the new.
 
+### A11. MED — FIXED (server half rides the next redeploy) — Cashier could never act on a collector's entry
+**Where:** Code.gs `push` (`row.collectorRole = user.row.role || 'collector'`),
+Code.gs `resolveCorrection`/`targetCollectorRole_`, `js/app.js` `canVoid`.
+**Cause:** a regression from A9. Entry rows carry `collectorRole` in the
+separation-of-duties vocabulary `'admin'|'cashier'|'collector'`, which the
+client had always translated into. A9 moved the stamping server-side and wrote
+the raw Users-sheet word — and that sheet says `role: 'admin'|'user'` with a
+SEPARATE `cashier` flag. Every collector's row was therefore stamped `'user'`,
+which no rule tests for: `resolveCorrection` refused with `not-allowed`, and
+`canVoid` returned false, hiding Undo on every collector entry from the cashier.
+Caught by the three-role live pass (71/72) — the UI half was found by reading
+`canVoid` once the server half was explained.
+**FIXED:** one translation used on both sides — `roleOf(role, cashier)` on the
+way in, `rowRole(stored)` on the way out (anything not admin/cashier is a
+collector, which also heals rows already written as `'user'`). Added to
+`js/aggregate.js`, mirrored as `roleOf_`/`rowRole_` in Code.gs; `js/auth.js:42`
+and `js/app.js:211` now call the shared helper instead of inlining it.
+A9's guarantee is unchanged — the value still comes only from the token.
+**Regression tests:** 16 cases covering both helpers and the cashier-may-act
+rule they feed, including a legacy `'user'` row.
+
 ### Verified green in the two-user pass
 | Path | Result |
 |---|---|

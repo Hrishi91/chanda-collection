@@ -13,6 +13,21 @@
   // (legacy rows). So two people sharing a name never merge, and the name is
   // still available for display.
   function ck(r) { return String((r && (r.collectorId || r.collector)) || '?'); }
+
+  // Entry rows carry `collectorRole` in ONE vocabulary — 'admin' | 'cashier' |
+  // 'collector' — because the separation-of-duties rules (who may void an
+  // entry, who may resolve a correction flag) test for exactly those words.
+  // The Users sheet speaks a different vocabulary (`role` is 'admin' or
+  // 'user', with a separate `cashier` flag), so it must be translated on the
+  // way in; roleOf does that. rowRole translates on the way OUT, which also
+  // heals rows written before this was fixed (they say 'user').
+  function roleOf(role, cashier) {
+    return String(role) === 'admin' ? 'admin' : (Number(cashier) === 1 ? 'cashier' : 'collector');
+  }
+  function rowRole(stored) {
+    const s = String(stored || '');
+    return (s === 'admin' || s === 'cashier') ? s : 'collector';
+  }
   function activeData(data) {
     const v = voidedIds(data);
     const keep = function (rows) { return (rows || []).filter(function (r) { return r && !v[r.id]; }); };
@@ -477,7 +492,8 @@
   const api = { computeTotals: computeTotals, duesList: duesList,
                 inHandRows: inHandRows, personalSummary: personalSummary,
                 myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
-                allowedReports: allowedReports, REPORT_IDS: REPORT_IDS };
+                allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,
+                roleOf: roleOf, rowRole: rowRole };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
 })();

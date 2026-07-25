@@ -1,6 +1,7 @@
 // Pure-logic tests: node tests/run.js
 const { parseAmount } = require('../js/numparse.js');
-const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport } = require('../js/aggregate.js');
+const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
+        roleOf, rowRole } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -445,6 +446,32 @@ const legacyCash = {
 eq(computeTotals(legacyCash).totalCash, 1100, 'legacy cash: blank+undefined rows count as cash');
 eq(computeTotals(legacyCash).totalUpi, 100, 'legacy cash: upi only from split rows');
 eq(computeReport('overview', legacyCash).totalCash, 1100, 'legacy cash: overview matches computeTotals');
+
+// ---- entry-row role vocabulary: 'admin' | 'cashier' | 'collector' ----
+// The Users sheet says role='admin'|'user' with a separate cashier flag; entry
+// rows must store the separation-of-duties word instead. Storing the raw
+// Users-sheet word wrote 'user' on every collector's row, and no rule ever
+// matched it — a cashier could neither void such a row nor resolve its flag.
+eq(roleOf('admin', 0), 'admin', 'role: admin stays admin');
+eq(roleOf('admin', 1), 'admin', 'role: admin outranks the cashier flag');
+eq(roleOf('user', 1), 'cashier', 'role: user + cashier flag = cashier');
+eq(roleOf('user', 0), 'collector', 'role: a plain user is a collector, never "user"');
+eq(roleOf('user', '1'), 'cashier', 'role: the cashier flag may arrive as a string');
+eq(roleOf(undefined, undefined), 'collector', 'role: missing input defaults to collector');
+// read side — heals rows written before the fix
+eq(rowRole('collector'), 'collector', 'rowRole: collector round-trips');
+eq(rowRole('cashier'), 'cashier', 'rowRole: cashier round-trips');
+eq(rowRole('admin'), 'admin', 'rowRole: admin round-trips');
+eq(rowRole('user'), 'collector', 'rowRole: legacy "user" rows read as collector');
+eq(rowRole(''), 'collector', 'rowRole: blank reads as collector');
+eq(rowRole(undefined), 'collector', 'rowRole: missing reads as collector');
+// the separation-of-duties rule the two feed (mirrors app.js canVoid and
+// Code.gs resolveCorrection): a cashier may act on a plain collector's entry
+const mayCashierAct = function (storedRole) { return rowRole(storedRole) === 'collector'; };
+eq(mayCashierAct('collector'), true, 'duties: cashier may act on a collector entry');
+eq(mayCashierAct('user'), true, 'duties: cashier may act on a LEGACY collector entry ("user")');
+eq(mayCashierAct('cashier'), false, 'duties: cashier may not act on another cashier entry');
+eq(mayCashierAct('admin'), false, 'duties: cashier may not act on an admin entry');
 
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

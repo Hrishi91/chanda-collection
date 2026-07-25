@@ -421,7 +421,14 @@ var ACTIONS = {
           // about two other parties, and confirmHandover is the gate there.)
           row.collector = user.row.name;
           row.collectorId = user.row.username; // stable identity
-          row.collectorRole = user.row.role || 'collector';
+          // roleOf_, NOT the raw Users-sheet role: entry rows speak
+          // 'admin'|'cashier'|'collector', while the Users sheet says
+          // 'admin'|'user' plus a separate cashier flag. Storing the raw word
+          // wrote 'user' on every collector's row, which no separation-of-
+          // duties check ever matched — a cashier could neither void such a
+          // row nor resolve its correction flag. (Identity still comes from
+          // the token only; A9 is untouched.)
+          row.collectorRole = roleOf_(user.row.role, user.row.cashier);
           var isNew = !idRow[row.id];
           // one receipt serial, assigned once at first insert — every payment,
           // and daily BUS collections (they get a name+number receipt too).
@@ -1031,13 +1038,26 @@ function activeData_(d) {
 // Stable collector key: username (collectorId) when present, else name (legacy).
 function ck_(r) { return String((r && (r.collectorId || r.collector)) || '?'); }
 // role stamped on the target entry (for the void permission rule)
+// Entry rows carry `collectorRole` in ONE vocabulary — 'admin'|'cashier'|
+// 'collector' — because the separation-of-duties rules test for exactly those
+// words. The Users sheet speaks another ('admin'|'user' + a cashier flag), so
+// roleOf_ translates on the way in. Mirrors js/aggregate.js roleOf/rowRole.
+function roleOf_(role, cashier) {
+  return String(role) === 'admin' ? 'admin' : (Number(cashier) === 1 ? 'cashier' : 'collector');
+}
+function rowRole_(stored) {
+  var s = String(stored || '');
+  return (s === 'admin' || s === 'cashier') ? s : 'collector';
+}
 function targetCollectorRole_(store, id) {
   var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES[store]);
   if (!sh || sh.getLastRow() < 2) return 'collector';
   var values = sh.getDataRange().getValues(), header = values[0];
   var idCol = header.indexOf('id'), roleCol = header.indexOf('collectorRole');
   for (var i = 1; i < values.length; i++) {
-    if (String(values[i][idCol]) === String(id)) return String((roleCol >= 0 && values[i][roleCol]) || 'collector');
+    // rowRole_ on the way out, so rows written before this fix (they say
+    // 'user') are read as the plain collectors they are
+    if (String(values[i][idCol]) === String(id)) return rowRole_(roleCol >= 0 ? values[i][roleCol] : '');
   }
   return 'collector';
 }
