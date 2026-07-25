@@ -273,7 +273,7 @@ const I18N = {
   no_area: { bn: 'এলাকা ছাড়া', en: 'No area' },
   parties_n: { bn: 'টি দাতা', en: 'parties' },
   report_expenses: { bn: '🧾 খরচের হিসাব', en: '🧾 Expenses' },
-  report_daily: { bn: '🛣️ দিনের রোড/টোটো/বাস', en: '🛣️ Daily road/toto/bus' },
+  report_daily: { bn: '🛣️ দিনের রোড/টোটো', en: '🛣️ Daily road/toto' },
   no_reports_msg: { bn: 'কেন্দ্রীয় রিপোর্ট দেখার permission নেই — দরকার হলে admin-কে বলো', en: 'No central-report permission — ask the admin if needed' },
   report_pdf_btn: { bn: 'PDF বানাও / প্রিন্ট', en: 'Save as PDF / print' },
   printed_on: { bn: 'তৈরি', en: 'Generated' },

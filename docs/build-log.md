@@ -2606,3 +2606,42 @@ VERIFIED
 
 STILL OPEN (next commits in this batch): ledger bus tab + bus out of the daily
 report; the handover report; edit-after-flag; admin-only backup import.
+
+## v3.85.0 — bus moves into the ledger, out of the daily report
+
+Hrishi: "in khata tab add bus collection and remove from the other report".
+
+The last place bus was still filed as a street round. A bus collection names a
+donor and issues a receipt, exactly like a shop — that is why the home screen and
+the handover sheet already group it with the new entries. The 📒 ledger now has a
+🚌 **বাস** tab listing every bus collection (name, number, date, collector,
+receipt serial, with a total on top); tapping a row opens that receipt. The
+`daily` report is now road and toto only, on both the client and the server, and
+its label says so instead of "রোড/টোটো/বাস".
+
+The money did not move — bus still counts in every total, still sits in its own
+`byCat` pot, and still reconciles. Only the grouping changed, so the same money
+is no longer shown under two different headings.
+
+LEDGER TABS NOW FOLLOW PERMISSIONS. Hrishi: "what collection permissions the user
+will have they can see in khata also the same". The type chips (দোকান · ব্যক্তি ·
+সদস্য · বাস) render only for granted categories. **সব** and **বাকি** always show,
+because taking a later instalment is common to everyone — you must be able to look
+any donor up and see what is still owed. If the current filter is one the user may
+not see (permissions changed under them), it falls back to সব rather than showing
+an empty screen.
+
+DROPPED a redundant strip from "আমার হিসাব": it showed road/toto/bus totals right
+above `byCatHTML`, which already lists every category with its cash/UPI split AND
+groups bus with the new entries. The strip repeated the same money under the older,
+now-wrong grouping.
+
+VERIFIED
+- 6 new tests including the money-is-not-lost pair (bus still in `computeTotals`,
+  still in its own `byCat` pot), plus a new mirror assertion that `Code.gs`
+  `computeReport_('daily')` excludes bus exactly like the client. **251 passed, 0 failed.**
+- browser: `computeReport('daily')` returns `{road:300, toto:200}` with no bus row
+  and no bus bucket, while `computeTotals` on the same data still reports 1400.
+  No console errors.
+- NOT verified end-to-end: the ledger tab itself needs a logged-in session, so it
+  gets checked on the live deployment with the three tokens after the redeploy.

@@ -508,6 +508,28 @@ eq(permAllowed(busOnly, permForRow('payments', {})), true, 'perms: bus-only coll
 eq(permAllowed(busOnly, permForRow('handovers', {})), true, 'perms: bus-only collector may still hand money over');
 eq(permAllowed(null, 'bus'), false, 'perms: no user, no permission');
 
+// ---- the daily report is the street rounds only ----------------------------
+// Bus is a new entry (named donor + receipt) and lives in the ledger beside the
+// shops and people. Counting it here too would show the same money under two
+// groupings — the mismatch Hrishi kept catching on the home screen.
+const dailyRep = computeReport('daily', {
+  parties: [], payments: [], expenses: [], handovers: [], voids: [],
+  daily: [
+    { id: 'd1', type: 'road', date: '2026-07-20', amount: 300 },
+    { id: 'd2', type: 'toto', date: '2026-07-20', amount: 200 },
+    { id: 'd3', type: 'bus', date: '2026-07-20', amount: 900, busName: 'X', receiptNo: '2026000001' },
+  ],
+});
+eq(dailyRep.byType, { road: 300, toto: 200 }, 'daily report: road/toto only, no bus bucket');
+eq(dailyRep.rows.length, 2, 'daily report: the bus row is not listed');
+eq(dailyRep.rows.every(function (r) { return r.type !== 'bus'; }), true, 'daily report: no bus row slipped through');
+// …but the money is NOT lost: it still counts everywhere money is counted
+eq(computeTotals({ parties: [], payments: [], expenses: [], handovers: [], voids: [],
+  daily: [{ id: 'd3', type: 'bus', amount: 900 }] }).totalCollection, 900, 'daily report: bus money still counts in the totals');
+eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: [],
+  daily: [{ id: 'd3', collectorId: 'z', type: 'bus', amount: 900, cashAmount: 900, upiAmount: 0 }] }, 'z').byCat.bus,
+  { cash: 900, upi: 0 }, 'daily report: bus money still sits in its own pot');
+
 // ---- the server really does mirror the client -------------------------------
 // Code.gs duplicates the permission rules (the UI hides what you may not do,
 // the server must not trust the UI). A comment saying "mirrors js/aggregate.js"
@@ -534,6 +556,17 @@ eq(permAllowed(null, 'bus'), false, 'perms: no user, no permission');
       eq(gs.entryAllowed_({ row: u }, k), permAllowed(u, k), 'mirror: entryAllowed user' + i + ' key=' + k);
     });
   });
+  // the daily report split must match on both sides too
+  var gsRep = new Function('g', src + '\n g.computeReport_ = computeReport_;');
+  // (computeReport_ needs activeData_/num_ which the same eval already defines)
+  var gsCtx = {}; gsRep(gsCtx);
+  const dailyIn = { parties: [], payments: [], expenses: [], handovers: [], voids: [], corrections: [],
+    daily: [{ id: 'd1', type: 'road', date: '2026-07-20', amount: 300 },
+            { id: 'd2', type: 'toto', date: '2026-07-20', amount: 200 },
+            { id: 'd3', type: 'bus', date: '2026-07-20', amount: 900 }] };
+  eq(gsCtx.computeReport_('daily', dailyIn).byType, computeReport('daily', dailyIn).byType,
+     'mirror: the daily report excludes bus on the server too');
+
   // the correction desk: cashier base, admin override, grant on top
   eq(gs.canReview_({ row: { role: 'admin', cashier: 0, entries: '' } }), true, 'review: admin always has the desk');
   eq(gs.canReview_({ row: { role: 'user', cashier: 1, entries: '' } }), true, 'review: cashier with nothing granted keeps it');

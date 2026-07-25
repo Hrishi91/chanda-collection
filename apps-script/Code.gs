@@ -1244,8 +1244,11 @@ function computeReport_(id, d) {
     return { rows: rows, bySubject: bySubject, total: sumBy_(rows, function (r) { return r.amount; }) };
   }
   if (id === 'daily') {
+    // road/toto only — bus is a new entry (name + receipt) and belongs in the
+    // ledger beside the shops and people. Mirrors js/aggregate.js.
+    var isRound = function (r) { return r.type === 'road' || r.type === 'toto'; };
     var agg = {};
-    d.daily.forEach(function (r) {
+    d.daily.filter(isRound).forEach(function (r) {
       var k = r.date + '|' + r.type;
       agg[k] = (agg[k] || 0) + num_(r.amount);
     });
@@ -1253,8 +1256,8 @@ function computeReport_(id, d) {
       var p = k.split('|');
       return { date: p[0], type: p[1], amount: agg[k] };
     }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
-    var byType = { road: 0, toto: 0, bus: 0 };
-    d.daily.forEach(function (r) { if (r.type in byType) byType[r.type] += num_(r.amount); });
+    var byType = { road: 0, toto: 0 };
+    d.daily.filter(isRound).forEach(function (r) { byType[r.type] += num_(r.amount); });
     return { rows: rows, byType: byType };
   }
   throw new Error('unknown report');

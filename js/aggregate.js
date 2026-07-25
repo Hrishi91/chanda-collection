@@ -506,14 +506,19 @@
                totalUpi: sum(rows, function (r) { return r.upi; }) };
     }
     if (id === 'daily') {
+      // ROAD AND TOTO ONLY. Bus is a new entry, not a street round — it names a
+      // donor and issues a receipt — so it lives in the ledger next to the
+      // shops and people, the same place the home screen and the handover sheet
+      // put it. Counting it here would show it twice under two groupings.
+      const isRound = function (r) { return r.type === 'road' || r.type === 'toto'; };
       const agg = {};
-      (d.daily || []).forEach(function (r) { const k = r.date + '|' + r.type; agg[k] = (agg[k] || 0) + (Number(r.amount) || 0); });
+      (d.daily || []).filter(isRound).forEach(function (r) { const k = r.date + '|' + r.type; agg[k] = (agg[k] || 0) + (Number(r.amount) || 0); });
       const rows = Object.keys(agg).map(function (k) {
         const p = k.split('|');
         return { date: p[0], type: p[1], amount: agg[k] };
       }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
-      const byType = { road: 0, toto: 0, bus: 0 };
-      (d.daily || []).forEach(function (r) { if (r.type in byType) byType[r.type] += Number(r.amount) || 0; });
+      const byType = { road: 0, toto: 0 };
+      (d.daily || []).filter(isRound).forEach(function (r) { byType[r.type] += Number(r.amount) || 0; });
       return { rows: rows, byType: byType };
     }
     throw new Error('unknown report');

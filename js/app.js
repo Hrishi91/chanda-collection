@@ -1097,22 +1097,55 @@
       drawList(data, Aggregate.computeTotals(data).paidByParty);
     });
   }
+  // Bus collections belong in the ledger, not in the daily-rounds report: a bus
+  // is a named donor with a receipt, exactly like a shop. Rows come from the
+  // `daily` store (type 'bus'), so they need their own renderer.
+  function drawBusList(data) {
+    const v = {}; (data.voids || []).forEach(function (x) { if (x.targetId) v[x.targetId] = 1; });
+    let rows = (data.daily || []).filter(function (r) { return r.type === 'bus' && !v[r.id]; });
+    if (listQuery) {
+      const q = listQuery.toLowerCase();
+      rows = rows.filter(function (r) {
+        return String(r.busName || '').toLowerCase().indexOf(q) >= 0 ||
+               String(r.busNumber || '').toLowerCase().indexOf(q) >= 0;
+      });
+    }
+    rows.sort(function (a, b) { return String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || '')); });
+    const total = rows.reduce(function (a, r) { return a + (Number(r.amount) || 0); }, 0);
+    return (rows.length ? '<div class="row" style="cursor:default"><div><b>' + esc(t('total')) +
+        '</b><div class="row-sub">' + rows.length + ' ' + esc(t('daily_bus')) + '</div></div><b>' + fmtMoney(total) + '</b></div>' : '') +
+      (rows.length ? rows.map(function (r) {
+        return '<div class="row" data-busid="' + esc(r.id) + '"><div><b>' + esc(r.busName || t('daily_bus')) + '</b>' +
+          '<div class="row-sub">' + esc(r.busNumber || '') + (r.busNumber ? ' • ' : '') + esc(fmtDate(r.date || r.createdAt)) +
+          (r.collector ? ' • ' + esc(r.collector) : '') + (r.receiptNo ? ' • 🧾 ' + esc(r.receiptNo) : '') + '</div></div>' +
+          '<div class="row-right">' + fmtMoney(r.amount) + '</div></div>';
+      }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
+  }
   function drawList(data, paidBy) {
+      const busRows = listFilter === 'bus';
       let rows = data.parties.slice().sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
       if (listFilter === 'due') {
         rows = rows.filter(function (p) { return (Number(p.pledged) || 0) - (paidBy[p.id] || 0) > 0; });
-      } else if (listFilter !== 'all') {
+      } else if (listFilter !== 'all' && !busRows) {
         rows = rows.filter(function (p) { return p.type === listFilter; });
       }
       if (listQuery) rows = rows.filter(function (p) { return matchParty(p, listQuery); });
-      const tabs = [['all', t('all')], ['shop', t('type_shop')], ['person', t('type_person')],
-                    ['member', t('type_member')], ['due', t('dues_only')]];
+      // The filter chips mirror what this person is allowed to collect, so the
+      // ledger reads like their own home screen. "সব" and "বাকি" always show:
+      // a later instalment may reach anyone, so everyone must be able to look
+      // the donor up and see what is still owed.
+      const tabs = [['all', t('all')]]
+        .concat([['shop', t('type_shop')], ['person', t('type_person')], ['member', t('type_member')], ['bus', t('daily_bus')]]
+          .filter(function (tb) { return canEntry(tb[0]); }))
+        .concat([['due', t('dues_only')]]);
+      if (!tabs.some(function (tb) { return tb[0] === listFilter; })) listFilter = 'all';
       $view().innerHTML =
         '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' +
         '<input id="search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(listQuery) + '">' +
         '<div class="chips tabs">' + tabs.map(function (tb) {
           return '<button class="chip' + (listFilter === tb[0] ? ' on' : '') + '" data-f="' + tb[0] + '">' + esc(tb[1]) + '</button>';
         }).join('') + '</div>' +
+        (busRows ? drawBusList(data) :
         (rows.length ? rows.map(function (p) {
           const paid = paidBy[p.id] || 0, due = (Number(p.pledged) || 0) - paid;
           return '<div class="row" data-id="' + p.id + '">' +
@@ -1123,7 +1156,7 @@
             '<div class="row-right">' + fmtMoney(paid) + '/' + fmtMoney(p.pledged) +
             (due > 0 ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
                      : '<span class="ok-chip">✅</span>') + '</div></div>';
-        }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
+        }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>'));
       const fpBtn = document.getElementById('find-party');
       if (fpBtn) fpBtn.onclick = function () { findQuery = ''; navigate('findparty'); };
       document.getElementById('search').oninput = function (e) { listQuery = e.target.value; renderList(); };
@@ -1132,6 +1165,10 @@
       });
       document.querySelectorAll('.row[data-id]').forEach(function (r) {
         r.onclick = function () { navigate('party', { id: r.dataset.id }); };
+      });
+      // a bus row opens its receipt — the same one the collector shared at entry
+      document.querySelectorAll('.row[data-busid]').forEach(function (r) {
+        r.onclick = function () { navigate('receipt', { store: 'daily', id: r.dataset.busid, back: 'list' }); };
       });
   }
   // Find ANY party (created by any collector) and add a payment against its
@@ -1482,7 +1519,9 @@
   // ({store:'daily', id}). Ensures the server serial (syncs first if needed).
   function renderReceiptShare(params) {
     const isBus = params.store === 'daily';
-    const backView = isBus ? 'entries' : 'party', backParams = isBus ? undefined : { id: params.partyId };
+    // a bus receipt can be reached from two places (my entries, and the
+    // ledger's bus tab) — go back where the user actually came from
+    const backView = isBus ? (params.back || 'entries') : 'party', backParams = isBus ? undefined : { id: params.partyId };
     $view().innerHTML = backBar(backView, backParams) + '<div class="empty">' + esc(t('loading')) + '</div>';
     viewData().then(function (data) {
       let rc, phone = '', store, id, party = null;
@@ -1792,7 +1831,6 @@
     return '<div class="section" style="margin-top:14px">' + esc(t('my_by_cat')) + '</div>' + rows.join('');
   }
   function mySummaryHTML(d, deviceOnly) {
-    const hasDaily = d.dailyByType && (d.dailyByType.road || d.dailyByType.toto || d.dailyByType.bus);
     return '<div class="card"><div class="card-title">' + esc(t('my_summary')) + '</div>' +
       (deviceOnly ? '<div class="row-sub" style="margin-bottom:8px">' + esc(t('my_device_note')) + '</div>' : '') +
       '<div class="stat3">' +
@@ -1806,10 +1844,9 @@
         '<div><span>' + esc(t('my_received')) + '</span><b>' + fmtMoney(d.received || 0) + '</b></div>' +
       '</div>' +
       (d.pending ? '<div class="row" style="cursor:default"><div>⏳ ' + esc(t('my_pending')) + '</div><b>' + fmtMoney(d.pending) + '</b></div>' : '') +
-      (hasDaily ? '<div class="stat3">' +
-        '<div><span>' + esc(t('type_road')) + '</span><b>' + fmtMoney(d.dailyByType.road) + '</b></div>' +
-        '<div><span>' + esc(t('type_toto')) + '</span><b>' + fmtMoney(d.dailyByType.toto) + '</b></div>' +
-        '<div><span>' + esc(t('type_bus')) + '</span><b>' + fmtMoney(d.dailyByType.bus) + '</b></div></div>' : '') +
+      // no separate road/toto/bus strip: byCatHTML below shows every category
+      // with its cash/UPI split AND groups bus with the new entries, so the old
+      // strip only repeated the same money under a second, wrong grouping.
       byCatHTML(d.byCat) +
       '</div>' +
       (d.expenses && d.expenses.length ?
@@ -1851,11 +1888,11 @@
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
   }
   function reportDailyHTML(d) {
-    const rows = d.rows || [], bt = d.byType || { road: 0, toto: 0, bus: 0 };
+    const rows = d.rows || [], bt = d.byType || { road: 0, toto: 0 };
     return '<div class="card"><div class="card-title">' + esc(t('report_daily')) + '</div>' +
       '<div class="stat3"><div><span>' + esc(t('type_road')) + '</span><b>' + fmtMoney(bt.road) + '</b></div>' +
       '<div><span>' + esc(t('type_toto')) + '</span><b>' + fmtMoney(bt.toto) + '</b></div>' +
-      '<div><span>' + esc(t('type_bus')) + '</span><b>' + fmtMoney(bt.bus) + '</b></div></div>' +
+      '<div><span>' + esc(t('total')) + '</span><b>' + fmtMoney((bt.road || 0) + (bt.toto || 0)) + '</b></div></div>' +
       (rows.length ? rows.map(function (r) {
         return '<div class="row" style="cursor:default"><div>' + esc(fmtDate(r.date)) + ' • ' +
           esc(t('type_' + r.type)) + '</div><b>' + fmtMoney(r.amount) + '</b></div>';
