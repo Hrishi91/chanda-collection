@@ -546,12 +546,14 @@
         { key: 'daily', labelKey: 'grp_daily', cats: s.categories.filter(function (c) { return ['road', 'toto', 'bus'].indexOf(c.key) >= 0; }) },
         { key: 'other', labelKey: 'grp_received', cats: s.categories.filter(function (c) { return c.key === 'received'; }) },
       ].filter(function (g) { return g.cats.length; });
+      // cash and UPI are SEPARATE tap-to-select chips carrying the real
+      // figure — nothing is typed; the total is simply what is selected.
+      // Everything starts selected, so handing over the lot = change nothing.
       const cell = function (c, kind) {
         const avail = kind === 'cash' ? c.cash : c.upi;
         if (avail <= 0) return '<span class="sh-none">—</span>';
-        return '<span class="sh-cell"><input class="sh-in" data-cat="' + esc(c.key) + '" data-kind="' + kind +
-          '" data-max="' + avail + '" inputmode="numeric" value="' + avail + '">' +
-          '<span class="sh-max">/' + fmtMoney(avail) + '</span></span>';
+        return '<button class="sh-pick on" data-cat="' + esc(c.key) + '" data-kind="' + kind +
+          '" data-amt="' + avail + '">' + (kind === 'cash' ? '💵' : '📱') + ' ' + fmtMoney(avail) + '</button>';
       };
       html += '<div class="sh-actions"><button class="chip" id="sh-all">' + esc(t('sheet_all')) +
         '</button><button class="chip" id="sh-none">' + esc(t('sheet_none')) + '</button></div>' +
@@ -559,8 +561,7 @@
           return '<div class="cat-group"><div class="cat-group-head">' + esc(t(g.labelKey)) + '</div>' +
             g.cats.map(function (c) {
               return '<div class="sh-row"><span class="cat-name">' + esc(t(c.labelKey)) + '</span>' +
-                '<span class="sh-pair">💵' + cell(c, 'cash') + '</span>' +
-                '<span class="sh-pair">📱' + cell(c, 'upi') + '</span></div>';
+                '<span class="sh-picks">' + cell(c, 'cash') + cell(c, 'upi') + '</span></div>';
             }).join('') + '</div>';
         }).join('') +
         '<div class="cat-selected" id="sh-total"></div>' +
@@ -620,44 +621,36 @@
     const backB = document.getElementById('back-btn');
     if (backB) backB.onclick = goBack;
     if (s.kind === 'sheet') {
-      const ins = Array.prototype.slice.call(document.querySelectorAll('.sh-in'));
+      const picks = Array.prototype.slice.call(document.querySelectorAll('.sh-pick'));
       const totalEl = document.getElementById('sh-total');
       const nextB = document.getElementById('sh-next');
-      // read a box, clamped to 0..available — typing more than you hold is
-      // silently capped rather than rejected, so the books stay non-negative
-      const valOf = function (el) {
-        const max = Number(el.dataset.max) || 0;
-        let v = NumParse.parseAmount(el.value);
-        if (isNaN(v) || v < 0) v = 0;
-        return Math.min(v, max);
-      };
       const refresh = function () {
         let cash = 0, upi = 0;
-        ins.forEach(function (el) {
-          const v = valOf(el);
-          if (el.dataset.kind === 'cash') cash += v; else upi += v;
+        picks.forEach(function (b) {
+          if (!b.classList.contains('on')) return;
+          const v = Number(b.dataset.amt) || 0;
+          if (b.dataset.kind === 'cash') cash += v; else upi += v;
         });
         totalEl.innerHTML = esc(t('sheet_total')) + ': ' +
           '<span class="cat-split">💵' + fmtMoney(cash) + ' · 📱' + fmtMoney(upi) + '</span>' +
           '<b class="cat-tot">' + fmtMoney(cash + upi) + '</b>';
         nextB.disabled = (cash + upi) <= 0;
       };
-      ins.forEach(function (el) { el.oninput = refresh; });
+      picks.forEach(function (b) { b.onclick = function () { b.classList.toggle('on'); refresh(); }; });
       document.getElementById('sh-all').onclick = function () {
-        ins.forEach(function (el) { el.value = el.dataset.max; }); refresh();
+        picks.forEach(function (b) { b.classList.add('on'); }); refresh();
       };
       document.getElementById('sh-none').onclick = function () {
-        ins.forEach(function (el) { el.value = '0'; }); refresh();
+        picks.forEach(function (b) { b.classList.remove('on'); }); refresh();
       };
       refresh();
       nextB.onclick = function () {
         const per = {};
-        ins.forEach(function (el) {
-          const v = valOf(el);
-          if (v <= 0) return;
-          const k = el.dataset.cat;
+        picks.forEach(function (b) {
+          if (!b.classList.contains('on')) return;
+          const k = b.dataset.cat;
           per[k] = per[k] || { cash: 0, upi: 0 };
-          per[k][el.dataset.kind] += v;
+          per[k][b.dataset.kind] += Number(b.dataset.amt) || 0;
         });
         submitSheet(per);
       };

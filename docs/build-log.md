@@ -2293,3 +2293,39 @@ split; everything else, including the cashier's confirm card, works today.
 snapshot, so this has no live effect; the server report action only serves
 old clients. Porting `myAvailable` to Code.gs is deferred rather than
 pretended — noted here so it isn't mistaken for parity.
+
+## v3.80.1 — Hand-over: selection, not typing (correcting v3.80.0)
+
+Hrishi: "I didn't tell you to make text boxes — the amount will be selected
+only… the presentation you made previously was ok, just there should be
+selection for UPI and the cash… different amount is not needed because
+calculation already done."
+
+I over-built v3.80.0. His earlier point ("the collector may not have the
+amount at the moment") needed **finer selection**, not free typing — the
+ledger already knows every figure, so typing one can only introduce error.
+Corrected:
+
+- The number inputs are gone. Each category row now offers its **💵 cash and
+  📱 UPI as two separate tap-to-select chips** carrying the real figures, all
+  selected by default. Tap one off to exclude it; the total recomputes from
+  the selection. `[সব]` / `[কিছুই না]` kept.
+- This keeps everything v3.80.0 actually gained — per-category **and**
+  per-money-type control, exact breakdowns, no `received` fallback — while
+  removing the typing, the 0..max clamping, and the "✏️ different amount"
+  idea entirely. Simpler code and a shorter path for the collector.
+- Only the sheet's render + wiring changed; `submitSheet`, the save,
+  breakdown storage, receiver-side display and the reports are untouched
+  (they consume `{cat:{cash,upi}}` either way), so the 141 tests still pass
+  unchanged.
+
+Verified live: rows show `💵₹300 · 📱₹200` style chips with no input element
+on the page (`.sh-row input` count = 0); starting total ₹950; tapping off
+shop-UPI → ₹750; tapping off both person chips → ₹450; "কিছুই না" zeroes and
+disables Next; "সব" restores ₹950; a final selection of shop-cash + bus-cash
+saved amount 450 / cash 450 / upi 0 with breakdown
+`{"shop":{"cash":300,"upi":0},"bus":{"cash":150,"upi":0}}` and the chat echo
+"₹450 (দোকান ₹300, বাস কালেকশন ₹150)". No console errors.
+
+sw → chanda-v3.80.1. Client-only. (The one pending server line from v3.80.0 —
+`notifData_` sending `breakdown` — still awaits the next Code.gs redeploy.)

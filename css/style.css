@@ -205,19 +205,18 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
 }
 .cat-selected .cat-split { margin-left: auto; font-weight: 400; }
 
-/* ---- handover sheet: per-category cash & UPI boxes ---- */
+/* ---- handover sheet: per-category cash & UPI selection chips ---- */
 .sh-actions { display: flex; gap: 8px; margin-bottom: 10px; }
-.sh-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
-.sh-row .cat-name { flex: 1 1 100%; font-weight: 600; font-size: 15px; }
-.sh-pair { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--sub); }
-.sh-cell { display: flex; align-items: baseline; gap: 3px; }
-.sh-in {
-  width: 82px; padding: 8px 10px; font-size: 15px; font-weight: 700; text-align: right;
-  border: 1.5px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink);
+.sh-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.sh-row .cat-name { flex: 1 1 auto; font-weight: 600; font-size: 15px; }
+.sh-picks { display: flex; gap: 6px; flex: 0 0 auto; }
+.sh-pick {
+  border: 1.5px solid var(--line); background: var(--card); color: var(--sub);
+  border-radius: 99px; padding: 8px 12px; font-size: 14px; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
 }
-.sh-in:focus { outline: none; border-color: var(--saffron); }
-.sh-max { font-size: 11.5px; color: var(--sub); }
-.sh-none { font-size: 14px; color: var(--sub); padding: 0 6px; }
+.sh-pick.on { background: var(--saffron); border-color: var(--saffron); color: #fff; }
+.sh-none { font-size: 14px; color: var(--sub); padding: 0 10px; }
 
 /* ---- a handover's stored category breakdown, shown to the receiver ---- */
 .bd-line { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 12.5px; color: var(--sub); }

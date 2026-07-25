@@ -70,14 +70,13 @@ syncs immediately if online.
 
 ## 🤝 Handover & confirmation
 
-Tap **🤝 Hand over** → choose a cashier → then one **hand-over sheet**: every
-source (shop / person / member / road / toto / bus) has its **own 💵 cash and
-📱 UPI box**, prefilled with what you actually hold, with a live total.
-Handing over everything? Change nothing and tap Next. Giving less? Edit that
-one box — you cannot enter more than you hold, so the books can never go
-negative.
+Tap **🤝 Hand over** → choose a cashier → then one screen lists every source
+(shop / person / member / road / toto / bus) with its **💵 cash and 📱 UPI as
+separate selectable buttons** carrying the real figures, all selected to begin
+with. Tap off anything you are not handing over; the total updates live.
+Nothing is typed — the amounts are already computed from the ledger.
 
-The sheet *is* the stored breakdown, so a partial handover keeps its category
+The selection *is* the stored breakdown, so a partial handover keeps its category
 exactly: the giver keeps the remainder under the same category and the
 receiver gains it under that same category (cashier→cashier→admin chains stay
 category-aware). The receiving cashier **sees that same breakdown before
