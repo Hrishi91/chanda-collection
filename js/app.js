@@ -547,7 +547,7 @@
         // anonymous street rounds.
         { key: 'entry', labelKey: 'grp_entry', cats: s.categories.filter(function (c) { return ['shop', 'person', 'member', 'payment', 'bus'].indexOf(c.key) >= 0; }) },
         { key: 'daily', labelKey: 'grp_daily', cats: s.categories.filter(function (c) { return ['road', 'toto'].indexOf(c.key) >= 0; }) },
-        { key: 'other', labelKey: 'grp_received', cats: s.categories.filter(function (c) { return c.key === 'received'; }) },
+        { key: 'other', labelKey: 'grp_received', cats: s.categories.filter(function (c) { return c.key === 'received' || c.key === 'other'; }) },
       ].filter(function (g) { return g.cats.length; });
       // cash and UPI are SEPARATE tap-to-select chips carrying the real
       // figure — nothing is typed; the total is simply what is selected.
@@ -825,7 +825,8 @@
     // "✏️ অন্য পরিমাণ" escapes to manual typed entry for partial handovers.
     const CAT_LABELS = { shop: 'new_shop', person: 'new_person', member: 'new_member',
                          payment: 'cat_payment', bus: 'daily_bus',
-                         road: 'daily_road', toto: 'daily_toto', received: 'cat_received' };
+                         road: 'daily_road', toto: 'daily_toto', received: 'cat_received',
+                         other: 'cat_other' };
     const byCat = avail.byCat || {};
     const categories = Object.keys(CAT_LABELS).filter(function (k) {
       return byCat[k] && (byCat[k].cash + byCat[k].upi) > 0;
@@ -938,13 +939,18 @@
   // Which pots this person can spend from — the same source categories the
   // handover screen shows, each with its real figure. Empty pots aren't
   // offered; a lone pot needs no question (it's implied).
+  // Which pot did this money come out of? ALWAYS asked, and 'other' is always
+  // on the list — an expense with no named pot used to be spread over whatever
+  // categories happened to hold money when the report was computed, so the same
+  // bill moved between categories as unrelated money arrived. Naming the pot at
+  // entry time fixes it there for good.
   function srcCatOptions(available) {
     const byCat = (available && available.byCat) || {};
     return Object.keys(CAT_LABEL_KEYS).filter(function (k) {
-      return byCat[k] && (byCat[k].cash + byCat[k].upi) > 0;
+      return k !== 'other' && byCat[k] && (byCat[k].cash + byCat[k].upi) > 0;
     }).map(function (k) {
       return { v: k, label: t(CAT_LABEL_KEYS[k]) + ' ' + fmtMoney(byCat[k].cash + byCat[k].upi) };
-    });
+    }).concat([{ v: 'other', label: t('cat_other') }]);
   }
   // Puja expense (cashier/admin): pick an admin-defined subject; multiple
   // cashiers may part-pay the same subject. "Other" forces a comment.
@@ -960,8 +966,8 @@
       steps: [
         { key: 'subject', qKey: 'q_subject', kind: 'choice', options: opts },
       ].concat(moneySteps(false), [
-        { key: 'srcCat', qKey: 'q_src_cat', kind: 'choice', options: potOptions,
-          showIf: function () { return potOptions.length > 1; } },
+        // no showIf: always asked, so srcCat is never blank on a new row
+        { key: 'srcCat', qKey: 'q_src_cat', kind: 'choice', options: potOptions },
       ]).concat([
         { key: 'comment', qKey: 'q_comment_req', kind: 'text', required: true,
           showIf: function (a) { return a.subject === OTHER_SUBJECT; } },
@@ -975,7 +981,7 @@
         const row = DB.newRow({
           subject: isOther ? 'Other' : a.subject, desc: a.comment || '',
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
-          srcCat: a.srcCat || (potOptions.length === 1 ? potOptions[0].v : ''),
+          srcCat: a.srcCat || 'other',
           spentBy: Settings.get('collectorName'),
           source: 'general', collectionType: '', date: todayISO(),
         });
@@ -1846,7 +1852,8 @@
   // types to match the home screen and the handover sheet
   const CAT_LABEL_KEYS = { shop: 'new_shop', person: 'new_person', member: 'new_member',
                            payment: 'cat_payment', bus: 'daily_bus',
-                           road: 'daily_road', toto: 'daily_toto', received: 'cat_received' };
+                           road: 'daily_road', toto: 'daily_toto', received: 'cat_received',
+                           other: 'cat_other' };
   function byCatHTML(byCat) {
     if (!byCat) return '';
     const rows = Object.keys(CAT_LABEL_KEYS)

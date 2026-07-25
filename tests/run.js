@@ -508,6 +508,40 @@ eq(permAllowed(busOnly, permForRow('payments', {})), true, 'perms: bus-only coll
 eq(permAllowed(busOnly, permForRow('handovers', {})), true, 'perms: bus-only collector may still hand money over');
 eq(permAllowed(null, 'bus'), false, 'perms: no user, no permission');
 
+// ---- an expense must not wander between categories ---------------------------
+// The bug: an expense with no named source pot was drained from whatever pots
+// held money AT THE MOMENT OF CALCULATION. So the same bill sat under টোটো until
+// an unrelated shop handover arrived, then silently moved to দোকান. Totals were
+// always right; the split was not reproducible, which would poison any report.
+const spender = 'k';
+const withBill = function (srcCat, withHandover) {
+  return {
+    parties: [], payments: [], voids: [], corrections: [],
+    daily: [{ id: 't', collectorId: spender, type: 'toto', amount: 1000, cashAmount: 1000, upiAmount: 0 }],
+    expenses: [{ id: 'e', collectorId: spender, amount: 198, cashAmount: 198, upiAmount: 0, source: 'puja', srcCat: srcCat }],
+    handovers: withHandover ? [{ id: 'h', fromId: 'c', toId: spender, amount: 1200, cashAmount: 1200, upiAmount: 0,
+      status: 'confirmed', breakdown: JSON.stringify({ shop: { cash: 1200, upi: 0 } }) }] : [],
+  };
+};
+const stableBefore = myAvailable(withBill('other', false), spender).byCat;
+const stableAfter = myAvailable(withBill('other', true), spender).byCat;
+eq(stableBefore.other, { cash: -198, upi: 0 }, 'srcCat: an unassigned bill parks in "other"');
+eq(stableBefore.toto, { cash: 1000, upi: 0 }, 'srcCat: it does NOT borrow from toto');
+eq(stableAfter.other, { cash: -198, upi: 0 }, 'srcCat: it stays in "other" when a shop handover arrives');
+eq(stableAfter.toto, { cash: 1000, upi: 0 }, 'srcCat: toto still untouched');
+eq(stableAfter.shop, { cash: 1200, upi: 0 }, 'srcCat: the arriving money is not eaten by the bill');
+// a NAMED pot is charged even when empty — honest negative beats a hidden loan
+const namedEmpty = myAvailable(withBill('bus', false), spender).byCat;
+eq(namedEmpty.bus, { cash: -198, upi: 0 }, 'srcCat: a named-but-empty pot goes negative rather than borrowing');
+eq(namedEmpty.toto, { cash: 1000, upi: 0 }, 'srcCat: naming bus leaves toto alone');
+// the money is still all there, whichever way it is split
+eq(myAvailable(withBill('other', true), spender).cash, 1000 + 1200 - 198, 'srcCat: total in hand unchanged by the split');
+// legacy rows (written before srcCat existed) still fall back to the old drain
+const legacy = myAvailable({ parties: [], payments: [], voids: [], corrections: [], handovers: [],
+  daily: [{ id: 't', collectorId: spender, type: 'toto', amount: 1000, cashAmount: 1000, upiAmount: 0 }],
+  expenses: [{ id: 'e', collectorId: spender, amount: 198, cashAmount: 198, upiAmount: 0 }] }, spender).byCat;
+eq(legacy.toto, { cash: 802, upi: 0 }, 'srcCat: pre-srcCat rows keep the old drain behaviour');
+
 // ---- the daily report is the street rounds only ----------------------------
 // Bus is a new entry (named donor + receipt) and lives in the ledger beside the
 // shops and people. Counting it here too would show the same money under two

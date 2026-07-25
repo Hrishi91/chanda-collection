@@ -256,9 +256,11 @@ on his phone after the redeploy).
 ### Open questions for Hrishi (raised 2026-07-26, not decided)
 - `yamini05`'s reports list is EMPTY — she can open no report at all. Set
   each collector's reports before go-live, or confirm this is intended.
-- A general puja expense by someone holding no money drives a category
-  negative via the fixed-order `drain()`. The books still reconcile. Block
-  over-spend the way the handover sheet does, or leave it?
+- ~~A general puja expense by someone holding no money drives a category
+  negative~~ — Hrishi (2026-07-26): "expense could be in minus, later by
+  exchanging amount we will balance it". No over-spend guard. The related
+  INSTABILITY (an unsourced bill migrating between categories) was a separate
+  defect and is fixed in v3.86.0.
 
 ## Next decision — Go Live
 

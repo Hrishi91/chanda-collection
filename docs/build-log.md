@@ -2704,3 +2704,50 @@ New `/exec` after Hrishi redeployed Code.gs carrying v3.83.0–v3.85.2's server
 halves: the `roleOf_`/`rowRole_` role vocabulary (A11), the six-key permission
 model with `permForRow_`/`canReview_`, and the daily report excluding bus.
 No new columns in this batch, so no `setup()` run was needed.
+
+## v3.86.0 — an expense stops wandering between categories
+
+Caught by the three-role pass on the fresh deployment: one check wanted the
+cashier's shop pot at 1200 and got 1002. The 198 was two ₹99 general puja bills
+the same script had pushed earlier — and they had moved.
+
+    holding 1000 toto, one 198 bill      → { toto: 802 }
+    …then 1200 of SHOP cash arrives      → { toto: 1000, shop: 1002 }
+
+The bill jumped from টোটো to দোকান. Nothing about the bill changed; unrelated
+money arrived.
+
+CAUSE. An expense with no `srcCat` fell through to the fixed-order `drain()`,
+which subtracts from whichever pots hold money AT THE MOMENT OF CALCULATION, in
+`AVAIL_CATS` order. Shop precedes toto, so the moment shop had money the bill
+was charged there instead. The total in hand was right both times (reconcile
+balanced throughout) — but the per-category split was not reproducible, and this
+is the split every future report is built on.
+
+WHY THE FIELD WAS BLANK. The expense flow did ask which pot, but only
+`showIf: potOptions.length > 1`. Hold nothing, or hold exactly one category, and
+the question never appeared — so `srcCat` stayed empty and the row fell into the
+drain. Exactly what happened to the cashier, who held nothing when he paid.
+
+FIXED, three parts:
+- **The question is always asked**, and **`অন্যান্য (নির্দিষ্ট নয়)` is always on
+  the list**, so a new row can never be written without a source.
+- A NAMED pot is charged **even when empty**. Going negative there is honest —
+  "this pot owes" — and Hrishi's rule is that negatives get squared up later by
+  exchanging cash. Quietly borrowing from another category would hide it.
+- `other` is a real category, last in `AVAIL_CATS`, and it is where the
+  over-drain remainder now lands instead of "whatever is first" (which was shop).
+
+`drain()` survives for one reason only: rows written before `srcCat` existed. A
+test pins that old behaviour so the change cannot rewrite history.
+
+Nothing to mirror in `Code.gs` — it has no `byCat`/`drain` logic at all; every
+client computes its own.
+
+VERIFIED
+- 9 new tests: the bill parks in `other` and stays there when a shop handover
+  arrives, toto is never touched, the arriving money is not eaten, a named-but-
+  empty pot goes negative instead of borrowing, the total in hand is unchanged
+  by any of it, and pre-`srcCat` rows keep the old drain. **260 passed, 0 failed.**
+- browser, same scenario: `{toto:1000, other:-198}` before, `{toto:1000,
+  shop:1200, other:-198}` after, total 2002. No console errors.

@@ -210,7 +210,13 @@
   // 'received' = handovers received without a category breakdown.
   // 'payment' is the LEGACY bucket: rows whose donor can't be resolved (and
   // old handover breakdowns written before payments were split by donor type).
-  const AVAIL_CATS = ['shop', 'person', 'member', 'payment', 'bus', 'road', 'toto', 'received'];
+  // 'other' is the pot of last resort and MUST stay last: money that has no
+  // named source lands there and stays there. Before it existed, an unsourced
+  // expense was spread over whatever pots happened to hold money at the moment
+  // of calculation — so the same ₹198 bill sat under টোটো until a shop handover
+  // arrived, then silently moved to দোকান. The total was always right; the
+  // split was not reproducible.
+  const AVAIL_CATS = ['shop', 'person', 'member', 'payment', 'bus', 'road', 'toto', 'received', 'other'];
   function splitOf(r) {
     return isCashOnly(r)
       ? { cash: Number(r.amount) || 0, upi: 0 }
@@ -227,8 +233,8 @@
       const take = Math.min(e[field], amt);
       e[field] -= take; amt -= take;
     }
-    if (amt > 0) { // over-drained books: charge the first category
-      const e = cats[AVAIL_CATS[0]] || (cats[AVAIL_CATS[0]] = { cash: 0, upi: 0 });
+    if (amt > 0) { // nothing left to take from: park the rest in 'other'
+      const e = cats.other || (cats.other = { cash: 0, upi: 0 });
       e[field] -= amt;
     }
   }
@@ -291,9 +297,15 @@
       // fixed-order drain.
       const target = (e.srcCat && AVAIL_CATS.indexOf(e.srcCat) >= 0) ? e.srcCat
         : ((e.source === 'collection' && AVAIL_CATS.indexOf(e.collectionType) >= 0) ? e.collectionType : null);
-      if (target && cats[target]) {
-        cats[target].cash -= s.cash; cats[target].upi -= s.upi;
+      if (target) {
+        // subtract from the NAMED pot even if it is empty — going negative there
+        // is honest ("this pot owes"), and Hrishi's rule is that negatives get
+        // squared up later by exchanging cash. Silently borrowing from another
+        // category would hide it.
+        const e = cats[target] || (cats[target] = { cash: 0, upi: 0 });
+        e.cash -= s.cash; e.upi -= s.upi;
       } else {
+        // only rows written before srcCat existed reach this
         drain(cats, s.cash, 'cash'); drain(cats, s.upi, 'upi');
       }
     });
