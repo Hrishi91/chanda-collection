@@ -821,9 +821,15 @@
   function startHandover() {
     const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
     const availP = viewData().then(function (data) { return Aggregate.myAvailable(data, ident); });
+    // a cashier/admin is also a valid handover recipient for everyone ELSE,
+    // so the server list rightly includes them — but they can't hand money
+    // to themselves, so drop their own name from their own "to" list.
+    const others = function (list) {
+      return (list || []).filter(function (c) { return c.username !== ident; });
+    };
     if (navigator.onLine && Sync.configured()) {
       Auth.call('cashiers', { token: Auth.token() })
-        .then(function (resp) { return availP.then(function (avail) { startFlow(handoverFlow(resp.cashiers || [], avail)); }); })
+        .then(function (resp) { return availP.then(function (avail) { startFlow(handoverFlow(others(resp.cashiers), avail)); }); })
         .catch(function () { availP.then(function (avail) { startFlow(handoverFlow(null, avail)); }); });
     } else {
       availP.then(function (avail) { startFlow(handoverFlow(null, avail)); });

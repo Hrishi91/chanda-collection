@@ -1810,3 +1810,28 @@ patched-on shortcut inside the old flow.
   shared-logic change — this is flow/UI wiring). In-app guide, app-guide.md,
   collector-guide.md updated to match the shipped screen (not the v3.75.0
   description, which no longer matches). sw → chanda-v3.75.1. Client-only.
+
+## v3.75.2 — Fix: cashier/admin saw their own name in the handover "to" list
+
+Root cause of "cashier can't send amount to himself" (the report was the
+symptom, not a request — this was a real bug, confirmed): Code.gs's
+`cashiers` action legitimately returns every approved cashier/admin,
+including the caller — correct, since any OTHER user needs to see them as a
+valid recipient. Nothing was filtering the caller OUT of their own list, so
+a cashier/admin saw their own name as a selectable handover target, which
+is meaningless (you can't hand money to yourself).
+
+- `startHandover()`: the `cashiers` response is now filtered client-side
+  (`others()`) to drop any entry whose `username` matches the current
+  user's own identity, before building the "to" step. A cashier who happens
+  to be the only cashier/admin falls back to the existing free-text "to"
+  field (same as when the server call fails or returns nothing) — no dead
+  end.
+- No server change — this is a display-list filter, not a security gate
+  (a self-addressed handover, if one were ever created, would net to zero
+  in `Aggregate.myAvailable` once confirmed: cash out then straight back in
+  as received). Client-only fix.
+- Verified live: mocked the `cashiers` response (3 users incl. the caller
+  "tester") — the "to" step correctly listed only the other two, own name
+  gone. No console errors. 115 tests pass (no shared-logic change).
+  sw → chanda-v3.75.2. Client-only, static-files redeploy.

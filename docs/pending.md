@@ -200,11 +200,14 @@ on his phone after the redeploy).
       old mode-question step with a small quick-chip bolted on; Hrishi said
       that was still confusing, redesigned into one category-select screen
       in v3.75.1)~~ (2026-07-25)
-- [ ] ⚠️ Hrishi reported "cashier can't send amount to himself" (self
-      handover). Couldn't find a blocking code path in Code.gs or app.js,
-      and can't reproduce in the local dev harness (no real multi-cashier
-      server data) — waiting on the exact symptom from Hrishi before
-      guessing at a fix.
+- [x] ~~"Cashier can't send amount to himself" — real bug, found: the
+      `cashiers` server list correctly includes every cashier/admin (so
+      OTHERS can pick them), but nothing filtered the CALLER out of their
+      own list, so a cashier/admin saw their own name as a selectable
+      handover target. Filtered client-side in `startHandover()`; falls
+      back to free-text if that leaves zero other cashiers. No server
+      change needed (not a security gate — a self-handover would net to
+      zero anyway)~~ (2026-07-25, v3.75.2)
 - Declined by Hrishi (asked first, not guessed): generic amount quick-tap
   presets for entry flows (payment/daily/new-party), and softening the
   persistent training banner — both left as-is.
