@@ -239,12 +239,15 @@ function notifData_(u, d) {
       }
     });
     out.handovers = items.handovers.length;
-    (d.corrections || []).forEach(function (c) {
-      if (c.status === 'pending') {
-        items.corrections.push({ id: c.id, targetStore: c.targetStore, targetId: c.targetId, reason: c.reason, by: c.collector, date: c.createdAt });
-      }
-    });
-    out.corrections = items.corrections.length;
+    // correction flags only reach whoever actually mans the desk
+    if (canReview_(u)) {
+      (d.corrections || []).forEach(function (c) {
+        if (c.status === 'pending') {
+          items.corrections.push({ id: c.id, targetStore: c.targetStore, targetId: c.targetId, reason: c.reason, by: c.collector, date: c.createdAt });
+        }
+      });
+      out.corrections = items.corrections.length;
+    }
   }
   if (u.row.role === 'admin') {
     var us = usersSheet_();
@@ -259,12 +262,39 @@ function notifData_(u, d) {
   return { notifications: out, items: items };
 }
 
-// May this user insert rows of this entry kind? Mirrors the client's canEntry:
-// admin = all; empty entries = all (no accidental lockout); else listed only.
-function entryAllowed_(u, kind) {
+// Permission keys an admin can grant per user, CSV in the Users `entries`
+// column. Mirrors js/aggregate.js ENTRY_KINDS/PERM_KEYS — one key per thing a
+// person actually collects, so a grant and what it unlocks are the same word.
+// Bus sits with the new-entry types (it names a donor and issues a receipt).
+// NOT permissions, because everyone needs them: চাঁদা নেওয়া (a later instalment
+// from a donor anyone may have created), জমা দেওয়া, আমার entry / সংশোধন, বাকি.
+var ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto'];
+var PERM_KEYS = ENTRY_KINDS.concat(['review']);
+
+// Which permission key a row needs, from the row itself. null = common.
+function permForRow_(store, row) {
+  var ty = String((row && row.type) || '');
+  if (store === 'parties' || store === 'daily') return ENTRY_KINDS.indexOf(ty) >= 0 ? ty : null;
+  if (store === 'expenses' && String(row && row.source) === 'collection') {
+    var ct = String(row.collectionType || '');
+    return ENTRY_KINDS.indexOf(ct) >= 0 ? ct : null;
+  }
+  return null;
+}
+// May this user do this? admin = all; empty entries = all (no accidental
+// lockout); a null key is common to everyone.
+function entryAllowed_(u, key) {
   if (u.row.role === 'admin') return true;
+  if (!key) return true;
   var set = String(u.row.entries || '').split(',').filter(function (x) { return x; });
-  return !set.length || set.indexOf(kind) >= 0;
+  return !set.length || set.indexOf(key) >= 0;
+}
+
+// The cashier's correction desk. Base requirement unchanged (cashier or admin);
+// on top of that the admin may withhold the 'review' grant.
+function canReview_(u) {
+  if (u.row.role === 'admin') return true;
+  return Number(u.row.cashier) === 1 && entryAllowed_(u, 'review');
 }
 
 // how many approved admins exist — guards the last-admin safeguard in setRole
@@ -384,21 +414,21 @@ var ACTIONS = {
       var savedIds = [];
       var rejectedIds = []; // permission-blocked rows (UI never sends these; tampering does)
       var receipts = {}; // paymentId → assigned serial, so the client can adopt it
-      // server-side mirror of the client's entry gating — the UI hides what a
-      // user may not insert, but the server must not trust the client.
-      var STORE_KIND = { parties: 'party', payments: 'payment', daily: 'daily', handovers: 'handover' };
+      // server-side mirror of the client's gating — the UI hides what a user may
+      // not insert, but the server must not trust the client. The key comes from
+      // the ROW (its type), not the store, because bus and road live in the same
+      // store yet are separate permissions.
       var isCashier = Number(user.row.cashier) === 1 || user.row.role === 'admin';
       var byStore = {};
       (b.records || []).forEach(function (r) {
         if (!SHEETS[r.store] || !r.row || !r.row.id) return;
-        // general puja expenses: cashier/admin only. Collection expenses
-        // (source==='collection', spent out of a road/toto/bus round) are made
-        // by whoever runs the daily round → gate on the 'daily' entry kind.
-        if (r.store === 'expenses') {
-          var okExp = (String(r.row.source) === 'collection') ? entryAllowed_(user, 'daily') : isCashier;
-          if (!okExp) { rejectedIds.push(r.row.id); return; }
+        // general puja expenses are cashier/admin only; a COLLECTION expense is
+        // spent out of a round the person is running, so permForRow_ hands back
+        // that round's key instead.
+        if (r.store === 'expenses' && String(r.row.source) !== 'collection' && !isCashier) {
+          rejectedIds.push(r.row.id); return;
         }
-        if (STORE_KIND[r.store] && !entryAllowed_(user, STORE_KIND[r.store])) { rejectedIds.push(r.row.id); return; }
+        if (!entryAllowed_(user, permForRow_(r.store, r.row))) { rejectedIds.push(r.row.id); return; }
         (byStore[r.store] = byStore[r.store] || []).push(r.row);
       });
       Object.keys(byStore).forEach(function (store) {
@@ -495,14 +525,14 @@ var ACTIONS = {
   // pending correction flags a cashier/admin can review
   pendingCorrections: function (b) {
     var u = requireUser_(b.token);
-    if (Number(u.row.cashier) !== 1 && u.row.role !== 'admin') throw new Error('not-cashier');
+    if (!canReview_(u)) throw new Error('not-cashier');
     var d = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
     return { ok: true, corrections: (d.corrections || []).filter(function (c) { return c.status === 'pending'; }) };
   },
   // approve a flag (→ creates the void) or reject it; enforces the void rule
   resolveCorrection: function (b) {
     var u = requireUser_(b.token);
-    if (Number(u.row.cashier) !== 1 && u.row.role !== 'admin') throw new Error('not-cashier');
+    if (!canReview_(u)) throw new Error('not-cashier');
     var lock = LockService.getScriptLock(); lock.waitLock(20000);
     try {
       var ss = SpreadsheetApp.getActive();
@@ -953,8 +983,7 @@ var ACTIONS = {
     var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
-    var ok = { party: 1, payment: 1, daily: 1, handover: 1 };
-    u.row.entries = (b.entries || []).filter(function (e) { return ok[e]; }).join(',');
+    u.row.entries = (b.entries || []).filter(function (e) { return PERM_KEYS.indexOf(e) >= 0; }).join(',');
     saveUser_(u);
     logAudit_(me.row, 'entries', '@' + u.row.username + ' → [' + u.row.entries + ']');
     return { ok: true, user: publicUser_(u.row) };

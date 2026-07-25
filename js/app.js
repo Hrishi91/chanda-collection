@@ -1036,26 +1036,29 @@
         return (r.collectorId || r.collector) === meId && (r.date === today || (r.createdAt || '').slice(0, 10) === today);
       }).reduce(function (a, r) { return a + Number(r.amount || 0); }, 0);
       const cashier = Auth.isCashier();
-      // bus lives with the other new-entry tiles (it makes a receipt, same as
-      // a new shop/person/member) — still gated on the 'daily' permission,
-      // independent of whether this collector may also add parties.
+      // One tile per permission key, so what an admin grants and what the
+      // collector sees are the same six words. Bus sits with the new-entry
+      // tiles (it names a donor and issues a receipt); road/toto are the rounds.
+      const tile = function (key, go, icon, labelKey) {
+        return canEntry(key) ? '<button class="tile" data-go="' + go + '">' + icon + ' ' + esc(t(labelKey)) + '</button>' : '';
+      };
       const partyTiles =
-        (canEntry('party') ?
-          '<button class="tile" data-go="shop">🏪 ' + esc(t('new_shop')) + '</button>' +
-          '<button class="tile" data-go="person">🙍 ' + esc(t('new_person')) + '</button>' +
-          '<button class="tile" data-go="member">🤝 ' + esc(t('new_member')) + '</button>' : '') +
-        (canEntry('daily') ? '<button class="tile" data-go="bus">🚌 ' + esc(t('daily_bus')) + '</button>' : '');
+        tile('shop', 'shop', '🏪', 'new_shop') +
+        tile('person', 'person', '🙍', 'new_person') +
+        tile('member', 'member', '🤝', 'new_member') +
+        tile('bus', 'bus', '🚌', 'daily_bus');
       const dailyTiles =
-        (canEntry('daily') ?
-          '<button class="tile" data-go="road">🛣️ ' + esc(t('daily_road')) + '</button>' +
-          '<button class="tile" data-go="toto">🛺 ' + esc(t('daily_toto')) + '</button>' : '') +
+        tile('road', 'road', '🛣️', 'daily_road') +
+        tile('toto', 'toto', '🛺', 'daily_toto') +
         (cashier ? '<button class="tile" data-go="expense">🧾 ' + esc(t('expense')) + '</button>' : '');
-      const paymentTile = canEntry('payment') ?
-        '<div class="grid one"><button class="tile wide" data-go="list">💰 ' + esc(t('add_payment')) + ' / ' + esc(t('dues_only')) + '</button></div>' : '';
+      // চাঁদা নেওয়া is common: a later instalment may reach whoever is nearest,
+      // no matter who first wrote the donor down.
+      const paymentTile =
+        '<div class="grid one"><button class="tile wide" data-go="list">💰 ' + esc(t('add_payment')) + ' / ' + esc(t('dues_only')) + '</button></div>';
       const cashTiles =
-        (canEntry('handover') ? '<button class="tile" data-go="handover">' + esc(t('handover')) + '</button>' : '') +
-        (cashier ? '<button class="tile" data-go="cashier">' + esc(t('confirm_handover')) + '</button>' +
-          '<button class="tile" data-go="review">🛠️ ' + esc(t('review_title')) + '</button>' : '');
+        '<button class="tile" data-go="handover">' + esc(t('handover')) + '</button>' + // common to everyone
+        (cashier ? '<button class="tile" data-go="cashier">' + esc(t('confirm_handover')) + '</button>' : '') +
+        (canReview() ? '<button class="tile" data-go="review">🛠️ ' + esc(t('review_title')) + '</button>' : '');
       $view().innerHTML =
         '<div id="notif-banner"></div>' +
         '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
@@ -1105,7 +1108,7 @@
       const tabs = [['all', t('all')], ['shop', t('type_shop')], ['person', t('type_person')],
                     ['member', t('type_member')], ['due', t('dues_only')]];
       $view().innerHTML =
-        (canEntry('payment') ? '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' : '') +
+        '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' +
         '<input id="search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(listQuery) + '">' +
         '<div class="chips tabs">' + tabs.map(function (tb) {
           return '<button class="chip' + (listFilter === tb[0] ? ' on' : '') + '" data-f="' + tb[0] + '">' + esc(tb[1]) + '</button>';
@@ -1135,10 +1138,9 @@
   // balance — so a collector who receives a later installment can record it
   // even though they didn't create the party.
   function renderFindParty() {
-    // find-party exists to TAKE a payment — without the payment permission the
-    // whole screen is off-limits (the khata button is hidden, but guard the
-    // route too so Back/history can't reach it).
-    if (!canEntry('payment')) { navigate('list'); return; }
+    // find-party exists to TAKE a later instalment, which is common to everyone:
+    // the donor may have been written down by anyone, and whoever is nearest
+    // when the money is offered must be able to record it.
     $view().innerHTML = backBar('list') + '<div class="flow-title">' + esc(t('find_party_title')) + '</div>' +
       '<div class="hint" style="margin-bottom:8px">' + esc(t('find_party_hint')) + '</div>' +
       '<input id="fp-search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(findQuery) + '">' +
@@ -1175,7 +1177,7 @@
     el.querySelectorAll('[data-fp]').forEach(function (r) {
       r.onclick = function () {
         const p = findParties.find(function (x) { return x.id === r.dataset.fp; });
-        if (p && canEntry('payment')) startFlow(paymentFlow(p, 'findparty'));
+        if (p) startFlow(paymentFlow(p, 'findparty'));
       };
     });
   }
@@ -1213,7 +1215,7 @@
       '<div><span>' + esc(t('paid')) + '</span><b>' + fmtMoney(paid) + '</b></div>' +
       '<div class="' + (due > 0 ? 'red' : 'green') + '"><span>' + esc(t('due')) + '</span><b>' + fmtMoney(due) + '</b></div>' +
       '</div>' +
-      (canEntry('payment') ? '<button id="pay-btn" class="primary big block">💰 ' + esc(t('add_payment')) + '</button>' : '') +
+      '<button id="pay-btn" class="primary big block">💰 ' + esc(t('add_payment')) + '</button>' +
       (due > 0 && p.phone ? '<button id="remind-btn" class="ghost big block">📞 ' + esc(t('remind_btn')) + '</button>' : '') +
       '</div>' +
       (keys.length ? '<div class="section">' + esc(t('who_collected')) + '</div><div class="card">' +
@@ -1288,14 +1290,14 @@
       p.side ? Lists.labelOf('area', p.side) : '', p.location ? Lists.labelOf('location', p.location) : ''].join(' '));
     return q.split(' ').every(function (w) { return hay.indexOf(w) >= 0; });
   }
-  // Which entry kinds this user may insert (admin sets it per user; empty = all
-  // for a normal collector, so nobody is accidentally locked out).
-  function canEntry(kind) {
-    const u = Auth.current(); if (!u) return false;
-    if (u.role === 'admin') return true;
-    const set = String(u.entries || '').split(',').filter(Boolean);
-    return !set.length || set.indexOf(kind) >= 0;
-  }
+  // Which things this user may collect (admin sets it per user; empty = all, so
+  // nobody is accidentally locked out). Keys are the six collection categories
+  // plus 'review' — see Aggregate.PERM_KEYS for the whole story. Passing a
+  // falsy key means "common to everyone" and is always allowed.
+  function canEntry(key) { return Aggregate.permAllowed(Auth.current(), key); }
+  // The cashier's correction desk is now its own grant. Base requirement is
+  // unchanged (cashier or admin); on top of that the admin may withhold it.
+  function canReview() { return Auth.isCashier() && canEntry('review'); }
   // Persistent training strip under the header — shows on EVERY screen until the
   // admin goes live (it lives outside #view, so a re-render can't drop it). Also
   // keeps the header title in sync with the puja name.
@@ -1677,7 +1679,7 @@
   }
   // Cashier/admin: review collectors' correction flags → approve (void) / reject.
   function renderReviewCorrections() {
-    if (!Auth.isCashier()) { $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
+    if (!canReview()) { $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
     $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('loading')) + '</div>';
     Auth.call('pendingCorrections', { token: Auth.token(), year: Settings.get('year') }).then(function (resp) {
       const list = resp.corrections || [];
@@ -2027,8 +2029,10 @@
     const user = Auth.current() || { name: '?', username: '?' };
     // scriptUrl is a backend override for testing — admins only, so a
     // collector can't accidentally edit it and break their own sync.
-    const fields = [['year', 'year', 'number']];
-    if (Auth.isAdmin()) fields.push(['scriptUrl', 'script_url', 'text']);
+    // The year decides which book every entry lands in — one collector nudging
+    // it puts their whole day in the wrong year, invisibly. Admin only.
+    const fields = [];
+    if (Auth.isAdmin()) fields.push(['year', 'year', 'number'], ['scriptUrl', 'script_url', 'text']);
     $view().innerHTML = '<div class="card"><div class="card-title">👤 ' + esc(user.name) +
       (user.role === 'admin' ? ' 👑' : '') + (Auth.isCashier() ? ' 💰' : '') + '</div>' +
       '<div class="row-sub">' + esc(t('logged_in_as')) + ': @' + esc(user.username) + '</div></div>' +
@@ -2444,16 +2448,22 @@
           ' • ' + esc(u.years || '—') + '</div></div>' +
           '<div class="chips" style="margin:8px 0 0">' + btns + '</div>' + entriesChips(u) + reportChips(u) + areaChips(u) + '</div>';
       }
-      // which entry kinds this user may insert (empty = all). Drives the home tiles.
+      // What this user may collect, one chip per category (empty = all). Drives
+      // the home tiles AND the ledger tabs, so a grant and what it opens are
+      // always the same word. `review` rides along — it is the cashier's
+      // correction desk, not a category, hence the separator.
       function entriesChips(u) {
         if (u.status !== 'approved' || u.role === 'admin') return '';
         const set = String(u.entries || '').split(',').filter(Boolean);
-        const kinds = [['party', t('ec_party')], ['payment', t('ec_payment')], ['daily', t('ec_daily')], ['handover', t('ec_handover')]];
+        const kinds = [['shop', t('new_shop')], ['person', t('new_person')], ['member', t('new_member')],
+                       ['bus', t('daily_bus')], ['road', t('daily_road')], ['toto', t('daily_toto')],
+                       ['review', t('review_title')]];
         const chips = kinds.map(function (k) {
           const on = !set.length || set.indexOf(k[0]) >= 0; // empty = all on
           return '<button class="chip' + (on ? ' on' : '') + '" data-ent-user="' + u.id + '" data-ent-id="' + k[0] + '">' + esc(k[1]) + '</button>';
         }).join('');
         return '<div class="row-sub" style="flex-basis:100%;margin-top:10px">' + esc(t('entry_perms')) + '</div>' +
+          '<div class="row-sub" style="flex-basis:100%;opacity:.75">' + esc(t('perms_common')) + '</div>' +
           '<div class="chips" style="margin:4px 0 0">' + chips + '</div>';
       }
       // which master areas a collector is responsible for (drives area reports)

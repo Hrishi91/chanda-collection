@@ -147,7 +147,15 @@ Refreshes every minute and whenever you return to the app.
   does not auto-update.
 - Per approved user: **💰 Make cashier**, **👑 Make/remove admin**, **🔑 Reset
   password** (gives a temporary password — tell them verbally), **🚫 Block**,
+  **✏️ Can collect** (one chip per category — shop, person, member, bus, road,
+  toto — plus the 🛠️ correction desk; grant nothing and everything stays open),
   **📊 report permissions**, and **📍 Area duties** (which roads they cover).
+
+  Four things need no permission at all, because everyone needs them to do the
+  job: taking a later instalment from a donor anyone may have written down,
+  handing money over, "My entries / fix", and the dues list. The year field in
+  Settings is admin-only — one collector nudging it would put their whole day
+  in the wrong book, invisibly.
 - **👑 Admin safeguards** — you cannot remove your own admin role, and the last
   remaining admin cannot be removed, so the committee can never be locked out.
 - **🧾 Expense subjects** and **📍 Area / location lists** — add, rename or remove

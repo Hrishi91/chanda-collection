@@ -1,7 +1,7 @@
 // Pure-logic tests: node tests/run.js
 const { parseAmount } = require('../js/numparse.js');
 const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
-        roleOf, rowRole } = require('../js/aggregate.js');
+        roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -472,6 +472,75 @@ eq(mayCashierAct('collector'), true, 'duties: cashier may act on a collector ent
 eq(mayCashierAct('user'), true, 'duties: cashier may act on a LEGACY collector entry ("user")');
 eq(mayCashierAct('cashier'), false, 'duties: cashier may not act on another cashier entry');
 eq(mayCashierAct('admin'), false, 'duties: cashier may not act on an admin entry');
+
+// ---- collection permissions: one key per thing a person actually collects ----
+eq(ENTRY_KINDS, ['shop', 'person', 'member', 'bus', 'road', 'toto'], 'perms: six collection keys, bus with the new-entry types');
+eq(PERM_KEYS.indexOf('review') >= 0, true, 'perms: the correction desk rides the same field');
+eq(PERM_KEYS.indexOf('payment'), -1, 'perms: taking a later instalment is NOT a permission');
+eq(PERM_KEYS.indexOf('handover'), -1, 'perms: handing money over is NOT a permission');
+
+// which key a row needs comes from the ROW, not the store — bus and road share
+// the `daily` store yet are separate grants
+eq(permForRow('daily', { type: 'bus' }), 'bus', 'permForRow: a bus row needs the bus grant');
+eq(permForRow('daily', { type: 'road' }), 'road', 'permForRow: a road row needs the road grant');
+eq(permForRow('daily', { type: 'toto' }), 'toto', 'permForRow: a toto row needs the toto grant');
+eq(permForRow('parties', { type: 'shop' }), 'shop', 'permForRow: a new shop needs the shop grant');
+eq(permForRow('parties', { type: 'member' }), 'member', 'permForRow: a new member needs the member grant');
+eq(permForRow('payments', { amount: 100 }), null, 'permForRow: a payment is common to everyone');
+eq(permForRow('handovers', { amount: 100 }), null, 'permForRow: a handover is common to everyone');
+eq(permForRow('corrections', {}), null, 'permForRow: a correction flag is common to everyone');
+eq(permForRow('expenses', { source: 'collection', collectionType: 'toto' }), 'toto',
+   'permForRow: a collection expense rides the round it was spent on');
+eq(permForRow('expenses', { source: 'puja' }), null, 'permForRow: a general puja expense has no category key (cashier-gated separately)');
+
+const admin = { role: 'admin', entries: 'shop' };       // a grant must not narrow an admin
+const fresh = { role: 'user', entries: '' };            // approved, nothing set yet
+const busOnly = { role: 'user', entries: 'bus' };
+eq(permAllowed(admin, 'toto'), true, 'perms: admin may do everything regardless of the field');
+eq(permAllowed(fresh, 'shop'), true, 'perms: empty grant means ALL — never lock a new collector out');
+eq(permAllowed(fresh, 'review'), true, 'perms: empty grant includes the review desk (today\'s behaviour)');
+eq(permAllowed(busOnly, 'bus'), true, 'perms: granted key allowed');
+eq(permAllowed(busOnly, 'road'), false, 'perms: ungranted key blocked');
+eq(permAllowed(busOnly, 'shop'), false, 'perms: a bus-only collector cannot add a shop');
+eq(permAllowed(busOnly, 'review'), false, 'perms: once anything is granted, review must be granted too');
+eq(permAllowed(busOnly, null), true, 'perms: a common action stays open to a narrowly-granted user');
+eq(permAllowed(busOnly, permForRow('payments', {})), true, 'perms: bus-only collector may still take a later instalment');
+eq(permAllowed(busOnly, permForRow('handovers', {})), true, 'perms: bus-only collector may still hand money over');
+eq(permAllowed(null, 'bus'), false, 'perms: no user, no permission');
+
+// ---- the server really does mirror the client -------------------------------
+// Code.gs duplicates the permission rules (the UI hides what you may not do,
+// the server must not trust the UI). A comment saying "mirrors js/aggregate.js"
+// is not a guarantee — so load the REAL Code.gs and make the two agree. These
+// four functions touch no Apps Script globals, so they run here unchanged.
+(function serverMirror() {
+  const src = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  const gs = {};
+  new Function('g', src + '\n g.ENTRY_KINDS = ENTRY_KINDS; g.PERM_KEYS = PERM_KEYS;' +
+                          ' g.permForRow_ = permForRow_; g.entryAllowed_ = entryAllowed_; g.canReview_ = canReview_;')(gs);
+  eq(gs.ENTRY_KINDS, ENTRY_KINDS, 'mirror: server ENTRY_KINDS === client');
+  eq(gs.PERM_KEYS, PERM_KEYS, 'mirror: server PERM_KEYS === client');
+  [['parties', { type: 'shop' }], ['parties', { type: 'person' }], ['parties', { type: 'member' }],
+   ['daily', { type: 'bus' }], ['daily', { type: 'road' }], ['daily', { type: 'toto' }],
+   ['payments', {}], ['handovers', {}], ['corrections', {}],
+   ['expenses', { source: 'collection', collectionType: 'bus' }], ['expenses', { source: 'puja' }],
+  ].forEach(function (c) {
+    eq(gs.permForRow_(c[0], c[1]), permForRow(c[0], c[1]), 'mirror: permForRow ' + c[0] + '/' + (c[1].type || c[1].source || '-'));
+  });
+  [{ role: 'admin', entries: 'bus' }, { role: 'user', entries: '' },
+   { role: 'user', entries: 'bus' }, { role: 'user', entries: 'bus,review', cashier: 1 },
+  ].forEach(function (u, i) {
+    PERM_KEYS.concat([null]).forEach(function (k) {
+      eq(gs.entryAllowed_({ row: u }, k), permAllowed(u, k), 'mirror: entryAllowed user' + i + ' key=' + k);
+    });
+  });
+  // the correction desk: cashier base, admin override, grant on top
+  eq(gs.canReview_({ row: { role: 'admin', cashier: 0, entries: '' } }), true, 'review: admin always has the desk');
+  eq(gs.canReview_({ row: { role: 'user', cashier: 1, entries: '' } }), true, 'review: cashier with nothing granted keeps it');
+  eq(gs.canReview_({ row: { role: 'user', cashier: 1, entries: 'bus' } }), false, 'review: granting only bus withholds the desk');
+  eq(gs.canReview_({ row: { role: 'user', cashier: 1, entries: 'bus,review' } }), true, 'review: granted explicitly');
+  eq(gs.canReview_({ row: { role: 'user', cashier: 0, entries: '' } }), false, 'review: a plain collector never gets the desk');
+})();
 
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

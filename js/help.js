@@ -222,7 +222,8 @@ window.HELP = [
     body: {
       bn: [
         'নতুন user register করলে এখানে <b>"Approve-এর অপেক্ষায়"</b> সেকশনে আসে — <b>✅ Approve</b> চাপো। <b>নতুন কেউ যোগ হলে উপরে "🔄 Refresh" চাপতে হবে</b>, নিজে থেকে আপডেট হয় না।',
-        'প্রতিটা approved user-এ: <b>💰 ক্যাশিয়ার করা</b>, <b>👑 admin করা/সরানো</b>, <b>🔑 পাসওয়ার্ড রিসেট</b> (একটা সাময়িক পাসওয়ার্ড দেবে — মুখে বলে দাও), <b>🚫 Block</b>, <b>📊 report permission</b>, আর <b>📍 এলাকার দায়িত্ব</b> (কে কোন রাস্তা দেখবে — chip চেপে দাও/নাও)।',
+        'প্রতিটা approved user-এ: <b>💰 ক্যাশিয়ার করা</b>, <b>👑 admin করা/সরানো</b>, <b>🔑 পাসওয়ার্ড রিসেট</b> (একটা সাময়িক পাসওয়ার্ড দেবে — মুখে বলে দাও), <b>🚫 Block</b>, <b>✏️ কী কী তুলতে পারবে</b> (দোকান · ব্যক্তি · সদস্য · বাস · রোড · টোটো, আর 🛠️ সংশোধন-ডেস্ক — chip চেপে দাও/নাও; কিচ্ছু না দিলে সব খোলা), <b>📊 report permission</b>, আর <b>📍 এলাকার দায়িত্ব</b>।',
+        '<b>সবার জন্য সবসময় খোলা</b> (permission লাগে না): চাঁদা নেওয়া (যে কারও তোলা দাতার পরের কিস্তি), জমা দেওয়া, আমার entry/সংশোধন, আর বাকির তালিকা।',
         '<b>👑 admin:</b> নিজেকে admin থেকে সরানো যায় না, আর <b>শেষ admin-কেও সরানো যায় না</b> — যাতে কমিটি কখনো admin ছাড়া আটকে না যায়।',
         '<b>🧾 খরচের বিষয়</b> ও <b>📍 এলাকা / location তালিকা</b> — এখান থেকেই যোগ/বদল/মুছে ফেলা যায় (বাংলা + English দুটো নামই দিতে হয়)। বদলালে সবার ফোনে দ্রুত পৌঁছে যায়।',
         '<b>📜 কার্যকলাপ</b> — কে কখন কী করল তার হিসাব: বাতিল (void), সংশোধন মঞ্জুর/নাকচ, জমা confirm, admin/ক্যাশিয়ার বদল, পাসওয়ার্ড রিসেট, তালিকা বদল। মুছে ফেলা যায় না — জবাবদিহির জন্য।',
@@ -232,7 +233,8 @@ window.HELP = [
       ],
       en: [
         'A newly registered user appears here under <b>"Awaiting approval"</b> — tap <b>✅ Approve</b>. <b>Tap "🔄 Refresh" after someone new registers</b> — the panel does not auto-update.',
-        'For each approved user: <b>💰 Make cashier</b>, <b>👑 Make/remove admin</b>, <b>🔑 Reset password</b> (gives a temporary password — tell them verbally), <b>🚫 Block</b>, <b>📊 report permissions</b>, and <b>📍 Area duties</b> (which roads they cover — tap chips).',
+        'For each approved user: <b>💰 Make cashier</b>, <b>👑 Make/remove admin</b>, <b>🔑 Reset password</b> (gives a temporary password — tell them verbally), <b>🚫 Block</b>, <b>✏️ Can collect</b> (shop · person · member · bus · road · toto, plus the 🛠️ correction desk — tap chips; grant nothing and everything stays open), <b>📊 report permissions</b>, and <b>📍 Area duties</b>.',
+        '<b>Always open to everyone</b> (no permission needed): taking a later instalment from any donor, handing money over, my entries/fix, and the dues list.',
         '<b>👑 Admin:</b> you cannot remove your own admin role, and <b>the last admin cannot be removed</b> — so the committee can never be locked out.',
         '<b>🧾 Expense subjects</b> and <b>📍 Area / location lists</b> are edited here too (each needs a Bengali and an English name). Changes reach everyone\'s phone quickly.',
         '<b>📜 Activity log</b> — who did what and when: voids, correction approve/reject, handover confirms, admin/cashier changes, password resets, list edits. Append-only, for accountability.',

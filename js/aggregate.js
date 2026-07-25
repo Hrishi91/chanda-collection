@@ -380,6 +380,44 @@
   // round-trip, works offline). Shapes MUST match the server versions because
   // reportHTML() renders them unchanged.
   const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
+
+  // ---- permissions -------------------------------------------------------
+  // What an admin can grant per user, stored as a CSV in the Users sheet's
+  // `entries` column. EMPTY MEANS ALL, so a freshly approved collector is never
+  // accidentally locked out of everything.
+  //
+  // One key per thing a person actually collects — the same six categories the
+  // home screen, the handover sheet and the ledger tabs use, so a permission and
+  // what it unlocks are always the same word. Bus sits with the new-entry types
+  // (it names a donor and issues a receipt); road/toto are the street rounds.
+  //
+  // Deliberately NOT permissions, because everyone needs them to do the job:
+  //   চাঁদা নেওয়া (a later instalment from a donor anyone may have created),
+  //   জমা দেওয়া (handover), আমার entry / সংশোধন, বাকি (the dues list).
+  // `review` is not an entry kind — it gates the cashier's correction desk —
+  // but it rides the same field so granting stays one screen for the admin.
+  const ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto'];
+  const PERM_KEYS = ENTRY_KINDS.concat(['review']);
+  // Which permission key a row needs, from the row itself. Stores with no key
+  // are common to everyone.
+  function permForRow(store, row) {
+    if (store === 'parties') return ENTRY_KINDS.indexOf(String(row && row.type)) >= 0 ? String(row.type) : null;
+    if (store === 'daily') return ENTRY_KINDS.indexOf(String(row && row.type)) >= 0 ? String(row.type) : null;
+    // a collection expense is spent out of a round the person is running, so it
+    // rides that round's permission; general puja expenses are cashier-only and
+    // gated separately.
+    if (store === 'expenses' && String(row && row.source) === 'collection') {
+      return ENTRY_KINDS.indexOf(String(row.collectionType)) >= 0 ? String(row.collectionType) : null;
+    }
+    return null;
+  }
+  function permAllowed(user, key) {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    if (!key) return true; // common to everyone
+    const set = String(user.entries || '').split(',').filter(Boolean);
+    return !set.length || set.indexOf(key) >= 0; // empty = all
+  }
   function computeReport(id, data) {
     const d = activeData(data);
     const money = (d.payments || []).concat(d.daily || []);
@@ -493,7 +531,9 @@
                 inHandRows: inHandRows, personalSummary: personalSummary,
                 myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,
-                roleOf: roleOf, rowRole: rowRole };
+                roleOf: roleOf, rowRole: rowRole,
+                ENTRY_KINDS: ENTRY_KINDS, PERM_KEYS: PERM_KEYS,
+                permForRow: permForRow, permAllowed: permAllowed };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
 })();

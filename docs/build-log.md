@@ -2546,3 +2546,63 @@ VERIFIED
   through the fixed-order `drain()` (seen as `shop: -99` for the cashier in the
   test). The books still reconcile; whether to block over-spend the way the
   handover sheet does is an open question.
+
+## v3.84.0 — one permission key per thing you actually collect
+
+Hrishi: "all the new entry and the daily collection, all will be different
+permissions / handover, entry correction will be, taka joma baki will be common".
+
+Before, an admin granted four coarse kinds — `party` (all three donor types at
+once), `payment`, `daily` (road+toto+**bus** together) and `handover`. Two things
+were wrong with that. Giving someone bus forced road and toto on them, because
+bus is a `daily`-store row; and handover — which everyone needs, since a
+collector must be able to give their money to a cashier — was something an admin
+could switch off.
+
+NOW: six keys, one per category, the same six words the home tiles, the handover
+sheet and `byCat` already use.
+
+    ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto']
+
+A grant and the button it turns on are now literally the same label — the admin
+chips render `t('new_shop')`, `t('daily_bus')` … instead of separate `ec_*`
+strings that could drift.
+
+Common to everyone, no permission at all:
+- **চাঁদা নেওয়া** — a later instalment. The donor may have been written down by
+  anyone; whoever is nearest when the money is offered must be able to record it.
+- **জমা দেওয়া** (handover) — you cannot hold a collector's money hostage.
+- **আমার entry / সংশোধন**, and the **বাকি** list.
+
+`review` (the cashier's correction desk) became its own grant. It rides the same
+`entries` field so granting stays one screen; the base requirement is unchanged
+(cashier or admin) and, as everywhere here, an empty field means all — so today's
+cashiers keep the desk until an admin narrows them.
+
+The year field in Settings is now admin-only. One collector nudging it puts their
+whole day in the wrong book, invisibly, and nothing would flag it.
+
+KEY FROM THE ROW, NOT THE STORE. Bus and road live in the same `daily` sheet, so
+a store→kind table cannot tell them apart. `permForRow(store, row)` reads the
+row's own type; a collection expense hands back the key of the round it was spent
+on; stores with no key are common.
+
+MIGRATION: none needed. `listUsers` on the live sheet shows every user with
+`entries=''` (= all), so nobody loses anything. Doing this after grants existed
+would have needed a translation table.
+
+VERIFIED
+- 50 new tests, and a new `serverMirror()` block that loads the REAL `Code.gs`
+  and asserts its `ENTRY_KINDS`/`PERM_KEYS`/`permForRow_`/`entryAllowed_`/
+  `canReview_` agree with `js/aggregate.js` on every key × user combination.
+  A comment claiming "mirrors the client" is now a test. **245 passed, 0 failed.**
+- browser: `Aggregate.permForRow/permAllowed` return the right keys for bus,
+  road, shop, payment, handover and a collection expense; a bus-only user is
+  allowed bus, denied road/shop/review, and still allowed the common actions.
+  No console errors.
+- NOT yet verified end-to-end: the home tiles and admin chips for a real
+  narrowed user, and the server push gate. Both need the Code.gs redeploy and a
+  user with an actual grant — see below.
+
+STILL OPEN (next commits in this batch): ledger bus tab + bus out of the daily
+report; the handover report; edit-after-flag; admin-only backup import.

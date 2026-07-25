@@ -282,14 +282,15 @@ const I18N = {
   reconcile_anoms: { bn: 'আরও {n}টা অসঙ্গতি (যেমন কথার চেয়ে বেশি জমা / হাতে ঋণাত্মক টাকা) — কার্যকলাপ ও entry দেখো।', en: '{n} more anomalies (e.g. overpaid pledge / negative in-hand) — check the entries.' },
   err_no_report_access: { bn: 'এই রিপোর্টের permission নেই — admin-কে বলো', en: 'No permission for this report — ask the admin' },
   report_perms: { bn: '📊 রিপোর্ট permission', en: '📊 Report permissions' },
-  entry_perms: { bn: '✏️ কী কী ঢোকাতে পারবে', en: '✏️ Can enter' },
+  entry_perms: { bn: '✏️ কী কী তুলতে পারবে', en: '✏️ Can collect' },
   adm_users: { bn: 'ইউজার ও permission', en: 'Users & permissions' },
   adm_lists: { bn: 'রসিদ ও তালিকা', en: 'Receipt & lists' },
   adm_data: { bn: 'ডেটা ও হিসাব রক্ষা', en: 'Data & records' },
-  ec_party: { bn: 'দাতা', en: 'Donors' },
-  ec_payment: { bn: 'চাঁদা/payment', en: 'Payments' },
-  ec_daily: { bn: 'রোড/টোটো/বাস', en: 'Road/toto/bus' },
-  ec_handover: { bn: 'জমা দেওয়া', en: 'Handover' },
+  // Permission chips reuse the tile labels themselves (new_shop, daily_bus …)
+  // so a grant reads exactly like the button it turns on. Only the section
+  // heading and the always-open note live here.
+  perms_common: { bn: 'সবার জন্য খোলা: চাঁদা নেওয়া · জমা দেওয়া · আমার entry/সংশোধন · বাকি',
+                  en: 'Open to everyone: take payment · handover · my entries/fix · dues' },
   inhand_auto_cashier: { bn: '(ক্যাশিয়ার হলে "কার হাতে কত" এমনিই থাকে)', en: '(cashiers always get "Cash in hand")' },
   // --- personal "my summary" ---
   my_summary: { bn: '📱 আমার হিসাব', en: '📱 My summary' },
