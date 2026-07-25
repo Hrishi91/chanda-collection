@@ -2645,3 +2645,31 @@ VERIFIED
   No console errors.
 - NOT verified end-to-end: the ledger tab itself needs a logged-in session, so it
   gets checked on the live deployment with the three tokens after the redeploy.
+
+## v3.85.1 — categories on the other-people's-donor screens, বাকি becomes a toggle
+
+Hrishi: "onno karo data baki … screen also should have categories as sob, dokan,
+bakti and all remaining needy categories".
+
+"দাতা খুঁজি" — the screen for taking a later instalment from a donor anyone may
+have written down — had only a search box. It now carries the same category chips
+as the ledger.
+
+And **বাকি stopped being a category**. It was a fifth chip beside দোকান/ব্যক্তি/
+সদস্য, so choosing it threw the category filter away and brought every type back
+mixed together — there was no way to ask "which SHOPS still owe". It is now a
+separate toggle, so দোকান + শুধু বাকি, ব্যক্তি + শুধু বাকি … all work, on both
+screens.
+
+One shared `typeChips()` renders them on both, so the two screens cannot drift.
+Chips mirror what the person may collect; **সব** always shows, because taking an
+instalment is common to everyone and any donor must be findable. Bus appears only
+in the ledger — you take instalments from donors, and a bus pays once, with a
+receipt.
+
+VERIFIED: 251 passed, 0 failed; app loads with no console errors. The screens
+themselves need a logged-in session, so they are on the post-redeploy list with
+the ledger bus tab.
+
+STILL OPEN in this batch: the handover report, edit-after-flag, admin-only backup
+import — and one question back to Hrishi about what "categories" means on জমা নাও.

@@ -1121,30 +1121,40 @@
           '<div class="row-right">' + fmtMoney(r.amount) + '</div></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
   }
+  // Category chips shared by the ledger and "দাতা খুঁজি" (someone else's donor),
+  // so both screens read the same way. They mirror what this person may collect;
+  // "সব" always shows, because a later instalment is common to everyone and you
+  // must be able to look ANY donor up. `withBus` is off on find-party — you take
+  // instalments from donors, and a bus pays once with a receipt.
+  function typeChips(current, withBus) {
+    const kinds = [['shop', t('type_shop')], ['person', t('type_person')], ['member', t('type_member')]]
+      .concat(withBus ? [['bus', t('daily_bus')]] : []);
+    const tabs = [['all', t('all')]].concat(kinds.filter(function (k) { return canEntry(k[0]); }));
+    const valid = tabs.some(function (tb) { return tb[0] === current; }) ? current : 'all';
+    return { valid: valid, html: '<div class="chips tabs">' + tabs.map(function (tb) {
+      return '<button class="chip' + (valid === tb[0] ? ' on' : '') + '" data-f="' + tb[0] + '">' + esc(tb[1]) + '</button>';
+    }).join('') + '</div>' };
+  }
+  // "শুধু বাকি" is a TOGGLE, not one more category — otherwise picking বাকি
+  // threw away the category filter and every type came back mixed together.
+  // Now দোকান + শুধু বাকি, ব্যক্তি + শুধু বাকি … all work.
+  function dueChip(on) {
+    return '<div class="chips" style="margin:-4px 0 10px"><button class="chip' + (on ? ' on' : '') +
+      '" data-duetoggle="1">' + (on ? '🔴 ' : '') + esc(t('dues_only')) + '</button></div>';
+  }
+  let listDueOnly = false, findFilter = 'all', findDueOnly = false;
   function drawList(data, paidBy) {
+      const chips = typeChips(listFilter, true);
+      listFilter = chips.valid;
       const busRows = listFilter === 'bus';
       let rows = data.parties.slice().sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
-      if (listFilter === 'due') {
-        rows = rows.filter(function (p) { return (Number(p.pledged) || 0) - (paidBy[p.id] || 0) > 0; });
-      } else if (listFilter !== 'all' && !busRows) {
-        rows = rows.filter(function (p) { return p.type === listFilter; });
-      }
+      if (listFilter !== 'all' && !busRows) rows = rows.filter(function (p) { return p.type === listFilter; });
+      if (listDueOnly) rows = rows.filter(function (p) { return (Number(p.pledged) || 0) - (paidBy[p.id] || 0) > 0; });
       if (listQuery) rows = rows.filter(function (p) { return matchParty(p, listQuery); });
-      // The filter chips mirror what this person is allowed to collect, so the
-      // ledger reads like their own home screen. "সব" and "বাকি" always show:
-      // a later instalment may reach anyone, so everyone must be able to look
-      // the donor up and see what is still owed.
-      const tabs = [['all', t('all')]]
-        .concat([['shop', t('type_shop')], ['person', t('type_person')], ['member', t('type_member')], ['bus', t('daily_bus')]]
-          .filter(function (tb) { return canEntry(tb[0]); }))
-        .concat([['due', t('dues_only')]]);
-      if (!tabs.some(function (tb) { return tb[0] === listFilter; })) listFilter = 'all';
       $view().innerHTML =
         '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' +
         '<input id="search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(listQuery) + '">' +
-        '<div class="chips tabs">' + tabs.map(function (tb) {
-          return '<button class="chip' + (listFilter === tb[0] ? ' on' : '') + '" data-f="' + tb[0] + '">' + esc(tb[1]) + '</button>';
-        }).join('') + '</div>' +
+        chips.html + (busRows ? '' : dueChip(listDueOnly)) +
         (busRows ? drawBusList(data) :
         (rows.length ? rows.map(function (p) {
           const paid = paidBy[p.id] || 0, due = (Number(p.pledged) || 0) - paid;
@@ -1163,6 +1173,8 @@
       document.querySelectorAll('[data-f]').forEach(function (c) {
         c.onclick = function () { listFilter = c.dataset.f; renderList(); };
       });
+      const dueBtn = document.querySelector('[data-duetoggle]');
+      if (dueBtn) dueBtn.onclick = function () { listDueOnly = !listDueOnly; renderList(); };
       document.querySelectorAll('.row[data-id]').forEach(function (r) {
         r.onclick = function () { navigate('party', { id: r.dataset.id }); };
       });
@@ -1178,11 +1190,19 @@
     // find-party exists to TAKE a later instalment, which is common to everyone:
     // the donor may have been written down by anyone, and whoever is nearest
     // when the money is offered must be able to record it.
+    const chips = typeChips(findFilter, false);
+    findFilter = chips.valid;
     $view().innerHTML = backBar('list') + '<div class="flow-title">' + esc(t('find_party_title')) + '</div>' +
       '<div class="hint" style="margin-bottom:8px">' + esc(t('find_party_hint')) + '</div>' +
       '<input id="fp-search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(findQuery) + '">' +
+      chips.html + dueChip(findDueOnly) +
       '<div id="fp-results"><div class="empty">' + esc(t('loading')) + '</div></div>';
     document.getElementById('fp-search').oninput = function (e) { findQuery = e.target.value; renderFPResults(); };
+    document.querySelectorAll('[data-f]').forEach(function (c) {
+      c.onclick = function () { findFilter = c.dataset.f; renderFindParty(); };
+    });
+    const dueBtn = document.querySelector('[data-duetoggle]');
+    if (dueBtn) dueBtn.onclick = function () { findDueOnly = !findDueOnly; renderFindParty(); };
     refreshFindParty();
   }
   // Reloads the party data + results only, WITHOUT rebuilding the shell — so a
@@ -1200,8 +1220,11 @@
   }
   function renderFPResults() {
     const el = document.getElementById('fp-results'); if (!el) return;
-    const rows = findParties.filter(function (p) { return matchParty(p, findQuery); })
-      .sort(function (a, b) { return ((b.pledged - b.paid) || 0) - ((a.pledged - a.paid) || 0); });
+    const rows = findParties.filter(function (p) {
+      if (findFilter !== 'all' && p.type !== findFilter) return false;
+      if (findDueOnly && (p.pledged || 0) - (p.paid || 0) <= 0) return false;
+      return matchParty(p, findQuery);
+    }).sort(function (a, b) { return ((b.pledged - b.paid) || 0) - ((a.pledged - a.paid) || 0); });
     el.innerHTML = rows.length ? rows.map(function (p) {
       const due = (p.pledged || 0) - (p.paid || 0);
       return '<div class="row" data-fp="' + esc(p.id) + '"><div><b>' + esc(p.name) + '</b><div class="row-sub">' +
