@@ -1885,3 +1885,29 @@ unless the handover itself records which categories it came from. So:
   the server ignores the extra field — handovers still sync fine, the
   receiver just sees them as 'received' instead of per-category. Run setup()
   after deploying to append the header column.
+
+## Final-stage audit: docs/final-audit.md
+
+Hrishi: "we are in last stage — find all the loopholes, defects,
+calculations, interdependency". Full sweep, every claim verified against
+the actual code (sync.js read line-by-line, popstate/flow-engine guards
+traced, escaping spot-checked, quota math computed) — written up in
+docs/final-audit.md. Headline findings, all NEW (not previously known):
+
+- **A1 HIGH**: Undo vs in-flight sync race — syncNow's mark-synced
+  bulkPuts snapshotted rows, resurrecting a row Undo just deleted (and the
+  server saved it anyway). Undo silently fails on a money row.
+- **A2 MED**: `rejectedIds` from server push gating are ignored by
+  sync.js — a permission-revoked collector's unsynced rows retry forever,
+  badge stuck.
+- **A3 MED**: duplicate-donor check reads only the device's own parties —
+  two collectors can double-register the same shop centrally.
+- A4/A5/A6 LOW: last-step double-tap TypeError; unclamped negative
+  category chip totals; "₹-80" rendering.
+
+Plus: 6 deliberate tradeoffs restated for sign-off, calculation
+cross-check matrix (what's proven and how), security posture, Apps Script
+quota math for peak day (~8.4k req/day, well inside limits), the
+interdependency map (one Code.gs redeploy pending: handovers.breakdown),
+and the ordered go-live checklist. Docs-only commit; fixes await Hrishi's
+green light.

@@ -235,6 +235,11 @@ it — needs: collectors briefed/installed, master lists (areas/expense
 subjects) finalised, receipt design set, and the leftover test-data cleanup
 below done first (goLive wipes it anyway, but cleaner to not rely on that).
 
+**→ Full final-stage audit: `docs/final-audit.md` (2026-07-25).** Three
+real defects found awaiting fix approval (A1 undo-vs-sync race HIGH, A2
+rejectedIds stuck-forever MED, A3 device-local dup-check MED), plus the
+ordered go-live checklist. Fix these before distributing the link.
+
 ## P1 — nice-to-have before puja
 
 - [x] ~~Receipt image per payment~~ — superseded by the full receipt feature
