@@ -372,7 +372,12 @@
     Object.keys(cats).forEach(function (k) { cash += cats[k].cash; upi += cats[k].upi; });
     // What is still held from each OTHER person's parcels (drop emptied ones,
     // and drop OWN_SRC — "own" is not a giver). Expenses are charged to one's
-    // own money, so a parcel only shrinks when it is actually passed on.
+    // OWN collected money, never to someone else's parcel — Hrishi's rule, and
+    // a category only goes negative when a person spent more than they
+    // collected. But when that happens the notes physically came out of a
+    // parcel, so a parcel must not keep claiming money that has been spent:
+    // `shortfall` below writes that deficit off the parcels, largest first, so
+    // the handover sheet can never offer money that is no longer in hand.
     const byGiver = Object.keys(givers).filter(function (id) { return id !== OWN_SRC; })
       .map(function (id) {
         const g = givers[id];
@@ -397,7 +402,30 @@
         e.cash -= c.cash; e.upi -= c.upi;
       });
     });
-    return { cash: cash, upi: upi, byCat: cats, byGiver: byGiver, byCatOwn: own };
+    // Overspend write-off. If own money in a category is negative, that much has
+    // already left the pocket, so take it off the parcels (largest first) and
+    // floor own at zero. The books are untouched — `byCat` still carries the
+    // negative, so reconcile and every report read exactly what they did — this
+    // only decides what the handover sheet is allowed to offer.
+    ['cash', 'upi'].forEach(function (fld) {
+      Object.keys(own).forEach(function (k) {
+        let short = -own[k][fld];
+        if (short <= 0) return;
+        own[k][fld] = 0;
+        byGiver.forEach(function (g) {
+          if (short <= 0) return;
+          const c = g.cats.filter(function (x) { return x.key === k; })[0];
+          if (!c || c[fld] <= 0) return;
+          const take = Math.min(c[fld], short);
+          c[fld] -= take; g[fld] -= take; g.total -= take; short -= take;
+        });
+      });
+    });
+    const spendable = byGiver.map(function (g) {
+      return { id: g.id, name: g.name, cash: g.cash, upi: g.upi, total: g.total,
+               cats: g.cats.filter(function (c) { return c.cash > 0 || c.upi > 0; }) };
+    }).filter(function (g) { return g.total > 0; });
+    return { cash: cash, upi: upi, byCat: cats, byGiver: spendable, byCatOwn: own };
   }
 
   // Parties with outstanding due, biggest due first.

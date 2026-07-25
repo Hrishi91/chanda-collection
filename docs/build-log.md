@@ -2844,3 +2844,51 @@ VERIFIED
   the two rows split 1700 / 400 with their categories. No console errors.
 
 STILL OPEN: the handover report, edit-after-flag, admin-only backup import.
+
+## v3.88.1 — the handover sheet can no longer offer money that is gone
+
+Hrishi's doubt, and he was right: "otherwise cash will be in other hand and the
+application will say different one user is having the amount."
+
+Two things were asked. The first turned out to be fine — money bouncing between
+cashiers was tested through four hops with the money returning to where it
+started (Yamini → Jadav → Hrishi → Salil → Jadav): nothing doubled, nobody went
+into debt, reconcile balanced. Note that after the round trip Jadav's parcel
+reads **"from Salil"**, not "from Yamini" — which is right, since who last handed
+it to you is who you would ask about it.
+
+The second was a real defect:
+
+    Jadav collected 500 · Yamini handed him 1200 · he spent 1500
+
+    books  : own −1000 (a debt) + Yamini 1200 = 200   ✅
+    pocket : 200                                       ✅
+    screen : "hand over Yamini's 1200"                 ❌
+
+His rule stands and the code already follows it — an expense always comes out of
+what YOU collected, never out of somebody else's parcel, and a category goes
+negative only when you spent more than you collected. That is exactly the
+"exceptional case" he described, and the books handle it correctly.
+
+But the notes physically left the pocket, so a parcel must not keep claiming
+them. `myAvailable` now writes any negative own balance off against the parcels
+(largest first) and floors own at zero — **for display only**. `byCat` keeps the
+negative, so reconcile, `inHandRows` and every report read exactly what they read
+before. A parcel emptied this way disappears instead of lingering at zero.
+
+    spend    in hand   byCat    own   parcel   offered
+        0       1700    1700    500     1200      1700  ✅
+      500       1200    1200      0     1200      1200  ✅
+     1500        200     200      0      200       200  ✅  (was offering 1200)
+     1700          0       0      0        0         0  ✅
+
+NO DB CHANGE, no `setup()`, no new question in the expense flow — Hrishi
+explicitly ruled those out. The ledger behaves exactly as before; only the screen
+stopped lying.
+
+VERIFIED
+- 19 new tests: for each of the four spend levels, what the sheet offers equals
+  what is actually in hand; plus `byCat` is unchanged by the write-off, the books
+  still reconcile, and a fully spent parcel is not offered at all.
+  **306 passed, 0 failed.**
+- browser, same four cases: `matches: true` on every one. No console errors.

@@ -594,6 +594,39 @@ jdLegacy.handovers[2].breakdown = JSON.stringify({ shop: { cash: 500, upi: 0 } }
 jdLegacy.handovers[2].amount = 500; jdLegacy.handovers[2].cashAmount = 500;
 eq(myAvailable(jdLegacy, 'jadav').byCatOwn.shop, { cash: 0, upi: 0 }, 'parcels: a pre-src row is read as own money');
 
+// ---- the handover sheet may never offer money that is gone ------------------
+// Hrishi's rule: an expense always comes out of what YOU collected, never out of
+// somebody else's parcel, and a category goes negative only when you spent more
+// than you collected. Fine for the books — but the notes physically left the
+// pocket, so a parcel must not keep claiming them. Overspend is written off the
+// parcels for DISPLAY, while byCat keeps the negative so reports do not shift.
+const capBase = function (spend) {
+  return {
+    parties: [{ id: 's1', type: 'shop', name: 'S' }], voids: [], corrections: [], daily: [],
+    payments: [{ id: 'p', collectorId: 'jadav', partyId: 's1', amount: 500, cashAmount: 500, upiAmount: 0 }],
+    expenses: spend ? [{ id: 'e', collectorId: 'jadav', amount: spend, cashAmount: spend, upiAmount: 0,
+                         source: 'puja', srcCat: 'shop' }] : [],
+    handovers: [{ id: 'h', fromId: 'yamini', from: 'Yamini', toId: 'jadav', amount: 1200,
+                  cashAmount: 1200, upiAmount: 0, status: 'confirmed',
+                  breakdown: JSON.stringify({ shop: { cash: 1200, upi: 0 } }) }],
+  };
+};
+[[0, 1700, 500, 1200], [500, 1200, 0, 1200], [1500, 200, 0, 200], [1700, 0, 0, 0]].forEach(function (c) {
+  const spend = c[0], inHand = c[1], wantOwn = c[2], wantParcel = c[3];
+  const a = myAvailable(capBase(spend), 'jadav');
+  const own = Math.max(0, (a.byCatOwn.shop || { cash: 0 }).cash);
+  const parcels = a.byGiver.reduce(function (t, g) { return t + g.total; }, 0);
+  eq(a.cash, inHand, 'cap: spend ' + spend + ' → really holds ' + inHand);
+  eq(own, wantOwn, 'cap: spend ' + spend + ' → own offered ' + wantOwn);
+  eq(parcels, wantParcel, 'cap: spend ' + spend + ' → parcel offered ' + wantParcel);
+  eq(own + parcels, a.cash, 'cap: spend ' + spend + ' → the sheet offers exactly what is in hand');
+});
+// the BOOKS are untouched — the negative still stands where reports read it
+eq(myAvailable(capBase(1500), 'jadav').byCat.shop, { cash: 200, upi: 0 }, 'cap: byCat unchanged by the display write-off');
+eq(reconcile(capBase(1500)).balanced, true, 'cap: the books still reconcile');
+// an emptied parcel disappears rather than lingering at zero
+eq(myAvailable(capBase(1700), 'jadav').byGiver, [], 'cap: a fully spent parcel is not offered at all');
+
 // ---- an expense must not wander between categories ---------------------------
 // The bug: an expense with no named source pot was drained from whatever pots
 // held money AT THE MOMENT OF CALCULATION. So the same bill sat under টোটো until
