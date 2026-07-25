@@ -2041,3 +2041,27 @@ voided; hrishi91's in-hand returned to its exact pre-test value.
 send the URL → rebake). Until then: correction flags don't notify (the
 review screen still works), and the identity-spoof needs a tampered client.
 125 tests pass; client mirror change is already live-safe.
+
+## config.js — rebaked for the A8+A9 deployment (AKfycbw6…), both fixes proven live
+
+Hrishi deployed the Code.gs carrying A8 (corrections key restored in
+`activeData_`) and A9 (identity stamped from the token) and shared a fresh
+admin token; Yamini's session stayed active, so the two-user paths could be
+re-run against the new deployment immediately.
+
+- **A9 proven live:** Yamini's client pushed a row deliberately forging
+  `collectorId:"hrishi91"`, `collectorRole:"admin"`, `collector:"Hrishikesh"`.
+  Stored row came back `Yamini mahato` / `yamini05` / `user` — the spoof is
+  overwritten from the token, so cash-in-hand liability can no longer be
+  pinned on another collector and the void-permission role can't be forged.
+- **A8 proven live:** Yamini flagged that row; the admin's `pull` feed now
+  reports `corrections: 1` with the item ("AUDIT TEST A8", by Yamini mahato)
+  — before the fix this was silently 0.
+- Loop closed + self-cleaning: the admin approved the flag → `resolveCorrection`
+  created the void → the audit row is excluded everywhere. Reconcile balanced
+  (10200 / 10000); Yamini's availability unaffected (1000/1050).
+- Noted for Hrishi: his feed shows `approvals: 1` — someone is registered and
+  waiting for approval in the admin panel (his call, not mine to action).
+
+Old tokens from the earlier passes are dead (each login rotates); the two
+current ones are Hrishi's to rotate by re-login when he's done.
