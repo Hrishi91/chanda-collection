@@ -1477,3 +1477,15 @@ everything at once.
    `rejectedIds` (the UI never produces them; only tampering does). Live proof
    lands with the redeploy.
 108 tests pass. SW v3.71.0.
+
+## config.js — rebaked SCRIPT_URL for the audit-trio deployment (AKfycbzZJp…)
+
+- Hrishi redeployed Code.gs (reconcile-adjacent server helpers, notif-in-pull,
+  push gating) and pasted the new `/exec` URL. Rebaked `js/config.js`.
+- Verified reachable: local static serve picked up the new `window.CONFIG.
+  SCRIPT_URL`, and a login attempt through the real UI round-tripped to the
+  new deployment and returned "ভুল username বা পাসওয়ার্ড" (real backend
+  response, not a network/config error) — confirms the deployment is live and
+  serving the new code path. Full live proof of the three audit-trio features
+  (reconcile banner, notif-in-pull, push gating) still needs Hrishi's own
+  login/token since no admin credentials are available in this session.
