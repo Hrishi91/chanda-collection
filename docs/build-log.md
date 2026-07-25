@@ -2697,3 +2697,10 @@ this = theirs. Left alone because he did not ask for it — worth a decision.
 
 VERIFIED: 251 passed, 0 failed; app loads clean. The screen itself needs a
 logged-in session — on the post-redeploy list.
+
+## Rebake config.js for the permissions + bus-grouping deployment
+
+New `/exec` after Hrishi redeployed Code.gs carrying v3.83.0–v3.85.2's server
+halves: the `roleOf_`/`rowRole_` role vocabulary (A11), the six-key permission
+model with `permForRow_`/`canReview_`, and the daily report excluding bus.
+No new columns in this batch, so no `setup()` run was needed.
