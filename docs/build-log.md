@@ -2468,3 +2468,8 @@ the legacy `received` lump; the sender kept precisely the other half. A ₹150 c
 expense with `srcCat:'bus'` came off the bus pot and left road untouched, and the
 Sheet stored `cashAmount/upiAmount/srcCat` — confirming `setup()`'s column
 migration ran on the current deployment.
+
+## Rebake config.js for the A10 server-mirror deployment
+
+New `/exec` after Hrishi redeployed Code.gs carrying the `personalSummary_`
+identity fix (A10). No new columns in this one, so no `setup()` run was needed.
