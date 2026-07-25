@@ -2125,3 +2125,19 @@ local cache afterwards; backupNow reports the filename. No console errors.
 
 ⚠️ Server-side → needs one more Code.gs redeploy (New deployment → URL →
 rebake) and **run `setup()` after it** — that's what installs the trigger.
+
+## config.js — rebaked for the recovery deployment (AKfycbzY…)
+
+New deployment carries v3.78.0 Code.gs. Probed live with the admin token:
+`pull` ok, and **`listBackups` is recognised** — a brand-new action, so this
+confirms the recovery code is deployed.
+
+**Finding: `listBackups` returned an EMPTY list** — no backup file has ever
+existed in `ChandaKhata-Backups`. That settles the open question from
+residual-risks §1: the manual daily-backup trigger was never installed, so
+until today the project had **zero backups**. `setup()` now installs it
+automatically; Hrishi runs setup() once on this deployment and the 2am
+trigger starts.
+
+Not run by me (operational boundary): `backupNow` writes to Hrishi's Drive
+— he taps 💾 এখনই backup নাও himself; I verify the result via `listBackups`.
