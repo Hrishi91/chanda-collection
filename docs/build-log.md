@@ -1489,3 +1489,43 @@ everything at once.
   serving the new code path. Full live proof of the three audit-trio features
   (reconcile banner, notif-in-pull, push gating) still needs Hrishi's own
   login/token since no admin credentials are available in this session.
+
+## Live verification (read-only) with Hrishi's session token
+
+- Hrishi shared a session token for a one-time, read-only check. Called
+  `pull` directly against the new deployment (no writes): response carried
+  `notif: {notifications:{...}, items:{...}}` matching `notifData_` exactly,
+  and running `Aggregate.reconcile` on the real returned dataset gave
+  `balanced: true` (collected ₹6,900 − expenses ₹100 = in-hand ₹6,800). Three
+  anomalies surfaced, all pre-known leftover test data (SYNC TEST দোকান,
+  Ramu/salil test handovers) — not new bugs; the banner catching them is a
+  correctness confirmation, not a red flag. Push-gating verified by code
+  review (deterministic, no live push needed): `entryAllowed_` wired into
+  `push` at both the payment/daily/handover branch and the expense branch,
+  blocked rows collected into `rejectedIds`.
+- Token was single-use for this check; Hrishi to rotate via re-login per
+  usual practice.
+
+## Docs catch-up #2: pending.md + PROJECT_CONTEXT.md (2026-07-25)
+
+Same gap as the 2026-07-24 catch-up (v3.47.0): the pre-commit hook only
+requires build-log.md, so pending.md and PROJECT_CONTEXT.md drifted ~12
+commits behind (everything from the field-validation audit through today's
+redeploy — receipts, training/live mode, one-device enforcement, role-based
+entries, search, report PDF, admin panel restructure, the two audit fixes,
+and the reconcile/notif/push-gating trio). Caught by Hrishi asking directly
+whether the docs were current — they weren't.
+
+- `docs/pending.md`: new "P0.9" section covering all of the above (marked
+  done + live-verified); P1's "Report export" and "PNG icons" items marked
+  done (superseded); new prominent **"Next decision — Go Live"** section —
+  training mode is still on, everything entered so far is disposable test
+  data, Go Live is one admin action away and hasn't been triggered;
+  housekeeping updated (today's token, today's redeploy's `setup()`, orphaned
+  deployments, and the test-data cleanup connected to the reconcile banner
+  now surfacing it).
+- `docs/PROJECT_CONTEXT.md`: decisions table gains training/live mode +
+  one-way Go Live, one-account-one-device, role-based entry permissions,
+  the receipt design principles, and the print()-based PDF choice; new
+  "Current state" section stating plainly that `live_mode` is off.
+- No code changes.

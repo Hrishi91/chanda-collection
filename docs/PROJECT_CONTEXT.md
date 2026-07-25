@@ -1,6 +1,6 @@
 # PROJECT_CONTEXT — Chanda Collection
 
-*Last updated: 2026-07-24*
+*Last updated: 2026-07-25*
 
 ## What
 
@@ -36,6 +36,11 @@ the final hisab. Data survives any phone/app deletion because the Sheet
 | **Admin grant/revoke in-app, with two safeguards** | Was editor-only (`makeAdmin`). Now any admin can promote/demote, except: you cannot demote yourself, and the last remaining admin cannot be demoted — the committee can never lock itself out |
 | **Append-only Audit sheet for privileged + money actions** | A money app needs "who did what, when": voids, correction approve/reject, handover confirms, role/permission/status changes, password resets and master-list edits are all logged. `logAudit_` is try/catch-wrapped so logging can never break the real action |
 | Structural enums stay hardcoded (party type, payment mode, daily type) | These drive flow and logic — party type picks a different entry flow, payment mode drives cash/UPI maths, daily type toggles the bus name/number fields. Only *labels* (areas, locations, expense subjects) are admin-editable |
+| **Training/Live mode split, with a one-way Go Live** (2026-07-24) | Real collection can't wait for every feature to be pre-verified against production data — so the app launches in a permanent-until-flipped **training mode** (SAMPLE-watermarked receipts, amber banner everywhere) that behaves identically to live but is understood as disposable. `🚀 Go Live` (admin, 3-step confirm) backs up to Drive, wipes every transactional sheet, resets serial counters, and bumps a `data_epoch` so every device force-clears its local cache on the next pull — a clean cutover with a safety net, not a data migration |
+| **One account = one active device** (2026-07-24) | The server already held a single token per user; the gap was client-side (offline-first meant a kicked device kept working on its stale session). A second-device login now bounces the first to the login screen within ≤60s — prevents two people quietly sharing a login. Admin can release a stuck session as the escape hatch |
+| **Role-based entry permissions (`Users.entries`)** | "Make it simple, don't overwhelm" — Hrishi wanted a collector to see only the entry tiles they're meant to use, not a wall of options. Empty = all (nobody is accidentally locked out); admin sets it per user, enforced client-side (UI) AND server-side (push gating, 2026-07-25) so a locked-out entry kind can't be pushed even by a tampered client |
+| **Receipts: ready layouts, not raw HTML; serials never reused, never re-numbered on Go Live within a year** | Hrishi's spec: two share paths (WhatsApp image / SMS text), branded but simple. Serial is a per-year atomic counter (`nextReceiptNo_`, under the same push lock) so 10 concurrent phones can never collide or duplicate a number |
+| **Report PDF via `window.print()`, no PDF library** | Zero dependencies, works fully offline, and "Save as PDF" is a native option in every phone's print dialog — cheaper and more reliable than shipping a PDF-generation library for an occasional committee handout |
 
 ## Architecture
 
@@ -90,3 +95,10 @@ Bengali and an English label. Collectors are assigned areas via `Users.areas`.
 - Offline entries not yet synced die with the app if it's cleared first
   → prominent "unsynced" badge in UI.
 - Voice needs internet on most phones (server-side STT); typing always works.
+
+## Current state (2026-07-25)
+
+The app is fully built and deployed, but **`live_mode` is still off** — every
+entry made so far, on any device, is training data and will be wiped the
+moment Hrishi runs `🚀 Go Live` (admin panel). See `docs/pending.md` →
+"Next decision — Go Live" for the pre-flight checklist.
