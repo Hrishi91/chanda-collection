@@ -235,10 +235,12 @@ it — needs: collectors briefed/installed, master lists (areas/expense
 subjects) finalised, receipt design set, and the leftover test-data cleanup
 below done first (goLive wipes it anyway, but cleaner to not rely on that).
 
-**→ Full final-stage audit: `docs/final-audit.md` (2026-07-25).** Three
-real defects found awaiting fix approval (A1 undo-vs-sync race HIGH, A2
-rejectedIds stuck-forever MED, A3 device-local dup-check MED), plus the
-ordered go-live checklist. Fix these before distributing the link.
+**→ Full final-stage audit: `docs/final-audit.md` (2026-07-25).** All six
+findings (A1 undo-vs-sync race HIGH, A2 rejectedIds MED, A3 dup-check MED,
+A4–A6 LOW) **FIXED in v3.77.0**, each verified by reproducing its failure
+live. Remaining before go-live: the checklist in final-audit.md §G
+(Code.gs redeploy for `breakdown`, setup(), token rotation, master data,
+all-synced-then-GoLive, real-phone smoke test).
 
 ## P1 — nice-to-have before puja
 

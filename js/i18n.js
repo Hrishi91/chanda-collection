@@ -48,7 +48,8 @@ const I18N = {
   saved: { bn: '✅ সেভ হয়ে গেল', en: '✅ Saved' },
   undo: { bn: 'ফিরিয়ে নাও', en: 'Undo' },
   undo_done: { bn: '↩️ বাতিল হলো', en: '↩️ Undone' },
-  undo_partial: { bn: '⚠️ কিছু অংশ ততক্ষণে sync হয়ে গেছে — "আমার এন্ট্রি" থেকে বাতিল করো', en: '⚠️ Part of it already synced — void it from "My entries"' },
+  undo_voided: { bn: '↩️ বাতিল record হলো (sync হয়ে গিয়েছিল)', en: '↩️ Voided (it had already synced)' },
+  rejected_label: { bn: '🚫 server নেয়নি (অনুমতি নেই) — cashier-কে বলো', en: '🚫 Server refused (no permission) — tell a cashier' },
   done_for_now: { bn: 'শেষ, হোমে ফিরি', en: 'Done, go home' },
   one_more: { bn: '➕ আরেকটা', en: '➕ One more' },
   back_to_search: { bn: '🔍 তালিকায় ফিরি', en: '🔍 Back to list' },
@@ -363,5 +364,7 @@ function t(key) {
   return e ? (e[lang] || e.bn) : key;
 }
 function fmtMoney(n) {
-  return '₹' + Number(n || 0).toLocaleString('en-IN');
+  n = Number(n || 0);
+  // "−₹80", not "₹-80" — negatives only appear when the books over-drain
+  return (n < 0 ? '−' : '') + '₹' + Math.abs(n).toLocaleString('en-IN');
 }

@@ -5,9 +5,12 @@ scale, interdependencies. Every claim below was verified by reading the
 actual code (file:line) or by test/live-check — not guessed. Items marked
 **FIX** are recommended before giving the link to all collectors.
 
-## A. Confirmed defects
+## A. Confirmed defects — ALL FIXED in v3.77.0 (2026-07-25)
 
-### A1. HIGH — Undo can silently fail against an in-flight sync
+Each fix was verified by reproducing the failure condition live (see
+build-log v3.77.0). Kept below for the record.
+
+### A1. HIGH — FIXED — Undo can silently fail against an in-flight sync
 **Where:** `js/sync.js` syncNow (mark-synced step) + `js/app.js` attemptUndo.
 **Cause:** save → `autoSync()` (debounced ~1s) starts a push (1–3s round
 trip) that overlaps the 5s Undo window. `attemptUndo` checks `row.synced`
@@ -16,7 +19,7 @@ trip) that overlaps the 5s Undo window. `attemptUndo` checks `row.synced`
 locally (marked synced) — and the server saved it anyway, so even without
 the bulkPut the next pull resurrects it. The collector believes the entry
 is gone; it counts in every total.
-**FIX (two layers):**
+**FIXED (both layers, verified with a forced 2.5s slow push):**
 1. syncNow must re-read each row by id before marking synced and skip rows
    that no longer exist (never blind-put a snapshot).
 2. attemptUndo: if the row is synced OR a sync is in flight → write a
@@ -24,7 +27,7 @@ is gone; it counts in every total.
    correct retraction once a row may have reached the Sheet. Requires
    exposing `Sync.inFlight`.
 
-### A2. MED — Server-rejected rows retry forever, badge never clears
+### A2. MED — FIXED — Server-rejected rows retry forever, badge never clears
 **Where:** `js/sync.js` (no `rejectedIds` handling); server returns them
 from push gating (Code.gs push).
 **Cause:** a row the server rejects (entry-kind permission revoked while
@@ -35,7 +38,7 @@ sync, unsynced badge stuck, beforeunload nags.
 `collectUnsynced`, surface once in "আমার এন্ট্রি" with a note so the
 collector knows to flag/hand the entry to a cashier.
 
-### A3. MED — Duplicate-donor check is device-local only
+### A3. MED — FIXED — Duplicate-donor check is device-local only
 **Where:** `js/app.js` newPartyFlow save → `DB.getAll('parties')`.
 **Cause:** the dup warning only sees the device's own parties. Two
 collectors adding the same shop from two phones both pass → duplicate
@@ -45,7 +48,7 @@ identical names.)
 **FIX:** check against `viewData()` (central snapshot + own rows) — one
 line change, same confirm flow.
 
-### A4. LOW — Double-tap on the last step throws a TypeError
+### A4. LOW — FIXED — Double-tap on the last step throws a TypeError
 **Where:** `js/app.js` submitAnswer / finishFlow.
 **Cause:** after the final answer, finishFlow saves async while the old
 step UI stays interactive; a second tap reads `steps[idx]` = undefined →
@@ -53,7 +56,7 @@ step UI stays interactive; a second tap reads `steps[idx]` = undefined →
 it's an uncaught error on a money path.
 **FIX:** `if (!step) return;` guard + a `saving` flag.
 
-### A5. LOW — Category chip totals don't clamp negative subtypes
+### A5. LOW — FIXED — Category chip totals don't clamp negative subtypes
 **Where:** `js/app.js` handoverFlow categories map.
 **Cause:** chip `amount` = raw cash+upi while the selectable cash/upi are
 clamped to ≥0 — if legacy books over-drain one subtype negative, the chip
@@ -61,7 +64,7 @@ label disagrees with what selecting it gives (by the negative part).
 Cosmetic; disappears post-go-live (all rows carry breakdowns).
 **FIX:** clamp both the same way.
 
-### A6. LOW — Negative amounts render as "₹-80"
+### A6. LOW — FIXED — Negative amounts render as "₹-80"
 `fmtMoney` on over-drained books (title "তোমার হাতে"). Cosmetic; honest.
 
 ## B. Design tradeoffs (deliberate — re-confirm before go-live)
@@ -131,7 +134,7 @@ delays (observed 2026-07-25, GitHub-side) affect deploys, never runtime.
 
 ## G. Go-live checklist (in order)
 
-1. Land fixes A1–A3 (A4–A5 cheap, same commit); static redeploy.
+1. ~~Land fixes A1–A6~~ DONE (v3.77.0); static redeploy live.
 2. Code.gs → New deployment → send me the URL → config.js rebake →
    run setup() once.
 3. Re-login everywhere (rotates chat-shared tokens); revoke the old PAT.

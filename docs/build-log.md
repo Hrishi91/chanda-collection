@@ -1911,3 +1911,39 @@ quota math for peak day (~8.4k req/day, well inside limits), the
 interdependency map (one Code.gs redeploy pending: handovers.breakdown),
 and the ordered go-live checklist. Docs-only commit; fixes await Hrishi's
 green light.
+
+## v3.77.0 — Audit fixes A1–A6, each verified by forcing the failure live
+
+All six findings from docs/final-audit.md, fixed on Hrishi's green light and
+each one verified by REPRODUCING its failure condition in the harness (not
+just re-reading the code):
+
+- **A1 (undo-vs-sync race)**: sync.js mark-synced now re-reads every row by
+  id before writing (never resurrects a deleted row from its stale snapshot),
+  and `attemptUndo` writes a **void (reason 'undo')** instead of deleting
+  whenever the row is synced or `Sync.busy()` — the only correct retraction
+  once a row may have reached the Sheet. Verified with a patched 2.5s-slow
+  push: undo tapped mid-flight (`busyAtTap:true`) → row kept + marked synced
+  + void written + excluded from myAvailable. New `Sync.busy()` accessor;
+  toast key `undo_voided` (replaces the removed `undo_partial`).
+- **A2 (rejected rows retried forever)**: sync.js marks `rejected:1` on
+  rejectedIds, collectUnsynced and DB.unsyncedCount exclude them, and "আমার
+  এন্ট্রি" tags them "🚫 server নেয়নি". Verified with a patched all-reject
+  push: flag set, badge 0, second sync sent 0. (Rejected rows still count in
+  the collector's own local totals — the cash IS physically in their hand;
+  central reports never see them, the tag says to involve a cashier.)
+- **A3 (device-local dup check)**: newPartyFlow now checks viewData()
+  (central snapshot + own). Verified: a name existing ONLY in the seeded
+  central snapshot triggered the confirm.
+- **A4 (last-step double-tap TypeError)**: guards in submitAnswer AND — the
+  actual throw sites the first verification run exposed — the skip-button
+  handler and the async voice callback, plus a `savingFlow` reentry flag.
+  First fix attempt looked done but the harness still threw (stale SW cache
+  had served old app.js; cleared + re-ran); 4× rapid-tap now: zero errors,
+  exactly one save.
+- **A5**: category chip totals clamp the same as their selectable subtypes.
+- **A6**: fmtMoney(-80) → "−₹80".
+
+125 tests pass. sw → chanda-v3.77.0. Client-only; docs/final-audit.md items
+marked fixed. No server change (the pending v3.76.0 Code.gs redeploy is
+still the only one outstanding).

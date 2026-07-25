@@ -45,21 +45,30 @@
       clearTimeout(timer); finish(); onUndo();
     };
   }
-  // Retract the rows a just-finished save created — only the ones that never
-  // left the device (synced:0) can be cleanly deleted; anything already synced
-  // is left alone (undo_partial tells the user to void it from "my entries"
-  // instead, respecting the void-permission rule rather than bypassing it).
+  // Retract the rows a just-finished save created. Rows that never left the
+  // device (synced:0, no push in flight) are cleanly deleted; anything that
+  // synced — or MIGHT have (push mid-flight) — gets a void record instead,
+  // because a local delete of a server-known row silently resurrects on the
+  // next pull. Undo-as-void is a sanctioned self-correction within the 5s
+  // window; the audit trail keeps the original + the void (reason: 'undo').
   function attemptUndo(list) {
-    let skipped = false;
+    let voided = false;
     Promise.all((list || []).map(function (u) {
       return DB.get(u.store, u.id).then(function (row) {
         if (!row) return;
-        if (row.synced) { skipped = true; return; }
+        // Synced — or a push is mid-flight, so the row may already be on its
+        // way to the Sheet: a local delete would silently resurrect on the
+        // next pull. The only correct retraction then is a VOID record
+        // (audit-preserving, syncs like any entry, excluded everywhere).
+        if (row.synced || Sync.busy()) {
+          voided = true;
+          return DB.put('voids', DB.newRow({ targetStore: u.store, targetId: u.id, reason: 'undo' }));
+        }
         return DB.del(u.store, u.id);
       });
     })).then(function () {
-      toast(t(skipped ? 'undo_partial' : 'undo_done'));
-      updateBadge();
+      toast(t(voided ? 'undo_voided' : 'undo_done'));
+      updateBadge(); autoSync();
       render();
     });
   }
@@ -410,7 +419,11 @@
     return val;
   }
   function submitAnswer(raw) {
-    const step = flowState.def.steps[flowState.idx];
+    // Guard: after the LAST answer the old step UI stays on screen while
+    // finishFlow saves async — a double-tap used to read steps[idx] =
+    // undefined and throw. Ignore taps once past the end or mid-save.
+    const step = flowState && flowState.def.steps[flowState.idx];
+    if (!step || savingFlow) return;
     let val = raw;
     if (step.kind === 'amount') {
       if (raw === null) { val = null; } // skipped
@@ -442,9 +455,12 @@
   // screen (the chat transcript above already shows every answer). A failed
   // save (e.g. total ₹0) rewinds to the field that needs fixing instead of
   // losing the rest of the answers.
+  let savingFlow = false; // blocks stray taps while the async save runs
   function finishFlow() {
     const def = flowState.def;
+    savingFlow = true;
     def.save(flowState.answers).then(function (result) {
+      savingFlow = false;
       const r = result || {};
       flowState = null;
       updateBadge(); autoSync();
@@ -454,6 +470,7 @@
       if (r.undo && r.undo.length) toastUndo(t('saved'), function () { attemptUndo(r.undo); });
       else toast(t('saved'));
     }).catch(function (e) {
+      savingFlow = false;
       const msg = String(e && e.message);
       if (msg === 'zero') { toast(t('amount_zero')); rewindToAmount() || goBack(); }
       else if (msg === 'cancelled') { rewindToKey('name') || goBack(); }
@@ -564,7 +581,9 @@
         mic.classList.add('rec'); hint.textContent = t('listening');
         Voice.start(function (txt) {
           input.value = txt;
-          const s = flowState.def.steps[flowState.idx];
+          // async voice result may land after the flow finished/cancelled
+          const s = flowState && flowState.def.steps[flowState.idx];
+          if (!s) return;
           if (s.kind === 'amount') {
             const v = NumParse.parseAmount(txt);
             hint.textContent = isNaN(v) ? t('invalid_amount') : (t('parsed_hint') + ': ' + fmtMoney(v));
@@ -577,7 +596,13 @@
       };
     }
     const skipB = document.getElementById('skip-btn');
-    if (skipB) skipB.onclick = function () { submitAnswer(flowState.def.steps[flowState.idx].kind === 'amount' ? null : ''); };
+    if (skipB) skipB.onclick = function () {
+      // same double-tap guard as submitAnswer: past the last step there IS
+      // no current step — reading .kind here used to throw
+      const st = flowState && flowState.def.steps[flowState.idx];
+      if (!st) return;
+      submitAnswer(st.kind === 'amount' ? null : '');
+    };
     const backB = document.getElementById('back-btn');
     if (backB) backB.onclick = goBack;
     if (s.kind === 'category') {
@@ -696,9 +721,12 @@
         { key: 'pledged', qKey: 'q_pledged', kind: 'amount' },
       ].concat(moneySteps(true)),
       save: function (a) {
-        return DB.getAll('parties').then(function (existing) {
+        // dup check against the CENTRAL snapshot + own rows (viewData), not
+        // just this device — two collectors adding the same shop from two
+        // phones used to both sail through and double the donor centrally.
+        return viewData().then(function (data) {
           const nm = String(a.name || '').trim().toLowerCase();
-          const dup = existing.some(function (p) { return String(p.name || '').trim().toLowerCase() === nm; });
+          const dup = (data.parties || []).some(function (p) { return String(p.name || '').trim().toLowerCase() === nm; });
           if (dup && !window.confirm(t('dup_party_warn'))) throw new Error('cancelled');
           return savePartyAndFirstPayment(type, a);
         }).then(function (res) {
@@ -775,8 +803,10 @@
     const categories = Object.keys(CAT_LABELS).filter(function (k) {
       return byCat[k] && (byCat[k].cash + byCat[k].upi) > 0;
     }).map(function (k) {
-      return { key: k, labelKey: CAT_LABELS[k], amount: byCat[k].cash + byCat[k].upi,
-               cash: Math.max(0, byCat[k].cash), upi: Math.max(0, byCat[k].upi) };
+      // clamp BOTH the chip total and the selectable subtypes the same way,
+      // so the label always equals what selecting the chip actually gives
+      const c = Math.max(0, byCat[k].cash), u = Math.max(0, byCat[k].upi);
+      return { key: k, labelKey: CAT_LABELS[k], amount: c + u, cash: c, upi: u };
     });
     const isCustom = function (a) { return a.srcCats === 'custom'; };
     // sum the selected categories' cash/upi (what the dynamic mode chips show)
@@ -1584,7 +1614,8 @@
         const r = it.r, isVoid = !!voided[r.id], isFlag = !!flagged[r.id];
         const who = all ? ' • 🧑 ' + esc(r.collector || r.collectorId || '?') : ''; // who made it
         const tag = isVoid ? ' • <span class="void-tag">' + esc(t('voided_label')) + '</span>'
-          : isFlag ? ' • <span class="void-tag">⚠️ ' + esc(t('flag_pending')) + '</span>' : '';
+          : isFlag ? ' • <span class="void-tag">⚠️ ' + esc(t('flag_pending')) + '</span>'
+          : r.rejected ? ' • <span class="void-tag">' + esc(t('rejected_label')) + '</span>' : '';
         const busReceipt = (!isVoid && it.store === 'daily' && r.type === 'bus')
           ? '<button class="chip" data-drcp="' + esc(r.id) + '">🧾</button>' : '';
         const action = busReceipt + ((isVoid || isFlag) ? '' :

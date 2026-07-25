@@ -80,7 +80,8 @@ const DB = (function () {
   function unsyncedCount() {
     return allData().then(function (d) {
       return STORES.reduce(function (n, s) {
-        return n + d[s].filter(function (r) { return !r.synced; }).length;
+        // rejected rows left the queue for good — don't count them as pending
+        return n + d[s].filter(function (r) { return !r.synced && !r.rejected; }).length;
       }, 0);
     });
   }
