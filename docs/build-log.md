@@ -1976,3 +1976,13 @@ deployment step for Hrishi. 125 tests pass; no client change, no SW bump.
   receipt-as-finish-line, and source-category handover with breakdown;
   sheet list mentions Config + handovers.breakdown; current-state points to
   final-audit.md. Stale-term sweep across all guides came back clean.
+
+## config.js — rebaked SCRIPT_URL for the breakdown deployment (AKfycby9…)
+
+Hrishi created the New deployment carrying the v3.76.0+A7 Code.gs
+(handovers `breakdown` column; voided handovers filtered out of
+notifData_/pendingHandovers). Probed live: `login` → "bad-login", `pull` →
+"bad-token" — both reached their gates, deployment executes. config.js is
+network-first + excluded from the SW precache, so no VERSION bump needed —
+devices pick the new URL up on next open. Remaining server step: Hrishi
+runs `setup()` once (appends the `breakdown` header to Handovers).
