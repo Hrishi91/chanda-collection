@@ -1597,3 +1597,17 @@ asked for.
 - ⚠️ Needs a normal redeploy of the **static files only** (no Code.gs/backend
   change this time — GitHub Pages push is enough, same as any client-only
   release).
+
+## v3.72.1 — Phone validation: drop the 6–9 leading-digit rule
+
+Hrishi: the "must start 6–9" restriction on the phone field should go —
+found already sitting as an uncommitted local edit in the working tree
+(`phoneErrIN` in app.js + the `err_phone_in` message in i18n.js), so his
+change, just not yet shipped. Checked for other copies of the rule
+(apps-script/Code.gs has no server-side mirror; only this one client check
+existed) — nothing else to update. Now just requires a 10-digit number
+after stripping spaces/dashes/+91/91/0, no leading-digit constraint.
+Verified live: registering with phone `3456789012` (leading 3, previously
+rejected) now passes client validation and reaches the network call, no
+`err_phone_in` toast. 108 tests pass; app.js/i18n.js node --check clean.
+sw → chanda-v3.72.1.

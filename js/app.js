@@ -86,9 +86,9 @@
   function cleanPhoneIN(s) {
     return String(s || '').replace(/[\s\-()]/g, '').replace(/^(\+?91|0)/, '');
   }
-  // null if a valid Indian mobile (10 digits, starts 6–9), else an error key.
+  // null if a valid 10-digit Indian mobile, else an error key.
   function phoneErrIN(s) {
-    return /^[6-9]\d{9}$/.test(cleanPhoneIN(s)) ? null : 'err_phone_in';
+    return /^\d{10}$/.test(cleanPhoneIN(s)) ? null : 'err_phone_in';
   }
   // IST day + time "YYYY-MM-DD HH:MM" for the audit log (when matters there)
   function fmtDateTime(v) {
