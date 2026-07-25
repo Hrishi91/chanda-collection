@@ -2419,3 +2419,52 @@ newer actions exist in the deployed copy, not just in the repo.
 Still owner-side: run `setup()` once in the Apps Script editor. Header
 migration is append-only (`setup()` lines 62–65), so until it runs the three
 new Expenses columns have no header and the split stays device-local.
+
+## v3.82.0 — one identity rule everywhere: byCat can no longer exceed inHand
+
+Found while running the two-user live cycle (Hrishi + Yamini tokens) against the
+training sheet: in the central "কার হাতে কত টাকা" report one line disagreed with
+itself — `inHand 1100` next to a byCat that summed to `19500`.
+
+CAUSE. `inHandRows` keys every person by `collectorId || collector || '?'`, so a
+row whose `collectorId` is blank forms a SECOND identity under the display name.
+`myAvailable`/`personalSummary`, though, matched with an extra fallback:
+
+    ck(r) === String(ident) || r.collector === ident        // and h.to === ident
+
+When `ident` was that name-keyed identity, the fallback pulled in every row whose
+collector *name* matched — including all the rows belonging to the real username
+(`hrishi91`, and the `ram`/`salil` rows carrying the same display name). The
+byCat therefore re-counted rows the inHand beside it had assigned elsewhere.
+
+FIX. The same identity rule in all six places (three in `personalSummary`, three
+in `myAvailable`), mirrored into `Code.gs`'s `personalSummary_`: a row belongs to
+`ident` only when its own group key equals `ident`.
+
+    mine   = r => ck(r) === String(ident)
+    isTo   = h => String(h.toId   || h.to   || '?') === String(ident)
+    isFrom = h => String(h.fromId || h.from || '?') === String(ident)
+
+Legacy rows are unaffected — with no `toId`/`collectorId` the name IS the group
+key, so it still matches.
+
+REACH. Post-Go-Live the sheet starts empty and `push` stamps `collectorId` from
+the token unconditionally (A9), so a blank id can now only come from entries made
+on a device before login and not yet synced. Narrow, but it showed two disagreeing
+money figures side by side in the same report, so it is closed before go-live.
+
+VERIFIED
+- new regression test `dual-identity` (one person, id-keyed + name-keyed rows):
+  fails 4 assertions on the old code, passes on the new. `154 passed, 0 failed`.
+- live dataset re-pulled: 6 in-hand rows, `byCat-sum === inHand` on every one,
+  `reconcile.balanced = true`.
+
+Also verified in the same session (unchanged code, first live exercise of the
+v3.81.1 bus grouping): Yamini collected shop 600/400 + bus 200/500 + road 300/0,
+handed over shop CASH 600 + bus UPI 500, Hrishi confirmed. The per-category
+breakdown survived push → pendingHandovers → notifications → confirm; the
+receiver's shop/bus pots grew by exactly those amounts with nothing falling into
+the legacy `received` lump; the sender kept precisely the other half. A ₹150 cash
+expense with `srcCat:'bus'` came off the bus pot and left road untouched, and the
+Sheet stored `cashAmount/upiAmount/srcCat` — confirming `setup()`'s column
+migration ran on the current deployment.

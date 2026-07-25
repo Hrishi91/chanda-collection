@@ -212,6 +212,27 @@ identity, so normal use never exposed it).
 from the token unconditionally. Handover `from`/`to` stay as sent — those
 are legitimately about other people, and `confirmHandover` is the gate.
 
+### A10. MED — FIXED — A person's byCat could exceed the inHand printed beside it
+**Where:** `js/aggregate.js` `personalSummary` + `myAvailable` (6 sites),
+mirrored in Code.gs `personalSummary_`.
+**Cause:** `inHandRows` keys people by `collectorId || collector || '?'`, so a
+row with a blank `collectorId` becomes a SECOND identity keyed on the display
+name. But the per-person filters carried an extra fallback —
+`ck(r) === String(ident) || r.collector === ident` (and `h.to === ident`). With
+`ident` being that name-keyed identity, the fallback swallowed every row whose
+collector *name* matched, i.e. all the rows the inHand had already assigned to
+the real username. Found in the live training data: one report line read
+`inHand 1100` next to a byCat summing to `19500`.
+**FIXED:** one identity rule everywhere — a row belongs to `ident` only when its
+own group key equals `ident`; no name fallback. Legacy rows still match, because
+with no `collectorId`/`toId` the name IS the group key.
+**Reach:** after Go Live the sheet starts empty and `push` stamps `collectorId`
+from the token unconditionally (A9), so a blank id can only come from entries
+made on a device before login and not yet synced — narrow, but it showed two
+disagreeing money figures side by side, so it is closed pre-launch.
+**Regression test:** `dual-identity` in `tests/run.js` — 4 assertions fail on the
+old code, pass on the new.
+
 ### Verified green in the two-user pass
 | Path | Result |
 |---|---|

@@ -226,6 +226,23 @@ on his phone after the redeploy).
   change) — sw is at v3.74.0 now, covers all of the above; every device
   picks it up on next open.
 
+## v3.82.0 — one identity rule (2026-07-26, DONE)
+
+- [x] Central in-hand report: a person's category breakdown could sum to
+      more than the `inHand` printed on the same line, whenever the same
+      person existed under both a `collectorId`-keyed and a name-keyed
+      identity. Fixed in `js/aggregate.js` + `Code.gs` (A10 in
+      `docs/final-audit.md`), regression test `dual-identity`.
+- [x] First live exercise of the v3.81.1 bus grouping through the whole
+      chain (collect → per-category handover → cashier confirm →
+      `srcCat` expense), on two real sessions. All 16 checks green.
+- [x] `setup()` confirmed run: Expenses now carries `cashAmount`,
+      `upiAmount`, `srcCat`; Handovers carries `breakdown`.
+- ⚠️ **Code.gs redeploy needed** for `personalSummary_` (the server-side
+      mirror of the A10 fix). No new columns, so no `setup()` this time.
+      Clients compute their own reports, so nothing is broken until then —
+      only the server's `myReport` action carries the old behaviour.
+
 ## Next decision — Go Live
 
 Training mode is still ON (default since it shipped). Every entry made so

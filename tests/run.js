@@ -382,6 +382,33 @@ eq(personalSummary(idData, 'rahul2').handedOver, 200, 'identity: personalSummary
 // legacy name-only rows still work (fallback)
 eq(inHandRows({ payments: [{ id: 'x', collector: 'Old', amount: 50 }], daily: [], expenses: [], handovers: [], voids: [] })[0].inHand, 50, 'identity: legacy name-only row still keyed');
 
+// ---- identity: a name-keyed row must NOT swallow the same person's id-keyed rows ----
+// One person, two identities in the same dataset: rows pushed after login carry
+// collectorId 'ratan', an older row (entered before login) has none and so keys
+// under the display name. Each identity is its own line in the in-hand report,
+// and its byCat must sum to exactly its own inHand — the name-keyed line used to
+// re-count every 'ratan' row on top of its own.
+const dualId = {
+  parties: [], expenses: [], voids: [], daily: [],
+  payments: [
+    { id: 'p1', collectorId: 'ratan', collector: 'Ratan Das', amount: 1000, cashAmount: 1000, upiAmount: 0 },
+    { id: 'p2', collectorId: '', collector: 'Ratan Das', amount: 40, cashAmount: 40, upiAmount: 0 },
+  ],
+  handovers: [{ id: 'dh', fromId: 'ratan', from: 'Ratan Das', toId: 'boss', to: 'Boss', amount: 600, cashAmount: 600, upiAmount: 0, status: 'confirmed' }],
+};
+const sumCat = function (bc) {
+  return Object.keys(bc || {}).reduce(function (a, k) { return a + bc[k].cash + bc[k].upi; }, 0);
+};
+const dualRows = inHandRows(dualId);
+eq(dualRows.length, 3, 'dual-identity: id-keyed, name-keyed and receiver are 3 rows');
+dualRows.forEach(function (r) {
+  eq(sumCat(r.byCat), r.inHand, 'dual-identity: byCat sums to inHand for ' + r.collector + ' (' + r.inHand + ')');
+});
+eq(myAvailable(dualId, 'Ratan Das').byCat.payment, { cash: 40, upi: 0 }, 'dual-identity: name key sees only its own 40');
+eq(myAvailable(dualId, 'ratan').byCat.payment, { cash: 400, upi: 0 }, 'dual-identity: id key sees 1000 − 600 handed');
+eq(personalSummary(dualId, 'Ratan Das').collected, 40, 'dual-identity: personalSummary by name is not inflated');
+eq(personalSummary(dualId, 'Ratan Das').handedOver, 0, 'dual-identity: the id-keyed handover is not attributed to the name key');
+
 // ---- cross-collector installments: two collectors pay the same party ----
 // Kamal pledged 1000; Salil collected 400, Ram collected 600 (via find-party).
 const splitParty = {

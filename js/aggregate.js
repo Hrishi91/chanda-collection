@@ -139,9 +139,17 @@
 
   // One person's own summary (always-visible "My summary" report). `ident` is
   // the caller's identity — username (preferred) or, for legacy rows, name.
+  //
+  // IDENTITY RULE (shared by personalSummary and myAvailable): a row belongs to
+  // `ident` only when its OWN group key — collectorId, else collector name,
+  // exactly as inHandRows keys its rows — equals `ident`. There is deliberately
+  // no "…or the collector name matches" fallback: a row with a blank
+  // collectorId groups under the display name, and that name-keyed identity
+  // would then swallow every row belonging to the real username, so byCat came
+  // out larger than the inHand it sits next to in the same report.
   function personalSummary(data, ident) {
     data = activeData(data);
-    const mine = function (r) { return ck(r) === String(ident) || r.collector === ident; };
+    const mine = function (r) { return ck(r) === String(ident); };
     const myPay = (data.payments || []).filter(mine);
     const myDaily = (data.daily || []).filter(mine);
     const myExp = (data.expenses || []).filter(mine);
@@ -155,8 +163,8 @@
     const dailyByType = { road: 0, toto: 0, bus: 0 };
     myDaily.forEach(function (r) { if (r.type in dailyByType) dailyByType[r.type] += Number(r.amount) || 0; });
     let received = 0, handedOver = 0, pending = 0;
-    const isTo = function (h) { return String(h.toId || h.to) === String(ident) || h.to === ident; };
-    const isFrom = function (h) { return String(h.fromId || h.from) === String(ident) || h.from === ident; };
+    const isTo = function (h) { return String(h.toId || h.to || '?') === String(ident); };
+    const isFrom = function (h) { return String(h.fromId || h.from || '?') === String(ident); };
     (data.handovers || []).forEach(function (h) {
       const amt = Number(h.amount) || 0;
       if (isTo(h) && h.status === 'confirmed') received += amt;
@@ -216,7 +224,7 @@
   // (no breakdown) fall back to drain()/the 'received' bucket.
   function myAvailable(data, ident) {
     data = activeData(data);
-    const mine = function (r) { return ck(r) === String(ident) || r.collector === ident; };
+    const mine = function (r) { return ck(r) === String(ident); };
     const cats = {};
     const add = function (cat, s) {
       const e = cats[cat] || (cats[cat] = { cash: 0, upi: 0 });
@@ -239,8 +247,8 @@
     (data.daily || []).filter(mine).forEach(function (r) {
       add(['road', 'toto', 'bus'].indexOf(r.type) >= 0 ? r.type : 'road', splitOf(r));
     });
-    const isTo = function (h) { return String(h.toId || h.to) === String(ident) || h.to === ident; };
-    const isFrom = function (h) { return String(h.fromId || h.from) === String(ident) || h.from === ident; };
+    const isTo = function (h) { return String(h.toId || h.to || '?') === String(ident); };
+    const isFrom = function (h) { return String(h.fromId || h.from || '?') === String(ident); };
     (data.handovers || []).filter(function (h) { return h.status === 'confirmed'; }).forEach(function (h) {
       const bd = parseBd(h), s = splitOf(h);
       if (isTo(h)) {

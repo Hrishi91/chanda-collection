@@ -1079,10 +1079,15 @@ function inHandRows_(d) {
 }
 
 // One person's own summary (always-visible "My summary" report).
+// IDENTITY RULE (mirrors js/aggregate.js): a row belongs to `ident` only when
+// its own group key — collectorId, else collector name, exactly how
+// inHandRows_ keys its rows — equals `ident`. No "…or the name matches"
+// fallback: a blank-collectorId row groups under the display name, and that
+// name-keyed identity would then swallow every row of the real username.
 function personalSummary_(d, ident) {
   d = activeData_(d);
   ident = String(ident);
-  var mine = function (r) { return ck_(r) === ident || r.collector === ident; };
+  var mine = function (r) { return ck_(r) === ident; };
   var myPay = d.payments.filter(mine);
   var myDaily = d.daily.filter(mine);
   var myExp = d.expenses.filter(mine);
@@ -1095,8 +1100,8 @@ function personalSummary_(d, ident) {
   var dailyByType = { road: 0, toto: 0, bus: 0 };
   myDaily.forEach(function (r) { if (r.type in dailyByType) dailyByType[r.type] += num_(r.amount); });
   var received = 0, handedOver = 0, pending = 0;
-  var isTo = function (h) { return String(h.toId || h.to) === ident || h.to === ident; };
-  var isFrom = function (h) { return String(h.fromId || h.from) === ident || h.from === ident; };
+  var isTo = function (h) { return String(h.toId || h.to || '?') === ident; };
+  var isFrom = function (h) { return String(h.fromId || h.from || '?') === ident; };
   d.handovers.forEach(function (h) {
     var amt = num_(h.amount);
     if (isTo(h) && h.status === 'confirmed') received += amt;
