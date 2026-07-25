@@ -164,7 +164,11 @@
     return { collected: collected, cash: cash, upi: upi, dailyByType: dailyByType,
              received: received, handedOver: handedOver, pending: pending,
              expenseTotal: expenseTotal, expenses: expenses,
-             inHand: collected + received - handedOver - expenseTotal };
+             inHand: collected + received - handedOver - expenseTotal,
+             // what is STILL in this person's hand, split by source category
+             // and money type — same function the handover screen uses, so the
+             // report and the handover chips can never disagree
+             byCat: myAvailable(data, ident).byCat };
   }
 
   // What a person actually has in their pocket RIGHT NOW, split by category

@@ -70,17 +70,23 @@ syncs immediately if online.
 
 ## 🤝 Handover & confirmation
 
-Tap **🤝 Hand over** → choose a cashier. Pick **which collections** (chanda /
-road / toto / bus / received) — each button shows your real amount, only
-categories holding money appear — then pick cash / UPI / both (those buttons
-carry the picked categories' real amounts too). The total adds up
-automatically, no typing ("✏️ Different amount" for a partial handover
-instead). The handover records the category split, so the receiving
-cashier's own hand shows the money under the same categories. It becomes
-confirmed only when the
-cashier opens **✅ Confirm receipts** and taps "Received". Until
-confirmed, the money stays counted **in the collector's hand** (shown as
-"awaiting confirm"). This keeps "cash in hand by collector" always correct.
+Tap **🤝 Hand over** → choose a cashier. Pick **which collections**, grouped
+as 📥 New entries/Chanda and 🛣️ Daily collection (road/toto/bus) — every line
+shows 💵 cash · 📱 UPI · total with a per-group subtotal, and the "Selected"
+line adds up live, so the whole picture is on that one screen and you never
+have to look a number up elsewhere. Then pick cash / UPI / both (those
+buttons carry the picked categories' real amounts too). No typing — unless
+you want a partial amount, via "✏️ Different amount".
+
+The handover stores the **category split**, so the receiving cashier's own
+hand shows that money under the same categories (a cashier handing on to
+another cashier stays category-aware). The same breakdown appears in the
+report as **"What I hold, by source"**.
+
+It becomes confirmed only when the cashier opens **✅ Confirm receipts** and
+taps "Received". Until confirmed the money stays counted **in the
+collector's hand** (shown as "awaiting confirm"), which keeps "cash in hand
+by collector" always correct.
 
 ## 💰 How the maths works
 

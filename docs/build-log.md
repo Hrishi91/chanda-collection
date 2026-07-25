@@ -2173,3 +2173,39 @@ Probed: `doGet` → `{ok, service}`; `listBackups` → **bad-token** (not
 the action exists and reached its auth gate. Hrishi's previous admin token
 is dead (he re-logged in), so the backup-folder verification needs a fresh
 token from him after he runs setup() + taps 💾.
+
+## v3.79.0 — Handover: categories grouped under their super-type, cash/UPI/total everywhere
+
+Hrishi's refinement: the categories should sit under a **super-type** (daily
+collection vs new-entry collections), each showing cash and UPI separately
+plus the total — "otherwise he needs to go to the other pages again and
+again". Same numbers must then flow into the reports for every user.
+
+- **Category step redesigned** from flat chips into grouped cards:
+  📥 নতুন এন্ট্রি/চাঁদা · 🛣️ দৈনিক কালেকশন (road/toto/bus) · 🤝 অন্যের
+  জমা. Every row shows `💵cash · 📱UPI · total`, every group shows its own
+  subtotal, and the "বেছেছ" line under them adds the SELECTION up live in
+  the same three figures. Empty categories/groups never render, which keeps
+  it permission-shaped (you can't hold bus money without bus access).
+- **Reports carry the same table**: `personalSummary` now returns `byCat`
+  (delegating to `myAvailable`, so the report and the handover chips read
+  the *same function* and can never drift), rendered as
+  "কোন খাতে কত আছে / What I hold, by source" in My summary — visible to
+  every user, no permission needed, so "how much bus money do I still hold?"
+  is answerable from the report too.
+- Sender/receiver, category and money-type all continue to be stored on the
+  handover row itself (`breakdown` JSON from v3.76.0), so both sides' books
+  stay exact — this change is the presentation layer over that data.
+- CSS: `.cat-group / .cat-row / .cat-selected` (selected row inverts to
+  saffron, splits stay legible on both states).
+
+Verified live in the harness with mixed data (chanda 300c+200u, road 80c,
+toto 60c+60u, bus 150c): groups and subtotals render correctly
+(দৈনিক = 💵290 · 📱60 = ₹350); selecting চাঁদা + টোটো shows
+`💵₹360 · 📱₹260 ₹620`; the mode chips then read নগদ ₹360 / UPI ₹260 /
+দুটোই ₹620; the saved row is amount 620, cash 360, upi 260 with breakdown
+`{"payment":{"cash":300,"upi":200},"toto":{"cash":60,"upi":60}}`; the report
+section lists all four categories with their cash/UPI/total. No console
+errors. 128 tests pass (3 new: byCat report/handover parity, byCat sums to
+in-hand, collection-expense drains its own category). In-app guide +
+both user guides updated. sw → chanda-v3.79.0. Client-only — no redeploy.

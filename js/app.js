@@ -537,11 +537,30 @@
       // received, each showing the real available amount) — toggle, see the
       // running total, then confirm. No typing needed for the common "hand
       // over what I have" case; "✏️ অন্য পরিমাণ" escapes to manual entry.
-      html += '<div class="chips">' + s.categories.map(function (c) {
-        return '<button class="chip cat-chip" data-cat="' + esc(c.key) + '" data-amt="' + c.amount + '">' +
-               esc(t(c.labelKey)) + ' ' + fmtMoney(c.amount) + '</button>';
-      }).join('') + '</div>' +
-      '<div class="hint" id="cat-total">' + esc(t('total')) + ': ' + fmtMoney(0) + '</div>' +
+      // Grouped under their super-type (নতুন এন্ট্রি / দৈনিক কালেকশন /
+      // অন্যের জমা) with each row showing 💵 cash · 📱 UPI · total, plus a
+      // per-group subtotal — so the collector sees the whole picture right
+      // here and never has to leave the screen to look a number up.
+      const groups = [
+        { key: 'entry', labelKey: 'grp_entry', cats: s.categories.filter(function (c) { return c.key === 'payment'; }) },
+        { key: 'daily', labelKey: 'grp_daily', cats: s.categories.filter(function (c) { return ['road', 'toto', 'bus'].indexOf(c.key) >= 0; }) },
+        { key: 'other', labelKey: 'grp_received', cats: s.categories.filter(function (c) { return c.key === 'received'; }) },
+      ].filter(function (g) { return g.cats.length; });
+      const money2 = function (cash, upi) {
+        return '<span class="cat-split">💵' + fmtMoney(cash) + ' · 📱' + fmtMoney(upi) + '</span>' +
+               '<b class="cat-tot">' + fmtMoney(cash + upi) + '</b>';
+      };
+      html += groups.map(function (g) {
+        const gc = g.cats.reduce(function (a, c) { return a + c.cash; }, 0);
+        const gu = g.cats.reduce(function (a, c) { return a + c.upi; }, 0);
+        return '<div class="cat-group"><div class="cat-group-head">' + esc(t(g.labelKey)) +
+          '<span class="cat-group-sum">' + money2(gc, gu) + '</span></div>' +
+          g.cats.map(function (c) {
+            return '<button class="cat-row" data-cat="' + esc(c.key) + '" data-cash="' + c.cash + '" data-upi="' + c.upi + '">' +
+              '<span class="cat-name">' + esc(t(c.labelKey)) + '</span>' + money2(c.cash, c.upi) + '</button>';
+          }).join('') + '</div>';
+      }).join('') +
+      '<div class="cat-selected" id="cat-total">' + esc(t('selected_total')) + ': ' + money2(0, 0) + '</div>' +
       '<div class="flow-actions">' +
         '<button id="cat-custom" class="ghost">' + esc(t('custom_amount')) + '</button>' +
         '<button id="cat-next" class="primary" disabled>' + esc(t('next')) + '</button></div>';
@@ -606,15 +625,19 @@
     const backB = document.getElementById('back-btn');
     if (backB) backB.onclick = goBack;
     if (s.kind === 'category') {
-      const catChips = document.querySelectorAll('.cat-chip');
+      const catChips = document.querySelectorAll('.cat-row');
       const totalEl = document.getElementById('cat-total');
       const nextB = document.getElementById('cat-next');
       const refresh = function () {
-        let sum = 0, any = false;
+        let cash = 0, upi = 0, any = false;
         catChips.forEach(function (c) {
-          if (c.classList.contains('on')) { sum += Number(c.dataset.amt) || 0; any = true; }
+          if (!c.classList.contains('on')) return;
+          cash += Number(c.dataset.cash) || 0; upi += Number(c.dataset.upi) || 0; any = true;
         });
-        totalEl.textContent = t('total') + ': ' + fmtMoney(sum);
+        // live cash/UPI split + grand total of what's currently selected
+        totalEl.innerHTML = esc(t('selected_total')) + ': ' +
+          '<span class="cat-split">💵' + fmtMoney(cash) + ' · 📱' + fmtMoney(upi) + '</span>' +
+          '<b class="cat-tot">' + fmtMoney(cash + upi) + '</b>';
         nextB.disabled = !any;
       };
       catChips.forEach(function (c) { c.onclick = function () { c.classList.toggle('on'); refresh(); }; });
@@ -1726,6 +1749,24 @@
           fmtMoney(r.inHand) + '</b></span><div class="row-sub">' + esc(t('inhand_col')) + '</div></div></div>';
       }).join('') + '</div>';
   }
+  // "কোন খাতে কত আছে" — the same source-category × cash/UPI table the
+  // handover screen uses, so a collector can answer "how much bus money do I
+  // still hold?" from the report too, not only mid-handover.
+  const CAT_LABEL_KEYS = { payment: 'cat_payment', road: 'daily_road', toto: 'daily_toto',
+                           bus: 'daily_bus', received: 'cat_received' };
+  function byCatHTML(byCat) {
+    if (!byCat) return '';
+    const rows = Object.keys(CAT_LABEL_KEYS)
+      .filter(function (k) { return byCat[k] && (byCat[k].cash || byCat[k].upi); })
+      .map(function (k) {
+        const c = byCat[k].cash, u = byCat[k].upi;
+        return '<div class="row" style="cursor:default"><div class="cat-name">' + esc(t(CAT_LABEL_KEYS[k])) + '</div>' +
+          '<span class="cat-split">💵' + fmtMoney(c) + ' · 📱' + fmtMoney(u) + '</span>' +
+          '<b class="cat-tot">' + fmtMoney(c + u) + '</b></div>';
+      });
+    if (!rows.length) return '';
+    return '<div class="section" style="margin-top:14px">' + esc(t('my_by_cat')) + '</div>' + rows.join('');
+  }
   function mySummaryHTML(d, deviceOnly) {
     const hasDaily = d.dailyByType && (d.dailyByType.road || d.dailyByType.toto || d.dailyByType.bus);
     return '<div class="card"><div class="card-title">' + esc(t('my_summary')) + '</div>' +
@@ -1745,6 +1786,7 @@
         '<div><span>' + esc(t('type_road')) + '</span><b>' + fmtMoney(d.dailyByType.road) + '</b></div>' +
         '<div><span>' + esc(t('type_toto')) + '</span><b>' + fmtMoney(d.dailyByType.toto) + '</b></div>' +
         '<div><span>' + esc(t('type_bus')) + '</span><b>' + fmtMoney(d.dailyByType.bus) + '</b></div></div>' : '') +
+      byCatHTML(d.byCat) +
       '</div>' +
       (d.expenses && d.expenses.length ?
         '<div class="card"><div class="card-title">' + esc(t('my_expenses')) + ' — ' + fmtMoney(d.expenseTotal) + '</div>' +

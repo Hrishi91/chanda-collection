@@ -194,6 +194,21 @@ eq(availL.byCat.payment.cash, 0, 'byCat: legacy drain empties payment first');
 eq(availL.byCat.toto.cash, 40, 'byCat: legacy drain takes remainder from toto');
 eq(availL.cash, 40, 'byCat: legacy drain total right');
 
+// personalSummary.byCat must always equal myAvailable.byCat and sum to inHand
+// (the handover chips and the report read the same numbers — they can never drift)
+const bcData = {
+  payments: [{ collector: 'Q', amount: 500, cashAmount: 300, upiAmount: 200 }],
+  daily: [{ collector: 'Q', type: 'bus', amount: 150, cashAmount: 150, upiAmount: 0 },
+          { collector: 'Q', type: 'road', amount: 40, cashAmount: 40, upiAmount: 0 }],
+  expenses: [{ collector: 'Q', amount: 40, source: 'collection', collectionType: 'road' }],
+  handovers: [],
+};
+const bcP = personalSummary(bcData, 'Q'), bcA = myAvailable(bcData, 'Q');
+eq(JSON.stringify(bcP.byCat), JSON.stringify(bcA.byCat), 'byCat: report === handover source');
+eq(Object.keys(bcP.byCat).reduce(function (s, k) { return s + bcP.byCat[k].cash + bcP.byCat[k].upi; }, 0),
+   bcP.inHand, 'byCat: sums to in-hand');
+eq(bcP.byCat.road.cash, 0, 'byCat: road drained by its own collection expense');
+
 const dues = duesList(parties, payments);
 eq(dues.length, 2, 'dues count (p2 600, p3 300; p1 cleared)');
 eq(dues[0].party.id, 'p2', 'biggest due first');
