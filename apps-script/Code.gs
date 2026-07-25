@@ -218,6 +218,7 @@ function nextReceiptNo_(year) {
 // Notification counts + detail items for a user, computed from an already-read
 // year dataset (so `pull` can include it without a second sheet read).
 function notifData_(u, d) {
+  d = activeData_(d); // a voided (e.g. undo-voided) handover must not keep notifying the cashier
   var out = { handovers: 0, approvals: 0, corrections: 0 };
   var items = { handovers: [], approvals: [], corrections: [] };
   var isCashier = Number(u.row.cashier) === 1 || u.row.role === 'admin';
@@ -452,7 +453,7 @@ var ACTIONS = {
   pendingHandovers: function (b) {
     var u = requireUser_(b.token);
     if (Number(u.row.cashier) !== 1 && u.row.role !== 'admin') throw new Error('not-cashier');
-    var d = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
+    var d = activeData_(readAll_(b.year ? Number(b.year) : new Date().getFullYear())); // hide voided (e.g. undone) handovers
     return { ok: true, handovers: d.handovers.filter(function (h) {
       return String(h.toId || h.to) === String(u.row.username) || h.to === u.row.name;
     }) };

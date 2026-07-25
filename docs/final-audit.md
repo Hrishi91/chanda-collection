@@ -67,6 +67,35 @@ Cosmetic; disappears post-go-live (all rows carry breakdowns).
 ### A6. LOW — FIXED — Negative amounts render as "₹-80"
 `fmtMoney` on over-drained books (title "তোমার হাতে"). Cosmetic; honest.
 
+### A7. LOW-MED — FIXED (rides the pending redeploy) — Voided handovers still notified the cashier
+**Where:** Code.gs `notifData_` + `pendingHandovers` — both iterated RAW
+handovers, so a voided pending handover (now likely via undo-void, A1) kept
+appearing in the cashier's confirm list and notification feed. Money math
+was never wrong (aggregation excludes voids on both sides; confirming the
+ghost was harmless) — but the cashier chased phantoms.
+**FIXED:** both now pass the dataset through `activeData_` first (2 lines).
+Ships in the same pending Code.gs redeploy as the `breakdown` column.
+
+## Second pass — 2026-07-25 (all aspects re-check, clean)
+
+On Hrishi's "check once again": walked every layer not line-verified in the
+first pass. Results:
+- **All 39 server actions** enumerated with their first gate line: every
+  data action starts with `requireUser_`/`requireAdmin_`; only
+  register/login/logout are public, by design. Role sub-gates (cashier-only,
+  admin-only) verified individually.
+- **SW precache** covers every js file except config.js (deliberate:
+  network-first so a baked URL change always reaches devices).
+- **index.html script order** safe — cross-file reads (`t()`, `Settings`)
+  happen at runtime, not load time.
+- **Report mirror parity**: same 7 branch ids client & server.
+- **Forgot-password flow** is an instruction screen (admin resets) — no
+  unauthenticated reset path exists.
+- **XSS second sweep**: zero unescaped interpolations of user-entered
+  strings (names/notes/desc/from) in any innerHTML template.
+- **Code.gs parses clean** (node --check via .js copy); 125 tests green.
+- One new finding (A7, above) — fixed immediately, server-side only.
+
 ## B. Design tradeoffs (deliberate — re-confirm before go-live)
 
 1. **Every device holds the whole year's data** (pull snapshot). Report

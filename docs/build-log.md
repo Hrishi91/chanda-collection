@@ -1947,3 +1947,18 @@ just re-reading the code):
 125 tests pass. sw → chanda-v3.77.0. Client-only; docs/final-audit.md items
 marked fixed. No server change (the pending v3.76.0 Code.gs redeploy is
 still the only one outstanding).
+
+## Second-pass audit (all aspects) + A7 fix
+
+Hrishi: "check once again with all aspects". Walked the layers the first
+pass hadn't line-verified: all 39 server action gates (clean), SW precache
+completeness (clean; config.js network-first by design), index.html script
+order (safe — runtime reads), report-mirror branch parity (7/7), the
+forgot-password path (instruction-only, no unauthenticated reset), an XSS
+second sweep (zero unescaped user-string interpolations), Code.gs syntax
+(clean via .js copy). One NEW finding: **A7 — voided (e.g. undo-voided)
+handovers still appeared in the cashier's confirm list + notifications**,
+because `notifData_` and `pendingHandovers` read raw rows; both now pass
+through `activeData_` first. Money math was never affected. Server-only —
+rides the already-pending Code.gs redeploy (breakdown column), so no extra
+deployment step for Hrishi. 125 tests pass; no client change, no SW bump.
