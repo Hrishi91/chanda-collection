@@ -141,7 +141,7 @@ const I18N = {
   backup_now_btn: { bn: '💾 এখনই backup নাও', en: '💾 Back up now' },
   err_backup_failed: { bn: '⚠️ Backup নেওয়া যায়নি — তাই Live শুরু করা হয়নি (ডেটা অক্ষত আছে)। Drive-এর অনুমতি দেখে আবার চেষ্টা করো।', en: '⚠️ Backup failed — Go Live aborted, your data is untouched. Check Drive permissions and retry.' },
   err_confirm_required: { bn: 'নিশ্চিতকরণ হয়নি — কিছু বদলায়নি', en: 'Not confirmed — nothing changed' },
-  backup_done: { bn: '✅ Backup হয়ে গেছে — Drive-এর ChandaKhata-Backups ফোল্ডারে: {f}', en: '✅ Backed up to Drive/ChandaKhata-Backups: {f}' },
+  backup_done: { bn: '✅ Backup হয়ে গেছে — মূল Sheet-এর ফোল্ডারেই: {f}', en: '✅ Backed up beside the main Sheet: {f}' },
   restore_btn: { bn: '♻️ Backup থেকে ফেরাও', en: '♻️ Restore from backup' },
   restore_none: { bn: 'কোনো backup পাওয়া যায়নি', en: 'No backups found' },
   restore_pick: { bn: 'কোন backup ফেরাবে? নম্বর লেখো:', en: 'Which backup? Type its number:' },

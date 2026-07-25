@@ -32,7 +32,7 @@ recovery for small accidents.
 ### (original text, for the record)
 
 - `dailyBackup()` writes a full JSON snapshot (all sheets + users) to Drive
-  folder `ChandaKhata-Backups`. **But:**
+  folder (then `ChandaKhata-Backups`; now the sheet's own folder). **But:**
   - It only runs if a **time-driven trigger is installed by hand** in the
     Apps Script editor (Triggers → `dailyBackup`, daily 2–3am).
     ⚠️ **Unverified — Hrishi should confirm it exists**, otherwise there is

@@ -2141,3 +2141,27 @@ trigger starts.
 
 Not run by me (operational boundary): `backupNow` writes to Hrishi's Drive
 — he taps 💾 এখনই backup নাও himself; I verify the result via `listBackups`.
+
+## v3.78.1 — Backups live beside the spreadsheet (ganesh_pooja_daulatpur)
+
+Hrishi: the folder should be `ganesh_pooja_daulatpur` — where the main
+spreadsheet already lives — not a separate `ChandaKhata-Backups`.
+
+- `backupFolder_()` now resolves the **spreadsheet's own parent folder**
+  (`DriveApp.getFileById(ss.getId()).getParents()`), so snapshots always sit
+  beside the file they protect and a folder rename can never orphan them.
+  The name `ganesh_pooja_daulatpur` is only the fallback if the sheet has no
+  parent.
+- Because that folder also holds the live spreadsheet (and anything else
+  Hrishi keeps there), snapshots are now identified by the `chanda-backup-`
+  prefix: `listBackups` filters on it, and `restoreBackup` **refuses**
+  (`not-a-backup`) any file without it — you can never accidentally
+  "restore" the live sheet over itself.
+- Docs + the success message updated (no hardcoded folder name in the UI
+  string any more); setup-google.md's backup section rewritten — the manual
+  trigger step is gone, replaced by the setup()-installs-it note plus the
+  ⚠️ that the first setup() run after a new deployment must be granted
+  Drive/trigger permissions or backups silently never happen.
+
+125 tests pass. sw → chanda-v3.78.1. ⚠️ Server-side → one more Code.gs
+redeploy (New deployment → URL → rebake) and run `setup()` after it.

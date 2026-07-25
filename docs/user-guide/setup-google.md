@@ -39,10 +39,19 @@ One-time, ~10 minutes. After this, all 10 phones sync into one Sheet.
 
 ## 5. Daily automatic backup to Drive
 
-1. Apps Script editor → ⏰ **Triggers** (left sidebar) → Add trigger.
-2. Function: `dailyBackup` · Event source: Time-driven · Day timer ·
-   2am–3am. Backups (data + users) land in Drive folder
-   `ChandaKhata-Backups`.
+Nothing to set up by hand any more — **`setup()` installs the daily trigger
+itself** (2am, function `dailyBackup`). Snapshots land in the **same Drive
+folder as the spreadsheet** (`ganesh_pooja_daulatpur`), named
+`chanda-backup-YYYY-MM-DD_HHMM.json`, and cover every sheet including Users,
+master lists, Config and Audit.
+
+You can also take one on demand: Admin panel → 🗂️ ডেটা ও হিসাব রক্ষা →
+**💾 এখনই backup নাও**. Restore from any snapshot with **♻️ Backup থেকে
+ফেরাও** (it takes a safety backup of the current state first, so a restore
+is itself reversible).
+
+⚠️ The first run of `setup()` after a new deployment asks for Drive and
+trigger permissions — grant them, or backups silently never happen.
 
 ## Redeploying after script changes
 

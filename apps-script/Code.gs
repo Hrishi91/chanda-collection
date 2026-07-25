@@ -614,6 +614,9 @@ var ACTIONS = {
     var it = backupFolder_().getFiles(), out = [];
     while (it.hasNext()) {
       var f = it.next();
+      // the folder also holds the live spreadsheet (and whatever else Hrishi
+      // keeps there) — only our own snapshots may ever be offered for restore
+      if (f.getName().indexOf(BACKUP_PREFIX) !== 0) continue;
       out.push({ id: f.getId(), name: f.getName(), size: f.getSize(),
                  created: f.getDateCreated().toISOString() });
     }
@@ -629,6 +632,8 @@ var ACTIONS = {
     var me = requireAdmin_(b.token);
     if (String(b.confirm) !== 'RESTORE') throw new Error('confirm-required');
     var file = DriveApp.getFileById(String(b.fileId)); // throws if not found
+    // only our own snapshots — never the live spreadsheet that shares the folder
+    if (file.getName().indexOf(BACKUP_PREFIX) !== 0) throw new Error('not-a-backup');
     var data = JSON.parse(file.getBlob().getDataAsString());
     var safety = dailyBackup(); // current state first — restore is reversible
     var ss = SpreadsheetApp.getActive();
@@ -1193,11 +1198,22 @@ function computeReport_(id, d) {
 }
 
 /**
- * Daily JSON snapshot of all sheets into Drive folder "ChandaKhata-Backups".
+ * Daily JSON snapshot of all sheets into the spreadsheet's own Drive folder
+ * (ganesh_pooja_daulatpur) — backups sit beside the file they protect.
  * Add a time-driven trigger (daily, e.g. 2-3 AM) pointing at this function.
  */
-var BACKUP_FOLDER = 'ChandaKhata-Backups';
+// Backups live BESIDE the spreadsheet they protect — Hrishi keeps the sheet
+// in `ganesh_pooja_daulatpur`, so that's where the snapshots go. Resolved via
+// the sheet's own parent folder first, which survives a folder rename; the
+// name is only the fallback if the sheet somehow has no parent (e.g. shared
+// straight from a drive root).
+var BACKUP_FOLDER = 'ganesh_pooja_daulatpur';
+var BACKUP_PREFIX = 'chanda-backup-';
 function backupFolder_() {
+  try {
+    var parents = DriveApp.getFileById(SpreadsheetApp.getActive().getId()).getParents();
+    if (parents.hasNext()) return parents.next();
+  } catch (e) { /* fall through to the by-name lookup */ }
   var f = DriveApp.getFoldersByName(BACKUP_FOLDER);
   return f.hasNext() ? f.next() : DriveApp.createFolder(BACKUP_FOLDER);
 }
@@ -1218,7 +1234,7 @@ function dailyBackup() {
     data[n] = sh ? sh.getDataRange().getValues() : [];
   });
   var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmm');
-  var name = 'chanda-backup-' + stamp + '.json';
+  var name = BACKUP_PREFIX + stamp + '.json';
   backupFolder_().createFile(name, JSON.stringify(data), 'application/json');
   return name;
 }
