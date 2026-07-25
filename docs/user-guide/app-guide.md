@@ -70,9 +70,10 @@ syncs immediately if online.
 
 ## 🤝 Handover & confirmation
 
-Tap **🤝 Hand over** → choose a cashier. The screen shows your real cash/UPI
-in hand and a **"Use all — ₹X"** button that fills the amount without typing
-(type instead for a partial handover). It becomes confirmed only when the
+Tap **🤝 Hand over** → choose a cashier. Pick your real cash and/or UPI from
+buttons showing the exact amount — the total adds up automatically, no
+typing ("✏️ Different amount" for a partial handover instead). It becomes
+confirmed only when the
 cashier opens **✅ Confirm receipts** and taps "Received". Until
 confirmed, the money stays counted **in the collector's hand** (shown as
 "awaiting confirm"). This keeps "cash in hand by collector" always correct.

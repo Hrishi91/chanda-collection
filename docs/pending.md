@@ -190,12 +190,21 @@ on his phone after the redeploy).
       section — it's the only daily-collection type with a donor identity/
       receipt, same family as শপ/person/member~~ (2026-07-25, v3.74.1)
 - [x] ~~Handover shows the collector's/cashier's real cash+UPI in hand
-      (`Aggregate.myAvailable`, unit-tested) and a "সবটাই — ₹X" one-tap
-      button on the amount step — no more typing/misremembering what you
-      actually have. Typing still works for a partial handover. This is
-      narrower than the generic amount-presets idea declined below — it's
-      specific to handover, using the *actual computed* available amount,
-      not arbitrary preset chips~~ (2026-07-25, v3.75.0)
+      (`Aggregate.myAvailable`, unit-tested), as tap-to-select category
+      chips (💵 নগদ ₹X / 📱 UPI ₹Y) with a live total — no mode question,
+      no typing, no misremembering what you actually have. "✏️ অন্য
+      পরিমাণ" escapes to manual typing for a partial/unusual handover.
+      This is narrower than the generic amount-presets idea declined below
+      — specific to handover, using the *actual computed* available
+      amount, not arbitrary preset chips. (First cut in v3.75.0 kept the
+      old mode-question step with a small quick-chip bolted on; Hrishi said
+      that was still confusing, redesigned into one category-select screen
+      in v3.75.1)~~ (2026-07-25)
+- [ ] ⚠️ Hrishi reported "cashier can't send amount to himself" (self
+      handover). Couldn't find a blocking code path in Code.gs or app.js,
+      and can't reproduce in the local dev harness (no real multi-cashier
+      server data) — waiting on the exact symptom from Hrishi before
+      guessing at a fix.
 - Declined by Hrishi (asked first, not guessed): generic amount quick-tap
   presets for entry flows (payment/daily/new-party), and softening the
   persistent training banner — both left as-is.

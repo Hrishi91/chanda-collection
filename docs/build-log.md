@@ -1765,3 +1765,48 @@ partial handover — keeping some cash back — is a legitimate real case).
   new for `myAvailable`, incl. the confirmed-vs-pending and cross-person
   received/handed cases). sw → chanda-v3.75.0. Client-only, static-files
   redeploy.
+
+## v3.75.1 — Handover redesigned: pick category chips, don't type mode+amount
+
+Hrishi, after seeing v3.75.0 live: "don't make confused" — the small "সবটাই"
+quick-chip bolted onto the existing mode→cash→UPI sequence still made the
+collector answer an abstract "কীভাবে দিল?" question with no amounts on it
+before the useful chips appeared. His actual ask: one screen, categories
+shown WITH their amounts, tap to select, total computed live — not a
+patched-on shortcut inside the old flow.
+
+- **New `category` step kind** in the flow engine (`renderEntry`), scoped to
+  this one use — a set of toggle chips (💵 নগদ ₹X / 📱 UPI ₹Y), a live
+  "মোট: ₹Z" total, and a "পরের প্রশ্ন" that's disabled until something's
+  selected. New `submitCategorySelection()` writes `cashAmount`/`upiAmount`
+  directly into `flowState.answers` from the selected chips (bypassing the
+  old payMode/cashAmount/upiAmount steps entirely via `showIf`) and advances
+  like a normal answer. A "✏️ অন্য পরিমাণ" chip on the same screen calls
+  `submitCategoryCustom()`, which un-hides those old manual steps for a
+  partial/unusual handover — nothing lost, just one tap further away instead
+  of the default path.
+- `handoverFlow` now builds this category step only when there's something
+  to show (`avail.cash > 0 || avail.upi > 0`); a collector with nothing
+  collected yet gets the old manual sequence directly, no empty/useless
+  category screen.
+- `answerDisplay()` gained a `category` case so the chat-history bubble shows
+  the actual total (or "✏️ অন্য পরিমাণ") instead of the raw internal
+  'selected'/'custom' marker.
+- **Open question, not yet investigated**: Hrishi separately reported "cashier
+  can't send amount to himself" (a cashier handing over to themselves).
+  Read both the server (`cashiers`, `pendingHandovers`, `confirmHandover` in
+  Code.gs) and client (`startHandover`, cashier-list wiring) — found no
+  code path that excludes the caller from their own cashier list or blocks
+  a self-addressed handover/confirm. Can't reproduce locally (the dev
+  harness has no real multi-cashier server data). Asked Hrishi for the exact
+  symptom (missing from the list? an error on save/confirm? something else)
+  before guessing at a fix.
+- Verified live: category screen shows "💵 নগদ ₹600" / "📱 UPI ₹300" (real
+  collected amounts), tapping both updates the total live (₹0 → ₹900), Next
+  disabled until a selection exists, confirmed save wrote cash:600/upi:300
+  correctly and skipped the old manual steps; "✏️ অন্য পরিমাণ" escape
+  verified separately — falls back to mode→amount typing, saved a ₹100
+  cash-only handover correctly. No console errors. 115 tests pass (no
+  shared-logic change — this is flow/UI wiring). In-app guide, app-guide.md,
+  collector-guide.md updated to match the shipped screen (not the v3.75.0
+  description, which no longer matches). sw → chanda-v3.75.1. Client-only.

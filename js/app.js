@@ -398,6 +398,10 @@
       const o = step.options.find(function (o) { return o.v === val; });
       return o ? (o.labelKey ? t(o.labelKey) : o.label) : val;
     }
+    if (step.kind === 'category') {
+      if (val === 'custom') return t('custom_amount');
+      return fmtMoney((Number(flowState.answers.cashAmount) || 0) + (Number(flowState.answers.upiAmount) || 0));
+    }
     return val;
   }
   function submitAnswer(raw) {
@@ -504,6 +508,19 @@
         return '<button class="chip" data-v="' + esc(o.v) + '">' +
                esc(o.labelKey ? t(o.labelKey) : o.label) + '</button>';
       }).join('') + '</div>';
+    } else if (s.kind === 'category') {
+      // multi-select category chips (e.g. handover: which of cash/UPI, each
+      // showing the real available amount) — toggle, see the running total,
+      // then confirm. No typing needed for the common "hand over what I
+      // have" case; "✏️ অন্য পরিমাণ" escapes to manual mode/amount entry.
+      html += '<div class="chips">' + s.categories.map(function (c) {
+        return '<button class="chip cat-chip" data-cat="' + esc(c.key) + '" data-amt="' + c.amount + '">' +
+               esc(t(c.labelKey)) + ' ' + fmtMoney(c.amount) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="hint" id="cat-total">' + esc(t('total')) + ': ' + fmtMoney(0) + '</div>' +
+      '<div class="flow-actions">' +
+        '<button id="cat-custom" class="ghost">' + esc(t('custom_amount')) + '</button>' +
+        '<button id="cat-next" class="primary" disabled>' + esc(t('next')) + '</button></div>';
     } else {
       // an 'amount' step can carry a known figure (e.g. handover's actual
       // cash/UPI in hand) — one tap uses it exactly, no typing or misremembering.
@@ -556,6 +573,53 @@
     if (skipB) skipB.onclick = function () { submitAnswer(flowState.def.steps[flowState.idx].kind === 'amount' ? null : ''); };
     const backB = document.getElementById('back-btn');
     if (backB) backB.onclick = goBack;
+    if (s.kind === 'category') {
+      const catChips = document.querySelectorAll('.cat-chip');
+      const totalEl = document.getElementById('cat-total');
+      const nextB = document.getElementById('cat-next');
+      const refresh = function () {
+        let sum = 0, any = false;
+        catChips.forEach(function (c) {
+          if (c.classList.contains('on')) { sum += Number(c.dataset.amt) || 0; any = true; }
+        });
+        totalEl.textContent = t('total') + ': ' + fmtMoney(sum);
+        nextB.disabled = !any;
+      };
+      catChips.forEach(function (c) { c.onclick = function () { c.classList.toggle('on'); refresh(); }; });
+      refresh();
+      nextB.onclick = function () {
+        const sel = Array.prototype.filter.call(catChips, function (c) { return c.classList.contains('on'); })
+          .map(function (c) { return c.dataset.cat; });
+        submitCategorySelection(sel, s.categories);
+      };
+      document.getElementById('cat-custom').onclick = function () { submitCategoryCustom(); };
+    }
+  }
+  // The category step's confirm — sets cashAmount/upiAmount directly from the
+  // selected chips (bypassing the hidden manual payMode/cashAmount/upiAmount
+  // steps entirely) and advances like a normal submitAnswer.
+  function submitCategorySelection(selectedKeys, categories) {
+    let cash = 0, upi = 0;
+    selectedKeys.forEach(function (k) {
+      const c = categories.find(function (x) { return x.key === k; });
+      if (!c) return;
+      if (k === 'cash') cash = c.amount; else if (k === 'upi') upi = c.amount;
+    });
+    const step = flowState.def.steps[flowState.idx];
+    flowState.answers[step.key] = 'selected';
+    flowState.answers.payMode = (cash > 0 && upi > 0) ? 'both' : (upi > 0 ? 'upi' : 'cash');
+    flowState.answers.cashAmount = cash;
+    flowState.answers.upiAmount = upi;
+    flowState.idx++; skipHidden();
+    if (flowState.idx >= flowState.def.steps.length) finishFlow(); else renderEntry();
+  }
+  // "✏️ অন্য পরিমাণ" — escapes to the manual mode→cash→upi steps (their
+  // showIf checks this exact key/value) for a partial or unusual handover.
+  function submitCategoryCustom() {
+    const step = flowState.def.steps[flowState.idx];
+    flowState.answers[step.key] = 'custom';
+    flowState.idx++; skipHidden();
+    if (flowState.idx >= flowState.def.steps.length) finishFlow(); else renderEntry();
   }
 
   function renderAfter(opts) {
@@ -701,17 +765,34 @@
       ? { key: 'to', qKey: 'q_handover_to', kind: 'choice',
           options: opts.map(function (c) { return { v: c.username, label: c.name }; }) }
       : { key: 'to', qKey: 'q_handover_to', kind: 'text' };
-    const moneyStepsQuick = [
-      { key: 'payMode', qKey: 'q_mode', kind: 'choice', options: modeOptions(false) },
-      { key: 'cashAmount', qKey: 'q_cash_amount', kind: 'amount', showIf: needCash,
-        quick: avail.cash > 0 ? avail.cash : null },
-      { key: 'upiAmount', qKey: 'q_upi_amount', kind: 'amount', showIf: needUpi,
-        quick: avail.upi > 0 ? avail.upi : null },
-    ];
+    // Categories the collector/cashier actually has — tap to select (one or
+    // both), see the running total, confirm. No typing for the common "hand
+    // over what I have" case. "✏️ অন্য পরিমাণ" escapes to manual mode→cash→
+    // UPI entry (its steps only appear when that escape hatch was used).
+    const categories = [];
+    if (avail.cash > 0) categories.push({ key: 'cash', labelKey: 'mode_cash', amount: avail.cash });
+    if (avail.upi > 0) categories.push({ key: 'upi', labelKey: 'mode_upi', amount: avail.upi });
+    const isCustom = function (a) { return a.moneycat === 'custom'; };
+    const moneySteps_ = categories.length
+      ? [
+          { key: 'moneycat', qKey: 'q_handover_amount', kind: 'category', categories: categories },
+          { key: 'payMode', qKey: 'q_mode', kind: 'choice', options: modeOptions(false), showIf: isCustom },
+          { key: 'cashAmount', qKey: 'q_cash_amount', kind: 'amount',
+            showIf: function (a) { return isCustom(a) && needCash(a); } },
+          { key: 'upiAmount', qKey: 'q_upi_amount', kind: 'amount',
+            showIf: function (a) { return isCustom(a) && needUpi(a); } },
+        ]
+      // nothing available (e.g. brand-new collector) — no point offering a
+      // category screen with nothing to pick, straight to manual entry.
+      : [
+          { key: 'payMode', qKey: 'q_mode', kind: 'choice', options: modeOptions(false) },
+          { key: 'cashAmount', qKey: 'q_cash_amount', kind: 'amount', showIf: needCash },
+          { key: 'upiAmount', qKey: 'q_upi_amount', kind: 'amount', showIf: needUpi },
+        ];
     return {
       title: t('handover_title') + (avail.cash || avail.upi
         ? ' — ' + t('you_have') + ': 💵' + fmtMoney(avail.cash) + ' · 📱' + fmtMoney(avail.upi) : ''),
-      steps: [toStep].concat(moneyStepsQuick, [
+      steps: [toStep].concat(moneySteps_, [
         { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
       ]),
       save: function (a) {
