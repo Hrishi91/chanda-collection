@@ -46,9 +46,20 @@ One-time, ~10 minutes. After this, all 10 phones sync into one Sheet.
 
 ## Redeploying after script changes
 
-Edit code → **Deploy → Manage deployments → ✏️ → Version: New** →
-Deploy. The URL stays the same (do NOT create a second "New
-deployment", that mints a different URL).
+⚠️ **On this Google account, "Manage deployments → New version" does NOT
+actually repoint the URL to the new code** (verified repeatedly on
+2026-07-24/25 — the old URL kept serving pre-change code every time).
+
+So the working procedure is the opposite of the usual advice:
+
+1. Paste the new `apps-script/Code.gs` → save.
+2. **Deploy → New deployment** (Web app, execute as you, access: anyone).
+3. Copy the NEW `/exec` URL and send it for baking into `js/config.js`
+   (the app fetches config network-first, so devices pick it up on next
+   open).
+4. Run `setup()` once in the editor if the change added sheets/columns.
+5. Old deployments pile up — archive them occasionally
+   (Manage deployments → archive), they're harmless but clutter.
 
 ## Every year
 

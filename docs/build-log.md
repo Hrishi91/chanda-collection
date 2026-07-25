@@ -1962,3 +1962,17 @@ because `notifData_` and `pendingHandovers` read raw rows; both now pass
 through `activeData_` first. Money math was never affected. Server-only —
 rides the already-pending Code.gs redeploy (breakdown column), so no extra
 deployment step for Hrishi. 125 tests pass; no client change, no SW bump.
+
+## Docs housekeeping: setup-google fix (critical), README, context catch-up
+
+- **setup-google.md's redeploy section said the OPPOSITE of reality** for
+  this account ("New version, URL stays same, don't create New deployment")
+  — exactly the trap that cost several redeploy cycles on 2026-07-24/25.
+  Rewritten with the verified procedure: paste → New deployment → new URL →
+  config.js rebake → setup() → archive old deployments occasionally. Caught
+  just in time — the breakdown-column redeploy is still pending.
+- README.md added (repo had none): live link + repo map + discipline.
+- PROJECT_CONTEXT.md: decisions table gains instant-save/undo-as-void,
+  receipt-as-finish-line, and source-category handover with breakdown;
+  sheet list mentions Config + handovers.breakdown; current-state points to
+  final-audit.md. Stale-term sweep across all guides came back clean.

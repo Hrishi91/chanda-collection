@@ -1,6 +1,6 @@
 # PROJECT_CONTEXT — Chanda Collection
 
-*Last updated: 2026-07-25*
+*Last updated: 2026-07-25 (post final audit, v3.77.0)*
 
 ## What
 
@@ -40,6 +40,9 @@ the final hisab. Data survives any phone/app deletion because the Sheet
 | **One account = one active device** (2026-07-24) | The server already held a single token per user; the gap was client-side (offline-first meant a kicked device kept working on its stale session). A second-device login now bounces the first to the login screen within ≤60s — prevents two people quietly sharing a login. Admin can release a stuck session as the escape hatch |
 | **Role-based entry permissions (`Users.entries`)** | "Make it simple, don't overwhelm" — Hrishi wanted a collector to see only the entry tiles they're meant to use, not a wall of options. Empty = all (nobody is accidentally locked out); admin sets it per user, enforced client-side (UI) AND server-side (push gating, 2026-07-25) so a locked-out entry kind can't be pushed even by a tampered client |
 | **Receipts: ready layouts, not raw HTML; serials never reused, never re-numbered on Go Live within a year** | Hrishi's spec: two share paths (WhatsApp image / SMS text), branded but simple. Serial is a per-year atomic counter (`nextReceiptNo_`, under the same push lock) so 10 concurrent phones can never collide or duplicate a number |
+| **Instant save + Undo, no confirm screen; Undo-of-a-synced-row = void** | Speed: the chat transcript already shows every answer, so a review screen was one tap of pure friction. The 5s Undo deletes only rows that never left the device; anything synced (or mid-push) gets an audit-preserving void (reason 'undo') instead — a local delete of a server-known row would silently resurrect on the next pull |
+| **The receipt IS the entry's finish line** | A payment/new-donor/bus save lands directly on the receipt screen (donor expects it on the spot), with context-aware continue buttons (➕ same-type again with sticky area — this replaced bulk mode — or 🔍 back to the same search for payments) |
+| **Handover by SOURCE category, cash/UPI as subtypes, exact `breakdown` on the row** | Collectors hand over "the bus money", not an abstract number: chips show each category's real amount, no typing. The breakdown JSON keeps BOTH sides' per-category books exact forever — the receiving cashier sees the money under the original categories (cashier→cashier stays category-aware) |
 | **Report PDF via `window.print()`, no PDF library** | Zero dependencies, works fully offline, and "Save as PDF" is a native option in every phone's print dialog — cheaper and more reliable than shipping a PDF-generation library for an occasional committee handout |
 
 ## Architecture
@@ -63,9 +66,11 @@ get only rows whose `receivedAt` is newer. Every screen renders from
 by id), so a just-saved entry is visible before it syncs. Refresh happens on
 login, focus, after each push, and every 60s.
 
-Sheets: Parties, Payments, DailyCollections, Expenses, Handovers, Voids,
-Corrections, plus Users, ExpenseSubjects, Lists (bilingual master data) and
-Audit (append-only activity log). `setup()` migrates schemas by appending any
+Sheets: Parties, Payments, DailyCollections, Expenses, Handovers (now
+carrying a `breakdown` JSON of source categories), Voids, Corrections, plus
+Users, ExpenseSubjects, Lists (bilingual master data), Config (receipt
+design + serial counters + live_mode/data_epoch) and Audit (append-only
+activity log). `setup()` migrates schemas by appending any
 missing column to the header, so new columns must always be added at the END of
 the column arrays.
 
@@ -101,4 +106,5 @@ Bengali and an English label. Collectors are assigned areas via `Users.areas`.
 The app is fully built and deployed, but **`live_mode` is still off** — every
 entry made so far, on any device, is training data and will be wiped the
 moment Hrishi runs `🚀 Go Live` (admin panel). See `docs/pending.md` →
-"Next decision — Go Live" for the pre-flight checklist.
+"Next decision — Go Live" and **`docs/final-audit.md`** (two full audit
+passes, 2026-07-25 — all findings fixed) for the pre-flight checklist.
