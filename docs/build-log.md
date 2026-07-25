@@ -2165,3 +2165,11 @@ spreadsheet already lives — not a separate `ChandaKhata-Backups`.
 
 125 tests pass. sw → chanda-v3.78.1. ⚠️ Server-side → one more Code.gs
 redeploy (New deployment → URL → rebake) and run `setup()` after it.
+
+## config.js — rebaked for the ganesh_pooja_daulatpur backup deployment (AKfycbys…)
+
+Probed: `doGet` → `{ok, service}`; `listBackups` → **bad-token** (not
+"unknown action"), which proves the v3.78.1 recovery code is deployed —
+the action exists and reached its auth gate. Hrishi's previous admin token
+is dead (he re-logged in), so the backup-folder verification needs a fresh
+token from him after he runs setup() + taps 💾.
