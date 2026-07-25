@@ -259,13 +259,20 @@
       }
     });
     (data.expenses || []).filter(mine).forEach(function (e) {
-      const amt = Number(e.amount) || 0;
-      // a collection expense says which round it came out of; general
-      // expenses (cashier) drain the pool in the fixed order. Cash only —
-      // nobody spends UPI-in-personal-account on pandal bamboo mid-round.
-      if (e.source === 'collection' && AVAIL_CATS.indexOf(e.collectionType) >= 0 && cats[e.collectionType]) {
-        cats[e.collectionType].cash -= amt;
-      } else drain(cats, amt, 'cash');
+      // Spending is split by money type just like collecting: a bill paid by
+      // UPI must come off UPI, not cash. Legacy rows (no split fields) keep
+      // the old all-cash assumption so existing books don't shift.
+      const s = splitOf(e);
+      // `srcCat` says which pot it came out of (asked at entry time); a
+      // collection expense implies its own round; otherwise fall back to the
+      // fixed-order drain.
+      const target = (e.srcCat && AVAIL_CATS.indexOf(e.srcCat) >= 0) ? e.srcCat
+        : ((e.source === 'collection' && AVAIL_CATS.indexOf(e.collectionType) >= 0) ? e.collectionType : null);
+      if (target && cats[target]) {
+        cats[target].cash -= s.cash; cats[target].upi -= s.upi;
+      } else {
+        drain(cats, s.cash, 'cash'); drain(cats, s.upi, 'upi');
+      }
     });
     let cash = 0, upi = 0;
     Object.keys(cats).forEach(function (k) { cash += cats[k].cash; upi += cats[k].upi; });
@@ -391,10 +398,16 @@
     }
     if (id === 'inhand') return { rows: inHandRows(d) };
     if (id === 'collectors') {
-      const tot = {}, nameBy = {};
-      money.forEach(function (r) { const k = ck(r); if (r.collector) nameBy[k] = r.collector; tot[k] = (tot[k] || 0) + (Number(r.amount) || 0); });
-      const rows = Object.keys(tot).map(function (k) { return { collector: nameBy[k] || k, total: tot[k] }; })
-        .sort(function (a, b) { return b.total - a.total; });
+      const tot = {}, nameBy = {}, cashBy = {}, upiBy = {};
+      money.forEach(function (r) {
+        const k = ck(r); if (r.collector) nameBy[k] = r.collector;
+        tot[k] = (tot[k] || 0) + (Number(r.amount) || 0);
+        const sp = splitOf(r);
+        cashBy[k] = (cashBy[k] || 0) + sp.cash; upiBy[k] = (upiBy[k] || 0) + sp.upi;
+      });
+      const rows = Object.keys(tot).map(function (k) {
+        return { collector: nameBy[k] || k, total: tot[k], cash: cashBy[k] || 0, upi: upiBy[k] || 0 };
+      }).sort(function (a, b) { return b.total - a.total; });
       return { rows: rows };
     }
     if (id === 'areas') {
@@ -412,18 +425,24 @@
     }
     if (id === 'expenses') {
       const rows = (d.expenses || []).map(function (e) {
+        const sp = splitOf(e);
         return { date: e.date, subject: e.subject || '—', desc: e.desc,
-                 amount: Number(e.amount) || 0, spentBy: e.spentBy, source: e.source };
+                 amount: Number(e.amount) || 0, cash: sp.cash, upi: sp.upi,
+                 srcCat: e.srcCat || (e.source === 'collection' ? e.collectionType : '') || '',
+                 spentBy: e.spentBy, source: e.source };
       }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
       const subAgg = {};
       rows.forEach(function (r) {
         const s = r.subject || '—';
-        if (!subAgg[s]) subAgg[s] = { subject: s, total: 0, count: 0 };
+        if (!subAgg[s]) subAgg[s] = { subject: s, total: 0, count: 0, cash: 0, upi: 0 };
         subAgg[s].total += r.amount; subAgg[s].count += 1;
+        subAgg[s].cash += r.cash; subAgg[s].upi += r.upi;
       });
       const bySubject = Object.keys(subAgg).map(function (k) { return subAgg[k]; })
         .sort(function (a, b) { return b.total - a.total; });
-      return { rows: rows, bySubject: bySubject, total: sum(rows, function (r) { return r.amount; }) };
+      return { rows: rows, bySubject: bySubject, total: sum(rows, function (r) { return r.amount; }),
+               totalCash: sum(rows, function (r) { return r.cash; }),
+               totalUpi: sum(rows, function (r) { return r.upi; }) };
     }
     if (id === 'daily') {
       const agg = {};

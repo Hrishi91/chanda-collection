@@ -227,6 +227,33 @@ eq(Object.keys(bcP.byCat).reduce(function (s, k) { return s + bcP.byCat[k].cash 
    bcP.inHand, 'byCat: sums to in-hand');
 eq(bcP.byCat.road.cash, 0, 'byCat: road drained by its own collection expense');
 
+// SPEND side: an expense paid by UPI must come off UPI, and off the pot it
+// was spent from — legacy rows (no split) keep the old all-cash assumption
+const spendData = {
+  parties: [{ id: 's1', type: 'shop' }], voids: [], payments: [], daily: [],
+  handovers: [{ fromId: 'X', toId: 'C', amount: 5200, cashAmount: 200, upiAmount: 5000,
+                status: 'confirmed', breakdown: '{"shop":{"cash":200,"upi":5000}}' }],
+  expenses: [{ collectorId: 'C', amount: 3000, cashAmount: 0, upiAmount: 3000,
+               subject: 'Pandal', source: 'general', srcCat: 'shop' }],
+};
+const spendA = myAvailable(spendData, 'C');
+eq(spendA.cash, 200, 'spend: UPI bill does not touch cash');
+eq(spendA.upi, 2000, 'spend: UPI bill comes off UPI');
+eq(spendA.byCat.shop, { cash: 200, upi: 2000 }, 'spend: comes off the named pot');
+const legacySpend = {
+  parties: [], voids: [], payments: [{ collectorId: 'L', amount: 500, cashAmount: 500, upiAmount: 0 }],
+  daily: [], handovers: [], expenses: [{ collectorId: 'L', amount: 100 }],  // legacy: no split
+};
+eq(myAvailable(legacySpend, 'L').cash, 400, 'spend: legacy expense still treated as cash');
+// a collection expense is charged to its own round without being asked
+const collSpend = {
+  parties: [], voids: [], payments: [], handovers: [],
+  daily: [{ collectorId: 'M', type: 'road', amount: 300, cashAmount: 300, upiAmount: 0 }],
+  expenses: [{ collectorId: 'M', amount: 50, cashAmount: 50, upiAmount: 0,
+               source: 'collection', collectionType: 'road', srcCat: 'road' }],
+};
+eq(myAvailable(collSpend, 'M').byCat.road, { cash: 250, upi: 0 }, 'spend: collection expense hits its own round');
+
 // PARTIAL handover with an exact per-category / per-money-type breakdown:
 // both sides' books must stay exact, and the chain must survive cashier→cashier
 const partialChain = {

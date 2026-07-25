@@ -2329,3 +2329,48 @@ saved amount 450 / cash 450 / upi 0 with breakdown
 
 sw → chanda-v3.80.1. Client-only. (The one pending server line from v3.80.0 —
 `notifData_` sending `breakdown` — still awaits the next Code.gs redeploy.)
+
+## v3.81.0 — The spend side made exact too (E1–E5 from the deep analysis)
+
+Hrishi asked whether the calculations, DB changes, cashier-level changes and
+interdependencies were really all done — "I am making this for getting the
+perfect report in future development". The audit found the transfer side was
+exact but the SPEND side was not:
+
+- **E1 (the real defect): expenses had no cash/UPI split.** The schema carried
+  only `amount`, and `myAvailable` assumed every expense was cash. A cashier
+  paying a ₹3,000 vendor bill **by UPI** produced `cash −2,800 / upi 5,000`
+  instead of `cash 200 / upi 2,000` — reconcile still balanced (totals were
+  fine), so nothing screamed; only the split silently lied, and the
+  per-category books went negative with it.
+- **E2: no record of which pot an expense came from** — general expenses
+  drained categories in a fixed order. The same guesswork the handover sheet
+  had just eliminated.
+
+Fixed together: `expenses` gains `cashAmount`, `upiAmount`, `srcCat`
+(appended at END, migration-safe). The expense flow now asks **নগদ/UPI/দুটোই**
+like every other money entry, then — only when more than one pot holds money —
+**"কোন খাতের টাকা থেকে খরচ হলো?"** with each pot's real figure; a single pot
+is assigned without asking, and a collection expense is charged to its own
+round automatically. `myAvailable` subtracts by money type and hits the named
+pot. Legacy rows (no split fields) keep the old all-cash treatment via
+`isCashOnly`, so existing books don't shift.
+
+Also (E3–E5): the **expenses report** now shows 💵/📱 on the header, per
+subject and per row, plus which pot each came from; the **collectors report**
+shows each person's cash/UPI split; **"my entries"** shows a handover's
+category breakdown; and the **audit log** records cash/UPI + breakdown on
+`handover:confirm`.
+
+Verified live: an expense paid by UPI left cash at ₹200 and took UPI 5,000 →
+2,000; with two pots funded the flow asked which one and listed
+"দোকান ₹2,200 / বাস কালেকশন ₹900"; charging ₹100 to bus moved it 900 → 800;
+the expenses report reads "মোট খরচ ₹3,100 · 💵₹100 · 📱₹3,000" with the same
+split per subject. No console errors. 146 tests pass (5 new: UPI bill off UPI,
+named pot, legacy all-cash fallback, collection expense to its own round).
+
+sw → chanda-v3.81.0. ⚠️ **Code.gs redeploy + `setup()`** needed for the three
+new expense columns (and it carries the two earlier pending server lines:
+`notifData_` breakdown, audit-log detail). Until then expenses still sync —
+the new fields are simply dropped by the old schema, and the client falls
+back to the legacy all-cash reading for those rows.

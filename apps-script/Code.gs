@@ -19,7 +19,10 @@ var SHEETS = {
   parties:  ['id', 'year', 'type', 'name', 'owner', 'side', 'phone', 'pledged', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'location', 'collectorRole'],
   payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo'],
   daily:    ['id', 'year', 'type', 'busName', 'busNumber', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo'],
-  expenses: ['id', 'year', 'subject', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole'],
+  expenses: ['id', 'year', 'subject', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole',
+             // how it was paid + which pot it came out of, so the cash/UPI and
+             // per-category books stay exact on the SPEND side too (appended)
+             'cashAmount', 'upiAmount', 'srcCat'],
   handovers: ['id', 'year', 'from', 'to', 'amount', 'cashAmount', 'upiAmount', 'date', 'note',
               'status', 'confirmedBy', 'confirmedAt', 'collector', 'createdAt', 'receivedAt', 'fromId', 'toId', 'collectorId', 'collectorRole',
               // JSON {cat:{cash,upi}} of which source categories the money
@@ -708,7 +711,10 @@ var ACTIONS = {
         // bump receivedAt so the delta pull carries this in-place status change
         sh.getRange(r, cols.indexOf('receivedAt') + 1).setValue(new Date().toISOString());
         var hv = sh.getRange(r, 1, 1, cols.length).getValues()[0];
-        logAudit_(u.row, 'handover:confirm', '₹' + hv[cols.indexOf('amount')] + ' from ' + hv[cols.indexOf('from')]);
+        var bdCol = cols.indexOf('breakdown');
+        logAudit_(u.row, 'handover:confirm', '₹' + hv[cols.indexOf('amount')] + ' from ' + hv[cols.indexOf('from')] +
+          ' (cash ' + hv[cols.indexOf('cashAmount')] + ' / upi ' + hv[cols.indexOf('upiAmount')] + ')' +
+          (bdCol >= 0 && hv[bdCol] ? ' ' + hv[bdCol] : ''));
         return { ok: true };
       }
     }

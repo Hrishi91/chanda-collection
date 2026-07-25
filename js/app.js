@@ -932,27 +932,48 @@
     };
   }
   const OTHER_SUBJECT = '__other__';
+  // Which pots this person can spend from — the same source categories the
+  // handover screen shows, each with its real figure. Empty pots aren't
+  // offered; a lone pot needs no question (it's implied).
+  function srcCatOptions(available) {
+    const byCat = (available && available.byCat) || {};
+    return Object.keys(CAT_LABEL_KEYS).filter(function (k) {
+      return byCat[k] && (byCat[k].cash + byCat[k].upi) > 0;
+    }).map(function (k) {
+      return { v: k, label: t(CAT_LABEL_KEYS[k]) + ' ' + fmtMoney(byCat[k].cash + byCat[k].upi) };
+    });
+  }
   // Puja expense (cashier/admin): pick an admin-defined subject; multiple
   // cashiers may part-pay the same subject. "Other" forces a comment.
-  function expenseFlow(subjects) {
+  // `available` (Aggregate.myAvailable) lets the spender say WHICH pot the
+  // money came out of, so the per-category books stay exact on the spend side
+  // too — the same precision the handover sheet gives on the transfer side.
+  function expenseFlow(subjects, available) {
     const opts = (subjects || []).map(function (s) { return { v: s.name, label: s.name }; });
     opts.push({ v: OTHER_SUBJECT, labelKey: 'subject_other' });
+    const potOptions = srcCatOptions(available);
     return {
       title: t('expense'),
       steps: [
         { key: 'subject', qKey: 'q_subject', kind: 'choice', options: opts },
-        { key: 'amount', qKey: 'q_amount', kind: 'amount' },
+      ].concat(moneySteps(false), [
+        { key: 'srcCat', qKey: 'q_src_cat', kind: 'choice', options: potOptions,
+          showIf: function () { return potOptions.length > 1; } },
+      ]).concat([
         { key: 'comment', qKey: 'q_comment_req', kind: 'text', required: true,
           showIf: function (a) { return a.subject === OTHER_SUBJECT; } },
         { key: 'comment', qKey: 'q_note', kind: 'text', optional: true,
           showIf: function (a) { return a.subject !== OTHER_SUBJECT; } },
-      ],
+      ]),
       save: function (a) {
-        if (!(Number(a.amount) > 0)) return Promise.reject(new Error('zero'));
+        const m = moneyOf(a);
+        if (m.total <= 0) return Promise.reject(new Error('zero'));
         const isOther = a.subject === OTHER_SUBJECT;
         const row = DB.newRow({
           subject: isOther ? 'Other' : a.subject, desc: a.comment || '',
-          amount: a.amount, spentBy: Settings.get('collectorName'),
+          amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
+          srcCat: a.srcCat || (potOptions.length === 1 ? potOptions[0].v : ''),
+          spentBy: Settings.get('collectorName'),
           source: 'general', collectionType: '', date: todayISO(),
         });
         return DB.put('expenses', row).then(function () {
@@ -965,7 +986,11 @@
     };
   }
   function startExpense() {
-    const go = function (subjects) { startFlow(expenseFlow(subjects)); };
+    const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
+    const availP = viewData().then(function (data) { return Aggregate.myAvailable(data, ident); });
+    const go = function (subjects) {
+      availP.then(function (avail) { startFlow(expenseFlow(subjects, avail)); });
+    };
     if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {
       Auth.call('listSubjects', { token: Auth.token() })
         .then(function (r) { go(r.subjects || []); }).catch(function () { go(null); });
@@ -977,12 +1002,16 @@
       title: t('coll_expense'),
       steps: [
         { key: 'desc', qKey: 'q_desc', kind: 'text' },
-        { key: 'amount', qKey: 'q_amount', kind: 'amount' },
-      ],
+      ].concat(moneySteps(false)),
       save: function (a) {
-        if (!(Number(a.amount) > 0)) return Promise.reject(new Error('zero'));
+        const m = moneyOf(a);
+        if (m.total <= 0) return Promise.reject(new Error('zero'));
         const row = DB.newRow({
-          subject: '', desc: a.desc, amount: a.amount, spentBy: Settings.get('collectorName'),
+          subject: '', desc: a.desc, amount: m.total,
+          cashAmount: m.cash, upiAmount: m.upi,
+          // spent out of the round it happened on — no need to ask
+          srcCat: collectionType || '',
+          spentBy: Settings.get('collectorName'),
           source: 'collection', collectionType: collectionType || '', date: todayISO(),
         });
         return DB.put('expenses', row).then(function () {
@@ -1614,7 +1643,8 @@
           (canVoid(r) ? '<button class="chip void-btn" data-vd="' + it.store + '|' + esc(r.id) + '">' + esc(t('void_btn')) + '</button>'
                       : '<button class="chip void-btn" data-fl="' + it.store + '|' + esc(r.id) + '">' + esc(t('flag_btn')) + '</button>'));
         return '<div class="row' + (isVoid ? ' voided' : '') + '" style="cursor:default"><div style="flex:1 1 60%"><b>' +
-          esc(entrySummary(it.store, r)) + '</b><div class="row-sub">' + esc(fmtDate(r.date || r.createdAt)) + who + tag + '</div></div>' +
+          esc(entrySummary(it.store, r)) + '</b><div class="row-sub">' + esc(fmtDate(r.date || r.createdAt)) + who + tag + '</div>' +
+          (it.store === 'handovers' ? breakdownLines(r) : '') + '</div>' +
           action + '</div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>';
       const tabs = '<div class="chips tabs" style="margin-bottom:10px">' +
@@ -1783,25 +1813,30 @@
     const rows = d.rows || [];
     return '<div class="card"><div class="card-title">' + esc(t('report_collectors')) + '</div>' +
       (rows.length ? rows.map(function (r) {
-        return '<div class="row" style="cursor:default"><div><b>' + esc(r.collector) + '</b></div><b>' +
+        return '<div class="row" style="cursor:default"><div><b>' + esc(r.collector) + '</b>' +
+          '<div class="row-sub">💵' + fmtMoney(r.cash || 0) + ' · 📱' + fmtMoney(r.upi || 0) + '</div></div><b>' +
           fmtMoney(r.total) + '</b></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
   }
   function reportExpensesHTML(d) {
     const rows = d.rows || [], bySubject = d.bySubject || [];
     return '<div class="card"><div class="card-title">' + esc(t('report_expenses')) +
-      ' — ' + esc(t('total_expense')) + ': ' + fmtMoney(d.total) + '</div>' +
+      ' — ' + esc(t('total_expense')) + ': ' + fmtMoney(d.total) +
+      '<div class="row-sub">💵' + fmtMoney(d.totalCash || 0) + ' · 📱' + fmtMoney(d.totalUpi || 0) + '</div></div>' +
       (bySubject.length ? '<div class="row-sub" style="margin-bottom:6px">' + esc(t('by_subject')) + '</div>' +
         bySubject.map(function (s) {
           return '<div class="row" style="cursor:default"><div><b>' + esc(s.subject) + '</b>' +
-            '<div class="row-sub">' + s.count + ' ' + esc(t('entries')) + '</div></div><b>' + fmtMoney(s.total) + '</b></div>';
+            '<div class="row-sub">' + s.count + ' ' + esc(t('entries')) +
+            ' • 💵' + fmtMoney(s.cash || 0) + ' · 📱' + fmtMoney(s.upi || 0) + '</div></div><b>' + fmtMoney(s.total) + '</b></div>';
         }).join('') : '') + '</div>' +
       '<div class="card"><div class="card-title">' + esc(t('entries')) + '</div>' +
       (rows.length ? rows.map(function (r) {
         return '<div class="row" style="cursor:default"><div><b>' + esc(r.subject || '—') + '</b>' +
           (r.desc ? ' <span class="row-sub">— ' + esc(r.desc) + '</span>' : '') +
           '<div class="row-sub">' + esc(fmtDate(r.date)) + (r.spentBy ? ' • ' + esc(r.spentBy) : '') +
-          (r.source === 'collection' ? ' • ' + esc(t('coll_expense')) : '') + '</div></div>' +
+          (r.source === 'collection' ? ' • ' + esc(t('coll_expense')) : '') +
+          ' • 💵' + fmtMoney(r.cash) + ' · 📱' + fmtMoney(r.upi) +
+          (r.srcCat && CAT_LABEL_KEYS[r.srcCat] ? ' • ' + esc(t(CAT_LABEL_KEYS[r.srcCat])) : '') + '</div></div>' +
           '<b>' + fmtMoney(r.amount) + '</b></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
   }

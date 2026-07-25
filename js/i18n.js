@@ -303,6 +303,7 @@ const I18N = {
   received_col: { bn: 'জমা নিয়েছে', en: 'Received' },
   spent_col: { bn: 'খরচ', en: 'Spent' },
   // --- expense subjects (Phase 3) ---
+  q_src_cat: { bn: 'কোন খাতের টাকা থেকে খরচ হলো?', en: 'Which pot did this come out of?' },
   q_subject: { bn: 'কীসের খরচ? (বিষয় বাছো)', en: 'Which expense? (pick subject)' },
   subject_other: { bn: '➕ অন্য কিছু', en: '➕ Other' },
   q_comment_req: { bn: 'কীসের খরচ — লিখতেই হবে', en: 'Describe the expense — required' },
