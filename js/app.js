@@ -542,8 +542,11 @@
       // capped at the available figure so the books can never go negative, and
       // a category with no money of that type shows "—" instead of an input.
       const groups = [
-        { key: 'entry', labelKey: 'grp_entry', cats: s.categories.filter(function (c) { return ['shop', 'person', 'member', 'payment'].indexOf(c.key) >= 0; }) },
-        { key: 'daily', labelKey: 'grp_daily', cats: s.categories.filter(function (c) { return ['road', 'toto', 'bus'].indexOf(c.key) >= 0; }) },
+        // bus sits with the new-entry types, exactly as on the home screen
+        // (it names a donor and issues a receipt); road/toto are the
+        // anonymous street rounds.
+        { key: 'entry', labelKey: 'grp_entry', cats: s.categories.filter(function (c) { return ['shop', 'person', 'member', 'payment', 'bus'].indexOf(c.key) >= 0; }) },
+        { key: 'daily', labelKey: 'grp_daily', cats: s.categories.filter(function (c) { return ['road', 'toto'].indexOf(c.key) >= 0; }) },
         { key: 'other', labelKey: 'grp_received', cats: s.categories.filter(function (c) { return c.key === 'received'; }) },
       ].filter(function (g) { return g.cats.length; });
       // cash and UPI are SEPARATE tap-to-select chips carrying the real
@@ -821,8 +824,8 @@
     // দুটোই (each chip shows the selected categories' real amount) → save.
     // "✏️ অন্য পরিমাণ" escapes to manual typed entry for partial handovers.
     const CAT_LABELS = { shop: 'new_shop', person: 'new_person', member: 'new_member',
-                         payment: 'cat_payment', road: 'daily_road', toto: 'daily_toto',
-                         bus: 'daily_bus', received: 'cat_received' };
+                         payment: 'cat_payment', bus: 'daily_bus',
+                         road: 'daily_road', toto: 'daily_toto', received: 'cat_received' };
     const byCat = avail.byCat || {};
     const categories = Object.keys(CAT_LABELS).filter(function (k) {
       return byCat[k] && (byCat[k].cash + byCat[k].upi) > 0;
@@ -1765,9 +1768,11 @@
   // "কোন খাতে কত আছে" — the same source-category × cash/UPI table the
   // handover screen uses, so a collector can answer "how much bus money do I
   // still hold?" from the report too, not only mid-handover.
+  // order = how every report lists the pots; bus grouped with the new-entry
+  // types to match the home screen and the handover sheet
   const CAT_LABEL_KEYS = { shop: 'new_shop', person: 'new_person', member: 'new_member',
-                           payment: 'cat_payment', road: 'daily_road', toto: 'daily_toto',
-                           bus: 'daily_bus', received: 'cat_received' };
+                           payment: 'cat_payment', bus: 'daily_bus',
+                           road: 'daily_road', toto: 'daily_toto', received: 'cat_received' };
   function byCatHTML(byCat) {
     if (!byCat) return '';
     const rows = Object.keys(CAT_LABEL_KEYS)

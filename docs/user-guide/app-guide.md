@@ -71,7 +71,7 @@ syncs immediately if online.
 ## 🤝 Handover & confirmation
 
 Tap **🤝 Hand over** → choose a cashier → then one screen lists every source
-(shop / person / member / road / toto / bus) with its **💵 cash and 📱 UPI as
+(📥 new entries: shop / person / member / bus · 🛣️ daily: road / toto) with its **💵 cash and 📱 UPI as
 separate selectable buttons** carrying the real figures, all selected to begin
 with. Tap off anything you are not handing over; the total updates live.
 Nothing is typed — the amounts are already computed from the ledger.

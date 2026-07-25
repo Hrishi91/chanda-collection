@@ -2374,3 +2374,32 @@ new expense columns (and it carries the two earlier pending server lines:
 `notifData_` breakdown, audit-log detail). Until then expenses still sync —
 the new fields are simply dropped by the old schema, and the client falls
 back to the legacy all-cash reading for those rows.
+
+## v3.81.1 — Fix: bus was grouped as "daily" in the sheet/reports, but as a
+## new entry on the home screen
+
+Hrishi caught a real inconsistency I introduced and never followed through:
+v3.74.1 moved the 🚌 bus tile into the home screen's **নতুন এন্ট্রি** section
+(bus names a donor and issues a receipt, unlike the anonymous road/toto
+rounds), but the handover sheet and the report tables still grouped `bus`
+under **দৈনিক কালেকশন**. Same money, two different parent categories
+depending on which screen you looked at — exactly the kind of drift that
+makes a "final report" untrustworthy.
+
+Aligned everywhere, one source of truth per grouping:
+- handover sheet groups: `entry` = shop/person/member/payment/**bus**,
+  `daily` = road/toto
+- `CAT_LABEL_KEYS` (drives every report table's order) reordered to
+  shop · person · member · payment · **bus** · road · toto · received
+- `CAT_LABELS` in the handover flow matched
+- `AVAIL_CATS` (legacy drain order) matched, so the fallback order can't
+  disagree with what the UI shows
+- labels sharpened: `grp_entry` → "📥 নতুন এন্ট্রি (চাঁদা / বাস)",
+  `grp_daily` → "🛣️ রোড / টোটো কালেকশন" (matching the home section's
+  "আজকের রোড/টোটো")
+
+Verified live side by side: home shows নতুন এন্ট্রি → দোকান | ব্যক্তি | সদস্য
+| বাস কালেকশন and আজকের রোড/টোটো → রোড | টোটো; the handover sheet shows
+📥 নতুন এন্ট্রি (চাঁদা / বাস) → দোকান | বাস কালেকশন and 🛣️ রোড / টোটো →
+রোড | টোটো; the report lists দোকান → বাস → রোড → টোটো. No console errors.
+146 tests pass. sw → chanda-v3.81.1. Client-only.

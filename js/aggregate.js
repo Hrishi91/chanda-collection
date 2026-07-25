@@ -187,7 +187,7 @@
   // 'received' = handovers received without a category breakdown.
   // 'payment' is the LEGACY bucket: rows whose donor can't be resolved (and
   // old handover breakdowns written before payments were split by donor type).
-  const AVAIL_CATS = ['shop', 'person', 'member', 'payment', 'road', 'toto', 'bus', 'received'];
+  const AVAIL_CATS = ['shop', 'person', 'member', 'payment', 'bus', 'road', 'toto', 'received'];
   function splitOf(r) {
     return isCashOnly(r)
       ? { cash: Number(r.amount) || 0, upi: 0 }
