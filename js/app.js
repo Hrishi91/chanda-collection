@@ -1211,7 +1211,14 @@
   function refreshFindParty() {
     return viewData().then(function (data) {              // local central snapshot — instant
       const paidBy = Aggregate.computeTotals(data).paidByParty;
-      findParties = data.parties.map(function (p) {
+      // "অন্য কারো দাতা" means exactly that — OTHER people's. One's own donors
+      // are already the 📒 ledger's job; listing them here too made the two
+      // screens the same list twice and buried the ones you actually came
+      // looking for.
+      const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
+      findParties = data.parties.filter(function (p) {
+        return (p.collectorId || p.collector) !== meId;
+      }).map(function (p) {
         return { id: p.id, name: p.name, type: p.type, side: p.side, location: p.location, owner: p.owner,
                  phone: p.phone, collector: p.collector, pledged: Number(p.pledged) || 0, paid: paidBy[p.id] || 0 };
       });
@@ -1233,7 +1240,7 @@
         '<div class="row-right">' + fmtMoney(p.paid) + '/' + fmtMoney(p.pledged) +
         (due > 0 ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
                  : '<span class="ok-chip">✅</span>') + '</div></div>';
-    }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>';
+    }).join('') : '<div class="empty">' + esc(t('fp_none')) + '</div>';
     el.querySelectorAll('[data-fp]').forEach(function (r) {
       r.onclick = function () {
         const p = findParties.find(function (x) { return x.id === r.dataset.fp; });

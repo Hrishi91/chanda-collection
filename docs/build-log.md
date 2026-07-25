@@ -2673,3 +2673,27 @@ the ledger bus tab.
 
 STILL OPEN in this batch: the handover report, edit-after-flag, admin-only backup
 import — and one question back to Hrishi about what "categories" means on জমা নাও.
+
+## v3.85.2 — "অন্য কারো দাতা" now really means other people's
+
+Hrishi: "there should not be users data, onno means others data".
+
+The screen is literally called *অন্য কারো দাতা — বাকি জমা নাও*, but it listed
+every donor in the book, one's own included. So it was the 📒 ledger's list a
+second time, with the donors you actually opened it for buried among your own.
+It now filters out rows whose collector is you.
+
+(That label is also what Hrishi meant by "onno karo data baki joma nao screen" in
+the previous message — one screen, not three. My question about adding category
+chips to the cashier's জমা নাও screen was a misreading and is withdrawn.)
+
+The hint and the empty state now say where one's own donors are, so the split
+between the two screens is stated rather than left to be discovered:
+  "এখানে শুধু অন্য collector-দের তোলা দাতা — নিজেরগুলো 📒 খাতায়।"
+
+Note for Hrishi, not changed: the 📒 ledger still shows EVERYONE's donors. With
+this screen now scoped to others, the natural pair would be ledger = mine,
+this = theirs. Left alone because he did not ask for it — worth a decision.
+
+VERIFIED: 251 passed, 0 failed; app loads clean. The screen itself needs a
+logged-in session — on the post-redeploy list.
