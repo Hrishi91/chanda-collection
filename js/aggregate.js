@@ -17,7 +17,10 @@
     const v = voidedIds(data);
     const keep = function (rows) { return (rows || []).filter(function (r) { return r && !v[r.id]; }); };
     return { parties: keep(data.parties), payments: keep(data.payments), daily: keep(data.daily),
-             expenses: keep(data.expenses), handovers: keep(data.handovers), voids: data.voids || [] };
+             expenses: keep(data.expenses), handovers: keep(data.handovers), voids: data.voids || [],
+             // pass corrections through (not voidable) — keeps this an exact
+             // mirror of Code.gs activeData_ (see regression A8 in final-audit)
+             corrections: data.corrections || [] };
   }
 
   // data: {parties:[], payments:[], daily:[], expenses:[], voids:[]}

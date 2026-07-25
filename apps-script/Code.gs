@@ -402,8 +402,16 @@ var ACTIONS = {
         }
         byStore[store].forEach(function (row) {
           row.receivedAt = new Date().toISOString();
-          row.collector = row.collector || user.row.name;
-          row.collectorId = row.collectorId || user.row.username; // stable identity
+          // Identity is stamped from the TOKEN, unconditionally — never taken
+          // from the payload. The old `row.x || user.x` form let a tampered
+          // client attribute its entry (and therefore the cash-in-hand
+          // liability) to another collector. The real client always sends its
+          // own identity, so normal use is unchanged. (Handover from/to are
+          // separate fields and stay as sent — a handover is BY definition
+          // about two other parties, and confirmHandover is the gate there.)
+          row.collector = user.row.name;
+          row.collectorId = user.row.username; // stable identity
+          row.collectorRole = user.row.role || 'collector';
           var isNew = !idRow[row.id];
           // one receipt serial, assigned once at first insert — every payment,
           // and daily BUS collections (they get a name+number receipt too).
@@ -938,7 +946,11 @@ function activeData_(d) {
   (d.voids || []).forEach(function (v) { if (v && v.targetId) voided[String(v.targetId)] = 1; });
   var keep = function (rows) { return (rows || []).filter(function (r) { return r && !voided[String(r.id)]; }); };
   return { parties: keep(d.parties), payments: keep(d.payments), daily: keep(d.daily),
-           expenses: keep(d.expenses), handovers: keep(d.handovers), voids: d.voids || [] };
+           expenses: keep(d.expenses), handovers: keep(d.handovers), voids: d.voids || [],
+           // corrections pass through untouched (they aren't voidable) — the
+           // A7 change routed notifData_ through here, and dropping this key
+           // silently killed correction-flag notifications (regression A8)
+           corrections: d.corrections || [] };
 }
 // Stable collector key: username (collectorId) when present, else name (legacy).
 function ck_(r) { return String((r && (r.collectorId || r.collector)) || '?'); }

@@ -2011,3 +2011,33 @@ them regardless). No admin operations performed, per the standing boundary.
 Token is Hrishi's to rotate (re-login) now that verification is done.
 The audit-* rows stay in the Sheet as voided history until Go Live wipes
 everything — nothing to hand-clean.
+
+## Two-user live verification — A8 + A9 found and fixed
+
+With a second session token (yamini05, plain collector) the cross-user
+paths were exercised against the live deployment for the first time. Full
+matrix in docs/final-audit.md; headline:
+
+- **A8 (MED, regression of my own A7 fix)**: `activeData_` never returned a
+  `corrections` key, so once A7 routed `notifData_` through it, pending
+  correction flags vanished from the cashier/admin notification feed.
+  Fixed in Code.gs and mirrored in aggregate.js. Only a two-user
+  flag→review test could have caught this.
+- **A9 (MED-HIGH, security)**: `push` took `collector`/`collectorId` from
+  the payload when present (`row.x || user.x`), so a tampered client could
+  attribute an entry — and its cash-in-hand liability — to another
+  collector, and forge `collectorRole` (which drives void permissions).
+  Now stamped from the token unconditionally. Surfaced because the audit
+  harness sent `collectorId:"x"` and the server kept it.
+
+Everything else green: B's admin/cashier action gates, push gating for a
+cashier-only expense, B→A handover with breakdown reaching A's feed,
+A confirming it, A approving B's flag, the category relay (₹3 handed as
+`road` landed in A's road bucket, not "received"), cross-collector payment
+attribution, non-colliding receipt serials, delta pull. All AUDIT TEST rows
+voided; hrishi91's in-hand returned to its exact pre-test value.
+
+⚠️ A8+A9 are server-side → **one more Code.gs redeploy** (New deployment →
+send the URL → rebake). Until then: correction flags don't notify (the
+review screen still works), and the identity-spoof needs a tampered client.
+125 tests pass; client mirror change is already live-safe.

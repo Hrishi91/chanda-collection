@@ -178,3 +178,52 @@ delays (observed 2026-07-25, GitHub-side) affect deploys, never runtime.
    receipt → WhatsApp.
 8. Distribute the link + collector guide; approve registrations from the
    admin panel; assign areas + entry permissions per collector.
+
+## Two-user live pass — 2026-07-25 (A=hrishi91/admin, B=yamini05/collector)
+
+Hrishi supplied a second session token so the cross-user paths could be
+exercised for real. Everything below ran against the live deployment;
+all writes were "AUDIT TEST"-labelled and voided afterwards (books verified
+back to baseline). Two NEW defects found — both fixed.
+
+### A8. MED — FIXED — A7's fix silently killed correction notifications
+**Where:** Code.gs `activeData_` (+ its client mirror `aggregate.js activeData`).
+**Cause:** `activeData_` never returned a `corrections` key. Harmless while
+only aggregation used it — but A7 routed `notifData_` through it, so
+`d.corrections` became undefined there and **pending correction flags stopped
+appearing in the cashier/admin notification feed**. Proven live: B flagged an
+entry, A's feed showed `corrections: 0` while the flag existed and
+`resolveCorrection` worked. A regression introduced by my own A7 fix and
+caught only because the two-user pass exercised the flag→review path.
+**FIXED:** both `activeData_` and the client mirror now pass `corrections`
+through (they aren't voidable).
+
+### A9. MED-HIGH (security) — FIXED — Client could attribute entries to another collector
+**Where:** Code.gs `push` — `row.collector = row.collector || user.row.name;`
+`row.collectorId = row.collectorId || user.row.username;`
+**Cause:** identity was taken from the PAYLOAD when present, and only fell
+back to the token. So a tampered client could stamp someone else's
+`collectorId` on an entry — moving the cash-in-hand liability onto an
+innocent collector — and could also forge `collectorRole`, which drives the
+void-permission rule. Found because my harness sent `collectorId:"x"` and
+the server preserved it verbatim (the real client always sends its own
+identity, so normal use never exposed it).
+**FIXED:** `collector`, `collectorId` and `collectorRole` are now stamped
+from the token unconditionally. Handover `from`/`to` stay as sent — those
+are legitimately about other people, and `confirmHandover` is the gate.
+
+### Verified green in the two-user pass
+| Path | Result |
+|---|---|
+| B's role/permission edges: auditLog, listUsers, dump → `not-admin`; pendingHandovers → `not-cashier` | ✓ |
+| B pushes a general expense (cashier-only) → server push-gate | ✓ rejected, `rejectedIds` returned |
+| B's road/handover/correction pushes (allowed kinds) | ✓ saved |
+| B→A handover with `breakdown` appears in A's notif feed + pending list | ✓ (from "Yamini mahato", ₹3) |
+| A confirms the handover | ✓ |
+| A approves B's correction flag → void created | ✓ |
+| Category relay: ₹3 handed as `road` lands in A's **road** bucket, not "received" | ✓ 1500 → 1503 |
+| Cross-collector payment: A pays into B-created party → party total right, cash attributed to the payer | ✓ |
+| Receipt serials keep incrementing without collision across users | ✓ 2026000010, 2026000013 |
+| B's delta pull (`since=cursor`) returns only the new rows, not the year | ✓ 6 rows |
+| Voided handover disappears from the pending list (A7) | ✓ |
+| Books after voiding every AUDIT row: hrishi91 in-hand identical to baseline | ✓ (total drift explained: two real ₹1000 payments Yamini entered from her phone meanwhile) |
