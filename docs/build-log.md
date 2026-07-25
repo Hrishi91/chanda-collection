@@ -1611,3 +1611,42 @@ Verified live: registering with phone `3456789012` (leading 3, previously
 rejected) now passes client validation and reaches the network call, no
 `err_phone_in` toast. 108 tests pass; app.js/i18n.js node --check clean.
 sw → chanda-v3.72.1.
+
+## v3.73.0 — Receipt is the entry's finish line, not a separate errand
+
+Hrishi: "after completion of all entry we not sending the receipt, why?".
+Real answer: receipt-sharing was never wired into the entry flow — it always
+lived one level down, as a 🧾 button on a specific payment row in party
+detail (or the everyone's-daily list for bus). True since the receipt
+feature was built; just more noticeable now that entry itself is instant
+(no confirm screen to "pause" on). Confirmed the intent + exact scope with
+Hrishi via two rounds of AskUserQuestion (his first answer was ambiguous
+between two readings — asked a direct 2-option follow-up rather than guess):
+auto-open the receipt screen immediately on save (not an extra button on an
+after-screen), for **all** receipt-worthy entries — new shop/person/member
+with a first payment, an installment on an existing party, and bus daily.
+
+- `finishFlow()` gained a second `after` shape: `{navigateTo, params}` calls
+  `navigate()` straight to that screen; the existing `{buttons}` shape (used
+  by road/toto's add-another/expense screen, and bulk-shop with no payment
+  yet) is unchanged.
+- `paymentFlow.save` (existing-party installment) always returns
+  `after:{navigateTo:'receipt', params:{partyId,payId}}` — a payment's whole
+  point is something to hand the donor, so this is unconditional. Dropped
+  the now-dead `returnTo:'list'`.
+- `newPartyFlow.save`: when a first payment was taken → same receipt
+  redirect (party.id + the new payment's id). When "⏳ পরে দেবে" (no payment
+  yet) → unchanged, still the bulk-mode "➕ আরেকটা দোকান" shortcut, since
+  there's nothing to receipt.
+- `dailyFlow.save`: only `type === 'bus'` redirects to a receipt (bus is the
+  only daily kind with a donor identity — name + number). Road/toto keep
+  their existing add-another/collection-expense/done screen untouched, as
+  Hrishi specified — no receipt concept for an anonymous street collection.
+- Verified live in the local harness: bus (শ্যামলী, WB73-1234, ₹200 cash),
+  new-shop-with-payment (₹500 pledged/paid, ₹0 due), and an existing-party
+  top-up installment (₹100, correct running total) all landed straight on
+  the receipt screen with the right donor line, amount, and totals; road
+  collection confirmed unchanged (still the add-another screen). No console
+  errors. 108 tests pass (no shared-logic change — this is flow wiring).
+- sw → chanda-v3.73.0. Client-only, static-files redeploy (no Code.gs
+  change).

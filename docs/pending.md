@@ -172,11 +172,18 @@ on his phone after the redeploy).
       already-synced rows are left alone with a pointer to "আমার এন্ট্রি"~~
 - [x] ~~Zero-amount / declined-duplicate failures rewind to the field that
       needs fixing instead of losing the whole entry~~
+- [x] ~~Phone validation: dropped the 6–9 leading-digit rule, any 10-digit
+      number now accepted~~ (2026-07-25, v3.72.1)
+- [x] ~~Receipt is the entry's finish line: saving a payment (existing party
+      or a new shop/person/member's first payment) or a bus daily jumps
+      straight to the receipt screen — no more hunting through party detail
+      for the 🧾 button. Road/toto unchanged (no donor identity to receipt)~~
+      (2026-07-25, v3.73.0)
 - Declined by Hrishi (asked first, not guessed): amount quick-tap presets,
   and softening the persistent training banner — both left as-is.
 - ⚠️ Static-files-only redeploy needed (GitHub Pages push, no Code.gs
-  change) — sw bumped to v3.72.0 so the new app.js/db.js/i18n.js/css reach
-  every device on next open.
+  change) — sw is at v3.73.0 now, covers all of the above; every device
+  picks it up on next open.
 
 ## Next decision — Go Live
 

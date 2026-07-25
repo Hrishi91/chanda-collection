@@ -439,7 +439,9 @@
       const r = result || {};
       flowState = null;
       updateBadge(); autoSync();
-      if (r.after) renderAfter(r.after); else navigate(def.returnTo || 'home');
+      if (r.after && r.after.navigateTo) navigate(r.after.navigateTo, r.after.params);
+      else if (r.after) renderAfter(r.after);
+      else navigate(def.returnTo || 'home');
       if (r.undo && r.undo.length) toastUndo(t('saved'), function () { attemptUndo(r.undo); });
       else toast(t('saved'));
     }).catch(function (e) {
@@ -629,6 +631,11 @@
         }).then(function (res) {
           const undo = [{ store: 'parties', id: res.party.id }];
           if (res.paymentId) undo.push({ store: 'payments', id: res.paymentId });
+          // a first payment was taken → straight to the receipt (something to
+          // hand the donor); no payment yet ("পরে দেবে") → the old bulk-mode
+          // shortcut still applies, nothing to receipt for.
+          if (res.paymentId) return { undo: undo,
+            after: { navigateTo: 'receipt', params: { partyId: res.party.id, payId: res.paymentId } } };
           if (!bulk) return { undo: undo };
           return { undo: undo, after: { buttons: [
             { label: t('one_more_shop'), action: function () {
@@ -642,7 +649,6 @@
   function paymentFlow(party) {
     return {
       title: t('add_payment') + ' — ' + party.name,
-      returnTo: 'list',
       steps: moneySteps(false).concat([
         { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
       ]),
@@ -654,7 +660,12 @@
           cashAmount: m.cash, upiAmount: m.upi,
           date: todayISO(), note: a.note || '',
         });
-        return DB.put('payments', row).then(function () { return { undo: [{ store: 'payments', id: row.id }] }; });
+        // straight to the receipt screen — that's the whole point of a
+        // payment: something to hand the donor on the spot.
+        return DB.put('payments', row).then(function () {
+          return { undo: [{ store: 'payments', id: row.id }],
+            after: { navigateTo: 'receipt', params: { partyId: party.id, payId: row.id } } };
+        });
       },
     };
   }
@@ -718,7 +729,12 @@
           date: todayISO(), note: a.note || '',
         });
         return DB.put('daily', row).then(function () {
-          return { undo: [{ store: 'daily', id: row.id }], after: { buttons: [
+          const undo = [{ store: 'daily', id: row.id }];
+          // a bus entry has a receipt (name + number); road/toto don't have a
+          // donor identity, so they keep the quick add-another/expense screen.
+          if (type === 'bus') return { undo: undo,
+            after: { navigateTo: 'receipt', params: { store: 'daily', id: row.id } } };
+          return { undo: undo, after: { buttons: [
             { label: '➕ ' + t('daily_' + type), action: function () { startFlow(dailyFlow(type)); } },
             { label: t('coll_expense'), action: function () { startFlow(collectionExpenseFlow(type)); } },
             { label: t('done_for_now'), action: function () { navigate('home'); } },
