@@ -1529,3 +1529,8 @@ whether the docs were current — they weren't.
   the receipt design principles, and the print()-based PDF choice; new
   "Current state" section stating plainly that `live_mode` is off.
 - No code changes.
+
+## Roadmap: dropped bill/shop-photo attach (D6)
+
+Hrishi: not needed. Struck off `docs/pending.md` P1. No code existed for it
+(was never started), so no code change — docs only.

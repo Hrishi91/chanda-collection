@@ -181,7 +181,8 @@ below done first (goLive wipes it anyway, but cleaner to not rely on that).
       pre-filled; collector taps send)~~ (2026-07-24, D5)
 - [x] ~~Report export (PDF) for the committee~~ (2026-07-25, P0.9 above) —
       Excel export not built, low priority now that PDF exists
-- [ ] Attach a bill / shop photo to an entry — D6, not started
+- [x] ~~Attach a bill / shop photo to an entry~~ — D6, dropped (2026-07-25,
+      Hrishi: not needed)
 - [x] ~~PNG icons (maskable) alongside SVG~~ (2026-07-24, real-app-icon work
       — the SVG placeholder was removed entirely)
 
