@@ -3960,3 +3960,44 @@ Proven to bite: removing `freshThen` again makes it report
 `wireNav() calls freshThen() — declared in no reachable scope` and exit 1.
 
 379 passed, 0 failed. Client-only.
+
+## v4.2.0 — the expense flow still asked a question the model had abandoned
+
+Hrishi: "in spent, why is this available — which pot did this come out of? we
+have changed the concept, did you forget."
+
+He is right, and it was a leftover. `srcCat` was introduced in v3.86.0 to stop
+an unsourced expense wandering between categories, and at the time asking the
+spender was the honest answer. Then v3.89.0 settled the cashier handover on the
+opposite principle: **money pooled from many people has no honest category, so
+asking for one is guesswork dressed as precision.** That reasoning applies just
+as much to spending the pool as to passing it on — and the question stayed.
+
+Worse, it only ever appeared for cashiers and admins, since a general puja
+expense is cashier-gated. So the one group whose money is definitely pooled was
+the only group being asked to categorise it.
+
+The question is gone. A general puja expense is filed under **`other`** — a
+stable named pot that may go negative, which is exactly the rule Hrishi set:
+expenses come out of what you collected, and a minus is the exceptional case.
+
+    collected toto 1000, general expense 300
+      byCat  { toto: 1000, other: −300 }      in hand 700
+
+A COLLECTION expense is untouched and still names its round, because that one is
+knowable rather than guessed — whoever is running the road round knows the money
+came from it, and `collectionExpenseFlow` sets `srcCat` itself without asking:
+
+    collected toto 1000, collection expense 300 on toto
+      byCat  { toto: 700 }                    in hand 700
+
+Both in hand 700. The split differs; the money does not.
+
+Removed with it: `srcCatOptions()` (no callers left), the `q_src_cat` label, and
+the `srcCat` preset the edit path carried. `startExpense` no longer computes
+`myAvailable` before opening the form — there was nothing left to compute.
+
+VERIFIED: 7 new tests, including two that assert the question and its option
+builder are actually absent from `js/app.js` rather than merely unused.
+**386 passed, 0 failed**; browser confirms both cases; no console errors.
+Client-only.

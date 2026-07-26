@@ -776,6 +776,31 @@ eq(hb.pendingOut.total, hbSum.pending, 'book: unconfirmed outgoing === personalS
 eq(handoverReport(Object.assign({}, hbData, { voids: [{ id: 'v', targetId: '1' }] }), 'jadav').received.total, 300,
    'book: a voided handover is gone from the book too');
 
+// ---- a general puja expense has no category to name --------------------------
+// The handover screen stopped asking a cashier to categorise pooled money
+// (v3.89.0); spending it is the same problem, so the expense flow stopped
+// asking too. A general expense is filed under `other`: a stable named pot that
+// may go negative, which IS the rule — expenses come out of what you collected,
+// and a minus is the exceptional case.
+const genExp = { parties: [], payments: [], voids: [], corrections: [], handovers: [],
+  daily: [{ id: 't', collectorId: 'k', type: 'toto', amount: 1000, cashAmount: 1000, upiAmount: 0 }],
+  expenses: [{ id: 'e', collectorId: 'k', amount: 300, cashAmount: 300, upiAmount: 0,
+               source: 'general', srcCat: 'other' }] };
+eq(myAvailable(genExp, 'k').byCat.other, { cash: -300, upi: 0 }, 'general expense: parks in "other"');
+eq(myAvailable(genExp, 'k').byCat.toto, { cash: 1000, upi: 0 }, 'general expense: leaves the round alone');
+eq(myAvailable(genExp, 'k').cash, 700, 'general expense: in hand is still collected − spent');
+// a COLLECTION expense still names its round — that one is knowable, not a guess
+const collExp = { parties: [], payments: [], voids: [], corrections: [], handovers: [],
+  daily: [{ id: 't', collectorId: 'k', type: 'toto', amount: 1000, cashAmount: 1000, upiAmount: 0 }],
+  expenses: [{ id: 'e', collectorId: 'k', amount: 300, cashAmount: 300, upiAmount: 0,
+               source: 'collection', collectionType: 'toto', srcCat: 'toto' }] };
+eq(myAvailable(collExp, 'k').byCat.toto, { cash: 700, upi: 0 }, 'collection expense: comes off its own round');
+eq(myAvailable(collExp, 'k').byCat.other, undefined, 'collection expense: never touches "other"');
+// and the flow really does not ask any more
+const appSrc = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+eq(appSrc.indexOf('q_src_cat') >= 0, false, 'general expense: the "which pot" question is gone from the flow');
+eq(appSrc.indexOf('srcCatOptions') >= 0, false, 'general expense: …and so is the option builder it needed');
+
 // ---- an expense must not wander between categories ---------------------------
 // The bug: an expense with no named source pot was drained from whatever pots
 // held money AT THE MOMENT OF CALCULATION. So the same bill sat under টোটো until

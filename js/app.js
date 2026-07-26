@@ -1126,36 +1126,28 @@
   // Which pots this person can spend from — the same source categories the
   // handover screen shows, each with its real figure. Empty pots aren't
   // offered; a lone pot needs no question (it's implied).
-  // Which pot did this money come out of? ALWAYS asked, and 'other' is always
-  // on the list — an expense with no named pot used to be spread over whatever
-  // categories happened to hold money when the report was computed, so the same
-  // bill moved between categories as unrelated money arrived. Naming the pot at
-  // entry time fixes it there for good.
-  function srcCatOptions(available) {
-    const byCat = (available && available.byCat) || {};
-    return Object.keys(CAT_LABEL_KEYS).filter(function (k) {
-      return k !== 'other' && byCat[k] && (byCat[k].cash + byCat[k].upi) > 0;
-    }).map(function (k) {
-      return { v: k, label: t(CAT_LABEL_KEYS[k]) + ' ' + fmtMoney(byCat[k].cash + byCat[k].upi) };
-    }).concat([{ v: 'other', label: t('cat_other') }]);
-  }
   // Puja expense (cashier/admin): pick an admin-defined subject; multiple
   // cashiers may part-pay the same subject. "Other" forces a comment.
-  // `available` (Aggregate.myAvailable) lets the spender say WHICH pot the
-  // money came out of, so the per-category books stay exact on the spend side
-  // too — the same precision the handover sheet gives on the transfer side.
-  function expenseFlow(subjects, available) {
+  //
+  // NO "which pot did this come out of?" question. It used to ask, and that
+  // contradicted the decision made for the handover screen (v3.89.0): a
+  // cashier holds money pooled from many people, so naming a category for it
+  // is guesswork dressed as precision. The same reasoning applies to spending
+  // it. A general puja expense is filed under `other` — a stable named pot
+  // that can go negative, which is exactly Hrishi's rule that expenses come
+  // out of what you collected and a minus is the exceptional case.
+  //
+  // A COLLECTION expense is different and still carries its category: whoever
+  // is running a road round knows the money came from that round, so
+  // collectionExpenseFlow sets srcCat itself without asking anybody.
+  function expenseFlow(subjects) {
     const opts = (subjects || []).map(function (s) { return { v: s.name, label: s.name }; });
     opts.push({ v: OTHER_SUBJECT, labelKey: 'subject_other' });
-    const potOptions = srcCatOptions(available);
     return {
       title: t('expense'),
       steps: [
         { key: 'subject', qKey: 'q_subject', kind: 'choice', options: opts },
       ].concat(moneySteps(false), [
-        // no showIf: always asked, so srcCat is never blank on a new row
-        { key: 'srcCat', qKey: 'q_src_cat', kind: 'choice', options: potOptions },
-      ]).concat([
         { key: 'comment', qKey: 'q_comment_req', kind: 'text', required: true,
           showIf: function (a) { return a.subject === OTHER_SUBJECT; } },
         { key: 'comment', qKey: 'q_note', kind: 'text', optional: true,
@@ -1168,7 +1160,7 @@
         const row = DB.newRow({
           subject: isOther ? 'Other' : a.subject, desc: a.comment || '',
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
-          srcCat: a.srcCat || 'other',
+          srcCat: 'other', // pooled money has no honest category — see above
           spentBy: Settings.get('collectorName'),
           source: 'general', collectionType: '', date: todayISO(),
         });
@@ -1182,17 +1174,15 @@
     };
   }
   function startExpense(edit) {
-    const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
-    const availP = viewData().then(function (data) { return Aggregate.myAvailable(data, ident); });
+    // no myAvailable() here any more — the flow stopped asking which pot the
+    // money came from, so there is nothing to compute before opening it
     const go = function (subjects) {
-      availP.then(function (avail) {
-        const def = expenseFlow(subjects, avail);
-        if (edit) {
-          def.presets = edit.presets; def.editing = edit.editing;
-          def.title = t('edit_title') + ' — ' + def.title; def.returnTo = 'entries';
-        }
-        startFlow(def);
-      });
+      const def = expenseFlow(subjects);
+      if (edit) {
+        def.presets = edit.presets; def.editing = edit.editing;
+        def.title = t('edit_title') + ' — ' + def.title; def.returnTo = 'entries';
+      }
+      startFlow(def);
     };
     if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {
       Auth.call('listSubjects', { token: Auth.token() })
@@ -1999,8 +1989,7 @@
     } else if (store === 'expenses') {
       // the expense flow needs its subject list; reuse the same loader the
       // normal entry path uses so an offline edit still works
-      startExpense({ presets: Object.assign({ subject: row.subject || '', comment: row.desc || '',
-                                              srcCat: row.srcCat || '' }, money),
+      startExpense({ presets: Object.assign({ subject: row.subject || '', comment: row.desc || '' }, money),
                      editing: { store: store, id: row.id, reason: reason } });
       return;
     }
