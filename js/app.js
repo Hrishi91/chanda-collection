@@ -504,16 +504,20 @@
   function finishFlow() {
     const def = flowState.def;
     savingFlow = true;
-    // Correcting an entry is append-only, like everything else here: the old row
-    // is VOIDED and a new one written. Nothing is overwritten, so "what did it
-    // say before, and who changed it" always has an answer, the receipt serial
-    // is not silently reused, and two phones editing at once cannot produce a
-    // row that is half one edit and half the other.
-    const pre = def.editing
-      ? DB.put('voids', DB.newRow({ targetStore: def.editing.store, targetId: def.editing.id,
-                                    reason: 'edit — ' + (def.editing.reason || '') }))
-      : Promise.resolve();
-    pre.then(function () { return def.save(flowState.answers); }).then(function (result) {
+    // Correcting an entry is append-only: the old row is VOIDED and a new one
+    // written, so "what did it say before" always has an answer and the serial
+    // is not silently reused.
+    //
+    // ORDER MATTERS. The void is written AFTER the replacement saves. Written
+    // before, a rejected save (zero amount) or a user backing out left the
+    // original voided with nothing in its place — the entry, and its money,
+    // simply vanished from the books.
+    def.save(flowState.answers).then(function (result) {
+      if (!def.editing) return result;
+      return DB.put('voids', DB.newRow({ targetStore: def.editing.store, targetId: def.editing.id,
+                                         reason: 'edit — ' + (def.editing.reason || '') }))
+        .then(function () { return result; });
+    }).then(function (result) {
       savingFlow = false;
       const r = result || {};
       flowState = null;
@@ -521,7 +525,11 @@
       if (r.after && r.after.navigateTo) navigate(r.after.navigateTo, r.after.params);
       else if (r.after) renderAfter(r.after);
       else navigate(def.returnTo || 'home');
-      if (r.undo && r.undo.length) toastUndo(t('saved'), function () { attemptUndo(r.undo); });
+      // No Undo after an EDIT. Undo only knows the new row, so it would delete
+      // the replacement while the void on the original stands — both gone. An
+      // edit is already the correction path; correcting a correction is done
+      // by editing again, not by unwinding half of it.
+      if (r.undo && r.undo.length && !def.editing) toastUndo(t('saved'), function () { attemptUndo(r.undo); });
       else toast(t('saved'));
     }).catch(function (e) {
       savingFlow = false;
@@ -1236,13 +1244,23 @@
       // one thing everybody has — but the real fix is a phone call, so the
       // admin's number is right here.
       if (!plan.setUp) {
-        $view().innerHTML =
-          '<div id="notif-banner"></div>' +
-          '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
-          '<div class="hero-sub">' + esc(Settings.get('collectorName')) + '</div></div>' +
-          noGrantCard();
-        renderNotifBanner();
-        wireNav();
+        const paintCard = function () {
+          $view().innerHTML =
+            '<div id="notif-banner"></div>' +
+            '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
+            '<div class="hero-sub">' + esc(Settings.get('collectorName')) + '</div></div>' +
+            noGrantCard();
+          renderNotifBanner();
+          wireNav();
+        };
+        paintCard();
+        // the card's whole point is the admin's name and number, and those come
+        // from the cashiers list — fetch it if this device has never had it
+        if (!msgUserCache && navigator.onLine && Sync.configured() && Auth.loggedIn()) {
+          Auth.call('cashiers', { token: Auth.token() })
+            .then(function (r) { msgUserCache = r.cashiers || []; if (current.view === 'home') paintCard(); })
+            .catch(function () {});
+        }
         return;
       }
       $view().innerHTML =
@@ -1283,8 +1301,12 @@
   // Who to ring when the app cannot help you. Read from the pulled user list
   // when it is there, so it works offline too; falls back to just the name.
   function adminContactHTML() {
-    const a = (msgUserCache || []).filter(function (u) { return u.role === 'admin'; })[0] ||
-              { name: Settings.get('adminName') || '', phone: Settings.get('adminPhone') || '' };
+    const fromList = (msgUserCache || []).filter(function (u) { return u.role === 'admin'; })[0];
+    if (fromList) { // remember for offline — the card must work with no signal too
+      Settings.set('adminName', fromList.name || '');
+      Settings.set('adminPhone', fromList.phone || '');
+    }
+    const a = fromList || { name: Settings.get('adminName') || '', phone: Settings.get('adminPhone') || '' };
     if (!a.name && !a.phone) return '';
     const digits = String(a.phone || '').replace(/\D/g, '');
     const wa = digits ? (digits.length === 10 ? '91' + digits : digits.replace(/^0/, '')) : '';
@@ -2613,8 +2635,16 @@
           const stamped = {};
           Object.keys(clean).forEach(function (st) {
             stamped[st] = clean[st].map(function (r) {
-              if (!owner) return r;
-              return Object.assign({}, r, { collector: owner.name, collectorId: owner.username, synced: 0 });
+              // synced:0 in BOTH branches. The file carries synced:1 from the
+              // phone it was exported on — after a wipe/restore those rows are
+              // no longer on the server, and a row marked synced never pushes,
+              // so "keep as written" used to restore a book that silently
+              // never reached the Sheet. Re-pushing an existing id is a
+              // harmless upsert.
+              const base = owner
+                ? { collector: owner.name, collectorId: owner.username }
+                : {};
+              return Object.assign({}, r, base, { synced: 0 });
             });
           });
           Promise.all(Object.keys(stamped).map(function (st) { return DB.bulkPut(st, stamped[st]); }))
@@ -2694,6 +2724,9 @@
     if (!mine.length) return;
     const last = mine[mine.length - 1];
     if (msgNotified === last.id) return;
+    // reading the chat right now — the message is on screen, a buzz on top is
+    // just noise (and marks itself read a moment later anyway)
+    if (current.view === 'messages' && !document.hidden) { msgNotified = last.id; return; }
     // first run after a reload only primes the marker — otherwise opening the
     // app would replay a notification for something already read elsewhere
     const first = msgNotified === null;
@@ -2729,14 +2762,18 @@
         return '<div class="msg' + (mine ? ' mine' : '') + (r.forMe && !mine ? ' formeone' : '') + '">' +
           '<div class="msg-who">' + esc(r.collector || r.collectorId || '?') +
             '<span class="msg-when">' + esc(fmtDateTime(r.createdAt)) + '</span></div>' +
-          '<div class="msg-text">' + highlightMentions(r.text || '') + '</div></div>';
+          '<div class="msg-text">' + highlightMentions(r.text || '') + '</div>' +
+          // the server refused it (chat switched off mid-flight) — nobody else
+          // ever saw this, and pretending otherwise is how rumours start
+          (r.rejected ? '<div class="msg-fail">❌ ' + esc(t('msg_rejected')) + '</div>' : '') +
+          '</div>';
       }).join('') : '<div class="empty">' + esc(t('msg_empty')) + '</div>';
       $view().innerHTML = '<div class="flow-title">' + esc(t('msg_title')) + '</div>' +
         '<div class="hint" style="margin-bottom:8px">' + esc(t('msg_hint')) + '</div>' +
         '<div id="msg-list" class="msg-list">' + body + '</div>' +
         '<div id="msg-picker" class="chips" hidden></div>' +
         '<div class="input-row msg-compose">' +
-          '<input id="msg-input" placeholder="' + esc(t('msg_ph')) + '" autocomplete="off" value="' + esc(msgDraft) + '">' +
+          '<input id="msg-input" maxlength="500" placeholder="' + esc(t('msg_ph')) + '" autocomplete="off" value="' + esc(msgDraft) + '">' +
           '<button id="msg-at" class="ghost">@</button>' +
           '<button id="msg-send" class="primary">' + esc(t('msg_send')) + '</button>' +
         '</div>';
@@ -2782,7 +2819,10 @@
   }
   let msgUserCache = null;
   function sendMessage(input) {
-    const txt = String(input.value || '').trim();
+    // 500 chars: the maxlength attribute guards the keyboard, this guards paste
+    // and any path around the input. A Sheet cell takes 50,000, but one pasted
+    // essay would ride every phone's pull forever.
+    const txt = String(input.value || '').trim().slice(0, 500);
     if (!txt) return;
     if (!chatOn()) { toast(t('chat_off_toast')); return; }
     // the mentions column is derived from the text, so what you typed and who

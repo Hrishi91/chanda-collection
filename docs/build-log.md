@@ -3569,3 +3569,60 @@ The dead `tile()` helper and an unused `cashier` local went with the change.
 
 VERIFIED: 17 new tests, **372 passed, 0 failed**; browser on a fresh port shows
 the same six rows, no console errors.
+
+## v3.99.1 — full-app audit sweep: A12–A15
+
+Hrishi: "use your all roles … scan the app in all aspects, find the bugs,
+improvements, loopholes and all." Wore five hats — attacker, accountant, field
+collector, sync engineer, admin — and verified every suspicion in code before
+touching anything. Four were real. Also probed the chat renderer with a hostile
+message in the browser: `<img onerror>` stays inert text, only the mention's
+`<b>` renders — `esc()` covers `&<>"'`, no XSS.
+
+### A12 (HIGH, accountant's hat) — an edit could vanish an entry
+
+`finishFlow` wrote the void for the ORIGINAL row BEFORE `def.save` ran. A
+rejected save (zero amount) or the user backing out at any later step left the
+original voided with no replacement — the entry, and its money, gone from every
+book. And after a SUCCESSFUL edit, the Undo toast knew only the new row: tapping
+it deleted the replacement while the void on the original stood — same outcome.
+
+Fixed both ends: the void is now written only after the replacement saves, and
+an edit shows a plain "saved" toast with no Undo — unwinding half of a
+two-row operation is worse than offering none, and the correction path for a
+wrong correction is editing again.
+
+### A13 (field collector's hat) — the no-permission card had no phone number
+
+The card's whole point is the admin's name and 📞/💬 buttons — and they could
+never appear. `adminContactHTML` filters the cashiers list for `role==='admin'`,
+but the server's `cashiers` action returned only `{username, name}`. No role
+ever matched; the fallback Settings were never written by anything.
+
+Server now returns `role`, and `phone` for admins only (Hrishi's explicit call —
+and only the admin's number is exposed, nobody else's). The card fetches the
+list when this device has never had it, and remembers the admin in Settings so
+the card still works offline. Rides the pending redeploy.
+
+### A14 (sync engineer's hat) — a restored book could silently never reach the Sheet
+
+Import's "keep as written" branch preserved `synced:1` from the exported file.
+After a wipe-and-restore those rows are NOT on the server, and a row marked
+synced never pushes — the book looked complete on the phone and stayed missing
+from the Sheet forever. `synced:0` in both branches now; re-pushing an existing
+id is a harmless upsert.
+
+### A15 (attacker's + admin's hats) — chat hardening, three small ones
+
+- **500-char cap** on messages, at the input (`maxlength`) and at send (guards
+  paste). A Sheet cell takes 50,000 — one pasted essay would ride every phone's
+  pull forever.
+- **A refused message says so.** A message rejected server-side (chat switched
+  off mid-flight) sat in the sender's feed dressed as sent — nobody else ever
+  saw it. Now marked ❌ "পাঠানো যায়নি".
+- **No buzz for the screen you are reading.** A mention arriving while the chat
+  screen is open and visible marks itself notified instead of firing the OS
+  notification.
+
+VERIFIED: 372 passed, 0 failed; XSS probe inert in the browser; no console
+errors. A13's server half joins the pending redeploy checklist.
