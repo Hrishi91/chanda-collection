@@ -251,6 +251,7 @@ const I18N = {
   msg_ph: { bn: 'কিছু লেখো…', en: 'Write something…' },
   msg_send: { bn: 'পাঠাও', en: 'Send' },
   msg_empty: { bn: 'এখনো কোনো বার্তা নেই', en: 'No messages yet' },
+  msg_rejected: { bn: 'পাঠানো যায়নি — admin বার্তা বন্ধ করেছিল', en: 'Not delivered — chat was switched off' },
   msg_grp_all: { bn: 'সবাই', en: 'all' },
   msg_grp_cashiers: { bn: 'ক্যাশিয়ার', en: 'cashiers' },
   msg_grp_admin: { bn: 'admin', en: 'admin' },

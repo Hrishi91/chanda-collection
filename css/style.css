@@ -223,6 +223,7 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
 .msg-when { margin-left: auto; font-weight: 400; opacity: .8; }
 .msg-text { margin-top: 3px; font-size: 15px; white-space: pre-wrap; word-break: break-word; }
 b.msg-at { color: var(--saffron); }
+.msg-fail { margin-top: 4px; font-size: 12px; font-weight: 700; color: #c62828; }
 .msg-compose { position: sticky; bottom: 0; background: var(--bg); padding-top: 6px; }
 .nav-dot {
   position: absolute; top: 4px; right: 18%; min-width: 16px; height: 16px; line-height: 16px;

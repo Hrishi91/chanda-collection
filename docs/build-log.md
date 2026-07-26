@@ -3626,3 +3626,7 @@ id is a harmless upsert.
 
 VERIFIED: 372 passed, 0 failed; XSS probe inert in the browser; no console
 errors. A13's server half joins the pending redeploy checklist.
+
+(v3.99.1 packaging note: the js/app.js halves of A12/A14/A15 travelled together
+in the A12 commit — one file, three fixes, the staging could not split them.
+This commit carries the remaining i18n label, the ❌ style and the sw bump.)
