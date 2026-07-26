@@ -1292,15 +1292,6 @@
         (cashTiles ? '<div class="grid" style="margin-top:10px">' + cashTiles + '</div>' : '') +
         '<div class="grid one" style="margin-top:10px"><button class="tile wide" data-go="entries">✏️ ' +
           esc(t('my_entries_title')) + '</button></div>';
-      // Open the form NOW; refresh the master lists behind it. This used to
-      // race the refresh against a 1.5s timeout and wait for whichever won —
-      // but an Apps Script round trip is 3–5s, so the timeout ALWAYS won and
-      // every দোকান/ব্যক্তি/সদস্য tap sat dead for a second and a half before
-      // anything appeared. The wait bought nothing either: the area and
-      // location steps read their options through optionsFn when the user
-      // reaches them, which is several taps later — by then the refresh has
-      // long landed.
-      const freshThen = function (fn) { Lists.refresh().catch(function () {}); fn(); };
       wireNav();
       renderNotifBanner();   // show cached counts immediately
       if (!notifViaPull) checkNotifications();  // old backend only; pull refreshes otherwise
@@ -1343,6 +1334,20 @@
 
   // Every data-go button behaves the same wherever it appears, so a screen that
   // wants to offer a tile does not have to re-implement the routing.
+  // Open the form NOW; refresh the master lists behind it.
+  //
+  // Lives HERE, next to its only caller. It used to sit inside renderHome's
+  // callback, and when the data-go handler was lifted out into wireNav() the
+  // definition stayed behind — so every দোকান/ব্যক্তি/সদস্য tap threw
+  // "freshThen is not defined" and did nothing at all. Tapping a dead button
+  // twice is what "the buttons are slow" actually was.
+  //
+  // It also no longer waits: the old form raced Lists.refresh() against a 1.5s
+  // timeout, and since an Apps Script round trip is 3–5s the timeout always
+  // won — a second and a half of nothing before the form appeared. The wait
+  // bought nothing, because the area and location steps read their options
+  // through optionsFn when the user REACHES them, several taps later.
+  function freshThen(fn) { Lists.refresh().catch(function () {}); fn(); }
   function wireNav() {
     document.querySelectorAll('[data-go]').forEach(function (b) {
       b.onclick = function () {

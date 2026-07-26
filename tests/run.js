@@ -926,5 +926,16 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
   eq(gs.canReview_({ row: { role: 'user', cashier: 0, entries: '' } }), false, 'review: a plain collector never gets the desk');
 })();
 
+// ---- scope check ----------------------------------------------------------
+// A ReferenceError in a click handler does not exist until somebody taps. Run
+// the scope checker as part of the suite so it cannot rot in a corner.
+try {
+  require('child_process').execFileSync(process.execPath, [__dirname + '/scope-check.js'], { stdio: 'pipe' });
+  pass++;
+} catch (e) {
+  fail++;
+  console.error('FAIL scope check\n' + String(e.stdout || '') + String(e.stderr || ''));
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

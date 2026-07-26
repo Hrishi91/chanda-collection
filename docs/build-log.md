@@ -3917,3 +3917,46 @@ which is why he remembered the app being quicker before.
 
 VERIFIED: the timeout race is gone from the served file, both steps use
 `optionsFn`, 378 passed, 0 failed, no console errors. Client-only.
+
+## v4.1.2 — the buttons were not slow, they were DEAD
+
+    app.js:1350 Uncaught ReferenceError: freshThen is not defined
+
+That console line from Hrishi ended three rounds of my guessing. দোকান / ব্যক্তি /
+সদস্য — the three most-used buttons in the app — threw on every tap and did
+nothing at all. Tap, nothing, tap again, nothing: that is what "the buttons are
+responding too slow" actually was, and I read it as latency and went hunting for
+milliseconds twice.
+
+CAUSE, and it is mine. `freshThen` was defined inside `renderHome`'s callback.
+In v3.90.0 I lifted the `data-go` click handler out of `renderHome` into a
+module-level `wireNav()` so other screens could offer tiles — and left the helper
+behind. The file still parses; `node --check` is happy; every test passed. It
+only fails when a finger lands on the button.
+
+`freshThen` now lives next to `wireNav`, its only caller.
+
+### The lesson, made permanent
+
+Two "performance" commits (v4.1.0, v4.1.1) were spent on this. Both fixed real
+things — three DB reads per tap, and a 1.5-second dead wait — but neither was
+the complaint, and I only found the truth when Hrishi pasted the error. A
+ReferenceError inside a click handler is invisible to everything the project
+had: it parses, it lints, it tests, it deploys.
+
+So `tests/scope-check.js` now runs as part of `node tests/run.js`. It reads
+`js/app.js`, resolves every called identifier against module scope, the caller's
+own declarations and parameters, and the globals the other files export.
+
+Getting it to zero false positives took three passes, and the failures are worth
+recording because each would have made it useless:
+- matching inside comments and strings — `have()`, `noise()`, `void()` from
+  English prose (~150 hits);
+- ignoring cross-file globals — every `t()` and `fmtMoney()` call flagged;
+- `const a = 1, b = 2` — only the first name counted, which wrongly accused
+  `renderEntry` and `renderReceiptShare`.
+
+Proven to bite: removing `freshThen` again makes it report
+`wireNav() calls freshThen() — declared in no reachable scope` and exit 1.
+
+379 passed, 0 failed. Client-only.

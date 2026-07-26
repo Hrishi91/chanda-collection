@@ -29,7 +29,9 @@ single source of truth and a combined "main" dashboard.
 - Voice entry: Web Speech API (bn-IN / en-IN), guided Q→A→confirm flow —
   never auto-commit an unconfirmed voice entry.
 - Tests: `node tests/run.js` (pure-logic modules: number parsing,
-  aggregation). Run before every commit that touches those files.
+  aggregation, permissions — plus a scope check over `js/app.js` that catches
+  handlers calling out-of-scope helpers, which only throw when a user taps).
+  Run before every commit that touches those files.
 
 ## Domain model (year-scoped, reusable across years)
 
