@@ -4372,3 +4372,46 @@ migration — but anything writing a brand-new column no longer depends on a hum
 having remembered. Pinned by a test that the action calls it.
 
 474 passed, 0 failed.
+
+## 2026-07-26 — v4.5.2: A18, the two sites I had miscounted
+
+Hrishi: *"you were telling some other dependable tasks, that will effect with
+this change!"* — asking what else the reject path touches.
+
+The honest way to answer was to stop trusting my own count and grep **every** read
+of a handover status across `aggregate.js`, `app.js` and `Code.gs`. I had said six
+sites. There were **eight**. Both extras were the same bug in a mirrored pair:
+
+    inHandRows (js/aggregate.js)          if (confirmed) {...} else { pending += }
+    computeReport_('inhand') (Code.gs)    same
+
+A bare `else` means "anything not confirmed is in transit" — true until v4.5.0 gave
+a handover a third outcome. So a parcel the cashier had **refused** would sit in the
+central "কার হাতে কত" report's *confirm বাকি* column for the rest of the season.
+
+`inHand` itself was never wrong (pending is not subtracted), so nothing was
+double-counted — but the report Hrishi reads to chase collectors would have been
+chasing money that had already come back to them.
+
+Checked at the same time and found clean, so they are not silently at risk:
+`reconcile()` balances in all three states (no false "হিসাব মিলছে না" banner —
+verified, not assumed), `myAvailable` already filtered `=== 'confirmed'`, and the
+cashier's stored `__snap` is a point-in-time record that new snapshots simply get
+right.
+
+Fixed with the named predicates (`else if (hoPending(h))`) rather than another
+inline comparison, so the three-way choice is visible at every site. Test drives
+`inHandRows` through all three outcomes asserting the in-hand column, the pending
+column and reconcile; both fixes proven to bite by restoring the bare `else`.
+
+**Lesson:** a bare `else` on a field that has two states today is a landmine for
+the day it has three. Recorded in final-audit.md as A18.
+
+Docs caught up in the same commit: the audit status ledger still read "awaiting the
+pending redeploy" for A13/A16/S1–S3 — that redeploy happened today, so that column
+is now empty, with A17 and A18 added. One caveat carried forward and flagged as an
+open question: `ensureCol_()` was written AFTER Hrishi deployed, so it is not in the
+running code — either `setup()` was run (same effect) or the next redeploy picks it
+up.
+
+484 passed, 0 failed. **Needs a redeploy** (Code.gs mirror).

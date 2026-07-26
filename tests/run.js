@@ -986,6 +986,11 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
   eq(rejSrc.indexOf("ensureCol_(sh, 'rejectReason')") >= 0, true,
      'reject: heals its own header instead of depending on setup() having been run');
   eq(src.indexOf('function ensureCol_') >= 0, true, 'reject: ensureCol_ exists');
+  // THREE server mirrors now, not two: the cashier nag, personalSummary_, and the
+  // central in-hand report — the last one found only by asking "what else reads a
+  // handover status?" instead of trusting a count.
+  eq((src.match(/status !== 'rejected'/g) || []).length >= 3, true,
+     'reject: the central in-hand report stops parking a refused parcel in "confirm বাকি"');
   // read the column list itself, comments stripped, and check the LAST name —
   // setup() migrates headers by appending, and every write is position-based, so
   // a name inserted mid-list shifts every column after it in existing sheets
@@ -1127,7 +1132,7 @@ eq(hoLegacy.byCat.road, { cash: 300, upi: 0 }, 'handoverable: …drained in the 
 // pocket. This table is the whole contract, in one place.
 const rjBase = {
   parties: [], voids: [], corrections: [], payments: [], expenses: [],
-  daily: [{ id: 'd', collectorId: 'y', type: 'road', amount: 1000, cashAmount: 1000, upiAmount: 0 }],
+  daily: [{ id: 'd', collectorId: 'y', collector: 'যমুনা', type: 'road', amount: 1000, cashAmount: 1000, upiAmount: 0 }],
 };
 const rjWith = function (status) {
   return Object.assign({}, rjBase, { handovers: [{
@@ -1158,6 +1163,14 @@ eq(handoverReport(rjWith('rejected'), 'j').rejectedIn.total, 400, 'rejected: the
 eq(handoverReport(rjWith('rejected'), 'j').pendingIn.total, 0, 'rejected: …and it has left their to-do list');
 eq(mySummary(rjWith('rejected'), 'j').hero.total, 0, 'rejected: refusing adds nothing to the receiver');
 eq(mySummary(rjWith('rejected'), 'j').incoming.rejected.total, 400, 'rejected: it lands in the receiver\'s ❌ slot');
+// the CENTRAL report too — this was the site I first missed. `else` parked a
+// refused parcel in the "confirm বাকি" column for the rest of the season.
+[['pending', 1000, 400], ['rejected', 1000, 0], ['confirmed', 600, 0]].forEach(function (c) {
+  const row = inHandRows(rjWith(c[0])).filter(function (r) { return r.collector === 'যমুনা'; })[0];
+  eq(row.inHand, c[1], 'central inhand ' + c[0] + ': in-hand column');
+  eq(row.pending, c[2], 'central inhand ' + c[0] + ': "confirm বাকি" column');
+  eq(reconcile(rjWith(c[0])).balanced, true, 'central inhand ' + c[0] + ': the money invariant still balances');
+});
 // the reason travels with the row — it is the sender's only clue what to do
 eq(handoverReport(rjWith('rejected'), 'y').rows[0].rejectReason, 'খামে কম ছিল',
    'rejected: the reason reaches the sender through the book');

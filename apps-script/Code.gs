@@ -1425,7 +1425,10 @@ function inHandRows_(d) {
     if (h.status === 'confirmed') {
       handed[fromK] = (handed[fromK] || 0) + amt;
       received[toK] = (received[toK] || 0) + amt;
-    } else pending[fromK] = (pending[fromK] || 0) + amt;
+    // MIRRORS js/aggregate.js inHandRows. NOT a bare `else`: a rejected parcel is
+    // not awaiting anything, and `else` would park it in the central report's
+    // "confirm বাকি" column for ever, for money the cashier had refused.
+    } else if (h.status !== 'rejected') pending[fromK] = (pending[fromK] || 0) + amt;
   });
   d.expenses.forEach(function (e) { var k = ck_(e); note(k, e.collector); spent[k] = (spent[k] || 0) + num_(e.amount); });
   var keys = {};

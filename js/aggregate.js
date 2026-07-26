@@ -143,10 +143,13 @@
       const amt = Number(h.amount) || 0;
       const fromK = String(h.fromId || h.from || '?'), toK = String(h.toId || h.to || '?');
       note(fromK, h.from); note(toK, h.to);
-      if (h.status === 'confirmed') {
+      if (hoConfirmed(h)) {
         handed[fromK] = (handed[fromK] || 0) + amt;
         received[toK] = (received[toK] || 0) + amt;
-      } else {
+      } else if (hoPending(h)) {
+        // NOT `else`: a REJECTED parcel is not awaiting anything. `else` would
+        // leave it in the central "কার হাতে কত" report's "confirm বাকি" column
+        // for the rest of the season, for money the cashier had refused.
         pending[fromK] = (pending[fromK] || 0) + amt;
       }
     });

@@ -322,6 +322,14 @@ give different numbers:
       clamps were needed: an overspent pot vanishes from the chips yet still
       lowers the cash held, so Σ chips overshot by exactly the debt.
 
+- [ ] **Did `setup()` run on the 2026-07-26 deployment?** If yes, nothing to do.
+      If not, either run it once or redeploy — `ensureCol_()` (the guard that stops
+      a brand-new column silently swallowing its value) was written after that
+      deployment, so the running code still depends on the header being there.
+      Without it a rejection's REASON is written into an unlabelled column and
+      never read back: status flips, money returns to the ceiling, explanation
+      gone, no error anywhere.
+
 ## Before go-live, still open
 
 - [ ] **Reports permission** — a DECISION, not a fix. Most collectors have an

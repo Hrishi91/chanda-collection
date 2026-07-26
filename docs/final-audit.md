@@ -10,16 +10,26 @@ actual code (file:line) or by test/live-check — not guessed. Items marked
 Each fix was verified by reproducing the failure condition live (see
 build-log v3.77.0). Kept below for the record.
 
-### Status of every finding (A1–A16, S1–S3)
+### Status of every finding (A1–A18, S1–S3)
 
-All nineteen are FIXED in code. Split by what has been proven where:
+All FIXED in code. **2026-07-26: the long-pending redeploy has happened** —
+Hrishi deployed and the new `/exec` was fingerprinted (`rejectHandover` → the
+action exists; the old URL answers `unknown action`), so the column that used to
+read "awaiting the pending redeploy" is now empty:
 
-| Verified live against the Sheet | Fixed, awaiting the pending redeploy |
+| Verified live against the Sheet | Awaiting a redeploy |
 |---|---|
-| A1–A6, A8, A9, A10 | A13 (`cashiers` returns role/phone) |
-| A7 (voided handover left the queue) | S1 (idle fast path) |
-| A11 (cashier resolved a collector's flag, `ok:true`) | S2 (batched writes) |
-| A12, A14, A15 (client-only, tested + browser-checked) | S3 (batched serials) |
+| A1–A6, A8, A9, A10 | *(none — the 2026-07-26 deployment cleared A13, A16, S1–S3)* |
+| A7 (voided handover left the queue) | |
+| A11 (cashier resolved a collector's flag, `ok:true`) | |
+| A12, A14, A15 (client-only, tested + browser-checked) | |
+| A17 (any cashier could confirm anyone's handover) | |
+| A18 (a refused parcel parked in "confirm বাকি" for ever) | |
+
+One caveat carried forward: `ensureCol_()` — the guard that stops a brand-new
+column silently swallowing its value — was written AFTER that deployment, so it
+is not in the running code. Either `setup()` has been run (which does the same
+job) or the next redeploy picks it up. **Open question for Hrishi.**
 | S1/S2/S3 **proven live 2026-07-26** — see below | A16 (chat kill switch) |
 
 Deliberately NOT changed, with reasons, so nobody "fixes" them later by reflex:
@@ -389,6 +399,33 @@ fallback, and that the fallback lets nobody else in); the action body is asserte
 to call it and to throw both codes. Proven to bite by deleting the guard and by
 making `isRecipient_` return true. `err_not_recipient` / `err_already_confirmed`
 have real messages, so a permission refusal no longer reads "network problem".
+
+### A18. MED (reporting) — FIXED 2026-07-26 (needs a redeploy) — A refused handover sat in "confirm বাকি" for ever
+**Where:** `inHandRows` ([js/aggregate.js](../js/aggregate.js)) and its mirror
+`computeReport_('inhand')` ([apps-script/Code.gs](../apps-script/Code.gs)).
+**Cause:** both wrote `if (status === 'confirmed') {...} else { pending += amt }`.
+A bare `else` means "everything that is not confirmed is in transit" — true until
+v4.5.0 gave a handover a third outcome. A parcel the cashier had **refused** would
+therefore show in the central "কার হাতে কত" report's *confirm বাকি* column for the
+rest of the season. The `inHand` figure itself stayed right (pending is never
+subtracted), so nothing was double-counted — but the report Hrishi reads to chase
+collectors would have been chasing money that had already come back.
+**Found how:** Hrishi asked *"you were telling some other dependable tasks, that
+will affect with this change"* — and the honest way to answer was to grep every
+read of a handover status rather than trust the count I had given. I had said six
+sites; there were **eight**. The two I missed were both in this pair, and one of
+them is the central report.
+**FIXED:** `else if (hoPending(h))` on the client, `else if (status !== 'rejected')`
+on the server. `reconcile()` was checked at the same time and is unaffected — it
+balances in all three states, so no false "হিসাব মিলছে না" banner.
+**Pinned:** a three-row table drives `inHandRows` through pending / rejected /
+confirmed and asserts the in-hand column, the pending column AND that reconcile
+still balances; a source assertion counts the server mirrors. Both proven to bite
+by restoring the bare `else`.
+
+**Lesson recorded:** a bare `else` on a two-state field is a landmine the day a
+third state arrives. The predicates `hoConfirmed` / `hoRejected` / `hoPending`
+exist so this is a compile-time-visible choice rather than an implicit default.
 
 ### Verified green in the two-user pass
 | Path | Result |
