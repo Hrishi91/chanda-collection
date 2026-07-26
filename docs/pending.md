@@ -329,6 +329,13 @@ give different numbers:
       marker (`CODE_VERSION`), after which any deployment can be verified with a
       single tokenless `curl`. Nothing waits on it; today's backend is complete.
 
+- [ ] **R1 (MED, from the post-v4.5.3 audit):** guard `push` upserts so a
+      backup-restore re-push cannot flip a settled (confirmed/rejected) handover
+      back to pending — preserve status/confirmedBy/confirmedAt/rejectReason
+      server-side. Needs a Code.gs change + redeploy; rides the next one.
+- [ ] **R2 (LOW):** ceiling 0 → show an empty-state on the handover screen
+      instead of the uncapped typed-amount fallback.
+
 ## Before go-live, still open
 
 - [ ] **Reports permission** — a DECISION, not a fix. Most collectors have an

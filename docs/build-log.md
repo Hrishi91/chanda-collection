@@ -4452,3 +4452,25 @@ From the next redeploy onward it can, exactly.
 
 486 passed, 0 failed. Needs one more redeploy to activate the marker — no rush,
 nothing else waits on it.
+
+## 2026-07-26 — v4.5.4: post-v4.5.3 all-roles audit — one fix (A19), five registered
+
+Hrishi: *"with your every roles check and analyse the application"* — the day's
+seven commits re-audited, every role, machine-checked (see final-audit.md,
+"Post-v4.5.3 all-roles pass" for the full evidence list).
+
+Fixed here — **A19**: a dismissed rejection notice toasted "🔔 1 ফেরত এসেছে" on
+every app start for the rest of the season. The server resends every rejected
+row on every poll (a rejection has no "done" state); the banner filtered
+dismissed ids, the count did not, and a fresh start begins at prev=0 so
+total>prev fired every time. Now dismissed ids are dropped at APPLY time and
+বুঝেছি re-applies, so the count falls with the banner. Verified live in three
+steps: fresh rejection → exactly one toast; dismiss → banner empty; reload with
+the server still resending → no toast, no banner. Source assertion proven to
+bite. Client-only; sw + CODE_VERSION bumped in lockstep (the version test
+enforces it), no redeploy required for this.
+
+Registered for Hrishi's call, unfixed: R1 (push upsert can regress a settled
+handover after a backup restore — recommend a server-side status guard), R2
+(zero-holdings typed handover is the one uncapped door — recommend empty-state),
+R3–R6 notes. 488 passed, 0 failed.

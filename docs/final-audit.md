@@ -427,6 +427,55 @@ by restoring the bare `else`.
 third state arrives. The predicates `hoConfirmed` / `hoRejected` / `hoPending`
 exist so this is a compile-time-visible choice rather than an implicit default.
 
+## Post-v4.5.3 all-roles pass — 2026-07-26 (after the reject-path day)
+
+Fresh sweep of the code as it stands after the seven commits of 2026-07-26,
+every role, machine-checked rather than recalled: 488 tests + scope check green;
+i18n 476 keys, no duplicates, no missing `t()` targets; sw ASSETS complete
+against the files on disk (config.js excluded by design); every render of
+`rejectReason`/`reason` goes through `esc()`; an 11-invariant mixed-chain money
+simulation (3 people, all three statuses, a legacy no-breakdown rejected row)
+agrees across `inHandRows`/`reconcile`/`mySummary`/`handoverable`/`cashierView`.
+Two of its assertions failed on first run — MY hand arithmetic, not the code's;
+the self-consistency checks (hero === central row, Σslots === raw, ceiling ≤
+hero) are the real proof and all held.
+
+### A19. LOW-MED (UX, season-long) — FIXED — dismissed rejection toasted on every app start
+**Where:** `applyNotifications` (js/app.js).
+**Cause:** a rejection is the one feed item with no server-side "done" — the row
+stays `rejected` all season, so the server resends it on every poll. The banner
+filtered locally-dismissed ids; the COUNT did not. Every fresh app start begins
+at `prev=0`, so `total>prev` fired "🔔 1 ফেরত এসেছে" — for a notice dismissed
+weeks earlier, all season.
+**FIXED:** dismissed ids are dropped at apply time (count recomputed from the
+filtered list), and বুঝেছি re-applies so the totals fall immediately. Verified
+live: fresh rejection → one toast (right); dismiss → banner empty; reload with
+the server still resending → no toast, no banner. Pinned by a source assertion
+proven to bite.
+
+### Registered, awaiting Hrishi's call (no code changed)
+
+- **R1 MED — push upsert can regress a settled handover on restore.** `push`
+  overwrites the full `SHEETS.handovers` width by id. Admin backup-import
+  deliberately sets `synced:0` (A14), so a restored sender copy still reading
+  `status:'pending'` re-pushes and would flip a server-side `confirmed`/
+  `rejected` back to pending and blank `rejectReason`/`confirmedBy`. Restore-only
+  path, admin-only, but it silently rewrites settled money history.
+  **Recommendation:** in `push`, when upserting a handover whose stored status is
+  confirmed/rejected, preserve status/confirmedBy/confirmedAt/rejectReason.
+- **R2 LOW — the one uncapped handover door.** When every pot is ≤0 the sheet
+  falls back to typed cash/UPI amounts with no ceiling — reachable only when the
+  collector holds nothing, at which point any typed amount is fiction (reconcile
+  would flag it). **Recommendation:** ceiling 0 → empty-state instead of typed
+  steps.
+- **R3 LOW —** `isRecipient_` display-name fallback: two users sharing an exact
+  display name could cross-confirm offline-written rows (username wins whenever
+  present). Known identity rule; noted.
+- **R4 LOW —** a crafted self-handover (from==to) is not blocked server-side;
+  the UI never offers it. Noted.
+- **R5 INFO —** the rejections feed resends all season (rare rows; payload
+  negligible). R6 INFO — reason silently truncated at 200 chars server-side.
+
 ### Verified green in the two-user pass
 | Path | Result |
 |---|---|

@@ -1015,6 +1015,17 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
   ['err_already_rejected', 'err_reason_required'].forEach(function (k) {
     eq(i18nSrc.indexOf('  ' + k + ':') >= 0, true, 'i18n: ' + k + ' has a real message, not err_network');
   });
+  // A19: the server resends every season-old rejection on every poll (no "done"
+  // state exists), so the CLIENT must drop dismissed ids from the count at apply
+  // time — filtering only the banner leaves a ghost "🔔 ফেরত এসেছে" toast on
+  // every app start for the rest of the season.
+  const appSrc = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const applyStart = appSrc.indexOf('function applyNotifications');
+  const applySrc = appSrc.slice(applyStart, appSrc.indexOf('\n  }', applyStart));
+  eq(applySrc.indexOf('rejSeen(x.id)') >= 0, true,
+     'A19: applyNotifications drops dismissed rejections from the count, not just the banner');
+  eq(applySrc.indexOf('n.rejections = items.rejections.length') >= 0, true,
+     'A19: …and the badge count is recomputed from the filtered list');
 
   // the daily report split must match on both sides too
   var gsRep = new Function('g', src + '\n g.computeReport_ = computeReport_;');

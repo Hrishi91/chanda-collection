@@ -387,7 +387,13 @@
       b.onclick = function () { navigate(b.dataset.nav); };
     });
     el.querySelectorAll('[data-rejseen]').forEach(function (b) {
-      b.onclick = function () { rejMarkSeen(b.dataset.rejseen); renderNotifBanner(); };
+      b.onclick = function () {
+        rejMarkSeen(b.dataset.rejseen);
+        // re-apply, not just re-render: the apply-time filter drops the id from
+        // the COUNT too, so the toast/banner totals fall the moment it is
+        // dismissed instead of on the next poll
+        applyNotifications(notifCounts, notifItems);
+      };
     });
     wireNav(); // the rejection notice offers "🤝 জমা দিলাম", which is a data-go
     el.querySelectorAll('[data-na]').forEach(function (b) {
@@ -409,12 +415,20 @@
   // update the banner, toast on new items, refresh the current data view.
   function applyNotifications(n, items) {
     n = n || { handovers: 0, approvals: 0, corrections: 0, rejections: 0 };
+    items = items || { handovers: [], approvals: [], corrections: [], rejections: [] };
+    // Rejections are the one feed item with no server-side "done": the row stays
+    // 'rejected' all season, so the server resends every one on every poll. The
+    // banner already hides locally-dismissed ids — but the COUNT must drop too,
+    // here at apply time, or every app start toasts "🔔 1 ফেরত এসেছে" for a
+    // notice the user dismissed weeks ago (prev starts at 0, so total>prev).
+    items.rejections = (items.rejections || []).filter(function (x) { return !rejSeen(x.id); });
+    n.rejections = items.rejections.length;
     const total = (n.handovers || 0) + (n.approvals || 0) + (n.corrections || 0) + (n.rejections || 0);
     const prev = (notifCounts.handovers || 0) + (notifCounts.approvals || 0) + (notifCounts.corrections || 0) +
       (notifCounts.rejections || 0);
     const changed = total !== prev;
     notifCounts = n;
-    notifItems = items || { handovers: [], approvals: [], corrections: [], rejections: [] };
+    notifItems = items;
     renderNotifBanner();
     if (total > prev) { const m = notifText(); if (m) { toast('🔔 ' + m); osNotify(m); } }
     // auto-refresh a data view (e.g. admin panel) when the count changes,
