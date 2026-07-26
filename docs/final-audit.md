@@ -586,6 +586,33 @@ the list; fixing the last anomaly makes the banner disappear entirely. No
 console errors. Pinned: every anomaly type is asserted to have a title and a
 message, so a desk that prints a raw type name fails the suite.
 
+### A24. (improvement) 2026-07-27 — the donor phone: asked twice, never forced
+**Hrishi's call:** *"dont make it mandatory, but ask two times before passing the
+field."* Considered and rejected: making it mandatory. A blocking step in the
+field buys FAKE numbers — 9999999999 gets typed the moment it stands between a
+busy collector and the next shop — and a fake number is strictly worse than a
+blank one, because it collides with every other fake number and poisons the very
+duplicate detection it was meant to strengthen. Legitimate blanks are also
+common here: a ₹50 street donor, an elderly donor who does not recall it.
+**Built:** a general `confirmSkipKey` on any flow step. Tapping Skip on the phone
+asks once more, saying what the number buys (a WhatsApp dues reminder later, and
+catching the same donor added twice); Cancel returns to the field, OK moves on.
+One extra tap for the honest "no number" case; it rescues the "couldn't be
+bothered" case, which is the common one.
+**The payoff, same commit:** a phone match is now a STRONGER duplicate signal
+than a name match, which was the real substance of Hrishi's idea. Name-only is
+weak — "মা তারা স্টোর" can honestly be three shops. A phone hit means the same
+household or owner, so it wins over a name hit and gets its own wording ("the
+same donor twice, or the same owner's second shop?"). Both warnings now NAME the
+existing donor — name, owner, phone, pledged, which collector — instead of
+asserting that a match exists.
+**Verified live:** Skip on the owner field passes silently (only the phone
+carries the second ask); Skip on the phone asks, Cancel keeps you on the field,
+OK advances; and a new shop with a completely different NAME but the same phone
+was caught, naming "সাহা স্টোর (রতন সাহা) · 📞 9876543210 · কথা ₹3,000 · যমুনা".
+No console errors. Pinned, including that the step stays `optional: true` — a
+future "tidy-up" that makes it blocking fails the suite.
+
 ### Verified green in the two-user pass
 | Path | Result |
 |---|---|

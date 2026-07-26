@@ -4683,3 +4683,42 @@ so a desk that prints a raw type name fails the suite — the rule is now
 "detection without a sentence is not detection" (recorded in money-model.md).
 
 579 passed, 0 failed. Client-only; sw + CODE_VERSION → v4.6.1 in lockstep.
+
+## 2026-07-27 — v4.6.2: A24 — the donor phone, asked twice and never forced
+
+Hrishi: *"ফোন বাধ্যতামূলক? dont make it but ask two times before passing the
+field."*
+
+Mandatory was the tempting version and it is the wrong one. A blocking step in
+the field buys **fake numbers** — 9999999999 gets typed the moment it stands
+between a busy collector and the next shop — and a fake number is strictly worse
+than a blank one: it collides with every other fake number and poisons the very
+duplicate detection it was supposed to strengthen. Legitimate blanks are common
+here too (a ₹50 street donor, an elderly donor who does not recall it).
+
+So: a general `confirmSkipKey` on any flow step. Skip on the phone asks once
+more and says what the number buys — a WhatsApp dues reminder later, and
+catching the same donor added twice. Cancel returns to the field, OK moves on.
+One extra tap for the honest "no number" case; it rescues the careless case,
+which is the common one. Only the phone carries it: Skip on owner/location still
+passes silently, so the friction stays where it earns its keep.
+
+**And the substance of Hrishi's idea landed in the same commit:** a phone match
+is now a stronger duplicate signal than a name match. Name-only is weak — "মা
+তারা স্টোর" can honestly be three shops — so a phone hit wins and gets its own
+wording ("the same donor twice, or the same owner's second shop?"). Both
+warnings now NAME the existing donor (name, owner, phone, pledged, collector)
+instead of asserting a match exists, matching what the payment popup already
+does.
+
+`esc0()` exists because `window.confirm` renders PLAIN TEXT — running it through
+`esc()` would print literal `&amp;` at a collector. Named, so nobody "fixes" it
+later and nobody pastes it into innerHTML.
+
+VERIFIED live: Skip on owner passes silently; Skip on phone asks, Cancel keeps
+you on the field, OK advances; a new shop with a completely different NAME but
+the same phone was caught, naming "সাহা স্টোর (রতন সাহা) · 📞 9876543210 · কথা
+₹3,000 · যমুনা". No console errors. Pinned — including that the step stays
+`optional: true`, so a future tidy-up that makes it blocking fails the suite.
+
+590 passed, 0 failed. Client-only; sw + CODE_VERSION → v4.6.2 in lockstep.

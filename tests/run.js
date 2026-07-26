@@ -1450,6 +1450,35 @@ eq(a22gs.indexOf('function ensureCols_') >= 0, true, 'A22: push has a header-hea
 const pushSrc = a22gs.slice(a22gs.indexOf('push: function'), a22gs.indexOf('\n  },', a22gs.indexOf('push: function')));
 eq(pushSrc.indexOf('ensureCols_(sh, cols)') >= 0, true, 'A22: …and push calls it before writing any store');
 
+// ---- A24: the phone step — asked twice, never forced ------------------------
+// Hrishi: "don't make it mandatory, but ask two times before passing the field".
+// Mandatory buys FAKE numbers (9999999999 gets typed the moment a step blocks a
+// busy collector) and a fake number is worse than a blank one — it collides with
+// every other fake number and poisons the very duplicate detection it was meant
+// to strengthen.
+const a24App = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+const a24I18n = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+const phoneStep = a24App.slice(a24App.indexOf("key: 'phone', qKey: 'q_phone'") - 200,
+                               a24App.indexOf("key: 'phone', qKey: 'q_phone'") + 200);
+eq(/optional: true/.test(phoneStep), true, 'A24: the phone stays OPTIONAL — never a blocking step');
+eq(phoneStep.indexOf("confirmSkipKey: 'skip_phone_confirm'") >= 0, true, 'A24: …but skipping it asks once more');
+eq(a24App.indexOf('if (st.confirmSkipKey && !window.confirm(t(st.confirmSkipKey))) return;') >= 0, true,
+   'A24: the skip button honours confirmSkipKey, and Cancel returns to the field');
+eq(a24I18n.indexOf('  skip_phone_confirm:') >= 0, true, 'A24: the second ask has a real bilingual message');
+// the payoff: a phone match is a STRONGER duplicate signal than a name match
+const npf = a24App.slice(a24App.indexOf('function newPartyFlow'), a24App.indexOf('function esc0'));
+eq(npf.indexOf('cleanPhoneIN(p.phone') >= 0, true, 'A24: the donor dup-check compares phone numbers');
+eq(npf.indexOf('byPhone[0] || byName[0]') >= 0, true, 'A24: …and a phone hit wins over a name hit');
+eq(npf.indexOf('dup_party_phone') >= 0 && npf.indexOf('dup_party_warn') >= 0, true,
+   'A24: two messages, because the two signals carry different certainty');
+['dup_party_phone', 'dup_party_warn'].forEach(function (k) {
+  eq(a24I18n.indexOf('  ' + k + ':') >= 0, true, 'A24: ' + k + ' exists');
+});
+eq(a24I18n.slice(a24I18n.indexOf('  dup_party_warn:'), a24I18n.indexOf('  dup_party_warn:') + 400).indexOf('{row}') >= 0, true,
+   'A24: the warning NAMES the existing donor rather than just asserting one exists');
+// window.confirm renders plain text — escaping it would print literal entities
+eq(a24App.indexOf('function esc0') >= 0, true, 'A24: confirm text uses esc0, not esc — plain text, not HTML');
+
 // A ReferenceError in a click handler does not exist until somebody taps. Run
 // the scope checker as part of the suite so it cannot rot in a corner.
 try {

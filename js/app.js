@@ -808,6 +808,15 @@
       // no current step — reading .kind here used to throw
       const st = flowState && flowState.def.steps[flowState.idx];
       if (!st) return;
+      // `confirmSkipKey`: ask once more before letting a field go by. Hrishi's
+      // call on the donor phone — "don't make it mandatory, but ask two times
+      // before passing the field". Mandatory would only buy fake numbers
+      // (9999999999 gets typed the moment a step blocks a busy collector), and
+      // a fake number is worse than a blank one: it collides with every other
+      // fake number and poisons duplicate detection. A second ask costs the
+      // honest "no phone" case one tap and rescues the "couldn't be bothered"
+      // case, which is the common one.
+      if (st.confirmSkipKey && !window.confirm(t(st.confirmSkipKey))) return;
       submitAnswer(st.kind === 'amount' ? null : '');
     };
     const backB = document.getElementById('back-btn');
@@ -972,7 +981,11 @@
         { key: 'side', qKey: 'q_side', kind: 'choice', optionsFn: sideOptions, showIf: function () { return type === 'shop'; } },
         { key: 'location', qKey: 'q_location', kind: 'choice', optionsFn: locationOptions, optional: true,
           showIf: function () { return type !== 'shop' && Lists.get('location').length > 0; } },
+        // still optional — but skipping it asks once more (see confirmSkipKey
+        // in renderEntry). The number is what makes 📞 dues reminders possible
+        // AND what turns a weak name match into a near-certain duplicate call.
         { key: 'phone', qKey: 'q_phone', kind: 'text', optional: true,
+          confirmSkipKey: 'skip_phone_confirm',
           validate: phoneErrIN, clean: cleanPhoneIN },
         { key: 'pledged', qKey: 'q_pledged', kind: 'amount' },
       ].concat(moneySteps(true)),
@@ -981,9 +994,27 @@
         // just this device — two collectors adding the same shop from two
         // phones used to both sail through and double the donor centrally.
         return viewData().then(function (data) {
+          // Two signals, deliberately different strengths — Hrishi's point that
+          // a phone number identifies a donor far better than a name does.
+          //   name only  → weak. "মা তারা স্টোর" can honestly be three shops.
+          //   phone match→ strong. Same number = same household/owner, so this
+          //                is either the same donor twice, or one owner's second
+          //                shop — and either way the collector should be told
+          //                WHICH existing donor, not just "a name matched".
+          // Still a confirm, never a block: both cases have legitimate versions.
           const nm = String(a.name || '').trim().toLowerCase();
-          const dup = (data.parties || []).some(function (p) { return String(p.name || '').trim().toLowerCase() === nm; });
-          if (dup && !window.confirm(t('dup_party_warn'))) throw new Error('cancelled');
+          const ph = cleanPhoneIN(a.phone || '');
+          const byName = (data.parties || []).filter(function (p) { return String(p.name || '').trim().toLowerCase() === nm; });
+          const byPhone = ph ? (data.parties || []).filter(function (p) { return cleanPhoneIN(p.phone || '') === ph; }) : [];
+          const hit = byPhone[0] || byName[0];
+          if (hit) {
+            const line = esc0(hit.name) + (hit.owner ? ' (' + hit.owner + ')' : '') +
+              (hit.phone ? ' · 📞 ' + hit.phone : '') +
+              ' · ' + t('pledged') + ' ' + fmtMoney(hit.pledged || 0) +
+              (hit.collector ? ' · ' + hit.collector : '');
+            const msg = (byPhone.length ? t('dup_party_phone') : t('dup_party_warn')).replace('{row}', line);
+            if (!window.confirm(msg)) throw new Error('cancelled');
+          }
           return savePartyAndFirstPayment(type, a);
         }).then(function (res) {
           const undo = [{ store: 'parties', id: res.party.id }];
@@ -1011,6 +1042,10 @@
   // id so the same row can be found on the admin's duplicate screen. Used by
   // BOTH the entry-time warning and that screen, so the two never describe the
   // same row differently.
+  // window.confirm shows PLAIN TEXT, so nothing here is escaped — esc() would
+  // print literal &amp; to a user. Kept as its own named helper so nobody
+  // later 'fixes' it by adding esc(), and nobody pastes this into innerHTML.
+  function esc0(v) { return String(v == null ? '' : v); }
   function dupLine(p) {
     const when = p.createdAt ? fmtDateTime(p.createdAt) : fmtDate(p.date);
     return '• ' + (p.receiptNo ? t('receipt_no') + ' ' + p.receiptNo + ' · ' : '') +

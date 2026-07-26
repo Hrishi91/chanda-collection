@@ -113,12 +113,18 @@ footer for exactly this reason.
 |---|---|
 | the same row sent twice (retry, offline catch-up) | uuid at creation + server upserts by id; `collectUnsynced` filters `synced`/`rejected`; `inFlight` blocks a second push; a re-pushed payment gets **no second receipt serial** (`!idRow[id] && !receiptNo`) |
 | double-tap on the final step | `savingFlow` swallows taps during the async save (A4) |
-| two collectors adding the same donor | name check against `viewData()` — central + own, not just this device (A3). A confirm, not a block: two shops can share a name |
+| two collectors adding the same donor | checked against `viewData()` — central + own, not just this device (A3). **Phone match beats name match** (A24): a name is weak ("মা তারা স্টোর" can be three shops), a number means the same household or owner. Both warnings name the existing donor. A confirm, never a block |
 | identical ids in the data | `reconcile` → `duplicate_id` |
 | **the same instalment entered twice** | `samePaymentsOn` — party + amount + day. A confirm at entry, a `possible_duplicate_payment` anomaly for pairs already in the book, and `dupOk` recording the human's answer so the banner asks once (A22) |
 
 The fifth was the gap: every other layer is id-based, and a re-entry has a
-different uuid. It is also invisible to reconcile's invariant, because both
+different uuid.
+
+**Why the phone is not mandatory** (asked and decided 2026-07-27): a blocking
+field buys fake numbers, and a fake number is worse than a blank one — it
+collides with every other fake number and poisons duplicate detection. Instead
+the Skip asks a second time (`confirmSkipKey`), and wherever a number IS present
+it is treated as the strongest identity signal available. It is also invisible to reconcile's invariant, because both
 rows really were collected.
 
 ## When something IS wrong: the anomaly desk (A23)
