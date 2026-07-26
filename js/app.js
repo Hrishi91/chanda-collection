@@ -1087,22 +1087,21 @@
     // "handed over by X", with the sender's position at that moment saved
     // alongside it.
     const cashierMode = !!(cashView && Auth.isCashier());
+    // No typed-amount fallback any more (R2). It only ever triggered when every
+    // pot was ≤0 — i.e. the collector held nothing — and it was the ONE door
+    // with no ceiling: any figure typed there was fiction the books would then
+    // owe. startHandover() now shows an empty-state instead of opening the flow,
+    // so by the time we are here a collector always has at least one chip.
+    // `cap` carries the per-money-type ceiling. The pot chips alone cannot
+    // enforce it: an overspent pot is clamped to 0 and so vanishes from the
+    // chips, while its debt still reduces the cash really in hand — so Σ
+    // chips can exceed what exists. See Aggregate.handoverable().
     const moneySteps_ = cashierMode
       ? [{ key: 'cashsheet', qKey: 'q_handover_amount', kind: 'cashsheet', view: cashView, cats: catsOf(cashView.collectedByCat) }]
-      : categories.length
-      // `cap` carries the per-money-type ceiling. The pot chips alone cannot
-      // enforce it: an overspent pot is clamped to 0 and so vanishes from the
-      // chips, while its debt still reduces the cash really in hand — so Σ
-      // chips can exceed what exists. See Aggregate.handoverable().
-      ? [{ key: 'sheet', qKey: 'q_handover_sheet', kind: 'sheet', categories: categories,
+      : [{ key: 'sheet', qKey: 'q_handover_sheet', kind: 'sheet', categories: categories,
            cap: { cash: avail.cash, upi: avail.upi,
                   pendingOut: avail.pendingOut || { total: 0 },
-                  debt: avail.debt || { cash: 0, upi: 0, total: 0 } } }]
-      : [
-          { key: 'payMode', qKey: 'q_mode', kind: 'choice', options: modeOptions(false) },
-          { key: 'cashAmount', qKey: 'q_cash_amount', kind: 'amount', showIf: needCash },
-          { key: 'upiAmount', qKey: 'q_upi_amount', kind: 'amount', showIf: needUpi },
-        ];
+                  debt: avail.debt || { cash: 0, upi: 0, total: 0 } } }];
     return {
       title: t('handover_title') + (avail.cash || avail.upi
         ? ' — ' + t('you_have') + ': 💵' + fmtMoney(avail.cash) + ' · 📱' + fmtMoney(avail.upi) : ''),
@@ -1170,12 +1169,25 @@
     const others = function (list) {
       return (list || []).filter(function (c) { return c.username !== ident; });
     };
+    // R2: with nothing in the account there is nothing honest to hand over —
+    // say so instead of opening a flow whose only remaining path was the
+    // uncapped typed-amount fallback. If money is merely stuck in transit
+    // (sent, awaiting approval), say THAT, because "no money" would read as a
+    // bug to someone who collected all morning.
+    const begin = function (opts, a) {
+      if ((a.avail.total || 0) <= 0) {
+        const pend = (a.avail.pendingOut || {}).total || 0;
+        toast(pend > 0 ? t('ho_nothing_pending').replace('{n}', fmtMoney(pend)) : t('ho_nothing'));
+        return;
+      }
+      startFlow(handoverFlow(opts, a.avail, a.view));
+    };
     if (navigator.onLine && Sync.configured()) {
       Auth.call('cashiers', { token: Auth.token() })
-        .then(function (resp) { return availP.then(function (a) { startFlow(handoverFlow(others(resp.cashiers), a.avail, a.view)); }); })
-        .catch(function () { availP.then(function (a) { startFlow(handoverFlow(null, a.avail, a.view)); }); });
+        .then(function (resp) { return availP.then(function (a) { begin(others(resp.cashiers), a); }); })
+        .catch(function () { availP.then(function (a) { begin(null, a); }); });
     } else {
-      availP.then(function (a) { startFlow(handoverFlow(null, a.avail, a.view)); });
+      availP.then(function (a) { begin(null, a); });
     }
   }
   function dailyFlow(type) {

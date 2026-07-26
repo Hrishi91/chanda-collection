@@ -469,11 +469,12 @@ proven to bite.
   guard. One extra read per upsert, and upserts only happen on retry/restore.
   Predicates run from the REAL Code.gs in tests; proven to bite by unguarding
   one write-site.
-- **R2 LOW — the one uncapped handover door.** When every pot is ≤0 the sheet
-  falls back to typed cash/UPI amounts with no ceiling — reachable only when the
-  collector holds nothing, at which point any typed amount is fiction (reconcile
-  would flag it). **Recommendation:** ceiling 0 → empty-state instead of typed
-  steps.
+- **R2 LOW — FIXED 2026-07-26 (client-only) — the one uncapped handover door.**
+  The zero-holdings typed-amount fallback is REMOVED; `startHandover` now gates
+  on the ceiling. The empty-state names the reason when money is merely in
+  transit ("₹500 আগেই পাঠানো, অনুমোদনের অপেক্ষায়…") — a collector who worked all
+  morning would read a bare "no money" as a bug. Verified live both ways:
+  ceiling 0 + pending → toast, no flow; fresh ₹300 → flow opens at 💵₹300.
 - **R3 LOW —** `isRecipient_` display-name fallback: two users sharing an exact
   display name could cross-confirm offline-written rows (username wins whenever
   present). Known identity rule; noted.

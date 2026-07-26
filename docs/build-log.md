@@ -4497,3 +4497,22 @@ never in the normal append-only flow.
 Tests load the REAL table from Code.gs and drive the predicates; a source
 assertion counts both guarded write-sites and fails when one is unguarded
 (proven). 496 passed, 0 failed. **Rides the next redeploy** — no client change.
+
+## 2026-07-26 — v4.5.5 / R2: the last uncapped handover door closed
+
+The typed cash/UPI fallback inside handoverFlow only ever triggered when every
+pot was ≤0 — i.e. the collector held nothing — and it was the one path with no
+ceiling: any figure typed there was fiction the books would then owe (v4.4.1
+capped the chips, not this). Removed. `startHandover` now gates on the ceiling
+before opening the flow, so a collector always lands on the capped sheet.
+
+The empty-state names the reason when there is one: with money in transit the
+toast reads "₹500 আগেই পাঠানো, অনুমোদনের অপেক্ষায় — নতুন করে জমা দেওয়ার কিছু
+নেই", because a collector who worked all morning would read a bare "no money"
+as a bug, not a state.
+
+Verified live on a fresh port, both directions: ceiling 0 + ₹500 pending → the
+pending-aware toast and NO flow; add ₹300 fresh → the flow opens at 💵₹300
+(800 collected − 500 pending, the ceiling doing its job). No console errors.
+Source assertions pin both the gate and the fallback's absence. 501 passed, 0
+failed. sw + CODE_VERSION → v4.5.5 in lockstep.

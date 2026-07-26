@@ -1015,11 +1015,25 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
   ['err_already_rejected', 'err_reason_required'].forEach(function (k) {
     eq(i18nSrc.indexOf('  ' + k + ':') >= 0, true, 'i18n: ' + k + ' has a real message, not err_network');
   });
+  // R2: the uncapped typed-amount fallback is gone from the handover flow, and
+  // startHandover gates on the ceiling instead — with a message that names the
+  // pending money when that is why the ceiling is empty.
+  const appSrc = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const hoFlowSrc = appSrc.slice(appSrc.indexOf('function handoverFlow'), appSrc.indexOf('function startHandover'));
+  eq(hoFlowSrc.indexOf('q_cash_amount') < 0, true, 'R2: no typed-amount step is reachable inside handoverFlow');
+  const startHoSrc = appSrc.slice(appSrc.indexOf('function startHandover'),
+                                  appSrc.indexOf('\n  }', appSrc.indexOf('function startHandover')));
+  eq(startHoSrc.indexOf("t('ho_nothing')") >= 0, true, 'R2: a zero ceiling shows the empty-state toast');
+  eq(startHoSrc.indexOf('ho_nothing_pending') >= 0, true,
+     'R2: …and names the in-transit money when that is the reason');
+  ['ho_nothing', 'ho_nothing_pending'].forEach(function (k) {
+    eq(i18nSrc.indexOf('  ' + k + ':') >= 0, true, 'i18n: ' + k + ' exists');
+  });
+
   // A19: the server resends every season-old rejection on every poll (no "done"
   // state exists), so the CLIENT must drop dismissed ids from the count at apply
   // time — filtering only the banner leaves a ghost "🔔 ফেরত এসেছে" toast on
   // every app start for the rest of the season.
-  const appSrc = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
   const applyStart = appSrc.indexOf('function applyNotifications');
   const applySrc = appSrc.slice(applyStart, appSrc.indexOf('\n  }', applyStart));
   eq(applySrc.indexOf('rejSeen(x.id)') >= 0, true,

@@ -332,8 +332,8 @@ give different numbers:
 - [x] ~~**R1** — settled handovers AND resolved corrections now survive a
       restore re-push (`SETTLED_ON_UPSERT` + `preserve()` on both write-sites)~~
       (2026-07-26; **rides the next redeploy**).
-- [ ] **R2 (LOW):** ceiling 0 → show an empty-state on the handover screen
-      instead of the uncapped typed-amount fallback.
+- [x] ~~**R2** — uncapped typed-amount fallback removed; zero ceiling now shows
+      an empty-state that names the in-transit money~~ (2026-07-26, client-only).
 
 ## Before go-live, still open
 
