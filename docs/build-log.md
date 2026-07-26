@@ -4722,3 +4722,41 @@ the same phone was caught, naming "সাহা স্টোর (রতন স�
 `optional: true`, so a future tidy-up that makes it blocking fails the suite.
 
 590 passed, 0 failed. Client-only; sw + CODE_VERSION → v4.6.2 in lockstep.
+
+## 2026-07-27 — perf check: does today's guarding slow the collector down?
+
+Hrishi: *"will it slow the process"*. Measured, not reassured — the "buttons are
+too slow" episode earlier in this project was a real ReferenceError, and the
+lesson there was that guessing about performance wastes days.
+
+Season-full book (1,200 donors · 3,500 payments · 900 daily · 400 handovers ·
+2,000 chat messages), timed in the BROWSER on that data, not in node:
+
+    samePaymentsOn  (the new duplicate check)      0.7 ms   ← runs on every save
+    handoverable    (the ceiling)                  4.2 ms
+    mySummary       (আমার হিসাব)                    9.5 ms
+    reconcile       (the banner)                  ~51 ms   ← cashier/admin, on open
+
+And the thing that actually matters — the real UI, last tap to receipt on
+screen: **≤ 50 ms**, of which `DB.put` is 1.2 ms.
+
+What today added, isolated by running the old and new `reconcile` side by side
+on identical data: **14.41 → 15.43 ms, +1.0 ms (7%)** for the A21/A22 scans. The
+duplicate check adds **0.7 ms** to a save. Both are far below the 16 ms frame
+that would make a tap feel late.
+
+Two traps avoided while measuring:
+- The first `samePaymentsOn` call clocked 7.9 ms and the warm one 0.7 ms — JIT
+  warm-up, not cost. Benchmarking the first call would have "found" a problem
+  that does not exist.
+- An early end-to-end reading said 1,007 ms. That was the 20 ms polling loop in
+  the measurement harness; instrumenting `DB.put` directly showed the save
+  finishing inside 50 ms. **Measure the thing, not your own wait().**
+
+Considered and rejected: making `samePaymentsOn` filter only `payments` instead
+of going through `activeData` (0.2 ms vs 0.7 ms). A 0.5 ms saving is not worth a
+second void-filtering path that could drift from the one every other reader
+uses — that divergence is exactly the shape of A18.
+
+No change committed from this pass; it is a measurement, recorded so the next
+person does not re-derive it.
