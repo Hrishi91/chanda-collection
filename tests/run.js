@@ -979,6 +979,13 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
   eq(rejSrc.indexOf("setValue('rejected')") >= 0, true, "reject: writes status='rejected', not a void");
   eq(rejSrc.indexOf('touchData_()') >= 0, true, "reject: stamps the change so the sender's delta pull sees it");
   eq(rejSrc.indexOf('handover:reject') >= 0, true, 'reject: audited');
+  // readAll_ maps rows by the REAL header row, so a value written into an
+  // unlabelled column is written and never read — the status would flip and the
+  // reason would silently vanish. Writing a brand-new column must heal the header
+  // rather than trust that a human remembered to run setup().
+  eq(rejSrc.indexOf("ensureCol_(sh, 'rejectReason')") >= 0, true,
+     'reject: heals its own header instead of depending on setup() having been run');
+  eq(src.indexOf('function ensureCol_') >= 0, true, 'reject: ensureCol_ exists');
   // read the column list itself, comments stripped, and check the LAST name —
   // setup() migrates headers by appending, and every write is position-based, so
   // a name inserted mid-list shifts every column after it in existing sheets

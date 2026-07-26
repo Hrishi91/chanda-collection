@@ -996,8 +996,11 @@ var ACTIONS = {
       // the answer was, so a rejection needs no extra pair of columns.
       sh.getRange(r, cols.indexOf('confirmedBy') + 1).setValue(u.row.name);
       sh.getRange(r, cols.indexOf('confirmedAt') + 1).setValue(new Date().toISOString());
-      var rrCol = cols.indexOf('rejectReason');
-      if (rrCol >= 0) sh.getRange(r, rrCol + 1).setValue(reason);
+      // Heal the header if setup() has not run since this column was added —
+      // otherwise the reason is written into an unlabelled column and readAll_,
+      // which maps by the real header, never returns it. The status would flip
+      // and the explanation would silently disappear.
+      sh.getRange(r, ensureCol_(sh, 'rejectReason')).setValue(reason);
       // bump receivedAt so the delta pull carries this in-place status change
       sh.getRange(r, cols.indexOf('receivedAt') + 1).setValue(new Date().toISOString());
       touchData_(); // the sender's handover ceiling changes the moment this lands
@@ -1266,6 +1269,20 @@ var ACTIONS = {
   },
 };
 
+// Make sure a column NAME exists in a sheet's header, appending it if not, and
+// return its 1-based index. `readAll_` maps rows by the ACTUAL header row, so a
+// value written into an unlabelled column is written and then never read — it
+// vanishes with no error anywhere. setup() normally adds new columns, but it is a
+// step a human has to remember; anything that writes a brand-new column heals its
+// own header instead of trusting that.
+function ensureCol_(sh, name) {
+  var last = sh.getLastColumn();
+  var have = last ? sh.getRange(1, 1, 1, last).getValues()[0].map(String) : [];
+  var at = have.indexOf(name);
+  if (at >= 0) return at + 1;
+  sh.getRange(1, have.length + 1).setValue(name);
+  return have.length + 1;
+}
 function readAll_(year) {
   var ss = SpreadsheetApp.getActive();
   var data = {};

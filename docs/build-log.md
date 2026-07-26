@@ -4335,3 +4335,40 @@ it and it does **not** come back on the next poll. No console errors.
 
 **NEEDS: `setup()` in the Apps Script editor (for the new `rejectReason`
 column) AND a redeploy.**
+
+## 2026-07-26 — v4.5.1: rebake for the new deployment, and one silent-loss guard
+
+Hrishi deployed the phase-খ backend and sent a new `/exec` URL; `config.js`
+rebaked (this account has never repointed an existing deployment, so every
+backend change mints a new URL).
+
+**Fingerprinted the running code before trusting it** — the lesson from the
+stale-deployment trap. `rejectHandover` with no token, against both URLs:
+
+    new deployment → {"ok":false,"error":"no-token"}      ← the action EXISTS
+    old deployment → {"ok":false,"error":"unknown action"} ← it does not
+
+`no-token` means the call reached `requireUser_`, i.e. the action is present.
+A file date, or Hrishi saying he deployed, proves nothing; this does. (Also
+confirmed `definitelyNotAnAction` → `unknown action`, so the probe can tell the
+two apart rather than always answering the same way.)
+
+*(curl needs the two-step form here: Apps Script answers a POST with a 302 and
+curl downgrades the follow-up to GET, which returns Google's HTML wrapper. Post
+to `/exec`, read `redirect_url`, then GET that.)*
+
+### The guard: a write that heals its own header
+
+`readAll_` maps every row by the **actual header row**, not by the `SHEETS`
+constant. So if `setup()` had not been run since `rejectReason` was added, the
+reason would be written into an unlabelled column and then **never read back** —
+the status would flip to `rejected`, the money would return to the ceiling, and
+the explanation would vanish with no error anywhere. Exactly the A16 failure
+shape: an action that answers `ok` while quietly doing less than it says.
+
+New `ensureCol_(sh, name)` appends the column to the header if missing and returns
+its index; `rejectHandover` writes through it. `setup()` still does the bulk
+migration — but anything writing a brand-new column no longer depends on a human
+having remembered. Pinned by a test that the action calls it.
+
+474 passed, 0 failed.
