@@ -216,15 +216,13 @@ on his phone after the redeploy).
       category books stay exact — the receiving cashier sees the money
       under the original categories too (cashier→cashier shows চাঁদা/বাস…
       chips, not one lump)~~ (2026-07-25, v3.76.0)
-- ⚠️ v3.76.0 needs a **Code.gs redeploy** (handovers `breakdown` column,
-  appended at end) + run setup(). Until then handovers sync fine but the
-  receiver sees them as 'received' instead of per-category.
+- [x] ~~v3.76.0 Code.gs redeploy (handovers `breakdown` column) + setup()~~
+  (done 2026-07-25/26 — `breakdown` confirmed live in the two-user pass)
 - Declined by Hrishi (asked first, not guessed): generic amount quick-tap
   presets for entry flows (payment/daily/new-party), and softening the
   persistent training banner — both left as-is.
-- ⚠️ Static-files-only redeploy needed (GitHub Pages push, no Code.gs
-  change) — sw is at v3.74.0 now, covers all of the above; every device
-  picks it up on next open.
+- [x] ~~Static-files redeploy~~ (Pages has shipped every version since;
+  sw currently v3.99.0)
 
 ## v3.82.0 — one identity rule (2026-07-26, DONE)
 
@@ -238,10 +236,9 @@ on his phone after the redeploy).
       `srcCat` expense), on two real sessions. All 16 checks green.
 - [x] `setup()` confirmed run: Expenses now carries `cashAmount`,
       `upiAmount`, `srcCat`; Handovers carries `breakdown`.
-- ⚠️ **Code.gs redeploy needed** for `personalSummary_` (the server-side
-      mirror of the A10 fix). No new columns, so no `setup()` this time.
-      Clients compute their own reports, so nothing is broken until then —
-      only the server's `myReport` action carries the old behaviour.
+- [x] ~~Code.gs redeploy for `personalSummary_` (A10 mirror)~~ (done
+      2026-07-26, AKfycbwpwZ0D… — verified in the three-role pass:
+      server `myReport` === client `personalSummary` for all three roles)
 
 ## v3.83.0 — one role vocabulary (2026-07-26, DONE)
 
@@ -249,9 +246,8 @@ on his phone after the redeploy).
       71 green; the failure was a cashier being unable to resolve a plain
       collector's correction flag, plus the same bug hiding Undo from the
       cashier in the UI. Fixed as A11 in `docs/final-audit.md`.
-- ⚠️ **Code.gs redeploy needed** for the server half (`push` stamping +
-      `targetCollectorRole_`). No new columns, so no `setup()`. Re-run the
-      three-role pass after redeploying to turn that last check green.
+- [x] ~~Code.gs redeploy for the A11 server half~~ (done 2026-07-26,
+      AKfycbwpwZ0D… — re-run pass: cashier resolveCorrection ok:true)
 
 ### Open questions for Hrishi (raised 2026-07-26, not decided)
 - `yamini05`'s reports list is EMPTY — she can open no report at all. Set
@@ -262,19 +258,35 @@ on his phone after the redeploy).
   INSTABILITY (an unsourced bill migrating between categories) was a separate
   defect and is fixed in v3.86.0.
 
-## ⚠️ Code.gs redeploy + `setup()` needed (v3.93.0–v3.96.0)
+## ⚠️ THE ONE PENDING REDEPLOY (v3.93.0–v3.99.0) — everything server-side since AKfycbwpwZ0D…
 
-New deployment **AND `setup()` this time** — the chat adds a `Messages` sheet.
+Steps, in order:
+1. Apps Script: paste current `apps-script/Code.gs` → **New deployment**
+   (New version never repoints on this account).
+2. Run **`setup()`** once in the editor — REQUIRED this time: the chat adds a
+   `Messages` sheet.
+3. Hand the new `/exec` URL over for rebaking into `js/config.js`.
 
-- `voids` is gated for the first time (`voidAllowed_`).
-- An admin restoring a backup may file rows under the collector they belong to.
-- `clearTraining` — wipe practice data without going live.
-- `otherdonor` permission key.
-- Empty `entries` now grants NOTHING (was: everything).
-- `Messages` sheet for the committee chat.
+What this deployment carries:
+- `voids` gated for the first time (`voidAllowed_` — admin any, cashier a
+  collector's or own, anyone their own).
+- Admin backup-restore may file rows under the collector they belong to
+  (audited as `restore:attribute`).
+- `clearTraining` — wipe practice data without going live (admin, training
+  only, mandatory backup, typed CLEAR).
+- `otherdonor` permission key (reaching other people's donors).
+- **Empty `entries` now grants NOTHING** (was: everything) — matches reports.
+- `Messages` sheet + `chat_off` kill switch (enforced server-side).
 
-**After the redeploy, grant every collector something** — 11 approved users have
-`entries=''` and can currently do nothing. One `[সব দাও]` tap each.
+Right after the redeploy:
+1. **Grant every collector something** — 11 approved users have `entries=''`
+   and can do nothing until granted. One `[সব দাও]` tap each, or pick chips.
+2. Re-run the full three-role pass (scratchpad `three-role.js` with three
+   fresh tokens) — it must also cover: bus tab in the ledger, find-party
+   permission, cashier's typed handover + `__snap`, chat send/receive +
+   mention notification + `chat_off`, `clearTraining` on the training sheet,
+   admin backup-import attribution, void gate.
+3. Rotate the session tokens pasted into chat (re-login on each phone).
 
 ## Next decision — Go Live
 
