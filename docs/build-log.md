@@ -3427,3 +3427,57 @@ What stays gated is unchanged and still right: 🔍 অন্য কারো �
 grant (route as well as button), and every entry flow needs its category.
 
 VERIFIED: 346 passed, 0 failed; app loads clean on a fresh port.
+
+## v3.97.0 — chat must not slow the collection down
+
+Hrishi: "if all users using the messenger, and they are in collection, so will
+it affect performance?"
+
+Measured before answering, and yes — twice, both of them my own doing.
+
+### 1. Chat was riding the money aggregation
+
+`activeData()` filters voided rows and runs on EVERY aggregation —
+`inHandRows` calls it once per collector, so ten collectors meant ten passes.
+Adding `messages` to it meant a season of chat was being filtered on every
+money calculation, for rows that change no figure anywhere:
+
+    messages     inHandRows (node)
+           0          0.7 ms
+       2,000          2.9 ms
+       5,000          7.8 ms      ← 11× slower
+
+`messages` is out of `activeData` now, and `messageFeed` filters its own voids
+— which is the only place that ever needed them:
+
+    5,000 messages  →  inHandRows 0.5 ms  ·  messageFeed 2.8 ms
+
+Browser, same test: `inHandRows` 0.72 ms at 5,000 messages; the feed 2.40 ms.
+
+The test that pins this was **vacuous when I first wrote it** — a tangle that
+returned false whatever the code did. Replaced with one that reads the real
+contract, and proved it bites by putting `messages` back: it fails.
+
+### 2. Every message rebuilt whatever screen you were on
+
+Worse, and invisible in a benchmark. `mergeDelta` sets `changed = true` for any
+store with incoming rows, and `messages` is now a store — so a chat message
+triggered a full re-render of the ledger or the home screen.
+
+Ten people talking during a collection round would have rebuilt the ledger every
+60 seconds: **scroll position lost, and the search box wiped under somebody's
+finger mid-typing.** (Entry flows were already safe — `flowState` guards those.)
+
+`mergeDelta` now reports WHICH stores changed. A delta carrying nothing but chat
+updates the unread badge, re-renders the chat screen if that is where you are,
+and leaves every other screen untouched.
+
+### What still costs something, honestly
+
+Messages travel in the same pull payload, so a full pull (first login of the
+day) grows by roughly 200 bytes per message — a 2,000-message season is ~400 KB
+on top of the snapshot. That is real but well inside the localStorage budget,
+and delta pulls only carry what is new. No fix needed; worth knowing.
+
+VERIFIED: 348 passed, 0 failed; browser on a fresh port, numbers above, no
+console errors.

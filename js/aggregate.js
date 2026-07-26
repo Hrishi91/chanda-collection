@@ -33,7 +33,10 @@
     const keep = function (rows) { return (rows || []).filter(function (r) { return r && !v[r.id]; }); };
     return { parties: keep(data.parties), payments: keep(data.payments), daily: keep(data.daily),
              expenses: keep(data.expenses), handovers: keep(data.handovers), voids: data.voids || [],
-             messages: keep(data.messages),
+             // messages deliberately NOT carried: activeData runs on every money
+             // aggregation (inHandRows calls it once per collector), and a
+             // season of chat made that 11× slower for rows that have nothing
+             // to do with money. messageFeed filters its own voids instead.
              // pass corrections through (not voidable) — keeps this an exact
              // mirror of Code.gs activeData_ (see regression A8 in final-audit)
              corrections: data.corrections || [] };
@@ -536,7 +539,8 @@
   // after the marker this device last stored — messages you sent yourself are
   // never unread.
   function messageFeed(data, me, sinceIso) {
-    const rows = (activeData(data).messages || []).slice()
+    const v = voidedIds(data);
+    const rows = (data.messages || []).filter(function (r) { return r && !v[r.id]; })
       .sort(function (a, b) { return String(a.createdAt || '').localeCompare(String(b.createdAt || '')); });
     let unread = 0, mentioned = 0;
     rows.forEach(function (r) {
@@ -793,7 +797,8 @@
                 ENTRY_KINDS: ENTRY_KINDS, PERM_KEYS: PERM_KEYS,
                 permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC,
                 cashierView: cashierView, handoverReport: handoverReport,
-                mentionsMe: mentionsMe, messageFeed: messageFeed };
+                mentionsMe: mentionsMe, messageFeed: messageFeed,
+                activeData: activeData };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
 })();

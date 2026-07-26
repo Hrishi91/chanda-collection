@@ -1137,7 +1137,7 @@ function activeData_(d) {
   var keep = function (rows) { return (rows || []).filter(function (r) { return r && !voided[String(r.id)]; }); };
   return { parties: keep(d.parties), payments: keep(d.payments), daily: keep(d.daily),
            expenses: keep(d.expenses), handovers: keep(d.handovers), voids: d.voids || [],
-           messages: keep(d.messages),
+           messages: keep(d.messages), // read by nothing here yet; kept for parity
            // corrections pass through untouched (they aren't voidable) — the
            // A7 change routed notifData_ through here, and dropping this key
            // silently killed correction-flag notifications (regression A8)

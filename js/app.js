@@ -164,18 +164,23 @@
   try { centralYear = localStorage.getItem('ck_central_year') || ''; } catch (e) { centralYear = ''; }
   // merge a delta (only changed rows) into the cached snapshot, upsert by id.
   // There are no hard deletes (voids are soft), so merge-only stays correct.
+  // Returns which stores actually changed. Chat is separated from the rest:
+  // ten people talking during a collection round would otherwise rebuild the
+  // ledger every 60 seconds — losing scroll position, and wiping the search box
+  // under somebody's finger — for rows that change no figure on the screen.
   function mergeDelta(delta) {
-    let changed = false;
+    let changed = false, chatOnly = true;
     DB.STORES.forEach(function (s) {
       const incoming = delta[s] || [];
       if (!incoming.length) return;
       changed = true;
+      if (s !== 'messages') chatOnly = false;
       const byId = {};
       (centralData[s] || []).forEach(function (r) { if (r && r.id != null) byId[r.id] = r; });
       incoming.forEach(function (r) { if (r && r.id != null) byId[r.id] = r; });
       centralData[s] = Object.keys(byId).map(function (k) { return byId[k]; });
     });
-    return changed;
+    return { changed: changed, chatOnly: changed && chatOnly };
   }
   function pullCentral() {
     if (!navigator.onLine || !Sync.configured() || !Auth.loggedIn()) return Promise.resolve();
@@ -199,9 +204,10 @@
         try { localStorage.removeItem('ck_central'); localStorage.removeItem('ck_central_cursor'); } catch (e) {}
         return DB.clearAll().then(function () { return pullCentral(); }); // clean full pull
       }
-      let changed;
+      let changed, chatOnly = false;
       if (resp.mode === 'delta' && centralData) {
-        changed = mergeDelta(resp.data || {});
+        const m = mergeDelta(resp.data || {});
+        changed = m.changed; chatOnly = m.chatOnly;
       } else {
         centralData = resp.data || null; // full snapshot (first pull / cache miss)
         changed = true;
@@ -233,6 +239,9 @@
       viewData().then(checkMentionNotify).catch(function () {});
       updateBadge(); // unread chat count on the 💬 tab
       if (!changed || flowState) return; // idle poll (empty delta) → no re-render
+      // new chat and nothing else: the badge and the chat screen are the only
+      // things that could look different, so leave every other screen alone
+      if (chatOnly) { if (current.view === 'messages') renderMessages(); return; }
       // findparty: refresh results in place (rebuilding the shell steals input
       // focus and flashes "loading" → looked like blinking). Its #fp-results
       // swap never touches the search box, so it's safe even mid-typing.

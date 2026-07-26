@@ -3,7 +3,7 @@ const { parseAmount } = require('../js/numparse.js');
 const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
         roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed,
         cashierView, handoverReport, allowedReports,
-        mentionsMe, messageFeed } = require('../js/aggregate.js');
+        mentionsMe, messageFeed, activeData } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -665,6 +665,19 @@ eq(messageFeed(chatData, jad, '2026-07-26T09:00:00Z').mentioned, 2, 'chat: cashi
 // a voided message leaves the feed, like every other store
 eq(messageFeed(Object.assign({}, chatData, { voids: [{ id: 'v', targetId: '2' }] }), yam, '').rows.length, 3,
    'chat: a voided message is gone from the feed too');
+
+// Chat must not slow the money down. activeData runs on EVERY aggregation —
+// inHandRows calls it once per collector — so messages are deliberately kept
+// out of it; a season of chat made that path 11× slower for rows that change
+// no figure. If somebody re-adds them, this fails.
+eq(Object.prototype.hasOwnProperty.call(
+     activeData({ parties: [], payments: [], daily: [], expenses: [], handovers: [], voids: [], corrections: [],
+                  messages: [{ id: 'm', text: 'x' }] }), 'messages'),
+   false, 'chat: messages are NOT carried through activeData');
+// …and the feed still filters its own voids, which is what it now owns
+eq(messageFeed({ messages: [{ id: 'a', createdAt: '1' }, { id: 'b', createdAt: '2' }],
+                 voids: [{ id: 'v', targetId: 'a' }] }, { username: 'x' }, '').rows.map(function (r) { return r.id; }),
+   ['b'], 'chat: messageFeed filters voided messages itself');
 
 // ---- the handover book -------------------------------------------------------
 // Everything one person handed over and everything handed to them, in one
