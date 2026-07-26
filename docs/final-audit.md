@@ -362,6 +362,34 @@ worst failure mode this codebase can have.
 `chat_off` and watching it fail — and assert that `live_mode`, `data_ts` and the
 `receiptSeq_` counters can NEVER be written through this door.
 
+### A17. HIGH (authorisation) — FIXED 2026-07-26 (needs a redeploy) — Any cashier could confirm anyone's handover
+**Where:** Code.gs `confirmHandover` (~line 901).
+**Cause:** the gate was `Number(u.row.cashier) !== 1 && u.row.role !== 'admin'`
+— i.e. "are you A cashier", never "are you THE recipient". It then matched the
+handover by `b.id` alone and stamped `status=confirmed`, `confirmedBy=<caller>`.
+So cashier A could confirm a parcel collector Y had sent to cashier B: B's
+in-hand rises for money B never touched, Y's falls, and the audit names A as the
+receiver. Confirming is the one action that moves money between two people's
+books, which makes this the worst-placed missing check in the file.
+**Why it was invisible:** `pendingHandovers` DOES filter to the recipient, so the
+UI never offers someone else's parcel. The hole was only reachable by calling the
+action directly — with an id that is visible to any admin, and to anyone who has
+seen another phone's screen.
+**FIXED:** one shared `isRecipient_(h, u)` now backs BOTH `pendingHandovers`
+(what you may see) and `confirmHandover` (what you may confirm), so the two can
+never drift apart; a non-recipient gets `not-recipient`. Two extras while there:
+re-confirming a settled row now throws `already-confirmed` instead of restamping
+`confirmedBy` and erasing who really acknowledged it; and an admin confirming on
+someone else's behalf — a deliberate escape hatch for a dead phone mid-puja — is
+logged under its own verb `handover:confirm-on-behalf`, naming the intended
+recipient, because it is not the same act.
+**Pinned:** `isRecipient_` is loaded from the REAL Code.gs and exercised in
+tests/run.js (username match, another cashier refused, offline no-`toId` name
+fallback, and that the fallback lets nobody else in); the action body is asserted
+to call it and to throw both codes. Proven to bite by deleting the guard and by
+making `isRecipient_` return true. `err_not_recipient` / `err_already_confirmed`
+have real messages, so a permission refusal no longer reads "network problem".
+
 ### Verified green in the two-user pass
 | Path | Result |
 |---|---|

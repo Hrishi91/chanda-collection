@@ -4186,3 +4186,57 @@ ceiling fell 1,300 → **100** while the hero stayed at **2,000** — the whole 
 demonstrated in one loop. No console errors. 419 passed, 0 failed.
 
 Client-only — no Code.gs change, no redeploy.
+
+## 2026-07-26 — v4.4.2: only the recipient may confirm a handover (A17)
+
+Second of the three follow-ups. Found while reading `confirmHandover` for the
+reject path — not by review of the diff, by reading the function that was about
+to be extended.
+
+The gate was *"are you A cashier"*, never *"are you THE recipient"*:
+
+    if (Number(u.row.cashier) !== 1 && u.row.role !== 'admin') throw 'not-cashier';
+    ... match by b.id alone ... setValue('confirmed'); confirmedBy = caller
+
+So cashier A could confirm a parcel collector Y sent to cashier B. B's in-hand
+rises for money B never touched, Y's falls, and the audit records A as the
+receiver. Confirming is the ONE action that moves money between two people's
+books, which makes this the worst place in the file for a missing check.
+
+It stayed invisible because `pendingHandovers` **does** filter to the recipient —
+the UI never offers another cashier's parcel. Only a direct call reaches it, with
+an id any admin can see and anyone who has glanced at another phone.
+
+**Fix:** one `isRecipient_(h, u)` now backs BOTH `pendingHandovers` (what you may
+see) and `confirmHandover` (what you may confirm), so they cannot drift — a
+server that accepts a confirmation it never offered is the same class of bug in a
+different costume. Identity rule is the file's existing one: prefer the stable
+username in `toId`, fall back to the typed display name for rows written offline.
+
+Two more while in there:
+
+- **re-confirm** now throws `already-confirmed`. It used to restamp
+  `confirmedBy`/`confirmedAt`, quietly overwriting who actually acknowledged the
+  money.
+- **admin on someone else's behalf** stays possible (a cashier's phone dies
+  mid-puja and the books must move) but is logged under its own verb,
+  `handover:confirm-on-behalf`, naming the intended recipient. Same effect, not
+  the same act — and an audit line that reads like a normal confirm would hide
+  exactly the case worth reviewing later. If Hrishi wants it blocked outright,
+  it is one condition.
+
+`err_not_recipient` and `err_already_confirmed` got real messages: `errMsg()`
+turns any unknown code into "network problem", so without them a permission
+refusal would have told the cashier their internet was broken.
+
+VERIFIED: `isRecipient_` is loaded from the REAL Code.gs by tests/run.js (the
+harness that already does this for `permForRow_`/`entryAllowed_`) and exercised
+four ways — username match, another cashier refused, offline row with no `toId`
+falling back to the name, and that fallback letting nobody else in. The action
+body is asserted to call it and to throw both codes. Both proven to bite: with
+the guard deleted, "refuses a non-recipient" fails; with `isRecipient_` forced to
+`return true`, the another-cashier and name-fallback cases fail. 430 passed, 0
+failed.
+
+**NEEDS A REDEPLOY** — Code.gs changed. Client side is only the two error
+messages, hence the sw bump.

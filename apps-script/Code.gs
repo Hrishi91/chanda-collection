@@ -595,9 +595,7 @@ var ACTIONS = {
     var u = requireUser_(b.token);
     if (Number(u.row.cashier) !== 1 && u.row.role !== 'admin') throw new Error('not-cashier');
     var d = activeData_(readAll_(b.year ? Number(b.year) : new Date().getFullYear())); // hide voided (e.g. undone) handovers
-    return { ok: true, handovers: d.handovers.filter(function (h) {
-      return String(h.toId || h.to) === String(u.row.username) || h.to === u.row.name;
-    }) };
+    return { ok: true, handovers: d.handovers.filter(function (h) { return isRecipient_(h, u); }) };
   },
 
   // actionable notification feed: counts + the detail items (who/amount/date).
@@ -908,15 +906,34 @@ var ACTIONS = {
     for (var i = 0; i < ids.length; i++) {
       if (String(ids[i][0]) === String(b.id)) {
         var r = i + 2;
+        var hv = sh.getRange(r, 1, 1, cols.length).getValues()[0];
+        var rowObj = {};
+        cols.forEach(function (c, ci) { rowObj[c] = hv[ci]; });
+        // Being A cashier is not enough — confirming moves money in TWO people's
+        // books, so it must be the person the money was actually sent to.
+        // Without this, cashier A could confirm a parcel addressed to cashier B:
+        // B's in-hand would rise for money they never touched, the collector's
+        // would fall, and the audit would name A as the receiver. The UI never
+        // offers it (pendingHandovers filters by the same rule) — this closes the
+        // direct-call path.
+        var mine = isRecipient_(rowObj, u);
+        if (!mine && u.row.role !== 'admin') throw new Error('not-recipient');
+        // Already settled: re-confirming would restamp confirmedBy/confirmedAt
+        // and hide who really acknowledged it.
+        if (String(rowObj.status) === 'confirmed') throw new Error('already-confirmed');
         sh.getRange(r, cols.indexOf('status') + 1).setValue('confirmed');
         sh.getRange(r, cols.indexOf('confirmedBy') + 1).setValue(u.row.name);
         sh.getRange(r, cols.indexOf('confirmedAt') + 1).setValue(new Date().toISOString());
         // bump receivedAt so the delta pull carries this in-place status change
         sh.getRange(r, cols.indexOf('receivedAt') + 1).setValue(new Date().toISOString());
         touchData_(); // confirming moves money between two people's books
-        var hv = sh.getRange(r, 1, 1, cols.length).getValues()[0];
         var bdCol = cols.indexOf('breakdown');
-        logAudit_(u.row, 'handover:confirm', '₹' + hv[cols.indexOf('amount')] + ' from ' + hv[cols.indexOf('from')] +
+        // An admin acknowledging on someone else's behalf is a deliberate escape
+        // hatch (a cashier's phone dies mid-puja) but it is NOT the same act, so
+        // it gets its own audit verb naming the intended recipient.
+        logAudit_(u.row, mine ? 'handover:confirm' : 'handover:confirm-on-behalf',
+          '₹' + hv[cols.indexOf('amount')] + ' from ' + hv[cols.indexOf('from')] +
+          (mine ? '' : ' → ' + (rowObj.to || rowObj.toId)) +
           ' (cash ' + hv[cols.indexOf('cashAmount')] + ' / upi ' + hv[cols.indexOf('upiAmount')] + ')' +
           (bdCol >= 0 && hv[bdCol] ? ' ' + hv[bdCol] : ''));
         return { ok: true };
@@ -1252,6 +1269,15 @@ function rowRole_(stored) {
 }
 // Who owns the row a void points at? Returns null when it cannot be found —
 // callers treat that as "not mine", which is the safe answer.
+// Is this handover addressed to `u`? The identity rule is the same one the rest
+// of the file uses: prefer the stable username in `toId`, fall back to the typed
+// display name for rows written offline with no id to resolve.
+// ONE definition, used by both pendingHandovers (what you may see) and
+// confirmHandover (what you may confirm) — they must never drift, or the server
+// would accept a confirmation for a parcel it never showed you.
+function isRecipient_(h, u) {
+  return String(h.toId || h.to) === String(u.row.username) || String(h.to) === String(u.row.name);
+}
 function targetOwner_(store, id) {
   var sh = SHEET_TITLES[store] ? SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES[store]) : null;
   if (!sh || sh.getLastRow() < 2) return null;

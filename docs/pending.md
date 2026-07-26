@@ -302,6 +302,11 @@ give different numbers:
 - [x] ~~**Phase ক — আমার হিসাব as three levels** + colour legend + the three
       handover slots (⏳ / ✅ / ❌ dormant)~~ (2026-07-26, v4.4.0, client-only,
       verified live on port 8767; see build-log)
+- [x] ~~**Only the recipient may confirm a handover** (A17, HIGH)~~
+      (2026-07-26, v4.4.2). One shared `isRecipient_` now backs both
+      `pendingHandovers` and `confirmHandover`; re-confirm throws
+      `already-confirmed`; an admin confirming for someone else is logged as
+      `handover:confirm-on-behalf`. **Rides the pending redeploy.**
 - [ ] **Phase খ — the reject path.** `confirmHandover` only ever writes
       `'confirmed'`; there is no way for a cashier to say "পাইনি", so the ❌ slot
       can never fill. Needs: a `rejectHandover` action, a `rejectReason` column

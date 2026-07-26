@@ -932,6 +932,39 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
   eq(setCfgSrc.indexOf("throw new Error('unknown-config-key')") >= 0, true,
      'config: an unlisted key throws instead of silently succeeding');
 
+  // Confirming a handover moves money in TWO people's books, so being A cashier
+  // is not enough — it must be the person it was sent to. isRecipient_ touches
+  // no Apps Script global, so the REAL server rule runs here.
+  var gsR = {}; new Function('g', src + '\n g.isRecipient_ = isRecipient_;')(gsR);
+  const jadav = { row: { username: 'jadav', name: 'Jadav mahato', role: 'user', cashier: 1 } };
+  const salil = { row: { username: 'salil', name: 'সলিল', role: 'user', cashier: 1 } };
+  eq(gsR.isRecipient_({ toId: 'jadav', to: 'Jadav mahato' }, jadav), true,
+     'recipient: the addressee is recognised by username');
+  eq(gsR.isRecipient_({ toId: 'jadav', to: 'Jadav mahato' }, salil),
+     false, 'recipient: another cashier is NOT the addressee — this is the hole that was open');
+  eq(gsR.isRecipient_({ toId: '', to: 'Jadav mahato' }, jadav), true,
+     'recipient: an offline row with no toId falls back to the typed display name');
+  eq(gsR.isRecipient_({ toId: '', to: 'Jadav mahato' }, salil), false,
+     'recipient: …and the name fallback does not let anyone else in');
+  eq(gsR.isRecipient_({ toId: 'jadav', to: '' }, jadav), true,
+     'recipient: toId alone is enough when the name was not stored');
+  // the guard itself, and the two ways it may be refused
+  const confStart = src.indexOf('confirmHandover: function');
+  const confSrc = src.slice(confStart, src.indexOf('\n  },', confStart));
+  eq(confSrc.indexOf('isRecipient_') >= 0, true, 'confirmHandover: really calls the shared recipient rule');
+  eq(confSrc.indexOf("throw new Error('not-recipient')") >= 0, true,
+     'confirmHandover: refuses a non-recipient instead of confirming');
+  eq(confSrc.indexOf("throw new Error('already-confirmed')") >= 0, true,
+     'confirmHandover: will not restamp confirmedBy on a settled row');
+  eq(confSrc.indexOf('handover:confirm-on-behalf') >= 0, true,
+     "confirmHandover: an admin acting for someone else gets its own audit verb");
+  // every error code the server can throw here needs a message, or the user is
+  // told "network problem" for a permission refusal
+  const i18nSrc = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  ['err_not_recipient', 'err_already_confirmed'].forEach(function (k) {
+    eq(i18nSrc.indexOf('  ' + k + ':') >= 0, true, 'i18n: ' + k + ' has a real message, not err_network');
+  });
+
   // the daily report split must match on both sides too
   var gsRep = new Function('g', src + '\n g.computeReport_ = computeReport_;');
   // (computeReport_ needs activeData_/num_ which the same eval already defines)
