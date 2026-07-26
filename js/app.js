@@ -335,7 +335,7 @@
     if (offBtn) offBtn.onclick = function () {
       if (!window.confirm(t('chat_stop_confirm'))) return;
       offBtn.disabled = true;
-      Auth.call('setConfig', { token: Auth.token(), key: 'chat_off', value: 'on' })
+      Auth.call('setConfig', { token: Auth.token(), config: { chat_off: 'on' } })
         .then(function () { centralConfig.chat_off = 'on'; toast(t('chat_stopped')); render(); })
         .catch(function (e) { offBtn.disabled = false; toast(errMsg(e)); });
     };
@@ -3358,7 +3358,7 @@
         const turningOff = chatOn();
         if (turningOff && !window.confirm(t('chat_stop_confirm'))) return;
         chatTog.disabled = true;
-        Auth.call('setConfig', { token: Auth.token(), key: 'chat_off', value: turningOff ? 'on' : '' })
+        Auth.call('setConfig', { token: Auth.token(), config: { chat_off: turningOff ? 'on' : '' } })
           .then(function () {
             centralConfig.chat_off = turningOff ? 'on' : '';
             toast(t(turningOff ? 'chat_stopped' : 'saved')); renderAdmin();

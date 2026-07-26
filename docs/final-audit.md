@@ -10,9 +10,9 @@ actual code (file:line) or by test/live-check — not guessed. Items marked
 Each fix was verified by reproducing the failure condition live (see
 build-log v3.77.0). Kept below for the record.
 
-### Status of every finding (A1–A15, S1–S3)
+### Status of every finding (A1–A16, S1–S3)
 
-All eighteen are FIXED in code. Split by what has been proven where:
+All nineteen are FIXED in code. Split by what has been proven where:
 
 | Verified live against the Sheet | Fixed, awaiting the pending redeploy |
 |---|---|
@@ -20,6 +20,7 @@ All eighteen are FIXED in code. Split by what has been proven where:
 | A7 (voided handover left the queue) | S1 (idle fast path) |
 | A11 (cashier resolved a collector's flag, `ok:true`) | S2 (batched writes) |
 | A12, A14, A15 (client-only, tested + browser-checked) | S3 (batched serials) |
+| S1/S2/S3 **proven live 2026-07-26** — see below | A16 (chat kill switch) |
 
 Deliberately NOT changed, with reasons, so nobody "fixes" them later by reflex:
 - `js/app.js` at ~3,600 lines stays one file until after the season — no build
@@ -340,6 +341,26 @@ lock. New rows for a store are now written with one `setValues`.
 row loop. `reserveReceiptNos_` takes a batch in one read/write, still atomic
 under the script lock. A 20-row push drops from **61 Sheet operations to 4**;
 verified on 400 rows with 400 unique consecutive serials.
+
+### A16. MED — FIXED (rides the next redeploy) — The chat kill switch never worked
+**Where:** Code.gs `setConfig`, and both client call sites.
+**Cause:** two independent mistakes, either alone enough. `setConfig` reads the
+patch from `b.config` — an object — but both chat-switch call sites sent
+`{key, value}`, which it ignored. And `chat_off` was never added to the
+whitelist, so even the correct shape would have been dropped. The action returns
+`{ok:true}` regardless, so the button toasted "chat stopped", the tab stayed,
+and messages kept flowing.
+**Found how:** only by running it live. Code review had passed it twice — the
+client looked right, the server looked right, and nothing connects them until a
+real call is made. Confirmed against the deployed build afterwards: sending the
+correct shape STILL leaves `chat_off` empty.
+**FIXED:** `chat_off` whitelisted; `setConfig` accepts both shapes; an unlisted
+key now THROWS (`unknown-config-key`) instead of quietly succeeding, and the
+response reports which keys it `applied`. A silent no-op that answers ok is the
+worst failure mode this codebase can have.
+**Pinned:** tests parse the allow object itself — proven to bite by removing
+`chat_off` and watching it fail — and assert that `live_mode`, `data_ts` and the
+`receiptSeq_` counters can NEVER be written through this door.
 
 ### Verified green in the two-user pass
 | Path | Result |

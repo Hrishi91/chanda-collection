@@ -707,11 +707,22 @@ var ACTIONS = {
   },
   setConfig: function (b) {
     var me = requireAdmin_(b.token);
-    var allow = { receipt_layout: 1, puja_name: 1, committee_name: 1, receipt_footer: 1, receipt_color: 1, committee_logo: 1, receipt_digits: 1 };
+    // Whitelisted keys only — a config write must never be able to reach
+    // live_mode, data_epoch, data_ts or a receiptSeq_ counter.
+    var allow = { receipt_layout: 1, puja_name: 1, committee_name: 1, receipt_footer: 1,
+                  receipt_color: 1, committee_logo: 1, receipt_digits: 1,
+                  chat_off: 1 }; // the chat kill switch — was missing, so the button did nothing
+    // accept BOTH shapes: the receipt screen sends a whole {config:{…}} form,
+    // the chat switch sends one {key,value}. Taking only the first made the
+    // switch a no-op that still answered ok — the worst kind of failure.
     var patch = b.config || {};
-    Object.keys(patch).forEach(function (k) { if (allow[k]) setConfig_(k, String(patch[k] == null ? '' : patch[k])); });
-    logAudit_(me.row, 'config', Object.keys(patch).filter(function (k) { return allow[k]; }).join(','));
-    return { ok: true };
+    if (b.key) { patch = {}; patch[String(b.key)] = b.value == null ? '' : b.value; }
+    if (!Object.keys(patch).length) throw new Error('nothing-to-set');
+    var applied = Object.keys(patch).filter(function (k) { return allow[k]; });
+    if (!applied.length) throw new Error('unknown-config-key');
+    applied.forEach(function (k) { setConfig_(k, String(patch[k] == null ? '' : patch[k])); });
+    logAudit_(me.row, 'config', applied.join(','));
+    return { ok: true, applied: applied };
   },
 
   // Go live: discard all training entries, keep the essentials (users, config,

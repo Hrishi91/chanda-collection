@@ -885,6 +885,28 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
   eq(decide(collU, null), false, 'voids: an unknown target is refused, not waved through');
   eq(typeof gsV.voidAllowed_, 'function', 'voids: the server really does have the rule');
 
+  // setConfig must accept BOTH call shapes and refuse anything unlisted — a
+  // config write that answers ok while changing nothing is how the chat kill
+  // switch shipped broken (A16, caught live, not in review).
+  var gsC = {}; new Function('g', src + '\n g.ACTIONS = ACTIONS;')(gsC);
+  // Read the ALLOW OBJECT ITSELF, not the prose around it — grepping the whole
+  // action body matched key names that only appear in a comment, and reported
+  // failures the code did not have.
+  const cfgStart = src.indexOf('setConfig: function');
+  const setCfgSrc = src.slice(cfgStart, src.indexOf('\n  },', cfgStart));
+  const allowBody = setCfgSrc.slice(setCfgSrc.indexOf('var allow = {') + 12);
+  const allowKeys = allowBody.slice(0, allowBody.indexOf('};'))
+    .replace(/\/\/[^\n]*/g, '')                       // strip trailing comments
+    .split(',').map(function (kv) { return kv.split(':')[0].trim(); }).filter(Boolean);
+  eq(allowKeys.indexOf('chat_off') >= 0, true, 'config: chat_off is settable (the kill switch needs it)');
+  eq(allowKeys.indexOf('live_mode') >= 0, false, 'config: live_mode is NOT settable — going live is its own action');
+  eq(allowKeys.indexOf('data_ts') >= 0, false, 'config: the change stamp is NOT settable');
+  eq(allowKeys.some(function (k) { return k.indexOf('receiptSeq') >= 0; }), false,
+     'config: serial counters are NOT settable');
+  eq(setCfgSrc.indexOf('if (b.key)') >= 0, true, 'config: the {key,value} shape is accepted too');
+  eq(setCfgSrc.indexOf("throw new Error('unknown-config-key')") >= 0, true,
+     'config: an unlisted key throws instead of silently succeeding');
+
   // the daily report split must match on both sides too
   var gsRep = new Function('g', src + '\n g.computeReport_ = computeReport_;');
   // (computeReport_ needs activeData_/num_ which the same eval already defines)

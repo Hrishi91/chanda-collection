@@ -3770,3 +3770,47 @@ half is live, not just in the repo.
 Still to confirm with a token: whether `setup()` ran (the `Messages` sheet), and
 the whole three-role pass — the Sheet-performance work (S1–S3) has never been
 exercised against a real Sheet.
+
+
+## v4.0.1 — the v4.0.0 live pass: 44/45, and the one red light was real
+
+Ran the full three-role pass against the fresh deployment with Hrishi's admin,
+cashier and collector tokens. `live_mode` was empty (still training) and the
+audit log showed he had already run `training:clear` himself at 03:09 with a
+backup — so `clearTraining` is proven live too, by its owner.
+
+### The three that had never touched a real Sheet — all green
+
+**S1, idle fast path.** Full pull, then an idle poll returned `idle:true` with no
+rows while still carrying `me` and `config`. Then the test that actually
+matters: write a row, pull again with the OLD cursor — **the row was delivered**.
+No loss. The poll after that was fast again.
+
+**S2/S3, batching.** 30 rows in one push: all saved, **15 serials, all unique and
+consecutive (1–15)**, every payment on the Sheet carrying its number. The
+batched reservation does not collide or burn gaps.
+
+Also green: the whole money chain across three roles with categories intact, a
+cashier snapshot arriving as a plain parcel rather than a phantom category, chat
+send/receive with `@yamini05` recognised as a mention for her and not for the
+cashier, every role gate, A9 forgery still blocked, A11's role word correct, the
+new void gate allowing a collector their own row and refusing somebody else's,
+and the books balanced with `byCat === inHand` on every line.
+
+### A16 — the chat kill switch never worked
+
+The one failure, and it was real. Details in `docs/final-audit.md`; short version:
+`setConfig` reads `b.config`, both chat-switch call sites sent `{key,value}`, and
+`chat_off` was not whitelisted anyway. The action returns `ok:true` regardless,
+so the button said "chat stopped" and nothing stopped.
+
+**Two code reviews had passed this.** The client looked right, the server looked
+right, and nothing connects them until a real call is made. That is the argument
+for running the pass rather than reading the diff.
+
+Fixed on both sides, and hardened past the immediate bug: an unlisted key now
+throws instead of quietly succeeding, and the response says which keys it
+applied. Tests parse the allow object itself — proven to bite — and assert that
+`live_mode`, `data_ts` and the serial counters can never be written through it.
+
+378 passed, 0 failed. A16's server half needs one more redeploy.
