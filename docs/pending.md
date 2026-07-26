@@ -277,6 +277,8 @@ What this deployment carries:
 - `otherdonor` permission key (reaching other people's donors).
 - **Empty `entries` now grants NOTHING** (was: everything) — matches reports.
 - `Messages` sheet + `chat_off` kill switch (enforced server-side).
+- `cashiers` returns `role` + the admin's `phone` (A13 — the no-permission
+  card's 📞/💬 buttons need them).
 
 Right after the redeploy:
 1. **Grant every collector something** — 11 approved users have `entries=''`

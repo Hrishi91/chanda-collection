@@ -807,7 +807,11 @@ var ACTIONS = {
         var row = {};
         USER_COLS.forEach(function (c, j) { row[c] = v[j]; });
         if (row.status === 'approved' && (Number(row.cashier) === 1 || row.role === 'admin')) {
-          names.push({ username: row.username, name: row.name });
+          // role: the no-permission card needs to find the admin in this list.
+          // phone: Hrishi's call — the admin's number is exactly what a locked-
+          // out collector needs, and only admins' numbers are exposed.
+          names.push({ username: row.username, name: row.name, role: row.role,
+                       phone: row.role === 'admin' ? String(row.phone || '') : '' });
         }
       });
     }
