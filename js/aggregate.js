@@ -576,6 +576,34 @@
              level: over(CHAT_HIGH) ? 'high' : (over(CHAT_WATCH) ? 'watch' : 'ok') };
   }
 
+  // What the home screen offers this person. Pure, so the answer can be tested
+  // instead of read off the markup — "one permission and the default screens
+  // come back" is a promise worth pinning down.
+  //
+  // Three kinds of tile:
+  //   granted  — one per collection category, from their own grants
+  //   common   — everyone who has been set up at all: taking a later
+  //              instalment, handing money over, their own handover book
+  //   role     — the cashier's desk and the correction desk, from role + grant
+  function homeTiles(user) {
+    const out = { entry: [], daily: [], common: [], role: [], setUp: false };
+    if (!user) return out;
+    const granted = function (k) { return permAllowed(user, k); };
+    out.setUp = user.role === 'admin' ||
+      String(user.entries || '').split(',').filter(Boolean).length > 0;
+    if (!out.setUp) return out; // nothing granted → only the "ask the admin" card
+    ['shop', 'person', 'member', 'bus'].forEach(function (k) { if (granted(k)) out.entry.push(k); });
+    ['road', 'toto'].forEach(function (k) { if (granted(k)) out.daily.push(k); });
+    const isCashier = Number(user.cashier) === 1 || user.role === 'admin';
+    if (isCashier) out.daily.push('expense');
+    // these need no grant — a collector must always be able to take an
+    // instalment from a donor they wrote down, and to hand their money over
+    out.common = ['payments', 'handover', 'hbook'];
+    if (isCashier) out.role.push('cashier');
+    if (isCashier && granted('review')) out.role.push('review');
+    return out;
+  }
+
   // Parties with outstanding due, biggest due first.
   function duesList(parties, payments, voids) {
     const v = voidedIds({ voids: voids });
@@ -821,7 +849,7 @@
                 permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mentionsMe: mentionsMe, messageFeed: messageFeed,
-                activeData: activeData, chatLoad: chatLoad };
+                activeData: activeData, chatLoad: chatLoad, homeTiles: homeTiles };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
 })();

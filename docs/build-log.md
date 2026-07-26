@@ -3531,3 +3531,41 @@ VERIFIED
 - browser on a fresh port: all four levels as above, no console errors.
 - NOT verifiable until the redeploy: the server-side refusal. It rides the same
   pending deploy as the `Messages` sheet.
+
+## v3.99.0 — "one permission and the default screens come back" is now a test
+
+Hrishi: "if the user getting one permission, the default screens will be
+available."
+
+It already behaved that way — but only because of how the markup happened to be
+written, and nothing asserted it. A promise about what a collector can reach is
+worth more than that, so the DECISION moved out of the HTML into
+`Aggregate.homeTiles(user)`, which is pure and pinned by tests. `renderHome` now
+only decides how each tile is drawn.
+
+    nothing granted    → CARD ONLY
+    bus only           → entry[bus]  daily[]      common[3]  role[]
+    road only          → entry[]     daily[road]  common[3]  role[]
+    bus + cashier      → entry[bus]  daily[expense] common[3] role[cashier]
+    cashier, nothing   → CARD ONLY
+    admin              → entry[shop,person,member,bus] daily[road,toto,expense]
+                         common[3] role[cashier,review]
+
+The `common[3]` column is the answer to his question: **which** grant somebody
+has makes no difference to the three screens everybody gets — taking a later
+instalment, handing money over, and their own handover book. One grant is
+enough; the second row and the third differ only in their own tile.
+
+Two things the table also settles, both previously only readable in code:
+- A cashier granted nothing is still CARD ONLY — Hrishi's rule, applied without
+  an exception for the role.
+- The correction desk needs its own grant ON TOP of being a cashier
+  (`bus,review` gets it; `bus` does not).
+
+Section headings were already conditional (`partyTiles ? heading : ''`), so no
+empty heading was ever left behind — checked rather than assumed.
+
+The dead `tile()` helper and an unused `cashier` local went with the change.
+
+VERIFIED: 17 new tests, **372 passed, 0 failed**; browser on a fresh port shows
+the same six rows, no console errors.

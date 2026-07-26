@@ -3,7 +3,7 @@ const { parseAmount } = require('../js/numparse.js');
 const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
         roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed,
         cashierView, handoverReport, allowedReports,
-        mentionsMe, messageFeed, activeData, chatLoad } = require('../js/aggregate.js');
+        mentionsMe, messageFeed, activeData, chatLoad, homeTiles } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -678,6 +678,36 @@ eq(Object.prototype.hasOwnProperty.call(
 eq(messageFeed({ messages: [{ id: 'a', createdAt: '1' }, { id: 'b', createdAt: '2' }],
                  voids: [{ id: 'v', targetId: 'a' }] }, { username: 'x' }, '').rows.map(function (r) { return r.id; }),
    ['b'], 'chat: messageFeed filters voided messages itself');
+
+// ---- one permission brings the default screens back --------------------------
+// The promise: a person granted ANY one category gets their own tile plus the
+// screens everybody has. Only somebody granted nothing sees the bare card.
+const tilesFor = function (entries, cashierFlag, role) {
+  return homeTiles({ role: role || 'user', entries: entries, cashier: cashierFlag || 0 });
+};
+const busOnlyTiles = tilesFor('bus');
+eq(busOnlyTiles.setUp, true, 'tiles: one grant counts as set up');
+eq(busOnlyTiles.entry, ['bus'], 'tiles: only the granted category');
+eq(busOnlyTiles.daily, [], 'tiles: an ungranted round does not appear');
+eq(busOnlyTiles.common, ['payments', 'handover', 'hbook'],
+   'tiles: …and the default screens come back — instalment, handover, handover book');
+eq(tilesFor('road').entry, [], 'tiles: a road-only collector gets no new-entry tile');
+eq(tilesFor('road').daily, ['road'], 'tiles: …but does get their round');
+eq(tilesFor('road').common.length, 3, 'tiles: the default screens do not depend on WHICH grant');
+// nothing granted is the only case with a bare screen
+eq(tilesFor('').setUp, false, 'tiles: nothing granted is not set up');
+eq(tilesFor('').common, [], 'tiles: …so not even the common screens');
+eq(tilesFor('', 1).setUp, false, 'tiles: a cashier granted nothing is not set up either (Hrishi\'s rule)');
+// role tiles ride the role, and the desk needs its own grant on top
+eq(tilesFor('bus', 1).role, ['cashier'], 'tiles: a cashier gets the confirm desk');
+eq(tilesFor('bus', 1).daily.indexOf('expense') >= 0, true, 'tiles: …and general expenses');
+eq(tilesFor('bus,review', 1).role, ['cashier', 'review'], 'tiles: the correction desk needs its grant');
+eq(tilesFor('bus').role, [], 'tiles: a plain collector gets neither');
+// an admin is never narrowed, whatever the field says
+const admTiles = tilesFor('', 0, 'admin');
+eq(admTiles.setUp, true, 'tiles: an admin is always set up');
+eq(admTiles.entry, ['shop', 'person', 'member', 'bus'], 'tiles: …and gets every category');
+eq(admTiles.role, ['cashier', 'review'], 'tiles: …and every desk');
 
 // ---- what the chat is costing ------------------------------------------------
 // Chat adds no requests (it rides the 60s pull), so what grows is the payload

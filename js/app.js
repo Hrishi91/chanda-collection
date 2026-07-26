@@ -1208,37 +1208,34 @@
       const myToday = data.payments.concat(data.daily).filter(function (r) {
         return (r.collectorId || r.collector) === meId && (r.date === today || (r.createdAt || '').slice(0, 10) === today);
       }).reduce(function (a, r) { return a + Number(r.amount || 0); }, 0);
-      const cashier = Auth.isCashier();
-      // One tile per permission key, so what an admin grants and what the
-      // collector sees are the same six words. Bus sits with the new-entry
-      // tiles (it names a donor and issues a receipt); road/toto are the rounds.
-      const tile = function (key, go, icon, labelKey) {
-        return canEntry(key) ? '<button class="tile" data-go="' + go + '">' + icon + ' ' + esc(t(labelKey)) + '</button>' : '';
+      // Aggregate.homeTiles decides WHAT appears (pure, and pinned by tests);
+      // this only decides how each one is drawn. Keeping the decision out of
+      // the markup is why "one permission brings the default screens back" can
+      // be asserted rather than eyeballed.
+      const plan = Aggregate.homeTiles(Auth.current());
+      const ICON = { shop: ['🏪', 'new_shop'], person: ['🙍', 'new_person'], member: ['🤝', 'new_member'],
+                     bus: ['🚌', 'daily_bus'], road: ['🛣️', 'daily_road'], toto: ['🛺', 'daily_toto'],
+                     expense: ['🧾', 'expense'], cashier: ['💰', 'confirm_handover'],
+                     review: ['🛠️', 'review_title'], handover: ['', 'handover'], hbook: ['📗', 'hb_title'] };
+      const drawTile = function (k) {
+        const d = ICON[k] || ['', k];
+        return '<button class="tile" data-go="' + k + '">' + (d[0] ? d[0] + ' ' : '') + esc(t(d[1])) + '</button>';
       };
-      const partyTiles =
-        tile('shop', 'shop', '🏪', 'new_shop') +
-        tile('person', 'person', '🙍', 'new_person') +
-        tile('member', 'member', '🤝', 'new_member') +
-        tile('bus', 'bus', '🚌', 'daily_bus');
-      const dailyTiles =
-        tile('road', 'road', '🛣️', 'daily_road') +
-        tile('toto', 'toto', '🛺', 'daily_toto') +
-        (cashier ? '<button class="tile" data-go="expense">🧾 ' + esc(t('expense')) + '</button>' : '');
+      const partyTiles = plan.entry.map(drawTile).join('');
+      const dailyTiles = plan.daily.map(drawTile).join('');
       // চাঁদা নেওয়া is common: a later instalment may reach whoever is nearest,
       // no matter who first wrote the donor down.
-      const paymentTile =
-        '<div class="grid one"><button class="tile wide" data-go="list">💰 ' + esc(t('add_payment')) + ' / ' + esc(t('dues_only')) + '</button></div>';
+      const paymentTile = plan.common.indexOf('payments') >= 0
+        ? '<div class="grid one"><button class="tile wide" data-go="list">💰 ' + esc(t('add_payment')) + ' / ' + esc(t('dues_only')) + '</button></div>' : '';
       const cashTiles =
-        '<button class="tile" data-go="handover">' + esc(t('handover')) + '</button>' + // common to everyone
-        '<button class="tile" data-go="hbook">📗 ' + esc(t('hb_title')) + '</button>' +
-        (cashier ? '<button class="tile" data-go="cashier">' + esc(t('confirm_handover')) + '</button>' : '') +
-        (canReview() ? '<button class="tile" data-go="review">🛠️ ' + esc(t('review_title')) + '</button>' : '');
+        plan.common.filter(function (k) { return k !== 'payments'; }).map(drawTile).join('') +
+        plan.role.map(drawTile).join('');
       // NOTHING GRANTED → nothing to show but how to get unstuck. Hrishi's rule,
       // and it holds for cashiers too: somebody who collects nothing has no
       // money to hand over and no book to read. Chat stays open — that is the
       // one thing everybody has — but the real fix is a phone call, so the
       // admin's number is right here.
-      if (!hasAnyGrant()) {
+      if (!plan.setUp) {
         $view().innerHTML =
           '<div id="notif-banner"></div>' +
           '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
