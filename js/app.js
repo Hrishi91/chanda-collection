@@ -228,6 +228,10 @@
         localStorage.setItem('ck_central_cursor', centralCursor);
         localStorage.setItem('ck_central_year', centralYear);
       } catch (e) { /* quota */ }
+      // a mention has to reach the phone, and messages land here — so this is
+      // the one place it can be checked without a poll of its own
+      viewData().then(checkMentionNotify).catch(function () {});
+      updateBadge(); // unread chat count on the 💬 tab
       if (!changed || flowState) return; // idle poll (empty delta) → no re-render
       // findparty: refresh results in place (rebuilding the shell steals input
       // focus and flashes "loading" → looked like blinking). Its #fp-results
@@ -1212,9 +1216,7 @@
       // money to hand over and no book to read. Chat stays open — that is the
       // one thing everybody has — but the real fix is a phone call, so the
       // admin's number is right here.
-      const hasAnyGrant = Auth.isAdmin() ||
-        String((Auth.current() || {}).entries || '').split(',').filter(Boolean).length > 0;
-      if (!hasAnyGrant) {
+      if (!hasAnyGrant()) {
         $view().innerHTML =
           '<div id="notif-banner"></div>' +
           '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
@@ -1222,7 +1224,7 @@
           '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
             '<b>' + esc(t('home_no_perm_title')) + '</b>' +
             '<div class="row-sub" style="margin-top:4px">' + esc(t('home_no_perm_body')) + '</div>' +
-            adminContactHTML(data) + '</div>';
+            adminContactHTML() + '</div>';
         renderNotifBanner();
         wireNav();
         return;
@@ -1246,6 +1248,20 @@
       renderNotifBanner();   // show cached counts immediately
       if (!notifViaPull) checkNotifications();  // old backend only; pull refreshes otherwise
     });
+  }
+
+  // Has this person been set up at all? One answer, used by every screen, so
+  // the ledger and the reports cannot disagree with the home screen about
+  // whether somebody is ready to work.
+  function hasAnyGrant() {
+    if (Auth.isAdmin()) return true;
+    return String((Auth.current() || {}).entries || '').split(',').filter(Boolean).length > 0;
+  }
+  function noGrantCard() {
+    return '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
+      '<b>' + esc(t('home_no_perm_title')) + '</b>' +
+      '<div class="row-sub" style="margin-top:4px">' + esc(t('home_no_perm_body')) + '</div>' +
+      adminContactHTML() + '</div>';
   }
 
   // Who to ring when the app cannot help you. Read from the pulled user list
@@ -1282,6 +1298,9 @@
   let listFilter = 'all', listQuery = '';
   let findParties = [], findQuery = '';
   function renderList() {
+    // Same rule as the home screen: nothing granted, nothing to browse. The
+    // ledger is the committee's donor book, not a public directory.
+    if (!hasAnyGrant()) { $view().innerHTML = noGrantCard(); return; }
     // reads the central snapshot (+ own rows) locally — instant, all-collector
     viewData().then(function (data) {
       drawList(data, Aggregate.computeTotals(data).paidByParty);
@@ -2277,6 +2296,7 @@
   // reads the local snapshot, so it works with no signal.
   let hbFilter = 'all'; // all | in | out
   function renderHandoverBook() {
+    if (!hasAnyGrant()) { $view().innerHTML = backBar('home') + noGrantCard(); return; }
     const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
     viewData().then(function (data) {
       const r = Aggregate.handoverReport(data, ident);
@@ -2394,8 +2414,11 @@
   function renderReport() {
     // Everything renders from the local pull snapshot (viewData) via Aggregate —
     // one aggregation path, instant, offline-capable, no per-report round-trip.
+    // A person's own summary is their own money, so it stays whatever else is
+    // withheld. The central reports section explains itself when it is empty.
     $view().innerHTML = '<div id="reconcile-warn"></div>' +
       '<div id="my-summary"><div class="empty">' + esc(t('loading')) + '</div></div>' +
+      (hasAnyGrant() ? '' : noGrantCard()) +
       '<div class="section">' + esc(t('central_reports')) + '</div>' +
       '<div id="report-picker"></div>' +
       '<div id="report-body"></div>';
@@ -2618,6 +2641,27 @@
           .map(function (u) { return { username: u.username, name: u.name }; }));
       })
       .catch(function () { paint([]); }); // offline: only "keep as written" is offered
+  }
+
+  // A mention has to reach the phone, not just the tab. Messages arrive with the
+  // 60s pull, so this runs after every pull rather than on a timer of its own.
+  // `msgNotified` keeps the last id already announced, so re-opening the app or
+  // a second pull cannot buzz twice for the same message.
+  let msgNotified = null;
+  function checkMentionNotify(data) {
+    if (!Auth.loggedIn()) return;
+    const me = meForMsg();
+    const feed = Aggregate.messageFeed(data, me, msgSeen());
+    const mine = feed.rows.filter(function (r) { return r.unread && r.forMe; });
+    if (!mine.length) return;
+    const last = mine[mine.length - 1];
+    if (msgNotified === last.id) return;
+    // first run after a reload only primes the marker — otherwise opening the
+    // app would replay a notification for something already read elsewhere
+    const first = msgNotified === null;
+    msgNotified = last.id;
+    if (first) return;
+    osNotify('💬 ' + (last.collector || '') + ': ' + String(last.text || '').slice(0, 90));
   }
 
   // ---------- committee chat ----------

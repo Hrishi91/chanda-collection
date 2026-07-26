@@ -3360,3 +3360,43 @@ VERIFIED
   clipping, `DB.STORES` carries `messages`, no console errors.
 - NOT verifiable until redeploy: the `Messages` sheet itself. **This one needs
   `setup()`**, unlike the last few.
+
+## v3.96.1 — a mention actually reaches the phone, and the rule holds on every screen
+
+Two gaps in what v3.96.0 shipped, both against things Hrishi had already said.
+
+### "the message will be as notification to the user"
+
+v3.96.0 gave mentions an unread badge on the 💬 tab and stopped there — an OS
+notification was in the spec and was not built. It is now, and it hangs off the
+pull rather than a timer of its own, because that is the only place messages
+arrive:
+
+    pull (every 60s) → viewData() → checkMentionNotify()
+
+Two things it has to get right, and both are easy to get wrong:
+- **Never buzz twice for the same message.** The last announced id is kept, so a
+  second pull or a re-render cannot repeat it.
+- **Never buzz on startup for something already read.** The first run after a
+  reload only primes the marker; it does not notify. Otherwise opening the app
+  would replay a mention read on another device an hour ago.
+
+### The no-grant rule applies everywhere, not just home
+
+v3.96.0 emptied the home screen but left 📒 খাতা reachable from the nav — so a
+collector granted nothing could still browse the committee's entire donor book.
+That is exactly the thing Hrishi asked to hide.
+
+`hasAnyGrant()` is now one function used by every screen, so the ledger and the
+reports cannot disagree with home about whether somebody is set up:
+
+    home       → the card, nothing else
+    📒 খাতা     → the card
+    📗 জমা-খাতা → the card (reachable by Back even with its tile hidden)
+    📊 রিপোর্ট  → own summary stays (it is their own money), card above the
+                  central-reports section explaining why it is bare
+    💬 বার্তা    → always open — the one thing they can use, and how they ask
+
+VERIFIED: 346 passed, 0 failed; browser on a fresh port — mention counts correct
+per user (a cashier is mentioned by `@cashiers`, a collector is not), `messages`
+store present, no console errors.
