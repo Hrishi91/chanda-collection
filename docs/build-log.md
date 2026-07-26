@@ -3090,3 +3090,47 @@ VERIFIED: 7 new tests — the corrected figure is counted once and only once in
 `computeTotals`, `paidByParty`, `myAvailable` and `personalSummary`, and the
 party's due follows the corrected amount (1000 pledged − 700 = 300), not the
 sum of both rows. **310 passed, 0 failed.**
+
+## v3.92.0 — the receipt now goes out with words, on both channels
+
+Hrishi: "at time of this receipt send we should add some message to it" — and
+then, checking: "are you doing this for message and whatsapp both".
+
+FOUND WHILE LOOKING. The image share was passing a field that does not exist:
+
+    navigator.share({ files: [file], title: …, text: rc.donorName })
+
+`rc` has `donorLine`, never `donorName` — so every receipt shared as an image
+went out with an `undefined` caption. The SMS path (`shareReceiptText`) built a
+proper message; the image path had none.
+
+Now ONE function, `receiptMessage(rc)`, feeds both, so the WhatsApp caption and
+the SMS body cannot say different things:
+
+    🙏 দৌলতপুর আমরা ক'জন
+    চাঁদা পেয়েছি — ধন্যবাদ 🙏
+
+    রাম স্টোর্স (মেন রোড — মালদার দিকে)
+    টাকা: ₹৭০০/- (সাতশো টাকা মাত্র)
+    জমা: ৭০০/১০০০   বাকি: ৩০০
+    রসিদ নং ২০২৬০০০০২১ · ২৬ জুলাই ২০২৬
+    <committee footer from config>
+
+HONEST LIMIT, stated rather than promised away: `navigator.share({files, text})`
+keeps the text as a caption on Android WhatsApp but iOS frequently drops it when
+a file is attached. That is the target app's behaviour. Nothing is lost when it
+happens — every word above is also drawn inside the receipt image.
+
+WHICH IS WHY THE CORRECTION STAMP GOES IN THE IMAGE. v3.91.1 made a corrected
+entry keep its original serial, which means the donor receives a SECOND message
+carrying the SAME number. Without a word of explanation they would reasonably
+think they had been counted twice. So `♻️ সংশোধিত` is drawn on the receipt under
+the serial, not only put in the caption — a caption is exactly the part an app
+may throw away, and this is the one line that must survive.
+
+The flag is derived, not stored: on opening a receipt, if a VOIDED row carries
+the same serial, this one replaces it.
+
+VERIFIED: 310 passed, 0 failed; app loads clean; 376 i18n keys, no duplicates.
+The share sheet itself is a device behaviour — it needs a real phone, so it goes
+on the go-live smoke test with the mic and the install prompt.

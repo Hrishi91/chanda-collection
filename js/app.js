@@ -1582,6 +1582,14 @@
         // ---- serial (red, right) ----
         g.textAlign = 'right'; g.fillStyle = '#c0201a'; g.font = 'bold 20px sans-serif';
         g.fillText('নং  ' + (rc.receiptNo || '—'), W - 60, 258);
+        // A correction re-uses the ORIGINAL serial, so the donor gets a second
+        // message carrying the same number. Without this stamp they would
+        // reasonably think they had been counted twice — and it goes in the
+        // IMAGE, because a caption is the part an app may throw away.
+        if (rc.corrected) {
+          g.textAlign = 'right'; g.fillStyle = '#c0201a'; g.font = 'bold 15px sans-serif';
+          g.fillText(t('rcp_corrected_stamp'), W - 60, 280);
+        }
         g.textAlign = 'left';
         // ---- body: prose acknowledgement ----
         let y = 292; const lx = 62, maxW = W - 124;
@@ -1660,12 +1668,34 @@
       showTotals: false, date: d.date || d.createdAt, datetime: d.createdAt || d.date,
       amount: d.amount, cashUpi: cashUpiNote(d), receiptNo: d.receiptNo || '' };
   }
+  // The words that go WITH a receipt, wherever it is sent. One function, so the
+  // WhatsApp caption and the SMS body can never say different things.
+  function receiptMessage(rc) {
+    const cfg = receiptConfig();
+    return [
+      '🙏 ' + cfg.committee,
+      t('rcp_msg_thanks'),
+      rc.corrected ? t('rcp_msg_corrected') : '',
+      '',
+      rc.donorLine,
+      t('receipt_amount') + ': ' + rcpMoney(rc.amount) + '/- (' + banglaNumWords(rc.amount) + ' টাকা মাত্র)',
+      (rc.showTotals ? t('paid') + ': ' + rcpMoney(rc.paidTotal) + '/' + rcpMoney(rc.pledged) +
+        '   ' + t('due') + ': ' + rcpMoney(rc.due) : ''),
+      (rc.receiptNo ? t('receipt_no') + ' ' + rc.receiptNo : '') +
+        (rc.date ? ' · ' + fmtDate(rc.date) : ''),
+      cfg.footer,
+    ].filter(function (x) { return x !== ''; }).join('\n');
+  }
   // 📷 image receipt → Web Share (WhatsApp etc.); download fallback offline.
+  // The text rides along as the caption where the target app keeps it — Android
+  // WhatsApp usually does, iOS often drops it when a file is attached. That is
+  // their behaviour, not ours, and nothing is lost when it happens: every word
+  // of the message is also drawn INSIDE the receipt image.
   function shareReceiptImage(rc) {
     buildReceiptCanvas(rc).then(canvasToBlob).then(function (blob) {
       const file = new File([blob], 'receipt.png', { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        navigator.share({ files: [file], title: t('receipt_title'), text: rc.donorName }).catch(function () {});
+        navigator.share({ files: [file], title: t('receipt_title'), text: receiptMessage(rc) }).catch(function () {});
       } else {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob); a.download = 'receipt-' + (rc.donorName || 'chanda') + '.png'; a.click();
@@ -1676,13 +1706,7 @@
   // 💬 text receipt → SMS/message (an image can't ride SMS). Opens the messaging
   // app with the text pre-filled; the collector taps send.
   function shareReceiptText(rc, phone) {
-    const cfg = receiptConfig();
-    const lines = [cfg.committee + ' — ' + t('receipt_title'),
-      rc.donorLine,
-      t('receipt_amount') + ': ' + rcpMoney(rc.amount) + '/- (' + banglaNumWords(rc.amount) + ' টাকা মাত্র)',
-      (rc.showTotals ? t('paid') + ': ' + rcpMoney(rc.paidTotal) + '/' + rcpMoney(rc.pledged) + '  ' + t('due') + ': ' + rcpMoney(rc.due) : ''),
-      (rc.receiptNo ? t('receipt_no') + ' ' + rc.receiptNo : ''),
-      cfg.footer].filter(Boolean).join('\n');
+    const lines = receiptMessage(rc);
     const digits = String(phone || '').replace(/\D/g, '');
     const num = digits ? (digits.length === 10 ? '+91' + digits : '+' + digits.replace(/^0/, '')) : '';
     // `?body=` works on Android; iOS is lenient with it too
@@ -1742,6 +1766,13 @@
             startFlow(newPartyFlow(party.type, party.type === 'shop' ? { side: party.side } : {})); };
           document.getElementById('rcp-skip').onclick = function () { navigate('home'); };
         };
+      }
+      // same serial on a voided row → this receipt replaces an earlier one
+      if (rc.receiptNo) {
+        const voided = {}; (data.voids || []).forEach(function (v) { if (v.targetId) voided[v.targetId] = 1; });
+        rc.corrected = (data.payments || []).concat(data.daily || []).some(function (r) {
+          return r.id !== id && voided[r.id] && String(r.receiptNo || '') === String(rc.receiptNo);
+        });
       }
       const paint = function () {
         $view().innerHTML = backBar(backView, backParams) + '<div class="flow-title">' + esc(t('receipt_title')) + '</div>' +
