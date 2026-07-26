@@ -128,6 +128,17 @@
       b.className = 'badge ' + (n ? 'warn' : 'ok');
       b.title = n ? n + t('unsynced_n') : t('all_synced');
     });
+    // unread chat marker on the 💬 tab — read from the same local snapshot the
+    // screen uses, so it never disagrees with what is actually there
+    const dot = document.getElementById('msg-dot');
+    if (dot && Auth.loggedIn()) {
+      viewData().then(function (data) {
+        const f = Aggregate.messageFeed(data, meForMsg(), msgSeen());
+        dot.hidden = !f.unread;
+        dot.textContent = f.unread > 9 ? '9+' : String(f.unread || '');
+        dot.className = 'nav-dot' + (f.mentioned ? ' me' : '');
+      }).catch(function () {});
+    } else if (dot) dot.hidden = true;
   }
   // Debounced so a burst of entries (e.g. bulk-shop mode) coalesces into one
   // sync ~1s after the last save instead of a round-trip per entry.
@@ -347,7 +358,7 @@
   // Returning to the app (or a pull-to-refresh) re-renders the current data
   // view so users never have to manually refresh — skipped mid-entry and on
   // transient screens.
-  const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party', 'entries', 'review', 'hbook'];
+  const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party', 'entries', 'review', 'hbook', 'messages'];
   function onAppFocus() {
     if (!notifViaPull) checkNotifications(); // old backend only — pull carries it otherwise
     autoSync(); // push anything still pending when the user returns
@@ -1196,6 +1207,26 @@
         '<button class="tile" data-go="hbook">📗 ' + esc(t('hb_title')) + '</button>' +
         (cashier ? '<button class="tile" data-go="cashier">' + esc(t('confirm_handover')) + '</button>' : '') +
         (canReview() ? '<button class="tile" data-go="review">🛠️ ' + esc(t('review_title')) + '</button>' : '');
+      // NOTHING GRANTED → nothing to show but how to get unstuck. Hrishi's rule,
+      // and it holds for cashiers too: somebody who collects nothing has no
+      // money to hand over and no book to read. Chat stays open — that is the
+      // one thing everybody has — but the real fix is a phone call, so the
+      // admin's number is right here.
+      const hasAnyGrant = Auth.isAdmin() ||
+        String((Auth.current() || {}).entries || '').split(',').filter(Boolean).length > 0;
+      if (!hasAnyGrant) {
+        $view().innerHTML =
+          '<div id="notif-banner"></div>' +
+          '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
+          '<div class="hero-sub">' + esc(Settings.get('collectorName')) + '</div></div>' +
+          '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
+            '<b>' + esc(t('home_no_perm_title')) + '</b>' +
+            '<div class="row-sub" style="margin-top:4px">' + esc(t('home_no_perm_body')) + '</div>' +
+            adminContactHTML(data) + '</div>';
+        renderNotifBanner();
+        wireNav();
+        return;
+      }
       $view().innerHTML =
         '<div id="notif-banner"></div>' +
         '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
@@ -1215,6 +1246,22 @@
       renderNotifBanner();   // show cached counts immediately
       if (!notifViaPull) checkNotifications();  // old backend only; pull refreshes otherwise
     });
+  }
+
+  // Who to ring when the app cannot help you. Read from the pulled user list
+  // when it is there, so it works offline too; falls back to just the name.
+  function adminContactHTML() {
+    const a = (msgUserCache || []).filter(function (u) { return u.role === 'admin'; })[0] ||
+              { name: Settings.get('adminName') || '', phone: Settings.get('adminPhone') || '' };
+    if (!a.name && !a.phone) return '';
+    const digits = String(a.phone || '').replace(/\D/g, '');
+    const wa = digits ? (digits.length === 10 ? '91' + digits : digits.replace(/^0/, '')) : '';
+    return '<div class="row-sub" style="margin-top:10px"><b>' + esc(a.name || '') + '</b>' +
+      (a.phone ? ' · 📞 ' + esc(a.phone) : '') + '</div>' +
+      (digits ? '<div class="chips" style="margin-top:6px">' +
+        '<a class="chip" href="tel:' + esc(digits) + '">' + esc(t('home_call_admin')) + '</a>' +
+        '<a class="chip" href="https://wa.me/' + esc(wa) + '" target="_blank" rel="noopener">' + esc(t('home_wa_admin')) + '</a>' +
+        '</div>' : '');
   }
 
   // Every data-go button behaves the same wherever it appears, so a screen that
@@ -2573,6 +2620,92 @@
       .catch(function () { paint([]); }); // offline: only "keep as written" is offered
   }
 
+  // ---------- committee chat ----------
+  // One window, everybody in it. Messages are just another store, so they ride
+  // the pull the app already makes every 60s — no polling of its own, which on
+  // Apps Script would burn the daily runtime quota within hours.
+  function msgSeenKey() { return 'ck_msg_seen'; }
+  function msgSeen() { try { return localStorage.getItem(msgSeenKey()) || ''; } catch (e) { return ''; } }
+  function msgMarkSeen(iso) { try { localStorage.setItem(msgSeenKey(), iso); } catch (e) {} }
+  function meForMsg() {
+    const u = Auth.current() || {};
+    return { username: Settings.get('collectorUsername') || u.username || '',
+             role: u.role || '', cashier: u.cashier || 0 };
+  }
+  let msgDraft = '';
+  function renderMessages() {
+    const me = meForMsg();
+    viewData().then(function (data) {
+      const feed = Aggregate.messageFeed(data, me, msgSeen());
+      const rows = feed.rows.slice(-200); // a season's chat, not an archive
+      const body = rows.length ? rows.map(function (r) {
+        const mine = String(r.collectorId || r.collector) === me.username;
+        return '<div class="msg' + (mine ? ' mine' : '') + (r.forMe && !mine ? ' formeone' : '') + '">' +
+          '<div class="msg-who">' + esc(r.collector || r.collectorId || '?') +
+            '<span class="msg-when">' + esc(fmtDateTime(r.createdAt)) + '</span></div>' +
+          '<div class="msg-text">' + highlightMentions(r.text || '') + '</div></div>';
+      }).join('') : '<div class="empty">' + esc(t('msg_empty')) + '</div>';
+      $view().innerHTML = '<div class="flow-title">' + esc(t('msg_title')) + '</div>' +
+        '<div class="hint" style="margin-bottom:8px">' + esc(t('msg_hint')) + '</div>' +
+        '<div id="msg-list" class="msg-list">' + body + '</div>' +
+        '<div id="msg-picker" class="chips" hidden></div>' +
+        '<div class="input-row msg-compose">' +
+          '<input id="msg-input" placeholder="' + esc(t('msg_ph')) + '" autocomplete="off" value="' + esc(msgDraft) + '">' +
+          '<button id="msg-at" class="ghost">@</button>' +
+          '<button id="msg-send" class="primary">' + esc(t('msg_send')) + '</button>' +
+        '</div>';
+      const list = document.getElementById('msg-list');
+      if (list) list.scrollTop = list.scrollHeight;
+      // reading the screen IS the read receipt
+      if (rows.length) msgMarkSeen(String(rows[rows.length - 1].createdAt || ''));
+      updateBadge();
+      const input = document.getElementById('msg-input');
+      input.oninput = function () { msgDraft = input.value; };
+      document.getElementById('msg-at').onclick = function () { toggleMentionPicker(input); };
+      document.getElementById('msg-send').onclick = function () { sendMessage(input); };
+      input.onkeydown = function (e) { if (e.key === 'Enter') sendMessage(input); };
+    });
+  }
+  function highlightMentions(txt) {
+    return esc(txt).replace(/@([a-z0-9._-]+)/gi, '<b class="msg-at">@$1</b>');
+  }
+  // @ offers the three groups plus every approved user, so a name never has to
+  // be spelled from memory (and a typo'd mention notifies nobody).
+  function toggleMentionPicker(input) {
+    const box = document.getElementById('msg-picker');
+    if (!box.hidden) { box.hidden = true; return; }
+    const paint = function (users) {
+      box.innerHTML = [['all', t('msg_grp_all')], ['cashiers', t('msg_grp_cashiers')], ['admin', t('msg_grp_admin')]]
+        .map(function (g) { return '<button class="chip" data-at="' + g[0] + '">@' + esc(g[1]) + '</button>'; }).join('') +
+        users.map(function (u) {
+          return '<button class="chip" data-at="' + esc(u.username) + '">@' + esc(u.name) + '</button>';
+        }).join('');
+      box.hidden = false;
+      box.querySelectorAll('[data-at]').forEach(function (b) {
+        b.onclick = function () {
+          input.value = (input.value.trim() + ' @' + b.dataset.at + ' ').replace(/^\s+/, '');
+          msgDraft = input.value; box.hidden = true; input.focus();
+        };
+      });
+    };
+    const cached = msgUserCache;
+    if (cached) { paint(cached); return; }
+    Auth.call('cashiers', { token: Auth.token() })
+      .then(function (r) { msgUserCache = r.cashiers || []; paint(msgUserCache); })
+      .catch(function () { paint([]); }); // offline → groups only, still usable
+  }
+  let msgUserCache = null;
+  function sendMessage(input) {
+    const txt = String(input.value || '').trim();
+    if (!txt) return;
+    // the mentions column is derived from the text, so what you typed and who
+    // gets notified can never disagree
+    const mentions = (txt.match(/@([a-z0-9._-]+)/gi) || []).map(function (m) { return m.slice(1).toLowerCase(); });
+    const row = DB.newRow({ text: txt, mentions: mentions.join(',') });
+    input.value = ''; msgDraft = '';
+    DB.put('messages', row).then(function () { updateBadge(); autoSync(); renderMessages(); });
+  }
+
   // ---------- in-app guide ----------
   function renderHelp() {
     const lang = Settings.get('lang');
@@ -3254,7 +3387,8 @@
     updateTrainingBar(); // persistent training strip + header title, every screen
     document.querySelectorAll('#bottomnav button').forEach(function (b) {
       b.classList.toggle('on', b.dataset.nav === current.view);
-      b.querySelector('span').textContent = t(b.dataset.nav === 'list' ? 'khata' : b.dataset.nav);
+      const k = b.dataset.nav;
+      b.querySelector('span').textContent = t(k === 'list' ? 'khata' : (k === 'messages' ? 'nav_messages' : k));
     });
     if (!Auth.loggedIn()) { renderAuth(); updateBadge(); return; }
     startNotifPolling();
@@ -3269,6 +3403,7 @@
     else if (current.view === 'admin') { Auth.isAdmin() ? renderAdmin() : renderHome(); }
     else if (current.view === 'cashier') renderCashier();
     else if (current.view === 'hbook') renderHandoverBook();
+    else if (current.view === 'messages') renderMessages();
     else if (current.view === 'entries') renderMyEntries();
     else if (current.view === 'findparty') renderFindParty();
     else if (current.view === 'review') renderReviewCorrections();

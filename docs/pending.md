@@ -262,13 +262,19 @@ on his phone after the redeploy).
   INSTABILITY (an unsourced bill migrating between categories) was a separate
   defect and is fixed in v3.86.0.
 
-## ⚠️ Code.gs redeploy needed (v3.93.0)
+## ⚠️ Code.gs redeploy + `setup()` needed (v3.93.0–v3.96.0)
 
-Two server changes, no new columns, so **no `setup()`** — New deployment only,
-then hand over the URL for rebaking.
+New deployment **AND `setup()` this time** — the chat adds a `Messages` sheet.
 
 - `voids` is gated for the first time (`voidAllowed_`).
 - An admin restoring a backup may file rows under the collector they belong to.
+- `clearTraining` — wipe practice data without going live.
+- `otherdonor` permission key.
+- Empty `entries` now grants NOTHING (was: everything).
+- `Messages` sheet for the committee chat.
+
+**After the redeploy, grant every collector something** — 11 approved users have
+`entries=''` and can currently do nothing. One `[সব দাও]` tap each.
 
 ## Next decision — Go Live
 

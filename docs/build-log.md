@@ -3304,3 +3304,59 @@ VERIFIED
   a user with nothing granted is denied shop, review and otherdonor, still
   allowed the common actions; a bus-only user is allowed bus and denied road; an
   admin is never narrowed; `allowedReports` still returns `[]`.
+
+## v3.96.0 — nothing granted means an empty home with a phone number, and a committee chat
+
+### A home that explains itself
+
+With `entries` empty now granting nothing, a collector's home would have been a
+hero bar and blank space. Hrishi: hide the money buttons too — "same applied for
+all, cashier or collector". Right: somebody who collects nothing has no money to
+hand over and no book to read. So a user with no grants sees one card —
+**⚠️ তোমাকে এখনও কিছু দেওয়া হয়নি** — the admin's name, and 📞 / 💬 buttons.
+
+The out-of-app channel is the point. Somebody locked out of the app cannot be
+helped by something inside it, so `tel:` and `wa.me` links are what that card
+carries.
+
+Flagged to Hrishi and he confirmed the rule anyway: a cashier granted nothing
+also loses জমা নেওয়া, so collectors' handovers would sit unconfirmed. The fix is
+to grant the cashier anything at all — even just the correction desk — and the
+card tells them who to ring.
+
+### 💬 Committee chat
+
+One window, everyone in it, `@` to call a person or a group.
+
+THE DESIGN IS DECIDED BY ONE NUMBER. The app already pulls every 60 seconds. Put
+messages in `SHEETS` and they ride that pull — push, delta cursor and the void
+filter all come free, and chat costs **not one extra request**. A separate 10s
+poll would be ~10,800 calls/day against an Apps Script consumer quota of 90
+minutes of runtime, which it would exhaust by mid-afternoon. So this is
+"messages within a minute", not instant, and Hrishi accepted that trade.
+
+- `@` opens a picker: **@all · @cashiers · @admin** plus every approved user, so
+  a name is never spelled from memory — a typo'd mention notifies nobody.
+- The `mentions` column is derived from the text at send time, so what you typed
+  and who gets notified cannot disagree.
+- Group membership is resolved at READ time, not stored: promote somebody to
+  cashier and every past `@cashiers` message becomes theirs.
+- Unread count on the 💬 tab, red when you were mentioned; opening the screen is
+  the read receipt.
+- No permission gates it — Hrishi: "for it no need any permission". It is also
+  the one thing a user with nothing granted can still use.
+
+Bottom nav is now five tabs. Measured at 320px: 64px each, no label clipped.
+
+`DB` version bumped 4 → 5; without it `onupgradeneeded` never runs and the new
+object store is never created on a phone that already has the database.
+
+VERIFIED
+- 13 new tests on the mention rules, including the ones with teeth: an admin
+  counts as a cashier for `@cashiers` (as everywhere else in this app), your own
+  messages are never unread, the seen marker clears the count, and a voided
+  message leaves the feed like every other store. **346 passed, 0 failed.**
+- browser on a FRESH port: five tabs render, 64px each at 320px width with no
+  clipping, `DB.STORES` carries `messages`, no console errors.
+- NOT verifiable until redeploy: the `Messages` sheet itself. **This one needs
+  `setup()`**, unlike the last few.

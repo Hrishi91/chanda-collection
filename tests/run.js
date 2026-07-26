@@ -2,7 +2,8 @@
 const { parseAmount } = require('../js/numparse.js');
 const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
         roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed,
-        cashierView, handoverReport, allowedReports } = require('../js/aggregate.js');
+        cashierView, handoverReport, allowedReports,
+        mentionsMe, messageFeed } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -634,6 +635,36 @@ const liveSerials = [rcOld, rcNew].filter(function (r) { return r.id !== 'old'; 
 eq(liveSerials, ['2026000021'], 'correction: one live row carries the number');
 eq(duesList(rcData.parties, rcData.payments, rcData.voids).length, 1, 'correction: dues use the corrected figure');
 eq(duesList(rcData.parties, rcData.payments, rcData.voids)[0].due, 300, 'correction: 1000 pledged − 700 corrected = 300 due');
+
+// ---- committee chat: who a message is for --------------------------------
+// Group membership is decided at read time, not stored, so promoting somebody
+// to cashier immediately changes which past messages count as theirs.
+const chatMsgs = [
+  { id: '1', collectorId: 'jadav90', collector: 'Jadav', text: '@yamini05 রোডের টাকা', mentions: 'yamini05', createdAt: '2026-07-26T10:00:00Z' },
+  { id: '2', collectorId: 'hrishi91', collector: 'Hrishi', text: '@all মিটিং', mentions: 'all', createdAt: '2026-07-26T11:00:00Z' },
+  { id: '3', collectorId: 'hrishi91', collector: 'Hrishi', text: '@cashiers হিসাব', mentions: 'cashiers', createdAt: '2026-07-26T12:00:00Z' },
+  { id: '4', collectorId: 'yamini05', collector: 'Yamini', text: 'ঠিক আছে', mentions: '', createdAt: '2026-07-26T12:30:00Z' },
+];
+const chatData = { parties: [], payments: [], daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: chatMsgs };
+const yam = { username: 'yamini05', role: 'user', cashier: 0 };
+const jad = { username: 'jadav90', role: 'user', cashier: 1 };
+const adm = { username: 'hrishi91', role: 'admin', cashier: 0 };
+eq(mentionsMe(chatMsgs[0], yam), true, 'chat: named directly');
+eq(mentionsMe(chatMsgs[0], jad), false, 'chat: somebody else being named is not mine');
+eq(mentionsMe(chatMsgs[1], yam), true, 'chat: @all reaches everyone');
+eq(mentionsMe(chatMsgs[2], jad), true, 'chat: @cashiers reaches a cashier');
+eq(mentionsMe(chatMsgs[2], yam), false, 'chat: …and not a plain collector');
+eq(mentionsMe(chatMsgs[2], adm), true, 'chat: an admin counts as a cashier here, as everywhere else');
+eq(mentionsMe(chatMsgs[3], yam), false, 'chat: a message mentioning nobody is nobody\'s');
+const yFeed = messageFeed(chatData, yam, '2026-07-26T09:00:00Z');
+eq(yFeed.rows.map(function (r) { return r.id; }), ['1', '2', '3', '4'], 'chat: oldest first, the way a conversation reads');
+eq(yFeed.unread, 3, 'chat: your own messages are never unread');
+eq(yFeed.mentioned, 2, 'chat: mentions counted apart from plain unread');
+eq(messageFeed(chatData, yam, '2026-07-26T12:00:00Z').unread, 0, 'chat: the seen marker clears the count');
+eq(messageFeed(chatData, jad, '2026-07-26T09:00:00Z').mentioned, 2, 'chat: cashier is mentioned by @all and @cashiers');
+// a voided message leaves the feed, like every other store
+eq(messageFeed(Object.assign({}, chatData, { voids: [{ id: 'v', targetId: '2' }] }), yam, '').rows.length, 3,
+   'chat: a voided message is gone from the feed too');
 
 // ---- the handover book -------------------------------------------------------
 // Everything one person handed over and everything handed to them, in one

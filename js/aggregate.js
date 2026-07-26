@@ -33,6 +33,7 @@
     const keep = function (rows) { return (rows || []).filter(function (r) { return r && !v[r.id]; }); };
     return { parties: keep(data.parties), payments: keep(data.payments), daily: keep(data.daily),
              expenses: keep(data.expenses), handovers: keep(data.handovers), voids: data.voids || [],
+             messages: keep(data.messages),
              // pass corrections through (not voidable) — keeps this an exact
              // mirror of Code.gs activeData_ (see regression A8 in final-audit)
              corrections: data.corrections || [] };
@@ -518,6 +519,36 @@
              rows: rows };
   }
 
+  // Committee chat. `mentions` is a CSV of usernames and/or group words; a
+  // message is "for me" when it names me, names a group I am in, or is @all.
+  // Group membership is decided here, not stored, so promoting somebody to
+  // cashier immediately changes which past messages count as theirs.
+  function mentionsMe(msg, me) {
+    const m = String((msg && msg.mentions) || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+    if (!m.length) return false;
+    if (m.indexOf('all') >= 0) return true;
+    if (m.indexOf(String(me.username)) >= 0) return true;
+    if (m.indexOf('admin') >= 0 && me.role === 'admin') return true;
+    if (m.indexOf('cashiers') >= 0 && (Number(me.cashier) === 1 || me.role === 'admin')) return true;
+    return false;
+  }
+  // Newest last, the way a conversation reads. `unread` counts what arrived
+  // after the marker this device last stored — messages you sent yourself are
+  // never unread.
+  function messageFeed(data, me, sinceIso) {
+    const rows = (activeData(data).messages || []).slice()
+      .sort(function (a, b) { return String(a.createdAt || '').localeCompare(String(b.createdAt || '')); });
+    let unread = 0, mentioned = 0;
+    rows.forEach(function (r) {
+      const mine = String(r.collectorId || r.collector) === String(me.username);
+      const isNew = !mine && String(r.createdAt || '') > String(sinceIso || '');
+      r.unread = isNew;
+      r.forMe = mentionsMe(r, me);
+      if (isNew) { unread++; if (r.forMe) mentioned++; }
+    });
+    return { rows: rows, unread: unread, mentioned: mentioned };
+  }
+
   // Parties with outstanding due, biggest due first.
   function duesList(parties, payments, voids) {
     const v = voidedIds({ voids: voids });
@@ -761,7 +792,8 @@
                 roleOf: roleOf, rowRole: rowRole,
                 ENTRY_KINDS: ENTRY_KINDS, PERM_KEYS: PERM_KEYS,
                 permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC,
-                cashierView: cashierView, handoverReport: handoverReport };
+                cashierView: cashierView, handoverReport: handoverReport,
+                mentionsMe: mentionsMe, messageFeed: messageFeed };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
 })();

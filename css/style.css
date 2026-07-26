@@ -28,7 +28,10 @@ nav#bottomnav {
 #bottomnav button {
   flex: 1; border: 0; background: none; padding: 8px 0 6px; font-size: 20px;
   color: var(--sub); display: flex; flex-direction: column; align-items: center; gap: 2px;
+  position: relative; /* anchors the unread dot */
 }
+/* five tabs on a 320px phone: let the labels shrink rather than wrap */
+#bottomnav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #bottomnav button span { font-size: 11px; font-weight: 600; }
 #bottomnav button.on { color: var(--saffron); }
 .hero {
@@ -210,6 +213,23 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
 .sh-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .sh-row .cat-name { flex: 1 1 auto; font-weight: 600; font-size: 15px; }
 .hb-detail { flex-basis: 100%; }
+
+/* ---- committee chat ---- */
+.msg-list { max-height: 58vh; overflow-y: auto; padding: 4px 2px; }
+.msg { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; margin-bottom: 8px; max-width: 88%; }
+.msg.mine { margin-left: auto; background: #fff4e6; border-color: #f0d8b4; }
+.msg.formeone { border-color: var(--saffron); border-width: 1.5px; }
+.msg-who { font-size: 12px; font-weight: 700; color: var(--sub); display: flex; gap: 8px; }
+.msg-when { margin-left: auto; font-weight: 400; opacity: .8; }
+.msg-text { margin-top: 3px; font-size: 15px; white-space: pre-wrap; word-break: break-word; }
+b.msg-at { color: var(--saffron); }
+.msg-compose { position: sticky; bottom: 0; background: var(--bg); padding-top: 6px; }
+.nav-dot {
+  position: absolute; top: 4px; right: 18%; min-width: 16px; height: 16px; line-height: 16px;
+  border-radius: 99px; background: var(--sub); color: #fff; font-size: 10px; font-style: normal;
+  font-weight: 700; text-align: center; padding: 0 4px;
+}
+.nav-dot.me { background: #c62828; }
 
 /* ---- admin: one user open at a time ---- */
 .adm-user { border: 1px solid var(--line); border-radius: 12px; background: var(--card); margin-bottom: 8px; overflow: hidden; }

@@ -31,16 +31,23 @@ var SHEETS = {
   // audit-preserving corrections: a void points at another record's id
   voids: ['id', 'year', 'targetStore', 'targetId', 'reason', 'collector', 'createdAt', 'receivedAt', 'collectorId'],
   // a collector's "this is wrong" flag → a cashier/admin approves(void)/rejects
+  // Committee chat. Adding it to SHEETS is the whole implementation on the
+  // server side: push, pull, the delta cursor and the void filter all work on
+  // any store listed here, so messages ride the pull the app already makes
+  // every 60s and cost NOT ONE extra request. `mentions` is a CSV of usernames
+  // or group words (all/cashiers/admin) — the client decides what to notify on.
+  messages: ['id', 'year', 'text', 'mentions', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole'],
   corrections: ['id', 'year', 'targetStore', 'targetId', 'targetSummary', 'reason', 'status',
                 'resolvedBy', 'resolvedAt', 'collector', 'collectorId', 'createdAt', 'receivedAt'],
 };
 var SHEET_TITLES = { parties: 'Parties', payments: 'Payments', daily: 'DailyCollections',
-                     expenses: 'Expenses', handovers: 'Handovers', voids: 'Voids', corrections: 'Corrections' };
+                     expenses: 'Expenses', handovers: 'Handovers', voids: 'Voids', corrections: 'Corrections',
+                     messages: 'Messages' };
 
 var USER_COLS = ['id', 'username', 'name', 'phone', 'passwordHash', 'salt', 'role',
                  'cashier', 'reports', 'status', 'years', 'token', 'mustChange', 'createdAt', 'updatedAt',
                  'areas', // append-only: comma-separated area ids this collector is responsible for
-                 'entries']; // allowed entry kinds (party/payment/daily/handover); empty = all
+                 'entries']; // granted permission keys (see PERM_KEYS); empty = nothing granted
 var AUDIT_COLS = ['id', 'ts', 'actor', 'actorId', 'action', 'detail'];
 
 // Per-report access: admin sees all; cashier gets 'inhand' by default;
@@ -1130,6 +1137,7 @@ function activeData_(d) {
   var keep = function (rows) { return (rows || []).filter(function (r) { return r && !voided[String(r.id)]; }); };
   return { parties: keep(d.parties), payments: keep(d.payments), daily: keep(d.daily),
            expenses: keep(d.expenses), handovers: keep(d.handovers), voids: d.voids || [],
+           messages: keep(d.messages),
            // corrections pass through untouched (they aren't voidable) — the
            // A7 change routed notifData_ through here, and dropping this key
            // silently killed correction-flag notifications (regression A8)
