@@ -3058,3 +3058,35 @@ KNOWN, not changed here: the server does not gate the `voids` store at all —
 The UI has always gated this (`canVoid`), and this change makes collectors write
 voids legitimately for the first time. Worth a server-side rule, but that is a
 Code.gs change and a redeploy, so it is listed rather than slipped in.
+
+## v3.91.1 — a correction keeps the original receipt number
+
+Hrishi asked which is better, and then answered the question that decides it:
+"no paper, this only" — the app's receipt is the only one there is.
+
+So a corrected entry carries the ORIGINAL serial. The donor already has
+2026000021 on their phone; re-sharing under the same number replaces that
+message, while a fresh number would leave them holding two receipts for one
+donation and wondering which is real. At the counter, "read me your receipt
+number" stays a single lookup.
+
+It also keeps the serial meaningful — it counts receipts issued, not rows ever
+written, so fixing one typo three times does not burn three numbers.
+
+The implementation is a carry, not an override: the server mints only when the
+field is empty (`if (isNew && !row.receiptNo …)`), so passing the old serial
+through is exactly what stops a second one being drawn.
+
+Checked before deciding: `receiptNo` is never a lookup key or a uniqueness
+constraint anywhere — it is displayed, printed on the receipt image, and
+adopted by `sync.js` after a push. Two rows end up carrying the number, one of
+them voided; among ACTIVE rows, the only rows anything reads, it stays unique,
+and the void beside it is the explanation.
+
+Would have been the other way with a paper receipt book: a spoiled leaf is
+cancelled and the next number issued, and the app would have to match the paper.
+
+VERIFIED: 7 new tests — the corrected figure is counted once and only once in
+`computeTotals`, `paidByParty`, `myAvailable` and `personalSummary`, and the
+party's due follows the corrected amount (1000 pledged − 700 = 300), not the
+sum of both rows. **310 passed, 0 failed.**

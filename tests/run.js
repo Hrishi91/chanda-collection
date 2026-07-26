@@ -598,6 +598,26 @@ eq(snapRecv.cash + snapRecv.upi, 900, 'snapshot: the receiver still gets the ful
 eq(snapRecv.byGiver, [{ id: 'jadav', name: 'Jadav', cash: 600, upi: 300, total: 900 }],
    'snapshot: it arrives named — "handed over by Jadav"');
 
+// ---- a correction keeps the original receipt serial --------------------------
+// No paper receipt book here: the app's receipt is the only one, and the donor
+// already has that number on their phone. Re-sharing under the SAME number
+// replaces the old message; a fresh number would leave them holding two
+// receipts for one donation. The voided row keeps the history.
+const rcOld = { id: 'old', collectorId: 'yamini', partyId: 'p1', amount: 500, cashAmount: 500, upiAmount: 0, receiptNo: '2026000021' };
+const rcNew = { id: 'new', collectorId: 'yamini', partyId: 'p1', amount: 700, cashAmount: 700, upiAmount: 0, receiptNo: '2026000021' };
+const rcData = { parties: [{ id: 'p1', type: 'shop', name: 'S', pledged: 1000 }],
+                 payments: [rcOld, rcNew], daily: [], expenses: [], handovers: [],
+                 corrections: [], voids: [{ id: 'v', targetStore: 'payments', targetId: 'old', reason: 'edit — ভুল অ্যামাউন্ট' }] };
+eq(computeTotals(rcData).totalCollection, 700, 'correction: only the corrected row counts');
+eq(computeTotals(rcData).paidByParty.p1, 700, 'correction: the donor is credited once, at the new figure');
+eq(myAvailable(rcData, 'yamini').byCat.shop, { cash: 700, upi: 0 }, 'correction: the pot holds the corrected amount');
+eq(personalSummary(rcData, 'yamini').collected, 700, 'correction: the collector is not credited twice');
+// the serial stays unique among ACTIVE rows, which is the only place it is read
+const liveSerials = [rcOld, rcNew].filter(function (r) { return r.id !== 'old'; }).map(function (r) { return r.receiptNo; });
+eq(liveSerials, ['2026000021'], 'correction: one live row carries the number');
+eq(duesList(rcData.parties, rcData.payments, rcData.voids).length, 1, 'correction: dues use the corrected figure');
+eq(duesList(rcData.parties, rcData.payments, rcData.voids)[0].due, 300, 'correction: 1000 pledged − 700 corrected = 300 due');
+
 // ---- the handover book -------------------------------------------------------
 // Everything one person handed over and everything handed to them, in one
 // place. Read straight off the handover rows — nothing derived — so it can

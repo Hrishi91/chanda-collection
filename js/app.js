@@ -876,6 +876,12 @@
           partyId: party.id, partyName: party.name, amount: m.total,
           cashAmount: m.cash, upiAmount: m.upi,
           date: todayISO(), note: a.note || '',
+          // A correction keeps the ORIGINAL serial. The donor already has that
+          // number on their phone; re-sharing under the same one replaces the
+          // old message instead of leaving them with two receipts for one
+          // donation. The server only mints a serial when the field is empty,
+          // so carrying it is also what stops a second one being burned.
+          receiptNo: a.__receipt || '',
         });
         // straight to the receipt screen — that's the whole point of a
         // payment: something to hand the donor on the spot.
@@ -1035,6 +1041,7 @@
           type: type, busName: a.busName || '', busNumber: a.busNumber || '',
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
           date: todayISO(), note: a.note || '',
+          receiptNo: a.__receipt || '', // a corrected bus receipt keeps its number
         });
         return DB.put('daily', row).then(function () {
           const undo = [{ store: 'daily', id: row.id }];
@@ -1818,10 +1825,11 @@
     let def = null;
     if (store === 'payments') {
       def = paymentFlow({ id: row.partyId, name: row.partyName || '' }, 'entries');
-      def.presets = money;
+      def.presets = Object.assign({ __receipt: row.receiptNo || '' }, money);
     } else if (store === 'daily') {
       def = dailyFlow(row.type);
-      def.presets = Object.assign({ busName: row.busName || '', busNumber: row.busNumber || '' }, money);
+      def.presets = Object.assign({ busName: row.busName || '', busNumber: row.busNumber || '',
+                                    __receipt: row.receiptNo || '' }, money);
     } else if (store === 'expenses') {
       // the expense flow needs its subject list; reuse the same loader the
       // normal entry path uses so an offline edit still works
