@@ -484,6 +484,74 @@
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // What can be handed over RIGHT NOW — a different question from "what do I
+  // answer for", and it deliberately gives a smaller number.
+  //
+  // `myAvailable` counts an unconfirmed handover as still the sender's, which is
+  // right for the books (see mySummary). But those notes are physically gone —
+  // already in the cashier's pocket, waiting to be acknowledged — so offering
+  // them again would let the same money be promised to two people.
+  //
+  // TWO independent leaks have to be plugged, and each needs its own clamp:
+  //
+  //  1. per pot — subtract that pot's own pending parcels, read from each
+  //     handover's stored breakdown so the deduction lands in the right pot.
+  //
+  //  2. per money type, in total — a pot that went negative (its expenses
+  //     outran it) is clamped to 0 for display, so the chips skip it entirely,
+  //     yet the debt still reduces the cash actually in the pocket. Σ positive
+  //     pots therefore overshoots by exactly the debt. `cash`/`upi` below come
+  //     from the WHOLE-book figure minus pending, so they carry the debt; the
+  //     caller must clamp the selection against them as well as per pot.
+  //
+  // Worked example (the case this was written for): 2,000 in the account,
+  // 700 pending (person 300, toto 400), road overspent by 100.
+  //   byCat free  → shop 📱800, person 💵200, bus 💵400, road —, toto —
+  //   Σ chips     = 💵600 + 📱800 = 1,400   ← what the sheet used to offer
+  //   cash/upi    = 💵500 + 📱800 = 1,300   ← what is really there
+  // The 100 gap is the road debt. Both clamps, or the books can go negative.
+  function handoverable(data, ident) {
+    const av = myAvailable(data, ident);
+    const pend = handoverSlots(data, ident).out.pending;
+    const free = {};
+    Object.keys(av.byCat).forEach(function (k) {
+      free[k] = { cash: av.byCat[k].cash, upi: av.byCat[k].upi };
+    });
+    pend.rows.forEach(function (h) {
+      let bd = null;
+      try { bd = JSON.parse(h.breakdown || 'null'); } catch (e) { bd = null; }
+      if (bd && typeof bd === 'object') {
+        Object.keys(bd).forEach(function (k) {
+          if (k.slice(0, 2) === '__') return; // reserved metadata, not a category
+          const cat = AVAIL_CATS.indexOf(k) >= 0 ? k : 'received';
+          if (!free[cat]) free[cat] = { cash: 0, upi: 0 };
+          free[cat].cash -= Number(bd[k].cash) || 0;
+          free[cat].upi -= Number(bd[k].upi) || 0;
+        });
+      } else {
+        // legacy row with no breakdown: it names no pot, so it can only come
+        // off the total. Same deterministic order the rest of the file uses.
+        drain(free, splitOf(h).cash, 'cash');
+        drain(free, splitOf(h).upi, 'upi');
+      }
+    });
+    // negatives are honest in `myAvailable` but meaningless as an OFFER, so the
+    // per-pot figures are clamped here; the debt survives in cash/upi below.
+    const byCat = {};
+    let debtCash = 0, debtUpi = 0;
+    Object.keys(free).forEach(function (k) {
+      const c = free[k].cash, u = free[k].upi;
+      if (c < 0) debtCash -= c;
+      if (u < 0) debtUpi -= u;
+      byCat[k] = { cash: Math.max(0, c), upi: Math.max(0, u) };
+    });
+    const cash = Math.max(0, av.cash - pend.cash), upi = Math.max(0, av.upi - pend.upi);
+    return { cash: cash, upi: upi, total: cash + upi, byCat: byCat,
+             pendingOut: { cash: pend.cash, upi: pend.upi, total: pend.total },
+             debt: { cash: debtCash, upi: debtUpi, total: debtCash + debtUpi } };
+  }
+
   // The cashier's / admin's handover screen. They do NOT pick categories — money
   // pooled from many people has no honest category left — so this returns the
   // figures they read before typing an amount:
@@ -933,7 +1001,7 @@
                 ENTRY_KINDS: ENTRY_KINDS, PERM_KEYS: PERM_KEYS,
                 permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC,
                 cashierView: cashierView, handoverReport: handoverReport,
-                mySummary: mySummary, handoverSlots: handoverSlots,
+                mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,
                 mentionsMe: mentionsMe, messageFeed: messageFeed,
                 activeData: activeData, chatLoad: chatLoad, homeTiles: homeTiles };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

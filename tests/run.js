@@ -2,7 +2,7 @@
 const { parseAmount } = require('../js/numparse.js');
 const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
         roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed,
-        cashierView, handoverReport, allowedReports, mySummary, handoverSlots,
+        cashierView, handoverReport, allowedReports, mySummary, handoverSlots, handoverable,
         mentionsMe, messageFeed, activeData, chatLoad, homeTiles } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
@@ -1012,6 +1012,42 @@ eq(msJ.out.pending.total, 0, 'mySummary: an incoming parcel never shows up as ou
 // handoverSlots on its own: a voided handover is gone here too
 eq(handoverSlots(Object.assign({}, msData, { voids: [{ id: 'v', targetId: 'h2' }] }), 'y').out.pending.total, 400,
    'handoverSlots: a voided handover leaves the slots');
+
+// ---- handoverable: what can be offered right now (≠ what I answer for) ------
+// Same msData as above: 2,000 in the account, 700 pending (person 300 + toto
+// 400), road overspent by 100. So only 1,300 is physically there.
+const ho = handoverable(msData, 'y');
+eq(ho.total, 1300, 'handoverable: cap = hero − pending, and the road debt is inside it');
+eq([ho.cash, ho.upi], [500, 800], 'handoverable: the ceiling is per money type, not just a total');
+eq(ho.pendingOut.total, 700, 'handoverable: reports the pending it set aside, for the on-screen reason');
+eq(ho.debt.total, 100, 'handoverable: reports the overspent pot separately — a different reason, different colour');
+// pot-level: each pending parcel comes off ITS OWN pot, read from the breakdown
+eq(ho.byCat.person, { cash: 200, upi: 0 }, 'handoverable: person 500 − its own 300 pending');
+eq(ho.byCat.toto, { cash: 0, upi: 0 }, 'handoverable: toto fully committed to a pending parcel');
+eq(ho.byCat.bus, { cash: 400, upi: 0 }, 'handoverable: an untouched pot is left alone');
+eq(ho.byCat.road, { cash: 0, upi: 0 }, 'handoverable: a negative pot is clamped to 0 — never an offer');
+// THE reason the per-pot figures alone are not enough: Σ chips overshoots by
+// exactly the debt, so the caller must clamp the total as well.
+let hoChipCash = 0, hoChipUpi = 0;
+Object.keys(ho.byCat).forEach(function (k) { hoChipCash += ho.byCat[k].cash; hoChipUpi += ho.byCat[k].upi; });
+eq(hoChipCash - ho.cash, ho.debt.cash, 'handoverable: Σ pot chips exceeds the cash ceiling by exactly the debt');
+eq([hoChipCash, hoChipUpi], [600, 800], 'handoverable: …600 selectable vs 500 real — hence the second clamp');
+// and the bug this replaced: myAvailable would have offered the pending money again
+eq(myAvailable(msData, 'y').cash - ho.cash, 700, 'handoverable: myAvailable offered 700 of already-sent money');
+// a rejected parcel is NOT set aside — the money is back and offerable
+const hoRej = handoverable(Object.assign({}, msData, {
+  handovers: msData.handovers.map(function (h) {
+    return h.status === 'pending' ? Object.assign({}, h, { status: 'rejected' }) : h; }) }), 'y');
+eq(hoRej.total, 2000, 'handoverable: a rejected parcel returns to the ceiling');
+eq(hoRej.byCat.toto, { cash: 400, upi: 0 }, 'handoverable: …and back into its own pot');
+// a legacy pending row with no breakdown names no pot: it can only come off the total
+const hoLegacy = handoverable({
+  parties: [], voids: [], corrections: [], payments: [], expenses: [],
+  daily: [{ id: 'd', collectorId: 'z', type: 'road', amount: 500, cashAmount: 500, upiAmount: 0 }],
+  handovers: [{ id: 'h', fromId: 'z', toId: 'j', amount: 200, cashAmount: 200, upiAmount: 0, status: 'pending' }],
+}, 'z');
+eq(hoLegacy.total, 300, 'handoverable: a breakdown-less pending row still lowers the ceiling');
+eq(hoLegacy.byCat.road, { cash: 300, upi: 0 }, 'handoverable: …drained in the fixed category order');
 
 // A ReferenceError in a click handler does not exist until somebody taps. Run
 // the scope checker as part of the suite so it cannot rot in a corner.

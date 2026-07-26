@@ -4131,3 +4131,58 @@ Still open (phase খ, own commit): the reject path itself, and the handover cap
 collector chips are capped from `myAvailable`, which does not deduct pending, so
 ₹1,400 is selectable while ₹1,300 is held (₹700 pending + ₹100 road debt the
 chips skip entirely).
+
+## 2026-07-26 — v4.4.1: the handover ceiling (two clamps, two reasons)
+
+Follow-up to v4.4.0, same session. Hrishi: *"do it all one by one"*.
+
+Under his rule an unconfirmed handover still counts as the sender's money —
+right for the books, wrong for the offer. The collector's sheet capped its chips
+from `myAvailable().byCat`, so already-sent notes were offered again: **the same
+money could be handed over twice.**
+
+Fixing it surfaced a SECOND, independent leak. Both had to be plugged, and each
+needs its own clamp, because one cannot see the other:
+
+    1. per pot    subtract that pot's own pending parcels (from the stored
+                  breakdown, so the deduction lands in the right pot)
+    2. per type   an overspent pot is clamped to 0 and so VANISHES from the
+                  chips, yet its debt still lowers the cash in the pocket —
+                  Σ positive pots therefore overshoots by exactly the debt
+
+Worked example, verified live end to end: ₹2,000 in the account, ₹700 pending
+(person 300, toto 400), road overspent by ₹100.
+
+    byCat free   শপ 📱800 · ব্যক্তি 💵200 · বাস 💵400 · রোড — · টোটো —
+    Σ chips      💵600 + 📱800 = 1,400     ← what the sheet used to offer
+    real cap     💵500 + 📱800 = 1,300     ← cash 2800 − 400 spent
+                                              − 1200 confirmed − 700 pending
+    gap          100 = the road debt        ← invisible to clamp 1
+
+New `Aggregate.handoverable()` returns the per-pot free figures, the per-type
+ceiling, and the two reasons SEPARATELY (`pendingOut`, `debt`) so the screen can
+name them in the summary's own colours: gold for money on its way out, red for a
+pot that owes. A cap with no reason reads as a broken app.
+
+`#sh-total` now shows the ceiling breach and says how much to take off ("💵 নগদে
+সর্বোচ্চ ₹500 — আরও ₹100 কমাও"), and "next" stays disabled until it fits. The
+chips still open all-selected, so a collector with a debt lands on the message
+immediately — deliberate: the alternative was auto-deselecting pots for them,
+which silently decides which round to keep back.
+
+`myAvailable` is untouched. The two functions now answer two different questions
+on purpose, and both are honest:
+
+    hero (myAvailable)        includes pending — what I answer for
+    ceiling (handoverable)    excludes pending — what I can physically pass on
+
+VERIFIED live on a fresh port (8791 — port 8767 served a stale app.js from the
+v4.4.0 app-shell cache and showed the OLD ₹1,200 title; the fresh-port rule
+earned its keep again). Title now reads 💵₹500 · 📱₹800; both reason strips
+render; ব্যক্তি shows ₹200 not ₹500; selecting everything gives 💵600 → red
+message + next disabled; dropping one chip → 💵400, message gone, next enabled;
+saving wrote a pending row of ₹1,200 with the exact breakdown, after which the
+ceiling fell 1,300 → **100** while the hero stayed at **2,000** — the whole rule
+demonstrated in one loop. No console errors. 419 passed, 0 failed.
+
+Client-only — no Code.gs change, no redeploy.

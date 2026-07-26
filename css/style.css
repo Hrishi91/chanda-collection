@@ -382,3 +382,8 @@ b.msg-at { color: var(--saffron); }
 }
 .tillnow b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .tillnow .sub { display: block; margin-top: 4px; font-size: 11.5px; }
+
+/* over the per-money-type ceiling on the handover sheet — see
+   Aggregate.handoverable(): Σ chips can exceed what is really held */
+.sh-over { margin-top: 6px; font-size: 12.5px; font-weight: 700; color: var(--red); }
+.sh-over b { font-variant-numeric: tabular-nums; }

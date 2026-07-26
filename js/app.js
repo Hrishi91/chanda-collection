@@ -641,7 +641,19 @@
         return '<div class="sh-row"><span class="cat-name">' + esc(t(c.labelKey || CAT_LABEL_KEYS[c.key] || 'cat_other')) + '</span>' +
           '<span class="sh-picks">' + cell(c, 'cash') + cell(c, 'upi') + '</span></div>';
       };
-      html += '<div class="sh-actions"><button class="chip" id="sh-all">' + esc(t('sheet_all')) +
+      // Why the ceiling can be lower than "what I hold" — said up front, in the
+      // same two colours the summary uses: gold for money on its way out, red
+      // for a pot that owes. Without this the cap looks like a bug.
+      const cap = s.cap || {};
+      const notices =
+        (cap.pendingOut && cap.pendingOut.total
+          ? '<div class="strip">' + tMoney('sheet_cap_pending', cap.pendingOut.total) +
+            '<span class="sub">' + esc(t('sheet_cap_pending_sub')) + '</span></div>' : '') +
+        (cap.debt && cap.debt.total
+          ? '<div class="strip bad">' + tMoney('sheet_cap_debt', cap.debt.total) +
+            '<span class="sub">' + esc(t('sheet_cap_debt_sub')) + '</span></div>' : '');
+      html += notices +
+        '<div class="sh-actions"><button class="chip" id="sh-all">' + esc(t('sheet_all')) +
         '</button><button class="chip" id="sh-none">' + esc(t('sheet_none')) + '</button></div>' +
         groups.map(function (g) {
           return '<div class="cat-group"><div class="cat-group-head">' + esc(t(g.labelKey)) + '</div>' +
@@ -759,6 +771,15 @@
       const picks = Array.prototype.slice.call(document.querySelectorAll('.sh-pick'));
       const totalEl = document.getElementById('sh-total');
       const nextB = document.getElementById('sh-next');
+      // The per-pot chips are NOT sufficient on their own: an overspent pot is
+      // clamped to 0 and disappears from the chips, but its debt still reduces
+      // the cash actually in hand, so Σ chips can exceed what exists. Clamp the
+      // TOTAL per money type too, and say which one is over rather than just
+      // greying out "next" — a dead button with no reason is what makes people
+      // think the app is broken.
+      const cap = s.cap || {};
+      const capCash = typeof cap.cash === 'number' ? cap.cash : Infinity;
+      const capUpi = typeof cap.upi === 'number' ? cap.upi : Infinity;
       const refresh = function () {
         let cash = 0, upi = 0;
         picks.forEach(function (b) {
@@ -766,10 +787,13 @@
           const v = Number(b.dataset.amt) || 0;
           if (b.dataset.kind === 'cash') cash += v; else upi += v;
         });
+        const overCash = cash > capCash, overUpi = upi > capUpi;
         totalEl.innerHTML = esc(t('sheet_total')) + ': ' +
           '<span class="cat-split">💵' + fmtMoney(cash) + ' · 📱' + fmtMoney(upi) + '</span>' +
-          '<b class="cat-tot">' + fmtMoney(cash + upi) + '</b>';
-        nextB.disabled = (cash + upi) <= 0;
+          '<b class="cat-tot">' + fmtMoney(cash + upi) + '</b>' +
+          (overCash ? '<div class="sh-over">' + tMoney('sheet_over_cash', capCash, cash - capCash) + '</div>' : '') +
+          (overUpi ? '<div class="sh-over">' + tMoney('sheet_over_upi', capUpi, upi - capUpi) + '</div>' : '');
+        nextB.disabled = (cash + upi) <= 0 || overCash || overUpi;
       };
       picks.forEach(function (b) { b.onclick = function () { b.classList.toggle('on'); refresh(); }; });
       document.getElementById('sh-all').onclick = function () {
@@ -1020,7 +1044,14 @@
     const moneySteps_ = cashierMode
       ? [{ key: 'cashsheet', qKey: 'q_handover_amount', kind: 'cashsheet', view: cashView, cats: catsOf(cashView.collectedByCat) }]
       : categories.length
-      ? [{ key: 'sheet', qKey: 'q_handover_sheet', kind: 'sheet', categories: categories }]
+      // `cap` carries the per-money-type ceiling. The pot chips alone cannot
+      // enforce it: an overspent pot is clamped to 0 and so vanishes from the
+      // chips, while its debt still reduces the cash really in hand — so Σ
+      // chips can exceed what exists. See Aggregate.handoverable().
+      ? [{ key: 'sheet', qKey: 'q_handover_sheet', kind: 'sheet', categories: categories,
+           cap: { cash: avail.cash, upi: avail.upi,
+                  pendingOut: avail.pendingOut || { total: 0 },
+                  debt: avail.debt || { cash: 0, upi: 0, total: 0 } } }]
       : [
           { key: 'payMode', qKey: 'q_mode', kind: 'choice', options: modeOptions(false) },
           { key: 'cashAmount', qKey: 'q_cash_amount', kind: 'amount', showIf: needCash },
@@ -1079,7 +1110,10 @@
   function startHandover() {
     const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
     const availP = viewData().then(function (data) {
-      return { avail: Aggregate.myAvailable(data, ident),
+      // handoverable(), NOT myAvailable(): pending parcels are still counted as
+      // this person's money in the books, but the notes have already left the
+      // pocket, so offering them again would promise the same money twice.
+      return { avail: Aggregate.handoverable(data, ident),
                // only a cashier/admin uses this, but computing it always keeps
                // the two code paths from drifting apart
                view: Aggregate.cashierView(data, ident) };

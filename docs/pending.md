@@ -312,14 +312,12 @@ give different numbers:
       `personalSummary` ([aggregate.js:207](../js/aggregate.js)),
       `cashierView` (:452), `handoverReport` (:495), `bump()` (:198) — plus the
       `Code.gs` mirrors. **Needs a Sheet migration and a redeploy.**
-- [ ] **Handover caps** (own commit, client-only). Collector chips are capped
-      from `myAvailable`, which does not deduct pending — so with ₹2,000 in the
-      account, ₹700 pending and a ₹100 road debt, the chips offer ₹1,400 while
-      only ₹1,300 is held. Two clamps needed: per pot (minus that pot's pending)
-      **and** per money type in total (💵 max, 📱 max), because a negative pot is
-      skipped by the chips yet still reduces the cash actually held. `#sh-total`
-      already exists ([app.js:651](../js/app.js)) — it needs the cap and a guard
-      on "next", with the reason spelled out on screen.
+- [x] ~~**Handover caps**~~ (2026-07-26, v4.4.1, client-only, verified live on
+      port 8791). `Aggregate.handoverable()` now gives the per-pot free figures,
+      the per-money-type ceiling, and the two reasons separately so the screen can
+      colour them (gold = pending on its way out, red = a pot that owes). Both
+      clamps were needed: an overspent pot vanishes from the chips yet still
+      lowers the cash held, so Σ chips overshot by exactly the debt.
 
 ## Before go-live, still open
 
