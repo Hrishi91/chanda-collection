@@ -107,6 +107,20 @@ footer for exactly this reason.
    position instead of a per-category breakdown. `__`-prefixed keys are
    metadata everywhere — never categories, never in anomaly sums.
 
+## Duplicate handling — five layers, each for a different accident
+
+| accident | defence |
+|---|---|
+| the same row sent twice (retry, offline catch-up) | uuid at creation + server upserts by id; `collectUnsynced` filters `synced`/`rejected`; `inFlight` blocks a second push; a re-pushed payment gets **no second receipt serial** (`!idRow[id] && !receiptNo`) |
+| double-tap on the final step | `savingFlow` swallows taps during the async save (A4) |
+| two collectors adding the same donor | name check against `viewData()` — central + own, not just this device (A3). A confirm, not a block: two shops can share a name |
+| identical ids in the data | `reconcile` → `duplicate_id` |
+| **the same instalment entered twice** | `samePaymentsOn` — party + amount + day. A confirm at entry, a `possible_duplicate_payment` anomaly for pairs already in the book, and `dupOk` recording the human's answer so the banner asks once (A22) |
+
+The fifth was the gap: every other layer is id-based, and a re-entry has a
+different uuid. It is also invisible to reconcile's invariant, because both
+rows really were collected.
+
 ## Data-integrity assumptions (now watched, A21)
 
 The flows always write `amount === cashAmount + upiAmount`, and a collector's

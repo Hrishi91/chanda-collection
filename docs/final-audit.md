@@ -512,6 +512,43 @@ anomaly detection being its entire purpose.
 — their amount IS the cash) and `breakdown_mismatch` (handovers; `__snap`
 metadata exempt). Both surfaced through the existing ⚠️ banner path.
 
+### A22. MED (money) — FIXED 2026-07-27 — the same instalment entered twice went unnoticed
+**Where:** `paymentFlow` (js/app.js) and `reconcile` (js/aggregate.js).
+**Cause:** a slow phone, a collector unsure the save landed, one more tap — two
+rows with DIFFERENT uuids, both well-formed. Every existing defence is id-based
+(server upsert by id, `duplicate_id`, the `synced` queue, the `inFlight` guard),
+so all of them wave it through. The donor's dues fall by money nobody paid and
+the collector's in-hand rises by money they never took.
+**Why reconcile was blind:** its invariant Σ in-hand === collected − expenses
+still BALANCES — both rows genuinely were collected. Only a total passing
+`pledged` tripped `overpaid`, and part-payments (the normal case) never do.
+Verified: ₹2000 twice against a ₹5000 pledge → zero anomalies, balanced true.
+**Found how:** Hrishi asked *"how you handling the duplicate entries"*. The
+id-based layers are solid; walking them one by one is what exposed the layer
+that has no id to work with.
+**FIXED:** shared rule `samePaymentsOn(data, partyId, amount, date, exceptId)` —
+same donor + same amount + same day, read from `viewData()` (central + own) so
+another device's payment counts. Two users: a confirm at entry time naming the
+existing receipt, and a `possible_duplicate_payment` anomaly for pairs already
+in the book. A WARNING, never a block — a donor really can pay ₹500 twice in a
+day. The correction path is exempt (`editing`), since it re-enters the same
+party/amount/day by design and voids the original in the same commit.
+**And the answer is recorded:** confirming "yes, a separate instalment" stamps
+`dupOk` on the row, so the admin's banner stops asking about a pair the
+collector already settled — otherwise it cries wolf all season (the A19 trap).
+`dupOk` is a real Sheet column so the flag reaches the admin's device, appended
+last per the header rule.
+**Caught during live verification:** the first cut tested `dupOk` on the row
+being flagged, but IndexedDB returns rows by key, not insertion order, so the
+answer sat on one twin while the other got flagged — half the time. Now grouped
+first, and a group is settled if ANY member carries the answer. Pinned
+order-independently; proven to bite.
+**Bonus, same class:** `push` now calls `ensureCols_` before writing any store.
+It writes rows position-based over the full `cols` width, so a column the header
+does not name is written and never read back — this nearly bit twice
+(`rejectReason`, then `dupOk`). The write path heals its own header instead of
+depending on `setup()` having been re-run.
+
 ### Verified green in the two-user pass
 | Path | Result |
 |---|---|

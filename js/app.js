@@ -1006,7 +1006,9 @@
   // before opening this party, so the receipt screen can send them straight
   // back to the same search results (not a "new entry" — a payment is
   // against a party someone already picked, unlike a fresh shop/person/bus).
-  function paymentFlow(party, origin) {
+  // `editing` is set by the correction path (renderEditEntry), which reuses
+  // this flow to write the replacement row — see the A22 note in save().
+  function paymentFlow(party, origin, editing) {
     return {
       title: t('add_payment') + ' — ' + party.name,
       steps: moneySteps(false).concat([
@@ -1015,10 +1017,43 @@
       save: function (a) {
         const m = moneyOf(a);
         if (m.total <= 0) return Promise.reject(new Error('zero'));
+        // A22: same donor + same amount + same day already on the books? Ask.
+        // A slow phone makes a collector re-tap, and nothing else catches it:
+        // the two rows have different uuids, so upsert/duplicate_id/the queue
+        // all wave them through, and reconcile still BALANCES (both really were
+        // collected). Result: the donor's dues fall and the collector's in-hand
+        // rises by money they never took.
+        //
+        // A warning, never a block — a donor genuinely can pay ₹500 twice in a
+        // day. Checked against viewData() (central + own rows), like the
+        // duplicate-donor check, so a payment another device already took
+        // counts too. The EDIT path is exempt: correcting a flagged entry
+        // deliberately re-enters the same party/amount/day, and the old row is
+        // voided by the same commit.
+        const dupCheck = editing
+          ? Promise.resolve(true)
+          : viewData().then(function (data) {
+              const hits = Aggregate.samePaymentsOn(data, party.id, m.total, todayISO());
+              if (!hits.length) return true;
+              const rcpt = hits.map(function (h) { return h.receiptNo; }).filter(Boolean)[0];
+              return window.confirm(t('dup_pay_warn')
+                .replace('{n}', fmtMoney(m.total))
+                .replace('{who}', party.name || '')
+                .replace('{rcpt}', rcpt ? ' (' + rcpt + ')' : '')) && 'confirmed-duplicate';
+            });
+        // A human answered the question, so record the answer: without it the
+        // reconcile banner would keep flagging a pair the collector has already
+        // confirmed is two genuine instalments, all season. A banner that cries
+        // wolf stops being read — the same trap as the dismissed-rejection toast.
+        let dupOk = 0;
+        return dupCheck.then(function (go) {
+        if (!go) throw new Error('cancelled');
+        if (go === 'confirmed-duplicate') dupOk = 1;
         const row = DB.newRow({
           partyId: party.id, partyName: party.name, amount: m.total,
           cashAmount: m.cash, upiAmount: m.upi,
           date: todayISO(), note: a.note || '',
+          dupOk: dupOk, // 1 = the collector confirmed this really is a second instalment
           // A correction keeps the ORIGINAL serial. The donor already has that
           // number on their phone; re-sharing under the same one replaces the
           // old message instead of leaving them with two receipts for one
@@ -1031,6 +1066,7 @@
         return DB.put('payments', row).then(function () {
           return { undo: [{ store: 'payments', id: row.id }],
             after: { navigateTo: 'receipt', params: { partyId: party.id, payId: row.id, origin: origin || 'list' } } };
+        });
         });
       },
     };
@@ -2081,7 +2117,7 @@
     };
     let def = null;
     if (store === 'payments') {
-      def = paymentFlow({ id: row.partyId, name: row.partyName || '' }, 'entries');
+      def = paymentFlow({ id: row.partyId, name: row.partyName || '' }, 'entries', true);
       def.presets = Object.assign({ __receipt: row.receiptNo || '' }, money);
     } else if (store === 'daily') {
       def = dailyFlow(row.type);

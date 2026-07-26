@@ -2,7 +2,7 @@
 const { parseAmount } = require('../js/numparse.js');
 const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
         roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed,
-        cashierView, handoverReport, allowedReports, mySummary, handoverSlots, handoverable,
+        cashierView, handoverReport, allowedReports, mySummary, handoverSlots, handoverable, samePaymentsOn,
         mentionsMe, messageFeed, activeData, chatLoad, homeTiles } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
@@ -1339,6 +1339,84 @@ eq(reconcile(graphD).balanced, true, 'graph: and the invariant banner stays sile
        'mirror: personalSummary_(' + k + ') numbers match the client');
   });
 })();
+
+// ---- A22: the same instalment entered twice ---------------------------------
+// Different uuids, both well-formed, so every id-based defence waves them
+// through — and reconcile still BALANCES, because both really were collected.
+// Only a total passing `pledged` used to trip anything, and part-payments (the
+// normal case) never do.
+const a22 = { parties: [{ id: 's1', type: 'shop', name: 'সাহা', pledged: 5000 }],
+  voids: [], corrections: [], daily: [], expenses: [], handovers: [],
+  payments: [
+    { id: 'u1', partyId: 's1', collectorId: 'y', collector: 'যমুনা', amount: 2000, cashAmount: 2000, upiAmount: 0, date: '2026-07-27', receiptNo: '2026-0043' },
+    { id: 'u2', partyId: 's1', collectorId: 'y', collector: 'যমুনা', amount: 2000, cashAmount: 2000, upiAmount: 0, date: '2026-07-27' }] };
+eq(reconcile(a22).anomalies.filter(function (a) { return a.type === 'possible_duplicate_payment'; }).length, 1,
+   'A22: a duplicate WELL INSIDE pledged is flagged — one row per extra copy');
+eq(reconcile(a22).balanced, true,
+   'A22: …and the money invariant still balances, which is exactly why it needed its own check');
+eq(reconcile(a22).anomalies.filter(function (a) { return a.type === 'overpaid'; }).length, 0,
+   'A22: overpaid does NOT fire here — the old net had this hole');
+// the signature: party + amount + day, all three
+const a22diff = JSON.parse(JSON.stringify(a22));
+a22diff.payments[1].amount = 2001;
+eq(reconcile(a22diff).anomalies.filter(function (a) { return a.type === 'possible_duplicate_payment'; }).length, 0,
+   'A22: a different amount is not a duplicate');
+const a22day = JSON.parse(JSON.stringify(a22));
+a22day.payments[1].date = '2026-07-26';
+eq(reconcile(a22day).anomalies.filter(function (a) { return a.type === 'possible_duplicate_payment'; }).length, 0,
+   'A22: the same amount on another day is a normal instalment');
+const a22other = JSON.parse(JSON.stringify(a22));
+a22other.payments[1].partyId = 's2';
+eq(reconcile(a22other).anomalies.filter(function (a) { return a.type === 'possible_duplicate_payment'; }).length, 0,
+   'A22: two donors paying the same amount today is not a duplicate');
+// a VOIDED copy is not a duplicate — the correction path relies on this
+const a22void = JSON.parse(JSON.stringify(a22)); a22void.voids = [{ id: 'v', targetId: 'u1' }];
+eq(reconcile(a22void).anomalies.filter(function (a) { return a.type === 'possible_duplicate_payment'; }).length, 0,
+   'A22: a voided copy is not a duplicate — otherwise every correction would flag');
+// three copies → two extras
+const a223 = JSON.parse(JSON.stringify(a22));
+a223.payments.push({ id: 'u3', partyId: 's1', collectorId: 'y', amount: 2000, cashAmount: 2000, upiAmount: 0, date: '2026-07-27' });
+eq(reconcile(a223).anomalies.filter(function (a) { return a.type === 'possible_duplicate_payment'; }).length, 2,
+   'A22: three copies report two extras, not three');
+// samePaymentsOn: the shared rule both the banner and the entry-time confirm use
+eq(samePaymentsOn(a22, 's1', 2000, '2026-07-27').length, 2, 'A22: samePaymentsOn finds both');
+eq(samePaymentsOn(a22, 's1', 2000, '2026-07-27', 'u2').length, 1,
+   'A22: exceptId excludes the row being replaced — the edit path must not warn on itself');
+eq(samePaymentsOn(a22void, 's1', 2000, '2026-07-27').length, 1, 'A22: samePaymentsOn ignores voided rows too');
+eq(samePaymentsOn(a22, 's1', 0, '2026-07-27').length, 0, 'A22: a zero amount never matches');
+// the entry-time confirm is wired, and the edit path is exempt
+const a22App = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+const a22I18n = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+eq(/function paymentFlow\(party, origin, editing\)/.test(a22App), true, 'A22: paymentFlow knows whether it is an edit');
+const payFlowSrc = a22App.slice(a22App.indexOf('function paymentFlow'), a22App.indexOf('function handoverFlow'));
+eq(payFlowSrc.indexOf('Aggregate.samePaymentsOn') >= 0, true, 'A22: the entry-time check uses the SHARED rule');
+eq(payFlowSrc.indexOf('const dupCheck = editing') >= 0, true, 'A22: …and the correction path is exempt from it');
+eq(a22App.indexOf("paymentFlow({ id: row.partyId, name: row.partyName || '' }, 'entries', true)") >= 0, true,
+   'A22: the correction path really passes editing=true');
+eq(a22I18n.indexOf('  dup_pay_warn:') >= 0, true, 'A22: the warning has a real bilingual message');
+// answering the question must SETTLE it — otherwise the admin's banner keeps
+// asking all season about a pair the collector already confirmed (the A19 trap)
+const a22ok = JSON.parse(JSON.stringify(a22)); a22ok.payments[1].dupOk = 1;
+eq(reconcile(a22ok).anomalies.filter(function (a) { return a.type === 'possible_duplicate_payment'; }).length, 0,
+   'A22: a confirmed second instalment stops being flagged');
+// ORDER-INDEPENDENT: the answer is stamped on whichever row was entered second,
+// but IndexedDB returns rows by key, not by insertion. Testing "does THIS row
+// carry dupOk" flagged the innocent twin half the time — caught live.
+const a22okFirst = JSON.parse(JSON.stringify(a22)); a22okFirst.payments[0].dupOk = 1;
+eq(reconcile(a22okFirst).anomalies.filter(function (a) { return a.type === 'possible_duplicate_payment'; }).length, 0,
+   'A22: …whichever of the pair carries the answer, in any array order');
+eq(payFlowSrc.indexOf('dupOk: dupOk') >= 0, true, 'A22: …because the answer is stamped on the row');
+// and it must survive the round-trip to the Sheet, or the ADMIN (a different
+// device from the one that answered) never sees the flag
+const a22gs = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+const payColsSrc = a22gs.slice(a22gs.indexOf('  payments: ['), a22gs.indexOf('],', a22gs.indexOf('  payments: [')));
+const payCols = payColsSrc.replace(/\/\/[^\n]*/g, '').match(/'([a-zA-Z]+)'/g).map(function (q) { return q.slice(1, -1); });
+eq(payCols[payCols.length - 1], 'dupOk', 'A22: dupOk is the LAST payments column (append-only header rule)');
+// push must never write into a column the header does not name — twice nearly
+// lost a field this way (rejectReason, dupOk)
+eq(a22gs.indexOf('function ensureCols_') >= 0, true, 'A22: push has a header-healing helper');
+const pushSrc = a22gs.slice(a22gs.indexOf('push: function'), a22gs.indexOf('\n  },', a22gs.indexOf('push: function')));
+eq(pushSrc.indexOf('ensureCols_(sh, cols)') >= 0, true, 'A22: …and push calls it before writing any store');
 
 // A ReferenceError in a click handler does not exist until somebody taps. Run
 // the scope checker as part of the suite so it cannot rot in a corner.

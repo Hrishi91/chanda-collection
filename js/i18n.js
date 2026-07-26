@@ -343,6 +343,8 @@ const I18N = {
   sheet_cap_debt_sub: { bn: 'সেখানে খরচ বেশি হয়েছে, তাই ওই ভাগ থেকে কিছু দেওয়া যাবে না — আর মোট নগদও ততটাই কম।',
                         en: 'It was overspent, so nothing can come from that pot — and the cash total is lower by the same amount.' },
   sheet_over_cash: { bn: '💵 নগদে সর্বোচ্চ {n} দেওয়া যাবে — আরও {n} কমাও।', en: '💵 Cash can be at most {n} — take off {n} more.' },
+  dup_pay_warn: { bn: '⚠️ {who}-এর আজ {n} ইতিমধ্যে জমা আছে{rcpt}। এটা কি আলাদা আরেকটা কিস্তি?\n\n"OK" = হ্যাঁ, আলাদা জমা · "Cancel" = ভুল করে দুবার হচ্ছিল',
+                  en: '⚠️ {n} is already recorded for {who} today{rcpt}. Is this a separate instalment?\n\nOK = yes, a separate payment · Cancel = it was a double entry' },
   ho_nothing: { bn: 'জমা দেওয়ার মতো টাকা এখন হিসাবে নেই', en: 'Nothing in your account to hand over right now' },
   ho_nothing_pending: { bn: '{n} আগেই পাঠানো, অনুমোদনের অপেক্ষায় — নতুন করে জমা দেওয়ার কিছু নেই',
                         en: '{n} is already sent and awaiting approval — nothing left to hand over' },

@@ -17,7 +17,13 @@ var SHEETS = {
   // appends missing headers) keeps push's position-based writes aligned with
   // existing sheets. Do not insert columns mid-array.
   parties:  ['id', 'year', 'type', 'name', 'owner', 'side', 'phone', 'pledged', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'location', 'collectorRole'],
-  payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo'],
+  payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo',
+             // 1 = the collector was warned this looked like a same-day repeat
+             // and confirmed it is a genuine second instalment. Travels to the
+             // Sheet so the ADMIN's reconcile banner stops asking too — the
+             // banner is read on a different device from the answer. LAST, per
+             // the append-only header rule.
+             'dupOk'],
   daily:    ['id', 'year', 'type', 'busName', 'busNumber', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo'],
   expenses: ['id', 'year', 'subject', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole',
              // how it was paid + which pot it came out of, so the cash/UPI and
@@ -415,7 +421,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.5.6';
+var CODE_VERSION = 'chanda-v4.6.0';
 function doGet() { return json_({ ok: true, service: 'chanda-khata', version: CODE_VERSION }); }
 
 var ACTIONS = {
@@ -524,6 +530,7 @@ var ACTIONS = {
       Object.keys(byStore).forEach(function (store) {
         var sh = ss.getSheetByName(SHEET_TITLES[store]);
         var cols = SHEETS[store];
+        ensureCols_(sh, cols); // never write into an unnamed column — see above
         var idRow = {};
         if (sh.getLastRow() > 1) {
           sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues().forEach(function (v, i) {
@@ -1316,6 +1323,18 @@ var ACTIONS = {
 // vanishes with no error anywhere. setup() normally adds new columns, but it is a
 // step a human has to remember; anything that writes a brand-new column heals its
 // own header instead of trusting that.
+// Ensure EVERY column a store writes exists in its header. `push` writes rows
+// position-based over the full `cols` width, so a column the header does not
+// name is written and then never read back by readAll_ (which maps by the real
+// header). That has now nearly bitten twice — rejectReason, then dupOk — so the
+// write path heals itself instead of depending on setup() having been re-run
+// after each new field.
+function ensureCols_(sh, cols) {
+  var last = sh.getLastColumn();
+  var have = last ? sh.getRange(1, 1, 1, last).getValues()[0].map(String) : [];
+  var missing = cols.filter(function (c) { return have.indexOf(c) < 0; });
+  if (missing.length) sh.getRange(1, have.length + 1, 1, missing.length).setValues([missing]);
+}
 function ensureCol_(sh, name) {
   var last = sh.getLastColumn();
   var have = last ? sh.getRange(1, 1, 1, last).getValues()[0].map(String) : [];

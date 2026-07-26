@@ -814,6 +814,32 @@
       .sort(function (a, b) { return b.due - a.due; });
   }
 
+  // A22: the same instalment entered twice. A slow phone, a collector unsure the
+  // save landed, one more tap — two rows with DIFFERENT uuids, both perfectly
+  // well-formed, so every id-based defence (upsert, duplicate_id, the sync
+  // queue) sails past. The donor's dues drop by money nobody paid and the
+  // collector's in-hand rises by money they never took.
+  //
+  // reconcile's own invariant cannot see it: Σ in-hand === collected − expenses
+  // still BALANCES, because both rows are genuinely "collected". Only a total
+  // passing `pledged` trips `overpaid`, so a part-payment double stays silent —
+  // and part-payments are the normal case.
+  //
+  // Signature: same party + same amount + same day. Deliberately NOT a block —
+  // a donor really can pay ₹500 twice in one day — so both callers ask rather
+  // than refuse. `exceptId` lets the edit path exclude the row being replaced.
+  function samePaymentsOn(data, partyId, amount, date, exceptId) {
+    const amt = Number(amount) || 0;
+    const day = String(date || '').slice(0, 10);
+    if (!partyId || !amt || !day) return [];
+    return (activeData(data).payments || []).filter(function (p) {
+      return String(p.partyId) === String(partyId) &&
+             (Number(p.amount) || 0) === amt &&
+             String(p.date || '').slice(0, 10) === day &&
+             (!exceptId || String(p.id) !== String(exceptId));
+    });
+  }
+
   // Data-integrity check: the money must always reconcile, and structural
   // anomalies (that would cause disputes) are surfaced. Handovers are internal
   // transfers, so across everyone they net out — hence the invariant:
@@ -875,6 +901,31 @@
       if (cats && Math.round(bsum) !== Math.round(Number(h.amount) || 0)) {
         anomalies.push({ type: 'breakdown_mismatch', id: h.id, amount: Number(h.amount) || 0, breakdownSum: bsum });
       }
+    });
+    // A22: pairs already in the book — one anomaly per EXTRA copy, so the banner
+    // counts what a human would count ("two identical ₹500s" = one thing to look
+    // at). Grouped first, then judged: the answer is stamped on whichever row was
+    // entered second, but array order is not insertion order (IndexedDB returns
+    // by key), so testing "does THIS row carry dupOk" flagged the innocent twin
+    // half the time. A group is settled if ANY member carries the answer.
+    const dupGroups = {};
+    payments.forEach(function (p) {
+      const day = String(p.date || '').slice(0, 10);
+      if (!p.partyId || !(Number(p.amount) || 0) || !day) return;
+      const k = String(p.partyId) + '|' + (Number(p.amount) || 0) + '|' + day;
+      (dupGroups[k] || (dupGroups[k] = [])).push(p);
+    });
+    Object.keys(dupGroups).forEach(function (k) {
+      const g = dupGroups[k];
+      if (g.length < 2) return;
+      // the collector was ASKED at entry time and said "yes, a separate
+      // instalment" — do not keep asking the admin the same question for the
+      // rest of the season. A banner that cries wolf stops being read.
+      if (g.some(function (p) { return Number(p.dupOk) === 1; })) return;
+      g.slice(1).forEach(function (p) {
+        anomalies.push({ type: 'possible_duplicate_payment', id: p.id, firstId: g[0].id,
+                         partyId: p.partyId, amount: Number(p.amount) || 0, date: String(p.date).slice(0, 10) });
+      });
     });
     // party paid more than pledged
     parties.forEach(function (p) {
@@ -1076,6 +1127,7 @@
                 permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,
+                samePaymentsOn: samePaymentsOn,
                 mentionsMe: mentionsMe, messageFeed: messageFeed,
                 activeData: activeData, chatLoad: chatLoad, homeTiles: homeTiles };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

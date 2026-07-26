@@ -337,6 +337,13 @@ give different numbers:
 - [x] ~~**R2** — uncapped typed-amount fallback removed; zero ceiling now shows
       an empty-state that names the in-transit money~~ (2026-07-26, client-only).
 
+- [ ] **Redeploy for A22** — Code.gs gained the `dupOk` payments column and
+      `ensureCols_` (push heals its own headers). Until then the duplicate
+      warning works fully on-device, but a collector's "yes, separate instalment"
+      answer does not reach the ADMIN's reconcile banner, so the admin keeps
+      seeing that pair flagged. Everything else about A22 is client-side and
+      already live.
+
 ## Before go-live, still open
 
 - [ ] **Reports permission** — a DECISION, not a fix. Most collectors have an

@@ -4579,3 +4579,57 @@ anything at all.
 config.js rebaked (fifth URL of the cycle — this account mints one per deploy).
 Backend and client are now on the same version, and **nothing is pending a
 redeploy.** 525 passed, 0 failed.
+
+## 2026-07-27 — v4.6.0: duplicate entries (A22) — the one layer with no id to work with
+
+Hrishi: *"how you handling the duplicate entries"*. Walking the layers one by
+one is what found the hole, and the answer is now in docs/money-model.md as a
+five-row table.
+
+Four layers were already solid, all id-based: a uuid is minted at CREATION (not
+at send), so the server upserts by id and a row sent ten times lands once; the
+sync queue filters `synced`/`rejected` and `inFlight` blocks a second push; a
+re-pushed payment gets no second receipt serial; `savingFlow` eats double-taps
+(A4); the duplicate-donor check reads `viewData()` so another phone's donor
+counts (A3); `duplicate_id` catches identical ids.
+
+**The gap: the same instalment entered twice.** Slow phone, collector unsure it
+saved, one more tap → two rows with DIFFERENT uuids, both well-formed. Every
+defence above is id-based, so all of them wave it through. The donor's dues fall
+by money nobody paid; the collector's in-hand rises by money they never took.
+
+And `reconcile` could not see it: Σ in-hand === collected − expenses still
+BALANCES, because both rows genuinely were collected. Only a total passing
+`pledged` tripped `overpaid` — verified: ₹2000 twice against a ₹5000 pledge gave
+zero anomalies and balanced true. Part-payments are the normal case, so the
+common shape was exactly the invisible one.
+
+Fixed with ONE shared rule, `samePaymentsOn(data, partyId, amount, date,
+exceptId)`, used by both surfaces so they can never disagree: a confirm at entry
+time (naming the existing receipt number) and a `possible_duplicate_payment`
+anomaly for pairs already in the book. A warning, never a block — a donor really
+can pay ₹500 twice in a day. The correction path is exempt: it re-enters the
+same party/amount/day by design and voids the original in the same commit.
+
+The human's answer is RECORDED (`dupOk`), or the admin's banner would keep
+asking about a pair the collector already settled — the A19 trap again. It is a
+real Sheet column, appended last, because the banner is read on a different
+device from the one that answered.
+
+**Caught in live verification, not by review:** the first cut checked `dupOk` on
+the row being flagged. IndexedDB returns rows by key, not insertion order, so
+the answer sat on one twin while the other got flagged — half the time. Now
+grouped first; a group is settled if ANY member carries the answer. Pinned
+order-independently and proven to bite.
+
+Same class, fixed while there: `push` now calls `ensureCols_` before writing any
+store. It writes position-based over the full `cols` width, so a column the
+header does not name is written and never read back — this nearly bit twice
+(`rejectReason`, then `dupOk`). The write path heals its own header now.
+
+VERIFIED live on a fresh port, driving the real UI: first instalment saves
+silently; the second raises the warning with its receipt number; Cancel saves
+nothing and OK saves a genuine second instalment; afterwards the reconcile
+banner is silent. No console errors. 548 passed, 0 failed.
+
+**Needs a redeploy** (Code.gs: the `dupOk` column + `ensureCols_`).
