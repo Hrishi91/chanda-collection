@@ -3400,3 +3400,30 @@ reports cannot disagree with home about whether somebody is set up:
 VERIFIED: 346 passed, 0 failed; browser on a fresh port — mention counts correct
 per user (a cashier is mentioned by `@cashiers`, a collector is not), `messages`
 store present, no console errors.
+
+## v3.96.2 — looking is not doing
+
+Hrishi, on the table in the previous note: "let them see."
+
+I had overreached. He asked twice to hide the *entry buttons* on the home screen
+for somebody granted nothing; I went further in v3.96.1 and blocked 📒 খাতা and
+📗 জমা-খাতা from being READ at all. That is a different thing, and it was not
+asked for.
+
+The ledger is the committee's own book and a collector is on the committee.
+Grants decide what a person may ENTER, not what they may look at:
+
+    home       → entry tiles hidden, card with the admin's phone (unchanged —
+                 this is what Hrishi actually asked for, twice)
+    📒 খাতা     → readable again
+    📗 জমা-খাতা → readable again
+    📊 রিপোর্ট  → unchanged; own summary plus whatever reports are granted
+    💬 বার্তা    → unchanged, always open
+
+The card now says where they can still go, so it reads as information rather
+than a wall: "ততক্ষণ 📒 খাতা, 📊 রিপোর্ট আর 💬 বার্তা দেখতে পারো।"
+
+What stays gated is unchanged and still right: 🔍 অন্য কারো দাতা needs its own
+grant (route as well as button), and every entry flow needs its category.
+
+VERIFIED: 346 passed, 0 failed; app loads clean on a fresh port.

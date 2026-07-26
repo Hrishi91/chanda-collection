@@ -1221,10 +1221,7 @@
           '<div id="notif-banner"></div>' +
           '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
           '<div class="hero-sub">' + esc(Settings.get('collectorName')) + '</div></div>' +
-          '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
-            '<b>' + esc(t('home_no_perm_title')) + '</b>' +
-            '<div class="row-sub" style="margin-top:4px">' + esc(t('home_no_perm_body')) + '</div>' +
-            adminContactHTML() + '</div>';
+          noGrantCard();
         renderNotifBanner();
         wireNav();
         return;
@@ -1298,9 +1295,10 @@
   let listFilter = 'all', listQuery = '';
   let findParties = [], findQuery = '';
   function renderList() {
-    // Same rule as the home screen: nothing granted, nothing to browse. The
-    // ledger is the committee's donor book, not a public directory.
-    if (!hasAnyGrant()) { $view().innerHTML = noGrantCard(); return; }
+    // LOOKING is not DOING. Somebody who has been granted nothing can still
+    // read the ledger — it is the committee's own book and they are on the
+    // committee. What their grants control is what they can ENTER, which is
+    // the home screen's tiles and the chips below.
     // reads the central snapshot (+ own rows) locally — instant, all-collector
     viewData().then(function (data) {
       drawList(data, Aggregate.computeTotals(data).paidByParty);
@@ -2296,7 +2294,6 @@
   // reads the local snapshot, so it works with no signal.
   let hbFilter = 'all'; // all | in | out
   function renderHandoverBook() {
-    if (!hasAnyGrant()) { $view().innerHTML = backBar('home') + noGrantCard(); return; }
     const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
     viewData().then(function (data) {
       const r = Aggregate.handoverReport(data, ident);
@@ -2415,10 +2412,9 @@
     // Everything renders from the local pull snapshot (viewData) via Aggregate —
     // one aggregation path, instant, offline-capable, no per-report round-trip.
     // A person's own summary is their own money, so it stays whatever else is
-    // withheld. The central reports section explains itself when it is empty.
+    // withheld; the central-reports picker already says so when it is empty.
     $view().innerHTML = '<div id="reconcile-warn"></div>' +
       '<div id="my-summary"><div class="empty">' + esc(t('loading')) + '</div></div>' +
-      (hasAnyGrant() ? '' : noGrantCard()) +
       '<div class="section">' + esc(t('central_reports')) + '</div>' +
       '<div id="report-picker"></div>' +
       '<div id="report-body"></div>';
