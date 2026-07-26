@@ -3739,3 +3739,23 @@ poll.
 VERIFIED: 372 passed, 0 failed; the push/pull harness above runs the real
 `Code.gs`. Nothing here can be exercised against the live Sheet until the
 redeploy — this is now the largest item on that checklist.
+
+## docs — the audit register was missing seven findings
+
+Hrishi: "what about the previous findings?"
+
+Fair question, and checking it found a real gap in the paperwork rather than the
+code. `docs/final-audit.md` is meant to be THE register — it carried A1–A11, but
+A12–A15 and S1–S3 existed only in this build log, buried among feature notes.
+Anyone opening the audit doc to ask "what did we find, what is still open?" would
+have got an answer that was seven findings out of date.
+
+All seven are now written up there in the same shape as the rest, and the doc
+opens with a standing ledger: which findings were proven live against the Sheet,
+which are fixed but awaiting the pending redeploy, what was deliberately NOT
+changed and why (so nobody "fixes" the documented `activeData` divergence by
+reflex and re-slows the money paths), and the one thing still needing a decision
+from Hrishi rather than a fix — most collectors have an empty reports list and
+can open no central report at all.
+
+Nothing in the code changed. 372 passed, 0 failed.

@@ -10,6 +10,31 @@ actual code (file:line) or by test/live-check — not guessed. Items marked
 Each fix was verified by reproducing the failure condition live (see
 build-log v3.77.0). Kept below for the record.
 
+### Status of every finding (A1–A15, S1–S3)
+
+All eighteen are FIXED in code. Split by what has been proven where:
+
+| Verified live against the Sheet | Fixed, awaiting the pending redeploy |
+|---|---|
+| A1–A6, A8, A9, A10 | A13 (`cashiers` returns role/phone) |
+| A7 (voided handover left the queue) | S1 (idle fast path) |
+| A11 (cashier resolved a collector's flag, `ok:true`) | S2 (batched writes) |
+| A12, A14, A15 (client-only, tested + browser-checked) | S3 (batched serials) |
+
+Deliberately NOT changed, with reasons, so nobody "fixes" them later by reflex:
+- `js/app.js` at ~3,600 lines stays one file until after the season — no build
+  step, the tested logic already lives apart in `aggregate.js`, and a structural
+  refactor before go-live is risk with no user-visible gain.
+- Light theme only; emoji buttons carry no aria-labels (ten known users).
+- Client `activeData` omits `messages` while Code.gs `activeData_` keeps them —
+  a real, documented divergence for performance. Both sides say so.
+- Expenses may drive a category negative (Hrishi's decision, squared up later by
+  exchanging cash).
+
+Still needing a DECISION from Hrishi, not a fix:
+- `yamini05` and most collectors have an EMPTY reports list — they can open no
+  central report at all. Intended, or to be granted before go-live?
+
 ### A1. HIGH — FIXED — Undo can silently fail against an in-flight sync
 **Where:** `js/sync.js` syncNow (mark-synced step) + `js/app.js` attemptUndo.
 **Cause:** save → `autoSync()` (debounced ~1s) starts a push (1–3s round
@@ -253,6 +278,68 @@ and `js/app.js:211` now call the shared helper instead of inlining it.
 A9's guarantee is unchanged — the value still comes only from the token.
 **Regression tests:** 16 cases covering both helpers and the cashier-may-act
 rule they feed, including a legacy `'user'` row.
+
+### A12. HIGH — FIXED — An edit could vanish an entry entirely
+**Where:** `js/app.js` `finishFlow` (the `def.editing` path), and the Undo toast.
+**Cause:** the void for the ORIGINAL row was written BEFORE `def.save` ran. A
+rejected save (zero amount) or the user backing out at any later step left the
+original voided with no replacement — the entry and its money gone from every
+book. Independently, after a SUCCESSFUL edit the Undo toast knew only the new
+row: tapping it deleted the replacement while the void on the original stood.
+**FIXED:** the void is written only after the replacement saves, and an edit
+shows a plain "saved" toast with no Undo — unwinding half of a two-row
+operation is worse than offering none. Correcting a correction is editing again.
+
+### A13. MED — FIXED (server half rides the redeploy) — The no-permission card had no phone number
+**Where:** Code.gs `cashiers`, `js/app.js` `adminContactHTML`.
+**Cause:** the card's entire purpose is the admin's name and 📞/💬 buttons, and
+they could never appear — `adminContactHTML` filters the list for
+`role === 'admin'` but the server returned only `{username, name}`. No row ever
+matched, and the Settings fallback was written by nothing.
+**FIXED:** `cashiers` now returns `role`, and `phone` for admins only. The card
+fetches the list when the device has never had it and remembers the admin in
+Settings so it still works offline.
+
+### A14. MED — FIXED — A restored book could silently never reach the Sheet
+**Where:** `js/app.js`, the import "keep as written" branch.
+**Cause:** it preserved `synced:1` from the exported file. After a
+wipe-and-restore those rows are NOT on the server, and a row marked synced never
+pushes — the book looked complete on the phone and stayed missing from the Sheet
+forever.
+**FIXED:** `synced:0` on both branches. Re-pushing an existing id is a harmless
+upsert.
+
+### A15. LOW — FIXED — Chat hardening (three)
+500-character cap at the input and at send (a Sheet cell takes 50,000, but one
+pasted essay would ride every phone's pull forever); a server-refused message is
+marked ❌ instead of sitting in the sender's feed dressed as sent; and a mention
+arriving while the chat screen is open and visible no longer fires an OS
+notification. XSS was probed in the browser at the same time: a hostile
+`<img onerror>` message stays inert text — `esc()` covers `&<>"'`.
+
+### S1. HIGH (performance) — FIXED (rides the redeploy) — Every poll read the entire book
+**Where:** Code.gs `pull` → `readAll_`.
+**Cause:** `pull` called `readAll_` unconditionally —
+`getDataRange().getValues()` on all eight sheets, filtered by year in JS. A delta
+poll returning zero rows still read every row written that season. Ten phones ×
+once a minute × all day, growing daily, and chat rows joined it in v3.96.0.
+**FIXED:** a `data_ts` stamp in Config, bumped by every action that changes rows.
+A delta whose cursor is at or past the stamp answers after reading one small
+Config range: **6,057 cells → 38** on a 400-payment book (159×).
+Two traps handled deliberately — the returned cursor is
+`max(maxReceivedAt, data_ts)` so client and stamp share one clock (otherwise the
+fast path never fires), and the stamp throws rather than failing quietly
+(a stamp behind the rows would make every device skip real data forever).
+
+### S2. MED (performance) — FIXED (rides the redeploy) — A Sheet write per row
+`push` called `appendRow` once per row, each a round trip inside the script
+lock. New rows for a store are now written with one `setValues`.
+
+### S3. MED (performance) — FIXED (rides the redeploy) — Every serial rewrote the Config sheet
+`nextReceiptNo_` did a full `readConfig_` + `setConfig_` per serial, inside the
+row loop. `reserveReceiptNos_` takes a batch in one read/write, still atomic
+under the script lock. A 20-row push drops from **61 Sheet operations to 4**;
+verified on 400 rows with 400 unique consecutive serials.
 
 ### Verified green in the two-user pass
 | Path | Result |
