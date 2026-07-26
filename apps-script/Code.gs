@@ -378,6 +378,24 @@ function requireAdmin_(token) {
 }
 
 // ---------- entry point ----------
+// R1 (final-audit): fields the SERVER settles AFTER a row was first pushed.
+// `push` upserts by id over the full column width, and a backup-restore rightly
+// re-pushes with synced:0 (A14) — so a stale client copy still reading
+// status:'pending' would otherwise flip a settled row back and blank the
+// server-written fields (who confirmed, when, why refused / who resolved).
+// Money history must survive a restore, so on upsert these fields are copied
+// forward from the sheet whenever the stored row is already settled.
+var SETTLED_ON_UPSERT = {
+  handovers: {
+    when: function (ex) { return String(ex.status) === 'confirmed' || String(ex.status) === 'rejected'; },
+    keep: ['status', 'confirmedBy', 'confirmedAt', 'rejectReason'],
+  },
+  corrections: {
+    when: function (ex) { var st = String(ex.status || ''); return st !== '' && st !== 'pending'; },
+    keep: ['status', 'resolvedBy', 'resolvedAt'],
+  },
+};
+
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
@@ -512,6 +530,19 @@ var ACTIONS = {
             idRow[String(v[0])] = i + 2;
           });
         }
+        // R1: if this store carries server-settled fields and the incoming row
+        // updates an EXISTING one, carry the settled values forward. One extra
+        // read per upsert — upserts only happen on retry/restore, never in the
+        // normal append-only flow, so the cost is where the danger is.
+        var settle = SETTLED_ON_UPSERT[store];
+        var preserve = function (rowId, values) {
+          if (!settle || !idRow[rowId]) return values;
+          var have = sh.getRange(idRow[rowId], 1, 1, cols.length).getValues()[0];
+          var ex = {}; cols.forEach(function (c, ci) { ex[c] = have[ci]; });
+          if (!settle.when(ex)) return values;
+          settle.keep.forEach(function (c) { values[cols.indexOf(c)] = ex[c]; });
+          return values;
+        };
         // Two Sheet writes per store instead of one per row. appendRow costs a
         // round trip each; a 20-row offline catch-up used to be 20 of them
         // inside the lock. Collect the new rows, write them in one setValues.
@@ -547,7 +578,7 @@ var ACTIONS = {
             row.collectorRole = roleOf_(reassign.row.role, reassign.row.cashier);
             reassigned[claimed] = (reassigned[claimed] || 0) + 1;
             var values0 = cols.map(function (c) { return row[c] !== undefined ? row[c] : ''; });
-            if (idRow[row.id]) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([values0]);
+            if (idRow[row.id]) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([preserve(row.id, values0)]);
             else pending.push(values0);
             savedIds.push(row.id);
             return;
@@ -570,7 +601,7 @@ var ACTIONS = {
             receipts[row.id] = row.receiptNo;
           }
           var values = cols.map(function (c) { return row[c] !== undefined ? row[c] : ''; });
-          if (!isNew) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([values]);
+          if (!isNew) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([preserve(row.id, values)]);
           else {
             pending.push(values);
             if (store === 'voids') logAudit_(user.row, 'void', row.targetStore + '/' + row.targetId + (row.reason ? ' — ' + row.reason : ''));

@@ -455,14 +455,20 @@ proven to bite.
 
 ### Registered, awaiting Hrishi's call (no code changed)
 
-- **R1 MED — push upsert can regress a settled handover on restore.** `push`
+- **R1 MED — FIXED 2026-07-26 (rides the next redeploy) — push upsert could regress a settled handover on restore.** `push`
   overwrites the full `SHEETS.handovers` width by id. Admin backup-import
   deliberately sets `synced:0` (A14), so a restored sender copy still reading
   `status:'pending'` re-pushes and would flip a server-side `confirmed`/
   `rejected` back to pending and blank `rejectReason`/`confirmedBy`. Restore-only
   path, admin-only, but it silently rewrites settled money history.
-  **Recommendation:** in `push`, when upserting a handover whose stored status is
-  confirmed/rejected, preserve status/confirmedBy/confirmedAt/rejectReason.
+  **FIXED:** module-level `SETTLED_ON_UPSERT` table + a `preserve()` step on BOTH
+  upsert write-sites (including the admin-restore reassign branch — the exact
+  path of the finding): a stored confirmed/rejected handover keeps
+  status/confirmedBy/confirmedAt/rejectReason; a resolved correction keeps
+  status/resolvedBy/resolvedAt — the same clobber existed there and got the same
+  guard. One extra read per upsert, and upserts only happen on retry/restore.
+  Predicates run from the REAL Code.gs in tests; proven to bite by unguarding
+  one write-site.
 - **R2 LOW — the one uncapped handover door.** When every pot is ≤0 the sheet
   falls back to typed cash/UPI amounts with no ceiling — reachable only when the
   collector holds nothing, at which point any typed amount is fiction (reconcile

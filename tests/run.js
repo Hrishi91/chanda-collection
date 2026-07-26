@@ -1027,6 +1027,26 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
   eq(applySrc.indexOf('n.rejections = items.rejections.length') >= 0, true,
      'A19: …and the badge count is recomputed from the filtered list');
 
+  // R1: server-settled fields must survive a client upsert. The predicate table
+  // is module-level in Code.gs precisely so the REAL rules run here.
+  var gsSet = {}; new Function('g', src + '\n g.SETTLED_ON_UPSERT = SETTLED_ON_UPSERT;')(gsSet);
+  const SU = gsSet.SETTLED_ON_UPSERT;
+  eq(SU.handovers.when({ status: 'confirmed' }), true, 'R1: a confirmed handover is settled');
+  eq(SU.handovers.when({ status: 'rejected' }), true, 'R1: a rejected handover is settled');
+  eq(SU.handovers.when({ status: 'pending' }), false, 'R1: a pending handover is NOT settled — retries may update it');
+  eq(SU.handovers.keep, ['status', 'confirmedBy', 'confirmedAt', 'rejectReason'],
+     'R1: every server-written handover field is carried forward');
+  eq(SU.corrections.when({ status: 'approved' }) && SU.corrections.when({ status: 'rejected' }), true,
+     'R1: a resolved correction is settled too — same clobber, same guard');
+  eq(SU.corrections.when({ status: 'pending' }) || SU.corrections.when({ status: '' }), false,
+     'R1: an unresolved correction stays writable');
+  eq(SU.corrections.keep, ['status', 'resolvedBy', 'resolvedAt'],
+     'R1: …with the resolver fields kept');
+  // and the guard is actually wired into BOTH upsert write-sites, including the
+  // admin-restore reassign branch — the exact path the finding was about
+  eq((src.match(/preserve\(row\.id, values/g) || []).length, 2,
+     'R1: both push write-sites route through preserve()');
+
   // the daily report split must match on both sides too
   var gsRep = new Function('g', src + '\n g.computeReport_ = computeReport_;');
   // (computeReport_ needs activeData_/num_ which the same eval already defines)

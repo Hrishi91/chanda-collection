@@ -4474,3 +4474,26 @@ Registered for Hrishi's call, unfixed: R1 (push upsert can regress a settled
 handover after a backup restore — recommend a server-side status guard), R2
 (zero-holdings typed handover is the one uncapped door — recommend empty-state),
 R3–R6 notes. 488 passed, 0 failed.
+
+## 2026-07-26 — R1: settled money history survives a backup restore
+
+`push` upserts by id over the full column width. A backup-restore rightly
+re-pushes with `synced:0` (A14) — so a stale client copy still reading
+`status:'pending'` would overwrite a handover the server had since settled:
+confirmed flips back to pending (money leaves the receiver's book again),
+rejected flips back too, and confirmedBy/confirmedAt/rejectReason go blank.
+Corrections had the identical hole: `resolveCorrection` writes
+status/resolvedBy/resolvedAt server-side, and a restored 'pending' copy would
+resurrect a resolved flag into the cashier's queue.
+
+Fix: a module-level `SETTLED_ON_UPSERT` table (which stores carry server-settled
+fields, when a stored row counts as settled, which fields to keep) and a
+`preserve()` step on BOTH upsert write-sites — including the admin-restore
+reassign branch, the exact path of the finding. A pending row stays fully
+writable (retries must be able to update it); only settled rows carry forward.
+One extra sheet read per upsert, and upserts only happen on retry/restore,
+never in the normal append-only flow.
+
+Tests load the REAL table from Code.gs and drive the predicates; a source
+assertion counts both guarded write-sites and fails when one is unguarded
+(proven). 496 passed, 0 failed. **Rides the next redeploy** — no client change.
