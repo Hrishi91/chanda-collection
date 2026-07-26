@@ -3238,3 +3238,69 @@ VERIFIED
   `otherdonor`. No console errors.
 - NOT verifiable until the redeploy: `clearTraining` itself. It is destructive by
   design, so it gets tested on the training sheet right after, before go-live.
+
+## v3.95.0 — the admin panel becomes readable, and a permission means granted
+
+### One user open at a time
+
+Hrishi: "redesign the admin panel, it's not user friendly … check if there is
+any unnecessary fields".
+
+Counted before touching anything: an approved user's card carried **23 chips and
+4 explanatory lines**, and every user was expanded at once. For this committee —
+12 users — that is **~280 chips on one screen**. Not a list anybody can read.
+
+Now the list shows a name and one summary line ("বাস কালেকশন, টোটো কালেকশন · ২
+রিপোর্ট · ১ এলাকা"), so it can be read without opening anyone, and tapping a
+name expands that user IN PLACE. One open at a time — Hrishi chose the accordion
+over a separate screen so setting one person's permissions and moving to the
+next needs no going back.
+
+Chips still work one by one. `[সব দাও] / [সব নাও]` are shortcuts on top, because
+granting seven reports to eleven people was 77 taps.
+
+Phone and year moved inside the open card; the repeated explanation lines now
+print once, in the user actually being edited, instead of twelve times.
+`অন্য কারো দাতা — বাকি জমা নাও` — a whole sentence as a chip label, mine from
+yesterday — is now `🔍 অন্য কারো দাতা`.
+
+### A permission is something you are GIVEN
+
+Hrishi: "permission means all opened it is not correct."
+
+He is right, and `reports` has always agreed with him: an empty `reports` field
+grants no reports. `entries` was the odd one out — empty meant ALL, so approving
+somebody silently handed them the entire app. Both now read the same way:
+
+    permAllowed(user, key) → String(user.entries).split(',').indexOf(key) >= 0
+
+The four common actions are unaffected (they pass a null key): handing money
+over, taking a payment from a donor you wrote down yourself, my entries / fix,
+and the dues list. A collector granted nothing can still do those.
+
+**CONSEQUENCE, and it is not small.** `listUsers` on the live sheet right now:
+**11 approved users have `entries=''`**. Under the old rule that meant "may do
+everything"; under the new one it means "may do nothing". After the redeploy
+Hrishi must grant each of them, which is one `[সব দাও]` tap per person.
+
+So the screen says it rather than leaving it to be discovered: the summary line
+reads **⚠️ কিছুই দেওয়া হয়নি**, and inside the card a red line spells it out —
+"this user cannot make any entry".
+
+### And a bug the redesign flushed out
+
+Toggling one chip on a user with an empty field used to first "materialise all",
+using the RETIRED key names (`party/payment/daily/handover`). The server filters
+unknown keys, so switching one thing OFF left that user with only that one thing
+ON — the exact opposite of the instruction. Empty now means empty, so the whole
+materialise step is gone and a toggle is a plain add/remove.
+
+VERIFIED
+- 333 passed, 0 failed. The mirror test caught the knock-on itself: a cashier
+  with nothing granted no longer gets the correction desk, which is right under
+  the new rule and had to be re-stated.
+- browser on a FRESH port (the service worker served stale JS on the old one and
+  briefly showed the old answers — the pitfall is in memory for exactly this):
+  a user with nothing granted is denied shop, review and otherdonor, still
+  allowed the common actions; a bus-only user is allowed bus and denied road; an
+  admin is never narrowed; `allowedReports` still returns `[]`.

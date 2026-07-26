@@ -2,7 +2,7 @@
 const { parseAmount } = require('../js/numparse.js');
 const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
         roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed,
-        cashierView, handoverReport } = require('../js/aggregate.js');
+        cashierView, handoverReport, allowedReports } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -495,19 +495,29 @@ eq(permForRow('expenses', { source: 'collection', collectionType: 'toto' }), 'to
    'permForRow: a collection expense rides the round it was spent on');
 eq(permForRow('expenses', { source: 'puja' }), null, 'permForRow: a general puja expense has no category key (cashier-gated separately)');
 
+// A permission is something you are GIVEN. An empty field grants nothing —
+// approving somebody must not silently hand them the whole app. This matches
+// `reports`, which has always worked this way.
 const admin = { role: 'admin', entries: 'shop' };       // a grant must not narrow an admin
-const fresh = { role: 'user', entries: '' };            // approved, nothing set yet
+const fresh = { role: 'user', entries: '' };            // approved, nothing granted yet
 const busOnly = { role: 'user', entries: 'bus' };
 eq(permAllowed(admin, 'toto'), true, 'perms: admin may do everything regardless of the field');
-eq(permAllowed(fresh, 'shop'), true, 'perms: empty grant means ALL — never lock a new collector out');
-eq(permAllowed(fresh, 'review'), true, 'perms: empty grant includes the review desk (today\'s behaviour)');
+eq(permAllowed(fresh, 'shop'), false, 'perms: nothing granted means nothing allowed');
+eq(permAllowed(fresh, 'review'), false, 'perms: …including the review desk');
+eq(permAllowed(fresh, 'otherdonor'), false, 'perms: …and other people\'s donors');
 eq(permAllowed(busOnly, 'bus'), true, 'perms: granted key allowed');
 eq(permAllowed(busOnly, 'road'), false, 'perms: ungranted key blocked');
 eq(permAllowed(busOnly, 'shop'), false, 'perms: a bus-only collector cannot add a shop');
-eq(permAllowed(busOnly, 'review'), false, 'perms: once anything is granted, review must be granted too');
+eq(permAllowed(busOnly, 'review'), false, 'perms: review must be granted explicitly');
 eq(permAllowed(busOnly, 'otherdonor'), false, 'perms: …and so must reaching other people\'s donors');
-eq(permAllowed(fresh, 'otherdonor'), true, 'perms: empty grant still means ALL, including other donors');
 eq(permAllowed(admin, 'otherdonor'), true, 'perms: an admin is never narrowed');
+// but the COMMON actions stay open to someone with nothing granted — a
+// collector who has been given nothing can still hand money over and see dues
+eq(permAllowed(fresh, null), true, 'perms: common actions stay open with nothing granted');
+eq(permAllowed(fresh, permForRow('payments', {})), true, 'perms: …including recording a payment');
+eq(permAllowed(fresh, permForRow('handovers', {})), true, 'perms: …and handing money over');
+// entries now behaves exactly like reports
+eq(allowedReports({ role: 'user', reports: '' }), [], 'perms: reports have always worked this way');
 // a payment itself stays common — what is gated is REACHING a donor you did not
 // write down, not taking money from one you did
 eq(permForRow('payments', { amount: 100 }), null, 'perms: recording a payment is still common to everyone');
@@ -788,7 +798,7 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
 
   // the correction desk: cashier base, admin override, grant on top
   eq(gs.canReview_({ row: { role: 'admin', cashier: 0, entries: '' } }), true, 'review: admin always has the desk');
-  eq(gs.canReview_({ row: { role: 'user', cashier: 1, entries: '' } }), true, 'review: cashier with nothing granted keeps it');
+  eq(gs.canReview_({ row: { role: 'user', cashier: 1, entries: '' } }), false, 'review: a cashier with nothing granted does NOT get the desk');
   eq(gs.canReview_({ row: { role: 'user', cashier: 1, entries: 'bus' } }), false, 'review: granting only bus withholds the desk');
   eq(gs.canReview_({ row: { role: 'user', cashier: 1, entries: 'bus,review' } }), true, 'review: granted explicitly');
   eq(gs.canReview_({ row: { role: 'user', cashier: 0, entries: '' } }), false, 'review: a plain collector never gets the desk');

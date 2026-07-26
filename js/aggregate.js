@@ -599,8 +599,11 @@
 
   // ---- permissions -------------------------------------------------------
   // What an admin can grant per user, stored as a CSV in the Users sheet's
-  // `entries` column. EMPTY MEANS ALL, so a freshly approved collector is never
-  // accidentally locked out of everything.
+  // `entries` column. A permission is something you are GIVEN: an empty field
+  // grants nothing, and a newly approved collector can do nothing until the
+  // admin says what they collect. This matches `reports`, which has always
+  // worked that way — `entries` was the odd one out, treating empty as "all",
+  // which meant approving somebody silently handed them the whole app.
   //
   // One key per thing a person actually collects — the same six categories the
   // home screen, the handover sheet and the ledger tabs use, so a permission and
@@ -634,9 +637,8 @@
   function permAllowed(user, key) {
     if (!user) return false;
     if (user.role === 'admin') return true;
-    if (!key) return true; // common to everyone
-    const set = String(user.entries || '').split(',').filter(Boolean);
-    return !set.length || set.indexOf(key) >= 0; // empty = all
+    if (!key) return true; // common to everyone — handover, own donors, dues…
+    return String(user.entries || '').split(',').indexOf(key) >= 0;
   }
   function computeReport(id, data) {
     const d = activeData(data);

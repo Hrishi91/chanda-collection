@@ -284,13 +284,13 @@ function permForRow_(store, row) {
   }
   return null;
 }
-// May this user do this? admin = all; empty entries = all (no accidental
-// lockout); a null key is common to everyone.
+// May this user do this? A permission is something you are GIVEN: an empty
+// field grants nothing. admin = everything; a null key is common to everyone.
+// Mirrors js/aggregate.js permAllowed.
 function entryAllowed_(u, key) {
   if (u.row.role === 'admin') return true;
   if (!key) return true;
-  var set = String(u.row.entries || '').split(',').filter(function (x) { return x; });
-  return !set.length || set.indexOf(key) >= 0;
+  return String(u.row.entries || '').split(',').indexOf(key) >= 0;
 }
 
 // The cashier's correction desk. Base requirement unchanged (cashier or admin);

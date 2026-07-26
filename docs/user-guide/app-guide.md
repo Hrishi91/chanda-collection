@@ -148,7 +148,10 @@ Refreshes every minute and whenever you return to the app.
 - Per approved user: **💰 Make cashier**, **👑 Make/remove admin**, **🔑 Reset
   password** (gives a temporary password — tell them verbally), **🚫 Block**,
   **✏️ Can collect** (one chip per category — shop, person, member, bus, road,
-  toto — plus the 🛠️ correction desk; grant nothing and everything stays open),
+  toto — plus the 🛠️ correction desk and 🔍 other people's donors). **A
+  permission is something you give**: approving a user grants them nothing, and
+  their card says so in red until you tap the chips. Reports have always worked
+  this way; entry permissions now match.)
   **📊 report permissions**, and **📍 Area duties** (which roads they cover).
 
   Four things need no permission at all, because everyone needs them to do the

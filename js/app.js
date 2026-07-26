@@ -2866,6 +2866,7 @@
     }
     paint();
   }
+  let admOpenUser = '';
   function renderAdmin() {
     $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(t('loading')) + '</div>';
     Promise.all([
@@ -2896,29 +2897,73 @@
         } else {
           btns = '<button class="chip" data-act="unblock" data-id="' + u.id + '">' + esc(t('unblock')) + '</button>';
         }
-        return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 100%"><b>' + esc(u.name) + '</b>' +
-          (u.role === 'admin' ? ' 👑' : '') + (u.cashier ? ' 💰' : '') +
-          '<div class="row-sub">@' + esc(u.username) + (u.phone ? ' • 📞 ' + esc(u.phone) : '') +
-          ' • ' + esc(u.years || '—') + '</div></div>' +
-          '<div class="chips" style="margin:8px 0 0">' + btns + '</div>' + entriesChips(u) + reportChips(u) + areaChips(u) + '</div>';
+        // ONE user open at a time. Every user fully expanded put ~280 chips on a
+        // single screen for a committee this size, which is not a list anyone
+        // can read — the summary line says what they have, and the detail is
+        // one tap away without leaving the page.
+        const open = admOpenUser === u.id;
+        const body = u.status === 'approved'
+          ? '<div class="chips" style="margin:8px 0 0">' + btns + '</div>' +
+            entriesChips(u) + reportChips(u) + areaChips(u)
+          : '<div class="chips" style="margin:8px 0 0">' + btns + '</div>';
+        return '<div class="adm-user' + (open ? ' open' : '') + '">' +
+          '<button class="adm-user-head" data-uopen="' + u.id + '">' +
+            '<span class="adm-user-name"><b>' + esc(u.name) + '</b>' +
+              (u.role === 'admin' ? ' 👑' : '') + (u.cashier ? ' 💰' : '') +
+              '<span class="row-sub">' + esc(userSummary(u)) + '</span></span>' +
+            '<span class="adm-caret">' + (open ? '▾' : '›') + '</span>' +
+          '</button>' +
+          '<div class="adm-user-body"' + (open ? '' : ' hidden') + '>' +
+            '<div class="row-sub" style="margin-bottom:8px">@' + esc(u.username) +
+              (u.phone ? ' • 📞 ' + esc(u.phone) : '') + ' • ' + esc(u.years || '—') + '</div>' +
+            body + '</div></div>';
+      }
+      // One line that says what this person actually has, so the list can be
+      // read without opening anybody.
+      function userSummary(u) {
+        if (u.status !== 'approved') return '@' + u.username;
+        if (u.role === 'admin') return t('sum_admin_all');
+        const ent = String(u.entries || '').split(',').filter(Boolean);
+        const entTxt = !ent.length ? '⚠️ ' + t('sum_none')
+          : ent.filter(function (k) { return Aggregate.ENTRY_KINDS.indexOf(k) >= 0; })
+               .map(function (k) { return t(CAT_LABEL_KEYS[k] || k); }).join(', ') || '⚠️ ' + t('sum_none');
+        const reps = String(u.reports || '').split(',').filter(Boolean).length + (u.cashier ? 1 : 0);
+        const ars = String(u.areas || '').split(',').filter(Boolean).length;
+        return [entTxt,
+                reps ? reps + ' ' + t('sum_reports') : t('sum_no_report'),
+                ars ? ars + ' ' + t('sum_areas') : t('sum_no_area')].join(' · ');
       }
       // What this user may collect, one chip per category (empty = all). Drives
       // the home tiles AND the ledger tabs, so a grant and what it opens are
       // always the same word. `review` rides along — it is the cashier's
       // correction desk, not a category, hence the separator.
+      // heading · all/none shortcuts · state note · the chips
+      function permGroup(u, titleKey, kind, chips, note, isDefaultAll, isEmpty) {
+        return '<div class="perm-grp"><div class="perm-head">' + esc(t(titleKey)) +
+            '<span class="perm-bulk">' +
+              '<button class="chip mini" data-bulk="' + kind + '" data-bulk-user="' + u.id + '" data-bulk-on="1">' + esc(t('bulk_all')) + '</button>' +
+              '<button class="chip mini" data-bulk="' + kind + '" data-bulk-user="' + u.id + '" data-bulk-on="0">' + esc(t('bulk_none')) + '</button>' +
+            '</span></div>' +
+          // "nothing set" and "everything explicitly granted" look identical in
+          // chips, so say which one it is instead of leaving it to be guessed
+          // Nothing granted is a real state with real consequences — this person
+          // cannot make a single entry — so it is said loudly, not left to be
+          // inferred from a row of grey chips.
+          (isEmpty ? '<div class="perm-warn">⚠️ ' + esc(t('perm_none_yet')) + '</div>' : '') +
+          '<div class="chips" style="margin:4px 0 0">' + chips + '</div>' +
+          (note ? '<div class="perm-note">' + esc(note) + '</div>' : '') + '</div>';
+      }
       function entriesChips(u) {
         if (u.status !== 'approved' || u.role === 'admin') return '';
         const set = String(u.entries || '').split(',').filter(Boolean);
         const kinds = [['shop', t('new_shop')], ['person', t('new_person')], ['member', t('new_member')],
                        ['bus', t('daily_bus')], ['road', t('daily_road')], ['toto', t('daily_toto')],
-                       ['review', t('review_title')], ['otherdonor', t('find_party_btn')]];
+                       ['review', t('review_title')], ['otherdonor', t('perm_otherdonor')]];
         const chips = kinds.map(function (k) {
-          const on = !set.length || set.indexOf(k[0]) >= 0; // empty = all on
+          const on = set.indexOf(k[0]) >= 0;
           return '<button class="chip' + (on ? ' on' : '') + '" data-ent-user="' + u.id + '" data-ent-id="' + k[0] + '">' + esc(k[1]) + '</button>';
         }).join('');
-        return '<div class="row-sub" style="flex-basis:100%;margin-top:10px">' + esc(t('entry_perms')) + '</div>' +
-          '<div class="row-sub" style="flex-basis:100%;opacity:.75">' + esc(t('perms_common')) + '</div>' +
-          '<div class="chips" style="margin:4px 0 0">' + chips + '</div>';
+        return permGroup(u, 'entry_perms', 'ent', chips, t('perms_common'), false, !set.length);
       }
       // which master areas a collector is responsible for (drives area reports)
       function areaChips(u) {
@@ -2929,8 +2974,7 @@
           return '<button class="chip' + (on ? ' on' : '') + '" data-area-user="' + u.id + '" data-area-id="' + esc(a.id) + '">' +
             esc(Settings.get('lang') === 'en' ? (a.nameEn || a.nameBn) : (a.nameBn || a.nameEn)) + '</button>';
         }).join('') : '<span class="row-sub">' + esc(t('no_areas_yet')) + '</span>';
-        return '<div class="row-sub" style="flex-basis:100%;margin-top:10px">' + esc(t('assign_areas')) + '</div>' +
-          '<div class="chips" style="margin:4px 0 0">' + chips + '</div>';
+        return permGroup(u, 'assign_areas', 'area', chips, '', false);
       }
       function reportChips(u) {
         if (u.status !== 'approved' || u.role === 'admin') return '';
@@ -2942,9 +2986,8 @@
             '" data-rep-id="' + rid + '"' + (autoCashier ? ' disabled title="auto"' : '') + '>' +
             esc(t('report_' + rid)) + '</button>';
         }).join('');
-        return '<div class="row-sub" style="flex-basis:100%;margin-top:10px">' + esc(t('report_perms')) +
-          ' ' + esc(u.cashier ? t('inhand_auto_cashier') : '') + '</div>' +
-          '<div class="chips" style="margin:4px 0 0">' + chips + '</div>';
+        return permGroup(u, 'report_perms', 'rep', chips,
+                         u.cashier ? t('inhand_auto_cashier') : '', false);
       }
       function section(key, list) {
         return '<div class="section">' + esc(t(key)) + ' (' + list.length + ')</div>' +
@@ -3133,6 +3176,31 @@
           }
         };
       });
+      document.querySelectorAll('[data-uopen]').forEach(function (b) {
+        b.onclick = function () {
+          const id = b.dataset.uopen;
+          admOpenUser = (admOpenUser === id) ? '' : id;
+          document.querySelectorAll('.adm-user').forEach(function (el) {
+            const mine = el.querySelector('[data-uopen]').dataset.uopen === admOpenUser;
+            el.classList.toggle('open', mine);
+            el.querySelector('.adm-user-body').hidden = !mine;
+            el.querySelector('.adm-caret').textContent = mine ? '▾' : '›';
+          });
+          if (admOpenUser) b.scrollIntoView({ block: 'nearest' });
+        };
+      });
+      // [সব দাও] / [সব নাও] — the chips still work one by one; this only saves
+      // tapping seven reports for eleven people.
+      document.querySelectorAll('[data-bulk]').forEach(function (b) {
+        b.onclick = function () {
+          const uid = b.dataset.bulkUser, on = b.dataset.bulkOn === '1';
+          const u = resp.users.find(function (x) { return x.id === uid; });
+          if (!u) return;
+          if (b.dataset.bulk === 'ent') adminAction('setEntries', { userId: uid, entries: on ? Aggregate.PERM_KEYS.slice() : [] });
+          else if (b.dataset.bulk === 'rep') adminAction('setReports', { userId: uid, reports: on ? REPORT_IDS.slice() : [] });
+          else adminAction('setAreas', { userId: uid, areas: on ? areas.map(function (a) { return a.id; }) : [] });
+        };
+      });
       document.querySelectorAll('[data-rep-user]').forEach(function (b) {
         b.onclick = function () {
           if (b.disabled) return;
@@ -3158,8 +3226,10 @@
         b.onclick = function () {
           const uid = b.dataset.entUser, kind = b.dataset.entId;
           const u = resp.users.find(function (x) { return x.id === uid; });
-          let set = String(u.entries || '').split(',').filter(Boolean);
-          if (!set.length) set = ['party', 'payment', 'daily', 'handover']; // materialise "all" before toggling
+          // An empty field grants nothing, so a chip means exactly what it
+          // shows and toggling is a plain add/remove — no "materialise all"
+          // step, which is where the retired key names used to leak back in.
+          const set = String(u.entries || '').split(',').filter(Boolean);
           const i = set.indexOf(kind);
           if (i >= 0) set.splice(i, 1); else set.push(kind);
           adminAction('setEntries', { userId: uid, entries: set });
