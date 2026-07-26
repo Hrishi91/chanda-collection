@@ -3630,3 +3630,43 @@ errors. A13's server half joins the pending redeploy checklist.
 (v3.99.1 packaging note: the js/app.js halves of A12/A14/A15 travelled together
 in the A12 commit — one file, three fixes, the staging could not split them.
 This commit carries the remaining i18n label, the ❌ style and the sw bump.)
+
+## v3.99.2 — the architect's, UI designer's and PWA hats
+
+Hrishi: "i have not seen the role of architect, ui designer/developer and all."
+Fair — those passes had not been run. Run now, findings both ways.
+
+### Verified FINE (checked, not assumed)
+- **Safe area**: `viewport-fit=cover`, `env(safe-area-inset-*)` on the header and
+  the bottom nav — the 5-tab bar clears the iPhone home indicator.
+- **iOS input zoom**: every input ≥16px, so focusing a field does not zoom.
+- **Tap targets**: chips ≈40px tall.
+- **Offline shell**: `sw.js` ASSETS covers every served file; `config.js` is
+  excluded deliberately (network-first, documented at the top of that file).
+- **Chat compose vs the fixed nav**: suspected the sticky compose row would sit
+  under the nav when Android's keyboard shrinks the viewport. Probed at 812px
+  and at 400px: `msg-list`'s 58vh cap shrinks with the viewport, so the column
+  always fits above the nav. Suspicion wrong; layout is self-limiting.
+
+### Fixed
+- **The stale "exact mirror" comment** — the precise trap that caused A8. Client
+  `activeData` says it mirrors `activeData_`, but since v3.97.0 they differ
+  deliberately (`messages` on the server side only). Anyone tidying that drift
+  without context would re-slow the money paths or re-break notifications.
+  Both sides now name the one difference and warn against "restoring" it.
+- **Stale @ picker** — `msgUserCache` lived for the whole session, so a cashier
+  appointed an hour ago was not mentionable without a reload. The picker now
+  paints the cache instantly and refreshes it in the background.
+- **`"lang": "bn"`** in the manifest.
+
+### Judged and accepted, with reasons (the architect's actual job)
+- **`js/app.js` is 3,624 lines.** A monolith — and splitting it now would be
+  motion, not progress: no build step means more script tags and more cache
+  entries, the pure logic already lives apart in `aggregate.js` (855 lines,
+  355 tests), and a structural refactor days before go-live is risk with no
+  user-visible gain. Revisit after the season if the app keeps growing.
+- **Light theme only.** Deliberate: one festive palette, outdoor daytime use.
+- **Emoji-only buttons lack aria-labels.** Ten known users on known phones; not
+  worth churn now, noted for any future public release.
+
+VERIFIED: 372 passed, 0 failed; manifest still valid JSON; no console errors.

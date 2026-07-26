@@ -1146,7 +1146,11 @@ function activeData_(d) {
   var keep = function (rows) { return (rows || []).filter(function (r) { return r && !voided[String(r.id)]; }); };
   return { parties: keep(d.parties), payments: keep(d.payments), daily: keep(d.daily),
            expenses: keep(d.expenses), handovers: keep(d.handovers), voids: d.voids || [],
-           messages: keep(d.messages), // read by nothing here yet; kept for parity
+           // messages kept HERE but deliberately NOT in the client's activeData —
+           // see js/aggregate.js activeData (v3.97.0 perf). Nothing on this
+           // side reads them yet; harmless because no per-collector loop runs
+           // activeData_ the way inHandRows does on the client.
+           messages: keep(d.messages),
            // corrections pass through untouched (they aren't voidable) — the
            // A7 change routed notifData_ through here, and dropping this key
            // silently killed correction-flag notifications (regression A8)

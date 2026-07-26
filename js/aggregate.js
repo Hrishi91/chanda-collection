@@ -37,8 +37,10 @@
              // aggregation (inHandRows calls it once per collector), and a
              // season of chat made that 11× slower for rows that have nothing
              // to do with money. messageFeed filters its own voids instead.
-             // pass corrections through (not voidable) — keeps this an exact
-             // mirror of Code.gs activeData_ (see regression A8 in final-audit)
+             // corrections pass through (not voidable) — mirrors Code.gs
+             // activeData_ (regression A8) EXCEPT for the deliberate messages
+             // difference above. Do not "restore the mirror" without reading
+             // both sides' notes — that reflex is exactly how A8 happened.
              corrections: data.corrections || [] };
   }
 

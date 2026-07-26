@@ -2811,11 +2811,13 @@
         };
       });
     };
-    const cached = msgUserCache;
-    if (cached) { paint(cached); return; }
+    // paint the cache at once so the picker feels instant, then refresh it in
+    // the background — a cashier appointed an hour ago must be mentionable
+    // without anyone reloading the app
+    if (msgUserCache) paint(msgUserCache);
     Auth.call('cashiers', { token: Auth.token() })
-      .then(function (r) { msgUserCache = r.cashiers || []; paint(msgUserCache); })
-      .catch(function () { paint([]); }); // offline → groups only, still usable
+      .then(function (r) { msgUserCache = r.cashiers || []; if (!box.hidden) paint(msgUserCache); })
+      .catch(function () { if (!msgUserCache) paint([]); }); // offline → groups only
   }
   let msgUserCache = null;
   function sendMessage(input) {
