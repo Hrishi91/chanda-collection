@@ -258,40 +258,44 @@ on his phone after the redeploy).
   INSTABILITY (an unsourced bill migrating between categories) was a separate
   defect and is fixed in v3.86.0.
 
-## ⚠️ THE ONE PENDING REDEPLOY (v3.93.0–v3.99.0) — everything server-side since AKfycbwpwZ0D…
+## ✅ v3.93.0–v4.0.0 — DEPLOYED & VERIFIED 2026-07-26 (AKfycbxWYLvg…)
 
-Steps, in order:
-1. Apps Script: paste current `apps-script/Code.gs` → **New deployment**
-   (New version never repoints on this account).
-2. Run **`setup()`** once in the editor — REQUIRED this time: the chat adds a
-   `Messages` sheet.
-3. Hand the new `/exec` URL over for rebaking into `js/config.js`.
+`setup()` confirmed run (the `Messages` sheet is in the pull). Full three-role
+pass: **44 of 45 green**. Everything that had never touched a real Sheet is now
+proven there:
 
-What this deployment carries:
-- `voids` gated for the first time (`voidAllowed_` — admin any, cashier a
-  collector's or own, anyone their own).
-- Admin backup-restore may file rows under the collector they belong to
-  (audited as `restore:attribute`).
-- `clearTraining` — wipe practice data without going live (admin, training
-  only, mandatory backup, typed CLEAR).
-- `otherdonor` permission key (reaching other people's donors).
-- **Empty `entries` now grants NOTHING** (was: everything) — matches reports.
-- `Messages` sheet + `chat_off` kill switch (enforced server-side).
-- `cashiers` returns `role` + the admin's `phone` (A13 — the no-permission
-  card's 📞/💬 buttons need them).
-- **v4.0.0 Sheet performance**: `data_ts` stamp + idle fast path (159× fewer
-  cells read on an idle poll), batched row writes, batched serial reservation.
-  Biggest server change in the project — re-run the three-role pass after.
+- **S1 idle fast path** — an idle poll returns `idle:true` with no rows, and a
+  row written after that cursor is STILL delivered on the next pull. No loss.
+- **S2/S3 batching** — 30 rows in one push, 15 serials, all unique and
+  consecutive (1–15), every payment on the Sheet carrying its number.
+- Money chain across three roles with categories intact; cashier snapshot lands
+  as a parcel not a phantom category; chat send/receive and mention scoping;
+  every role gate; A9 forgery blocked; the new void gate; books balanced with
+  `byCat === inHand` on every line.
+- `clearTraining` proven live — Hrishi ran it himself at 03:09 with a backup.
 
-Right after the redeploy:
-1. **Grant every collector something** — 11 approved users have `entries=''`
-   and can do nothing until granted. One `[সব দাও]` tap each, or pick chips.
-2. Re-run the full three-role pass (scratchpad `three-role.js` with three
-   fresh tokens) — it must also cover: bus tab in the ledger, find-party
-   permission, cashier's typed handover + `__snap`, chat send/receive +
-   mention notification + `chat_off`, `clearTraining` on the training sheet,
-   admin backup-import attribution, void gate.
-3. Rotate the session tokens pasted into chat (re-login on each phone).
+## ⚠️ ONE SMALL REDEPLOY LEFT — A16 (chat kill switch)
+
+The single red light from that pass. `setConfig` ignored the `{key,value}` shape
+the chat switch sent, and `chat_off` was not whitelisted, so the button said
+"chat stopped" and nothing stopped. Fixed on both sides; the server half needs a
+deploy.
+
+1. Apps Script: paste `apps-script/Code.gs` → **New deployment**.
+2. **No `setup()` needed** — no new sheets or columns.
+3. Hand over the `/exec` URL for rebaking, then the switch gets tested live
+   (flip on → a message must be refused → flip off → it must go through).
+
+## Before go-live, still open
+
+- [ ] **Reports permission** — a DECISION, not a fix. Most collectors have an
+      empty `reports` list and can open no central report at all, only their own
+      summary. Intended, or grant some before the puja?
+- [ ] **Clear the test data** — the v4 pass left ~35 rows tagged `V430912` in the
+      training sheet (batch shops, a chain shop, a bus, handovers, chat). One
+      🧹 প্র্যাকটিসের ডেটা মুছে ফেলো clears them; Go Live would too.
+- [ ] **Rotate the three session tokens** pasted in chat today — re-login on
+      each phone.
 
 ## Next decision — Go Live
 
