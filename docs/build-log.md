@@ -2892,3 +2892,69 @@ VERIFIED
   still reconcile, and a fully spent parcel is not offered at all.
   **306 passed, 0 failed.**
 - browser, same four cases: `matches: true` on every one. No console errors.
+
+## v3.89.0 — a cashier types an amount; a collector picks categories
+
+Hrishi, after several rounds of me getting it wrong: "here the user will not be
+able to select the category wise amounts as collector can select … there will be
+extra fields with total amount, spends, available amount … going to transfer
+amount, amount entry by user."
+
+TWO SCREENS, because the two jobs are genuinely different.
+
+A **collector** knows which round each note came from, so they pick categories
+and the handover carries an exact per-category breakdown. **Unchanged.**
+
+A **cashier/admin** holds money pooled from many people. Asking them to
+attribute it category by category is guesswork dressed as precision — and slow.
+They now get their position laid out read-only, then type one cash figure and
+one UPI figure:
+
+    📥 নতুন এন্ট্রি (চাঁদা / বাস)      💵১০০০ · 📱২০০    ₹১,২০০
+    🛣️ রোড / টোটো কালেকশন           💵৪০০  · 📱১০০    ₹৫০০
+    🤝 অন্যের কাছ থেকে পাওয়া
+       🧑 Yamini mahato             💵১২০০ · 📱৫০০   ₹১,৭০০
+       🧑 Biplab                    💵৩০০  · 📱০      ₹৩০০
+       মোট এসেছে                    💵২৯০০ · 📱৮০০   ₹৩,৭০০
+       খরচ                          💵৫০০  · 📱০      ₹৫০০
+       আগে পাঠিয়েছি                 💵২০০  · 📱০      ₹২০০
+       হাতে আছে                     💵২২০০ · 📱৮০০   ₹৩,০০০
+
+THE CAP IS ON THE TOTAL ONLY. Cash and UPI are not checked separately: a cashier
+may settle a UPI balance in notes or the other way round, so ₹2,500 cash out of
+₹2,200 cash held is fine as long as the total fits. Over the total, the figure
+turns red and Next is dead.
+
+TWO INVENTED RULES DELETED. v3.88.1 wrote overspend off "the largest parcel
+first"; v3.87.0 recorded which parcel a handover came out of. Hrishi challenged
+the first with the right question — "how are you deciding the deduction from
+where?" — and the answer was that I had decided, not him. Both are gone. 🤝 now
+means simply **"who has handed me money, and how much"**, which is a fact the
+handover rows already state; what is actually left is the `হাতে আছে` line.
+
+CONSEQUENCE, on purpose: the category trail ends at the cashier hop. What
+reaches the next person is recorded as "handed over by Jadav", with a snapshot
+of where Jadav stood at that moment — `{"__snap": {totalIn, spent, sent,
+available}}`. Categories survive where they are real: the collector→cashier hop,
+and everyone's own summary.
+
+`আগে পাঠিয়েছি` counts PENDING handovers as well as confirmed ones. Everywhere
+else pending stays with the giver — the receiver has not acknowledged it, so the
+giver still answers for it — but for "what can I hand over right now" that money
+is already out of the pocket, and counting it as available would let the same
+notes be promised to two people.
+
+NO DB CHANGE, no `setup()`, no `Code.gs` change. `breakdown` is one JSON cell;
+keys beginning `__` are reserved metadata and `parseBd` now filters them, so a
+snapshot can never be misread as a category.
+
+VERIFIED
+- 16 tests on `cashierView`, the load-bearing one being that its `হাতে আছে`
+  equals `myAvailable` exactly — otherwise a cashier could promise money the
+  reports say is elsewhere. Plus: a pending handover is already out of the
+  pocket, and a `__snap` row reaches the receiver as a named parcel with the
+  full amount and no phantom category. **287 passed, 0 failed.**
+- rendered the real screen in the browser at mobile width with the real
+  stylesheet and real `cashierView` figures, and showed Hrishi the picture
+  before committing: ₹2,000+₹1,500 → red, warning, Next disabled;
+  ₹2,500+₹500 → ₹3,000, Next live (cash over the cash held, total within).

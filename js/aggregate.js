@@ -286,10 +286,18 @@
       const e = cats[cat] || (cats[cat] = { cash: 0, upi: 0 });
       e.cash += s.cash; e.upi += s.upi;
     };
+    // A breakdown maps CATEGORY → {cash, upi}. Keys starting with `__` are
+    // reserved metadata (a cashier's `__snap` records their position at the
+    // moment of transfer) and must never be read as a category.
     const parseBd = function (h) {
       if (!h.breakdown) return null;
-      try { const b = JSON.parse(h.breakdown); return (b && typeof b === 'object') ? b : null; }
-      catch (e) { return null; }
+      try {
+        const b = JSON.parse(h.breakdown);
+        if (!b || typeof b !== 'object') return null;
+        const out = {};
+        Object.keys(b).forEach(function (k) { if (k.slice(0, 2) !== '__') out[k] = b[k]; });
+        return Object.keys(out).length ? out : null;
+      } catch (e) { return null; }
     };
     // chanda is split by DONOR TYPE (দোকান/ব্যক্তি/সদস্য) exactly the way
     // daily is split by road/toto/bus — same granularity on both sides.
@@ -370,62 +378,91 @@
     });
     let cash = 0, upi = 0;
     Object.keys(cats).forEach(function (k) { cash += cats[k].cash; upi += cats[k].upi; });
-    // What is still held from each OTHER person's parcels (drop emptied ones,
-    // and drop OWN_SRC — "own" is not a giver). Expenses are charged to one's
-    // OWN collected money, never to someone else's parcel — Hrishi's rule, and
-    // a category only goes negative when a person spent more than they
-    // collected. But when that happens the notes physically came out of a
-    // parcel, so a parcel must not keep claiming money that has been spent:
-    // `shortfall` below writes that deficit off the parcels, largest first, so
-    // the handover sheet can never offer money that is no longer in hand.
+    // Who has handed money to this person, and how much — GROSS, exactly as the
+    // handover rows record it. Deliberately not "how much of theirs is still in
+    // my pocket": once a cashier's money is pooled, saying which parcel a later
+    // payment came out of would be a guess, and this ledger does not guess.
+    // What is actually left is the `available` figure, computed straight from
+    // the totals below.
     const byGiver = Object.keys(givers).filter(function (id) { return id !== OWN_SRC; })
       .map(function (id) {
         const g = givers[id];
         let gc = 0, gu = 0;
-        const catList = Object.keys(g.cats).filter(function (k) {
-          return g.cats[k].cash > 0 || g.cats[k].upi > 0;
-        }).map(function (k) {
-          gc += Math.max(0, g.cats[k].cash); gu += Math.max(0, g.cats[k].upi);
-          return { key: k, cash: Math.max(0, g.cats[k].cash), upi: Math.max(0, g.cats[k].upi) };
-        });
-        return { id: g.id, name: g.name, cats: catList, cash: gc, upi: gu, total: gc + gu };
+        Object.keys(g.cats).forEach(function (k2) { gc += g.cats[k2].cash; gu += g.cats[k2].upi; });
+        return { id: g.id, name: g.name, cash: gc, upi: gu, total: gc + gu };
       }).filter(function (g) { return g.total > 0; })
       .sort(function (a, b) { return b.total - a.total; });
-    // Own money per category = the category total minus every giver's share, so
-    // the handover sheet can show "what I collected" apart from "what I was
-    // handed" without counting anything twice.
-    const own = {};
-    Object.keys(cats).forEach(function (k) { own[k] = { cash: cats[k].cash, upi: cats[k].upi }; });
-    byGiver.forEach(function (g) {
-      g.cats.forEach(function (c) {
-        const e = own[c.key] || (own[c.key] = { cash: 0, upi: 0 });
-        e.cash -= c.cash; e.upi -= c.upi;
-      });
+    return { cash: cash, upi: upi, byCat: cats, byGiver: byGiver };
+  }
+
+  // The cashier's / admin's handover screen. They do NOT pick categories — money
+  // pooled from many people has no honest category left — so this returns the
+  // figures they read before typing an amount:
+  //   collectedByCat  what THEY collected, category-wise (display only)
+  //   byGiver         who has handed them money, gross (display only)
+  //   totalIn         collected + received
+  //   spent           their expenses
+  //   handedOut       what they have already passed on
+  //   available       totalIn − spent − handedOut  ← the cap on the amount box
+  //
+  // handedOut counts PENDING handovers as well as confirmed ones. Everywhere
+  // else pending stays with the giver (the receiver has not acknowledged it,
+  // so the giver still answers for it) — but for "what can I hand over right
+  // now" that money is already out of the pocket, and counting it as available
+  // would let the same notes be promised to two people.
+  function cashierView(data, ident) {
+    const d = activeData(data);
+    const mine = function (r) { return ck(r) === String(ident); };
+    const isTo = function (h) { return String(h.toId || h.to || '?') === String(ident); };
+    const isFrom = function (h) { return String(h.fromId || h.from || '?') === String(ident); };
+    const zero = function () { return { cash: 0, upi: 0 }; };
+    const addTo = function (t, s2) { t.cash += s2.cash; t.upi += s2.upi; };
+
+    const partyType = {};
+    (d.parties || []).forEach(function (p) { if (p && p.id) partyType[p.id] = p.type; });
+    const collectedByCat = {}, collected = zero();
+    const put = function (cat, s2) {
+      const e = collectedByCat[cat] || (collectedByCat[cat] = zero());
+      addTo(e, s2); addTo(collected, s2);
+    };
+    (d.payments || []).filter(mine).forEach(function (r) {
+      const ty = partyType[r.partyId];
+      put(['shop', 'person', 'member'].indexOf(ty) >= 0 ? ty : 'payment', splitOf(r));
     });
-    // Overspend write-off. If own money in a category is negative, that much has
-    // already left the pocket, so take it off the parcels (largest first) and
-    // floor own at zero. The books are untouched — `byCat` still carries the
-    // negative, so reconcile and every report read exactly what they did — this
-    // only decides what the handover sheet is allowed to offer.
-    ['cash', 'upi'].forEach(function (fld) {
-      Object.keys(own).forEach(function (k) {
-        let short = -own[k][fld];
-        if (short <= 0) return;
-        own[k][fld] = 0;
-        byGiver.forEach(function (g) {
-          if (short <= 0) return;
-          const c = g.cats.filter(function (x) { return x.key === k; })[0];
-          if (!c || c[fld] <= 0) return;
-          const take = Math.min(c[fld], short);
-          c[fld] -= take; g[fld] -= take; g.total -= take; short -= take;
-        });
-      });
+    (d.daily || []).filter(mine).forEach(function (r) {
+      put(['road', 'toto', 'bus'].indexOf(r.type) >= 0 ? r.type : 'road', splitOf(r));
     });
-    const spendable = byGiver.map(function (g) {
-      return { id: g.id, name: g.name, cash: g.cash, upi: g.upi, total: g.total,
-               cats: g.cats.filter(function (c) { return c.cash > 0 || c.upi > 0; }) };
-    }).filter(function (g) { return g.total > 0; });
-    return { cash: cash, upi: upi, byCat: cats, byGiver: spendable, byCatOwn: own };
+
+    const received = zero(), handedOut = zero(), pendingOut = zero(), byName = {};
+    (d.handovers || []).forEach(function (h) {
+      const s2 = splitOf(h);
+      if (isTo(h) && h.status === 'confirmed') {
+        addTo(received, s2);
+        const id = String(h.fromId || h.from || '?');
+        const g = byName[id] || (byName[id] = { id: id, name: h.from || id, cash: 0, upi: 0 });
+        if (h.from) g.name = h.from;
+        g.cash += s2.cash; g.upi += s2.upi;
+      }
+      if (isFrom(h)) addTo(h.status === 'confirmed' ? handedOut : pendingOut, s2);
+    });
+    const spent = zero();
+    (d.expenses || []).filter(mine).forEach(function (e) { addTo(spent, splitOf(e)); });
+
+    const totalIn = { cash: collected.cash + received.cash, upi: collected.upi + received.upi };
+    const out = { cash: handedOut.cash + pendingOut.cash, upi: handedOut.upi + pendingOut.upi };
+    const available = { cash: totalIn.cash - spent.cash - out.cash,
+                        upi: totalIn.upi - spent.upi - out.upi };
+    return {
+      collectedByCat: collectedByCat, collected: collected,
+      byGiver: Object.keys(byName).map(function (k) {
+        const g = byName[k];
+        return { id: g.id, name: g.name, cash: g.cash, upi: g.upi, total: g.cash + g.upi };
+      }).filter(function (g) { return g.total > 0; })
+        .sort(function (a, b) { return b.total - a.total; }),
+      received: received, totalIn: totalIn, spent: spent,
+      handedOut: handedOut, pendingOut: pendingOut, out: out,
+      available: available, availableTotal: available.cash + available.upi,
+    };
   }
 
   // Parties with outstanding due, biggest due first.
@@ -664,7 +701,8 @@
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,
                 roleOf: roleOf, rowRole: rowRole,
                 ENTRY_KINDS: ENTRY_KINDS, PERM_KEYS: PERM_KEYS,
-                permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC };
+                permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC,
+                cashierView: cashierView };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
 })();

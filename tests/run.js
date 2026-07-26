@@ -1,7 +1,8 @@
 // Pure-logic tests: node tests/run.js
 const { parseAmount } = require('../js/numparse.js');
 const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
-        roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed } = require('../js/aggregate.js');
+        roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed,
+        cashierView } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -541,91 +542,61 @@ const htLegacy = personalSummary({ parties: [], payments: [], daily: [], expense
 eq(htLegacy[0].total, 90, 'handedTo: legacy row without a breakdown still counted');
 eq(htLegacy[0].cats[0].key, 'other', 'handedTo: …its category is "other", nothing invented');
 
-// ---- own money vs other people's parcels -----------------------------------
-// The handover sheet shows what you collected apart from what someone handed
-// you, by giver. Provenance is never inferred: the giver picks a named line, so
-// the outgoing row records `breakdown[cat].src` and every later reading agrees.
-const jd = {
-  parties: [{ id: 's1', type: 'shop', name: 'S' }], voids: [], corrections: [], expenses: [], daily: [],
-  payments: [{ id: 'p', collectorId: 'jadav', partyId: 's1', amount: 500, cashAmount: 500, upiAmount: 0 }],
+// ---- the cashier's handover screen -----------------------------------------
+// A collector picks categories; a cashier cannot, because money pooled from
+// many people has no honest category left. So they get their position laid out
+// and type one cash figure and one UPI figure.
+const cvData = {
+  parties: [{ id: 's1', type: 'shop', name: 'S' }, { id: 'p1', type: 'person', name: 'P' }],
+  voids: [], corrections: [],
+  payments: [{ id: 'a', collectorId: 'jadav', partyId: 's1', amount: 700, cashAmount: 500, upiAmount: 200 },
+             { id: 'b', collectorId: 'jadav', partyId: 'p1', amount: 200, cashAmount: 200, upiAmount: 0 }],
+  daily: [{ id: 'c', collectorId: 'jadav', type: 'bus', amount: 300, cashAmount: 300, upiAmount: 0 },
+          { id: 'e', collectorId: 'jadav', type: 'road', amount: 100, cashAmount: 0, upiAmount: 100 },
+          { id: 'f', collectorId: 'jadav', type: 'toto', amount: 400, cashAmount: 400, upiAmount: 0 }],
+  expenses: [{ id: 'x', collectorId: 'jadav', amount: 500, cashAmount: 500, upiAmount: 0, source: 'puja', srcCat: 'shop' }],
   handovers: [
-    { id: 'h1', fromId: 'yamini', from: 'Yamini mahato', toId: 'jadav', amount: 1700, cashAmount: 1200, upiAmount: 500,
-      status: 'confirmed', breakdown: JSON.stringify({ shop: { cash: 1200, upi: 0 }, bus: { cash: 0, upi: 500 } }) },
-    { id: 'h2', fromId: 'biplab', from: 'Biplab', toId: 'jadav', amount: 300, cashAmount: 300, upiAmount: 0,
-      status: 'confirmed', breakdown: JSON.stringify({ road: { cash: 300, upi: 0 } }) },
+    { id: 'h1', fromId: 'yamini', from: 'Yamini', toId: 'jadav', amount: 1700, cashAmount: 1200, upiAmount: 500, status: 'confirmed' },
+    { id: 'h2', fromId: 'biplab', from: 'Biplab', toId: 'jadav', amount: 300, cashAmount: 300, upiAmount: 0, status: 'confirmed' },
+    { id: 'h3', fromId: 'jadav', toId: 'hrishi', amount: 200, cashAmount: 200, upiAmount: 0, status: 'confirmed' },
   ],
 };
-const jv = myAvailable(jd, 'jadav');
-eq(jv.byCat.shop, { cash: 1700, upi: 0 }, 'parcels: the category total still counts own + received');
-eq(jv.byCatOwn.shop, { cash: 500, upi: 0 }, 'parcels: own shop money is only what jadav collected');
-eq(jv.byGiver.length, 2, 'parcels: two people have handed money over');
-eq(jv.byGiver[0].name, 'Yamini mahato', 'parcels: biggest giver first');
-eq(jv.byGiver[0].total, 1700, 'parcels: Yamini parcel total');
-eq(jv.byGiver[0].cats, [{ key: 'shop', cash: 1200, upi: 0 }, { key: 'bus', cash: 0, upi: 500 }], 'parcels: kept category-wise');
-eq(jv.byGiver[1].name, 'Biplab', 'parcels: second giver');
-eq(jv.byGiver[1].total, 300, 'parcels: Biplab parcel total');
-// nothing double-counts: own + every parcel === the category totals
-const recombined = {};
-Object.keys(jv.byCatOwn).forEach(function (k) { recombined[k] = { cash: jv.byCatOwn[k].cash, upi: jv.byCatOwn[k].upi }; });
-jv.byGiver.forEach(function (g) { g.cats.forEach(function (c) {
-  const e = recombined[c.key] || (recombined[c.key] = { cash: 0, upi: 0 });
-  e.cash += c.cash; e.upi += c.upi; }); });
-eq(recombined, jv.byCat, 'parcels: own + all parcels adds back up to byCat exactly');
+const cv = cashierView(cvData, 'jadav');
+eq(cv.collected, { cash: 1400, upi: 300 }, 'cashier view: own collections, cash and UPI');
+eq(cv.collectedByCat.shop, { cash: 500, upi: 200 }, 'cashier view: own collections stay category-wise for display');
+eq(cv.collectedByCat.toto, { cash: 400, upi: 0 }, 'cashier view: road and toto are there too');
+eq(cv.byGiver.map(function (g) { return [g.name, g.cash, g.upi]; }), [['Yamini', 1200, 500], ['Biplab', 300, 0]],
+   'cashier view: who handed money over, biggest first');
+eq(cv.totalIn, { cash: 2900, upi: 800 }, 'cashier view: total in = own 1400/300 + received 1500/500');
+eq(cv.spent, { cash: 500, upi: 0 }, 'cashier view: spent');
+eq(cv.out, { cash: 200, upi: 0 }, 'cashier view: already sent');
+eq(cv.available, { cash: 2200, upi: 800 }, 'cashier view: in hand = total in − spent − sent');
+eq(cv.availableTotal, 3000, 'cashier view: in-hand total');
+// the screen and the books must agree, or a cashier could promise money the
+// reports say is elsewhere
+const cvMine = myAvailable(cvData, 'jadav');
+eq(cv.availableTotal, cvMine.cash + cvMine.upi, 'cashier view: in hand === myAvailable, always');
 
-// pass Yamini's shop 1200 on, naming the source (what picking her line writes)
-jd.handovers.push({ id: 'h3', fromId: 'jadav', toId: 'hrishi', amount: 1200, cashAmount: 1200, upiAmount: 0,
-  status: 'confirmed', breakdown: JSON.stringify({ shop: { cash: 1200, upi: 0, src: { yamini: { cash: 1200, upi: 0 } } } }) });
-const jv2 = myAvailable(jd, 'jadav');
-eq(jv2.byCatOwn.shop, { cash: 500, upi: 0 }, 'parcels: passing Yamini\'s money on leaves own money alone');
-eq(jv2.byGiver.length, 2, 'parcels: Yamini still has a parcel (her bus UPI)');
-eq(jv2.byGiver.find(function (g) { return g.id === 'yamini'; }).cats, [{ key: 'bus', cash: 0, upi: 500 }],
-   'parcels: only the shop part of Yamini\'s parcel was consumed');
-// …and if jadav had passed his OWN shop money instead, hers would be untouched
-const jdOwn = JSON.parse(JSON.stringify(jd));
-jdOwn.handovers[2].breakdown = JSON.stringify({ shop: { cash: 500, upi: 0, src: { __own: { cash: 500, upi: 0 } } } });
-jdOwn.handovers[2].amount = 500; jdOwn.handovers[2].cashAmount = 500;
-const jv3 = myAvailable(jdOwn, 'jadav');
-eq(jv3.byCatOwn.shop, { cash: 0, upi: 0 }, 'parcels: naming own money spends own money');
-eq(jv3.byGiver.find(function (g) { return g.id === 'yamini'; }).cats[0], { key: 'shop', cash: 1200, upi: 0 },
-   'parcels: …and Yamini\'s shop parcel is untouched');
-// a pre-`src` outgoing row can only have been one's own money
-const jdLegacy = JSON.parse(JSON.stringify(jd));
-jdLegacy.handovers[2].breakdown = JSON.stringify({ shop: { cash: 500, upi: 0 } });
-jdLegacy.handovers[2].amount = 500; jdLegacy.handovers[2].cashAmount = 500;
-eq(myAvailable(jdLegacy, 'jadav').byCatOwn.shop, { cash: 0, upi: 0 }, 'parcels: a pre-src row is read as own money');
+// money already promised to someone else is NOT available again. Everywhere
+// else pending stays with the giver; here it must not, or the same notes could
+// be handed to two people while the first receiver has not confirmed.
+const cvPend = JSON.parse(JSON.stringify(cvData));
+cvPend.handovers.push({ id: 'h4', fromId: 'jadav', toId: 'salil', amount: 1000, cashAmount: 1000, upiAmount: 0, status: 'pending' });
+eq(cashierView(cvPend, 'jadav').availableTotal, 2000, 'cashier view: a PENDING handover is already out of the pocket');
+eq(cashierView(cvPend, 'jadav').out, { cash: 1200, upi: 0 }, 'cashier view: sent counts pending as well as confirmed');
 
-// ---- the handover sheet may never offer money that is gone ------------------
-// Hrishi's rule: an expense always comes out of what YOU collected, never out of
-// somebody else's parcel, and a category goes negative only when you spent more
-// than you collected. Fine for the books — but the notes physically left the
-// pocket, so a parcel must not keep claiming them. Overspend is written off the
-// parcels for DISPLAY, while byCat keeps the negative so reports do not shift.
-const capBase = function (spend) {
-  return {
-    parties: [{ id: 's1', type: 'shop', name: 'S' }], voids: [], corrections: [], daily: [],
-    payments: [{ id: 'p', collectorId: 'jadav', partyId: 's1', amount: 500, cashAmount: 500, upiAmount: 0 }],
-    expenses: spend ? [{ id: 'e', collectorId: 'jadav', amount: spend, cashAmount: spend, upiAmount: 0,
-                         source: 'puja', srcCat: 'shop' }] : [],
-    handovers: [{ id: 'h', fromId: 'yamini', from: 'Yamini', toId: 'jadav', amount: 1200,
-                  cashAmount: 1200, upiAmount: 0, status: 'confirmed',
-                  breakdown: JSON.stringify({ shop: { cash: 1200, upi: 0 } }) }],
-  };
+// a cashier's handover carries a snapshot, not categories — the receiver must
+// read it as a plain parcel and never as a category called "__snap"
+const snapData = {
+  parties: [], payments: [], daily: [], expenses: [], voids: [], corrections: [],
+  handovers: [{ id: 'h', fromId: 'jadav', from: 'Jadav', toId: 'hrishi', amount: 900, cashAmount: 600, upiAmount: 300,
+    status: 'confirmed', breakdown: JSON.stringify({ __snap: { totalIn: { cash: 2900, upi: 800 } } }) }],
 };
-[[0, 1700, 500, 1200], [500, 1200, 0, 1200], [1500, 200, 0, 200], [1700, 0, 0, 0]].forEach(function (c) {
-  const spend = c[0], inHand = c[1], wantOwn = c[2], wantParcel = c[3];
-  const a = myAvailable(capBase(spend), 'jadav');
-  const own = Math.max(0, (a.byCatOwn.shop || { cash: 0 }).cash);
-  const parcels = a.byGiver.reduce(function (t, g) { return t + g.total; }, 0);
-  eq(a.cash, inHand, 'cap: spend ' + spend + ' → really holds ' + inHand);
-  eq(own, wantOwn, 'cap: spend ' + spend + ' → own offered ' + wantOwn);
-  eq(parcels, wantParcel, 'cap: spend ' + spend + ' → parcel offered ' + wantParcel);
-  eq(own + parcels, a.cash, 'cap: spend ' + spend + ' → the sheet offers exactly what is in hand');
-});
-// the BOOKS are untouched — the negative still stands where reports read it
-eq(myAvailable(capBase(1500), 'jadav').byCat.shop, { cash: 200, upi: 0 }, 'cap: byCat unchanged by the display write-off');
-eq(reconcile(capBase(1500)).balanced, true, 'cap: the books still reconcile');
-// an emptied parcel disappears rather than lingering at zero
-eq(myAvailable(capBase(1700), 'jadav').byGiver, [], 'cap: a fully spent parcel is not offered at all');
+const snapRecv = myAvailable(snapData, 'hrishi');
+eq(snapRecv.byCat, { received: { cash: 600, upi: 300 } }, 'snapshot: reserved __ keys are not read as categories');
+eq(snapRecv.cash + snapRecv.upi, 900, 'snapshot: the receiver still gets the full amount');
+eq(snapRecv.byGiver, [{ id: 'jadav', name: 'Jadav', cash: 600, upi: 300, total: 900 }],
+   'snapshot: it arrives named — "handed over by Jadav"');
 
 // ---- an expense must not wander between categories ---------------------------
 // The bug: an expense with no named source pot was drained from whatever pots

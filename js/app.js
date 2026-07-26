@@ -548,42 +548,68 @@
         { key: 'entry', labelKey: 'grp_entry', cats: s.categories.filter(function (c) { return ['shop', 'person', 'member', 'payment', 'bus'].indexOf(c.key) >= 0; }) },
         { key: 'daily', labelKey: 'grp_daily', cats: s.categories.filter(function (c) { return ['road', 'toto'].indexOf(c.key) >= 0; }) },
         { key: 'other', labelKey: 'grp_received', cats: s.categories.filter(function (c) { return c.key === 'received' || c.key === 'other'; }) },
+        // (a collector is never a handover RECIPIENT — the "to" list is
+        // cashiers and admins only — so in practice these last two are empty
+        // for them and the group does not render)
       ].filter(function (g) { return g.cats.length; });
       // cash and UPI are SEPARATE tap-to-select chips carrying the real
       // figure — nothing is typed; the total is simply what is selected.
       // Everything starts selected, so handing over the lot = change nothing.
-      // Every chip says whose money it is (`data-src`): OWN for what this person
-      // collected, else the giver's username. That is the whole provenance
-      // mechanism — the giver PICKS the line, so nothing has to be inferred
-      // later about which parcel a handover came out of.
-      const cell = function (c, kind, src) {
+      const cell = function (c, kind) {
         const avail = kind === 'cash' ? c.cash : c.upi;
         if (avail <= 0) return '<span class="sh-none">—</span>';
         return '<button class="sh-pick on" data-cat="' + esc(c.key) + '" data-kind="' + kind +
-          '" data-src="' + esc(src || OWN_SRC) + '" data-amt="' + avail + '">' +
-          (kind === 'cash' ? '💵' : '📱') + ' ' + fmtMoney(avail) + '</button>';
+          '" data-amt="' + avail + '">' + (kind === 'cash' ? '💵' : '📱') + ' ' + fmtMoney(avail) + '</button>';
       };
-      const catRow = function (c, src) {
+      const catRow = function (c) {
         return '<div class="sh-row"><span class="cat-name">' + esc(t(c.labelKey || CAT_LABEL_KEYS[c.key] || 'cat_other')) + '</span>' +
-          '<span class="sh-picks">' + cell(c, 'cash', src) + cell(c, 'upi', src) + '</span></div>';
+          '<span class="sh-picks">' + cell(c, 'cash') + cell(c, 'upi') + '</span></div>';
       };
       html += '<div class="sh-actions"><button class="chip" id="sh-all">' + esc(t('sheet_all')) +
         '</button><button class="chip" id="sh-none">' + esc(t('sheet_none')) + '</button></div>' +
         groups.map(function (g) {
           return '<div class="cat-group"><div class="cat-group-head">' + esc(t(g.labelKey)) + '</div>' +
-            g.cats.map(function (c) { return catRow(c, OWN_SRC); }).join('') + '</div>';
+            g.cats.map(catRow).join('') + '</div>';
         }).join('') +
-        // What other people handed over and this person has not passed on yet —
-        // its own portion, by giver, so it never blends into one's own takings.
-        ((s.givers || []).length ? '<div class="cat-group"><div class="cat-group-head">' +
-          esc(t('grp_received')) + '</div>' +
-          s.givers.map(function (g) {
-            return '<div class="sh-giver">🧑 ' + esc(g.name) + '<span class="sh-giver-tot">💵' +
-              fmtMoney(g.cash) + ' · 📱' + fmtMoney(g.upi) + ' · <b>' + fmtMoney(g.total) + '</b></span></div>' +
-              g.cats.map(function (c) { return catRow(c, g.id); }).join('');
-          }).join('') + '</div>' : '') +
         '<div class="cat-selected" id="sh-total"></div>' +
         '<div class="flow-actions"><button id="sh-next" class="primary">' + esc(t('next')) + '</button></div>';
+    } else if (s.kind === 'cashsheet') {
+      // A cashier's position, read-only, then two boxes. Nothing here is
+      // selectable: the money is pooled, so there is no honest category to pick.
+      const v = s.view, money = function (o) {
+        return '<span class="cat-split">💵' + fmtMoney(o.cash) + ' · 📱' + fmtMoney(o.upi) + '</span>' +
+               '<b class="cat-tot">' + fmtMoney(o.cash + o.upi) + '</b>';
+      };
+      const group = function (labelKey, cats) {
+        if (!cats.length) return '';
+        const sub = cats.reduce(function (a, c) { return { cash: a.cash + c.cash, upi: a.upi + c.upi }; }, { cash: 0, upi: 0 });
+        return '<div class="cat-group"><div class="cat-group-head">' + esc(t(labelKey)) + '</div>' +
+          cats.map(function (c) {
+            return '<div class="sh-row ro"><span class="cat-name">' + esc(t(c.labelKey)) + '</span>' + money(c) + '</div>';
+          }).join('') +
+          '<div class="sh-row ro sub"><span class="cat-name"></span>' + money(sub) + '</div></div>';
+      };
+      const inGrp = function (keys) { return s.cats.filter(function (c) { return keys.indexOf(c.key) >= 0; }); };
+      html += group('grp_entry', inGrp(['shop', 'person', 'member', 'payment', 'bus'])) +
+        group('grp_daily', inGrp(['road', 'toto'])) +
+        (v.byGiver.length ? '<div class="cat-group"><div class="cat-group-head">' + esc(t('grp_received')) + '</div>' +
+          v.byGiver.map(function (g) {
+            return '<div class="sh-row ro"><span class="cat-name">🧑 ' + esc(g.name) + '</span>' + money(g) + '</div>';
+          }).join('') +
+          '<div class="sh-row ro sub"><span class="cat-name"></span>' + money(v.received) + '</div></div>' : '') +
+        '<div class="cat-group tot-group">' +
+          '<div class="sh-row ro"><span class="cat-name">' + esc(t('cs_total_in')) + '</span>' + money(v.totalIn) + '</div>' +
+          '<div class="sh-row ro"><span class="cat-name">' + esc(t('cs_spent')) + '</span>' + money(v.spent) + '</div>' +
+          '<div class="sh-row ro"><span class="cat-name">' + esc(t('cs_sent')) + '</span>' + money(v.out) + '</div>' +
+          '<div class="sh-row ro have"><span class="cat-name">' + esc(t('cs_available')) + '</span>' + money(v.available) + '</div>' +
+        '</div>' +
+        '<div class="section">' + esc(t('q_handover_amount')) + '</div>' +
+        '<div class="cs-inputs">' +
+          '<label>💵 ' + esc(t('cash')) + '<input id="cs-cash" inputmode="numeric" autocomplete="off"></label>' +
+          '<label>📱 ' + esc(t('upi')) + '<input id="cs-upi" inputmode="numeric" autocomplete="off"></label>' +
+        '</div>' +
+        '<div class="cat-selected" id="cs-total"></div>' +
+        '<div class="flow-actions"><button id="cs-next" class="primary">' + esc(t('next')) + '</button></div>';
     } else {
       html += '<div class="input-row">' +
         '<input id="flow-input" ' + (s.kind === 'amount' ? 'inputmode="text" placeholder="৫০০ / পাঁচশো"' : '') +
@@ -638,6 +664,7 @@
     };
     const backB = document.getElementById('back-btn');
     if (backB) backB.onclick = goBack;
+    if (s.kind === 'cashsheet') wireCashSheet(s);
     if (s.kind === 'sheet') {
       const picks = Array.prototype.slice.call(document.querySelectorAll('.sh-pick'));
       const totalEl = document.getElementById('sh-total');
@@ -666,16 +693,39 @@
         const per = {};
         picks.forEach(function (b) {
           if (!b.classList.contains('on')) return;
-          const k = b.dataset.cat, kind = b.dataset.kind, amt = Number(b.dataset.amt) || 0;
-          const src = b.dataset.src || OWN_SRC;
-          per[k] = per[k] || { cash: 0, upi: 0, src: {} };
-          per[k][kind] += amt;
-          per[k].src[src] = per[k].src[src] || { cash: 0, upi: 0 };
-          per[k].src[src][kind] += amt;
+          const k = b.dataset.cat;
+          per[k] = per[k] || { cash: 0, upi: 0 };
+          per[k][b.dataset.kind] += Number(b.dataset.amt) || 0;
         });
         submitSheet(per);
       };
     }
+  }
+  function wireCashSheet(s) {
+    const cashEl = document.getElementById('cs-cash'), upiEl = document.getElementById('cs-upi');
+    const totalEl = document.getElementById('cs-total'), nextB = document.getElementById('cs-next');
+    if (!cashEl || !upiEl || !nextB) return;
+    const have = s.view.availableTotal;
+    const num = function (el) { const n = NumParse.parseAmount(el.value.trim()); return isNaN(n) ? 0 : Math.max(0, n); };
+    const refresh = function () {
+      const c = num(cashEl), u = num(upiEl), tot = c + u;
+      // Cash and UPI are NOT capped separately: a cashier may hand over in
+      // whatever form they have — settle a UPI balance in notes, or the other
+      // way round. Only the TOTAL has to fit what they hold.
+      const over = tot > have;
+      totalEl.innerHTML = esc(t('sheet_total')) + ': ' +
+        '<span class="cat-split">💵' + fmtMoney(c) + ' · 📱' + fmtMoney(u) + '</span>' +
+        '<b class="cat-tot' + (over ? ' over' : '') + '">' + fmtMoney(tot) + '</b>' +
+        (over ? '<div class="cs-warn">⚠️ ' + esc(t('cs_over')) + ' ' + fmtMoney(have) + '</div>' : '');
+      nextB.disabled = tot <= 0 || over;
+    };
+    cashEl.oninput = refresh; upiEl.oninput = refresh;
+    refresh();
+    nextB.onclick = function () {
+      const c = num(cashEl), u = num(upiEl);
+      if (c + u <= 0 || c + u > have) return;
+      submitSheet({ __cash: c, __upi: u });
+    };
   }
   // The category step's confirm — sets cashAmount/upiAmount directly from the
   // selected chips (bypassing the hidden manual payMode/cashAmount/upiAmount
@@ -822,7 +872,7 @@
   // one-tap "use all" on the matching amount step, so a handover matches
   // reality instead of a typed/misremembered figure. Typing still works —
   // a partial handover (keeping some back) is common and legitimate.
-  function handoverFlow(cashierOpts, available) {
+  function handoverFlow(cashierOpts, available, cashView) {
     const avail = available || { cash: 0, upi: 0 };
     // cashierOpts: [{username, name}] (new server) or [name] (older server) or
     // null/[] → free-text. Normalise both shapes.
@@ -845,10 +895,6 @@
                          payment: 'cat_payment', bus: 'daily_bus',
                          road: 'daily_road', toto: 'daily_toto', received: 'cat_received',
                          other: 'cat_other' };
-    // The categories section shows what this person collected THEMSELVES; money
-    // handed to them by others gets its own section, by giver, so the two never
-    // blend into one figure.
-    const byCat = avail.byCatOwn || avail.byCat || {};
     const catsOf = function (src) {
       return Object.keys(CAT_LABELS).filter(function (k) {
         return src[k] && (src[k].cash + src[k].upi) > 0;
@@ -859,18 +905,24 @@
         return { key: k, labelKey: CAT_LABELS[k], amount: c + u, cash: c, upi: u };
       });
     };
-    const categories = catsOf(byCat);
-    const givers = (avail.byGiver || []).map(function (g) {
-      const m = {}; g.cats.forEach(function (c) { m[c.key] = { cash: c.cash, upi: c.upi }; });
-      return { id: g.id, name: g.name, cash: g.cash, upi: g.upi, total: g.total, cats: catsOf(m) };
-    }).filter(function (g) { return g.cats.length; });
-    // ONE sheet when there is money in hand: each category gets its own cash
-    // and UPI box (see the 'sheet' step kind). Nothing available yet (a brand
-    // new collector, or books already at zero) → the plain manual entry.
-    // a cashier may be holding ONLY other people's parcels and none of their
-    // own — the sheet must still open, or they could not pass anything on
-    const moneySteps_ = (categories.length || givers.length)
-      ? [{ key: 'sheet', qKey: 'q_handover_sheet', kind: 'sheet', categories: categories, givers: givers }]
+    const categories = catsOf(avail.byCat || {});
+    // TWO different screens, because the two jobs are genuinely different.
+    //
+    // A COLLECTOR knows which round each note came from, so they pick
+    // categories and the handover carries an exact per-category breakdown.
+    //
+    // A CASHIER/ADMIN holds money pooled from many people; asking them to
+    // attribute it category by category would be guesswork dressed up as
+    // precision — and slow. They get their position laid out read-only and type
+    // one cash figure and one UPI figure. The category trail therefore ends at
+    // the cashier hop, on purpose: what reaches the next person is recorded as
+    // "handed over by X", with the sender's position at that moment saved
+    // alongside it.
+    const cashierMode = !!(cashView && Auth.isCashier());
+    const moneySteps_ = cashierMode
+      ? [{ key: 'cashsheet', qKey: 'q_handover_amount', kind: 'cashsheet', view: cashView, cats: catsOf(cashView.collectedByCat) }]
+      : categories.length
+      ? [{ key: 'sheet', qKey: 'q_handover_sheet', kind: 'sheet', categories: categories }]
       : [
           { key: 'payMode', qKey: 'q_mode', kind: 'choice', options: modeOptions(false) },
           { key: 'cashAmount', qKey: 'q_cash_amount', kind: 'amount', showIf: needCash },
@@ -884,7 +936,17 @@
       ]),
       save: function (a) {
         let m, breakdown = null;
-        if (a.sheet && typeof a.sheet === 'object') {
+        if (a.cashsheet && typeof a.cashsheet === 'object') {
+          // A cashier types one cash and one UPI figure — there is no honest
+          // category to record, so instead the row keeps a SNAPSHOT of where
+          // they stood at that moment. Six months later "what did Jadav have
+          // when he passed this on?" still has an answer. The `__` prefix marks
+          // it as metadata so no reader mistakes it for a category.
+          const c = Number(a.cashsheet.__cash) || 0, u = Number(a.cashsheet.__upi) || 0;
+          const v = cashView || {};
+          breakdown = { __snap: { totalIn: v.totalIn, spent: v.spent, sent: v.out, available: v.available } };
+          m = { cash: c, upi: u, total: c + u };
+        } else if (a.sheet && typeof a.sheet === 'object') {
           // the sheet already IS the per-category, per-money-type split —
           // store it verbatim so both sides' books stay exact
           breakdown = {}; let cash = 0, upi = 0;
@@ -918,7 +980,12 @@
   }
   function startHandover() {
     const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
-    const availP = viewData().then(function (data) { return Aggregate.myAvailable(data, ident); });
+    const availP = viewData().then(function (data) {
+      return { avail: Aggregate.myAvailable(data, ident),
+               // only a cashier/admin uses this, but computing it always keeps
+               // the two code paths from drifting apart
+               view: Aggregate.cashierView(data, ident) };
+    });
     // a cashier/admin is also a valid handover recipient for everyone ELSE,
     // so the server list rightly includes them — but they can't hand money
     // to themselves, so drop their own name from their own "to" list.
@@ -927,10 +994,10 @@
     };
     if (navigator.onLine && Sync.configured()) {
       Auth.call('cashiers', { token: Auth.token() })
-        .then(function (resp) { return availP.then(function (avail) { startFlow(handoverFlow(others(resp.cashiers), avail)); }); })
-        .catch(function () { availP.then(function (avail) { startFlow(handoverFlow(null, avail)); }); });
+        .then(function (resp) { return availP.then(function (a) { startFlow(handoverFlow(others(resp.cashiers), a.avail, a.view)); }); })
+        .catch(function () { availP.then(function (a) { startFlow(handoverFlow(null, a.avail, a.view)); }); });
     } else {
-      availP.then(function (avail) { startFlow(handoverFlow(null, avail)); });
+      availP.then(function (a) { startFlow(handoverFlow(null, a.avail, a.view)); });
     }
   }
   function dailyFlow(type) {
