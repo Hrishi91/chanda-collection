@@ -3759,3 +3759,14 @@ from Hrishi rather than a fix — most collectors have an empty reports list and
 can open no central report at all.
 
 Nothing in the code changed. 372 passed, 0 failed.
+
+## Rebake config.js for the v4.0.0 deployment
+
+New `/exec` after Hrishi redeployed. Confirmed the new code is actually serving
+before rebaking: `clearTraining` reaches its token gate (`no-token`) while a
+nonsense action still returns `unknown action` — so the v3.93.0–v4.0.0 server
+half is live, not just in the repo.
+
+Still to confirm with a token: whether `setup()` ran (the `Messages` sheet), and
+the whole three-role pass — the Sheet-performance work (S1–S3) has never been
+exercised against a real Sheet.
