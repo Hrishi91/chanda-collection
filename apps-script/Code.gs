@@ -220,13 +220,41 @@ function setConfig_(key, value) {
 }
 // Next receipt serial for a year, e.g. "2026-0001". Callers already hold the
 // script lock (push), so the read-increment-write is atomic → never duplicates.
+// The single source of "has anything changed?". Every write bumps it; a delta
+// pull compares against it and, if nothing is newer, answers with an empty
+// delta WITHOUT reading a single sheet. Idle polls are the overwhelming
+// majority of all traffic — ten phones, once a minute, all day.
+// Deliberately NOT best-effort. If this fails the stamp stays behind the rows
+// just written, every device's `since` then reads as "already up to date", and
+// the fast path skips real rows — silently, forever. A thrown error instead
+// fails the push, the client retries, and rows upsert by id, so a retry is
+// harmless. Loud beats lossy.
+function touchData_() { setConfig_('data_ts', String(Date.now())); }
+function dataTs_() { return Number(readConfig_().data_ts) || 0; }
+
 function nextReceiptNo_(year) {
   var cfg = readConfig_(), key = 'receiptSeq_' + year;
   var n = (Number(cfg[key]) || 0) + 1;
   setConfig_(key, n);
-  var d = Math.min(9, Math.max(4, Number(cfg.receipt_digits) || 6)); // admin-set width
-  var s = '' + n; while (s.length < d) s = '0' + s; // starts at 000…001
+  return formatReceiptNo_(year, n, cfg.receipt_digits);
+}
+function formatReceiptNo_(year, n, digits) {
+  var d = Math.min(9, Math.max(4, Number(digits) || 6)); // admin-set width
+  var s = '' + n; while (s.length < d) s = '0' + s;      // starts at 000…001
   return '' + year + s; // e.g. 2026000001 — year prefix, no separator
+}
+// Hand out several serials in one go. The per-row version read the WHOLE Config
+// sheet and wrote it back for every single receipt: a 20-row offline catch-up
+// meant 20 full reads and 20 writes inside the lock. This reads once, counts in
+// memory, writes once — still atomic, because push holds the script lock.
+function reserveReceiptNos_(year, howMany) {
+  if (howMany <= 0) return [];
+  var cfg = readConfig_(), key = 'receiptSeq_' + year;
+  var start = (Number(cfg[key]) || 0) + 1;
+  var out = [];
+  for (var i = 0; i < howMany; i++) out.push(formatReceiptNo_(year, start + i, cfg.receipt_digits));
+  setConfig_(key, start + howMany - 1);
+  return out;
 }
 
 // Notification counts + detail items for a user, computed from an already-read
@@ -457,6 +485,18 @@ var ACTIONS = {
             idRow[String(v[0])] = i + 2;
           });
         }
+        // Two Sheet writes per store instead of one per row. appendRow costs a
+        // round trip each; a 20-row offline catch-up used to be 20 of them
+        // inside the lock. Collect the new rows, write them in one setValues.
+        var pending = [];
+        // reserve every serial this batch needs in a single Config read/write
+        var needSerial = byStore[store].filter(function (r) {
+          return !idRow[r.id] && !r.receiptNo &&
+                 (store === 'payments' || (store === 'daily' && r.type === 'bus'));
+        });
+        var serials = reserveReceiptNos_(Number((needSerial[0] || {}).year) || new Date().getFullYear(),
+                                         needSerial.length);
+        var serialAt = 0;
         byStore[store].forEach(function (row) {
           row.receivedAt = new Date().toISOString();
           // Identity is stamped from the TOKEN, unconditionally — never taken
@@ -480,9 +520,8 @@ var ACTIONS = {
             row.collectorRole = roleOf_(reassign.row.role, reassign.row.cashier);
             reassigned[claimed] = (reassigned[claimed] || 0) + 1;
             var values0 = cols.map(function (c) { return row[c] !== undefined ? row[c] : ''; });
-            var isNew0 = !idRow[row.id];
-            if (!isNew0) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([values0]);
-            else sh.appendRow(values0);
+            if (idRow[row.id]) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([values0]);
+            else pending.push(values0);
             savedIds.push(row.id);
             return;
           }
@@ -500,22 +539,27 @@ var ACTIONS = {
           // one receipt serial, assigned once at first insert — every payment,
           // and daily BUS collections (they get a name+number receipt too).
           if (isNew && !row.receiptNo && (store === 'payments' || (store === 'daily' && row.type === 'bus'))) {
-            row.receiptNo = nextReceiptNo_(Number(row.year) || new Date().getFullYear());
+            row.receiptNo = serials[serialAt++];
             receipts[row.id] = row.receiptNo;
           }
           var values = cols.map(function (c) { return row[c] !== undefined ? row[c] : ''; });
           if (!isNew) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([values]);
           else {
-            sh.appendRow(values);
+            pending.push(values);
             if (store === 'voids') logAudit_(user.row, 'void', row.targetStore + '/' + row.targetId + (row.reason ? ' — ' + row.reason : ''));
           }
           savedIds.push(row.id);
         });
+        // one write for every new row in this store
+        if (pending.length) {
+          sh.getRange(sh.getLastRow() + 1, 1, pending.length, cols.length).setValues(pending);
+        }
       });
       // an admin filing rows under someone else is unusual enough to record
       Object.keys(reassigned).forEach(function (u2) {
         logAudit_(user.row, 'restore:attribute', reassigned[u2] + ' rows → @' + u2);
       });
+      if (savedIds.length) touchData_(); // AFTER the rows, so the stamp is never behind them
       return { ok: true, savedIds: savedIds, receipts: receipts, rejectedIds: rejectedIds,
                reassigned: reassigned };
     } finally { lock.releaseLock(); }
@@ -602,6 +646,7 @@ var ACTIONS = {
           }
           logAudit_(u.row, b.decision === 'approve' ? 'correction:approve' : 'correction:reject',
             corr.targetStore + '/' + corr.targetId + (corr.reason ? ' — ' + corr.reason : ''));
+          touchData_(); // a resolved flag (and its void row) must reach every device
           return { ok: true };
         }
       }
@@ -619,8 +664,28 @@ var ACTIONS = {
   // whether the Sheet stored receivedAt as an ISO string or a Date cell.
   pull: function (b) {
     var u = requireUser_(b.token);
+    // FAST PATH. A delta pull whose cursor is already at or past the last write
+    // needs no sheet read at all — and that is what almost every poll is. Note
+    // `me` and `config` still ride along, so a permission change still reaches
+    // a device within one poll; only the (unchanged) row data is skipped.
+    if (b.since != null && b.since !== '') {
+      // ONE config read serves both the stamp and the config payload — reading
+      // it twice on the hot path is exactly the kind of waste this fast path
+      // exists to remove.
+      var cfg = readConfig_();
+      var ts = Number(cfg.data_ts) || 0;
+      if (ts && Number(b.since) >= ts) {
+        var pub = {};
+        Object.keys(cfg).forEach(function (k) { if (k.indexOf('receiptSeq_') !== 0) pub[k] = cfg[k]; });
+        return { ok: true, mode: 'delta', data: {}, cursor: String(b.since),
+                 config: pub, me: publicUser_(u.row), notif: null, idle: true };
+      }
+    }
     var all = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
-    var cursor = maxReceivedAt_(all);
+    // one clock for both: the stamp is written after the rows, so it is always
+    // >= every receivedAt in them. Returning the larger of the two means the
+    // next poll's `since` lines up with the stamp and the fast path can fire.
+    var cursor = Math.max(maxReceivedAt_(all), dataTs_());
     var me = publicUser_(u.row); // fresh user → permission changes reach devices without re-login
     var notif = notifData_(u, all); // ride the notification feed in the same call (halves polling)
     if (b.since != null && b.since !== '') {
@@ -689,6 +754,7 @@ var ACTIONS = {
       // every device clears its local copy on the next pull, or phones would
       // keep showing practice rows the sheet no longer has
       setConfig_('data_epoch', String(Date.now()));
+      touchData_(); // the sheets are now empty — no device may fast-path past that
       logAudit_(me.row, 'training:clear', 'practice data cleared; backup=' + backupFile);
       return { ok: true, backup: backupFile };
     } finally { lock.releaseLock(); }
@@ -721,6 +787,7 @@ var ACTIONS = {
       setConfig_('receipt_digits', digits);
       setConfig_('live_mode', 'on');
       setConfig_('data_epoch', String(Date.now()));
+      touchData_(); // the sheets are now empty — no device may fast-path past that
       logAudit_(me.row, 'went-live', 'training data cleared; digits=' + digits + '; backup=' + backupFile);
       return { ok: true, backup: backupFile };
     } finally { lock.releaseLock(); }
@@ -778,6 +845,7 @@ var ACTIONS = {
       });
       // every device must drop its cached snapshot and re-pull the restored data
       setConfig_('data_epoch', String(Date.now()));
+      touchData_();
       logAudit_(me.row, 'restore', file.getName() + ' → [' + restored.join(', ') + '] (safety: ' + safety + ')');
       return { ok: true, restored: restored, safetyBackup: safety };
     } finally { lock.releaseLock(); }
@@ -834,6 +902,7 @@ var ACTIONS = {
         sh.getRange(r, cols.indexOf('confirmedAt') + 1).setValue(new Date().toISOString());
         // bump receivedAt so the delta pull carries this in-place status change
         sh.getRange(r, cols.indexOf('receivedAt') + 1).setValue(new Date().toISOString());
+        touchData_(); // confirming moves money between two people's books
         var hv = sh.getRange(r, 1, 1, cols.length).getValues()[0];
         var bdCol = cols.indexOf('breakdown');
         logAudit_(u.row, 'handover:confirm', '₹' + hv[cols.indexOf('amount')] + ' from ' + hv[cols.indexOf('from')] +

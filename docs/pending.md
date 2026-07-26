@@ -279,6 +279,9 @@ What this deployment carries:
 - `Messages` sheet + `chat_off` kill switch (enforced server-side).
 - `cashiers` returns `role` + the admin's `phone` (A13 — the no-permission
   card's 📞/💬 buttons need them).
+- **v4.0.0 Sheet performance**: `data_ts` stamp + idle fast path (159× fewer
+  cells read on an idle poll), batched row writes, batched serial reservation.
+  Biggest server change in the project — re-run the three-role pass after.
 
 Right after the redeploy:
 1. **Grant every collector something** — 11 approved users have `entries=''`

@@ -3670,3 +3670,72 @@ Fair — those passes had not been run. Run now, findings both ways.
   worth churn now, noted for any future public release.
 
 VERIFIED: 372 passed, 0 failed; manifest still valid JSON; no console errors.
+
+## v4.0.0 — the Google Sheet expert's and DB expert's pass
+
+Hrishi: "google sheet expert and db expert is missing … find more." He was right
+that these were the important hats left, because this is where the money lives
+and where the whole system's cost is decided. Three findings, all real, all
+measured against the REAL `Code.gs` driven by a fake Sheet that counts cells.
+
+### S1 (the big one) — every poll read the entire book, even when nothing changed
+
+`pull` called `readAll_` unconditionally: `getDataRange().getValues()` on all
+eight sheets, then filtered by year in JavaScript. A delta poll that returned
+zero rows still read every row ever written that season. Ten phones × once a
+minute × all day, growing every day — and since v3.96.0, chat rows inflated
+that read too.
+
+Fixed with a `data_ts` stamp in Config, bumped by every action that changes
+rows. A delta pull whose cursor is already at or past the stamp answers with an
+empty delta having read **one small Config range** and nothing else.
+
+    400 payments in the book
+      full pull   6,057 cells
+      idle pull      38 cells      ← 159× less
+
+TWO TRAPS, both real, both avoided deliberately:
+- **One clock.** The cursor handed back is `max(maxReceivedAt, data_ts)`. Left
+  as `maxReceivedAt` alone, the client's `since` would always sit just behind
+  the stamp and the fast path would never once fire.
+- **The stamp is NOT best-effort.** If bumping it failed silently, the stamp
+  would sit behind rows that exist, every device would read as "already up to
+  date", and real rows would be skipped forever. It throws instead: the push
+  fails, the client retries, rows upsert by id, no harm. Loud beats lossy.
+
+Proven against the real code, not reasoned: after a write, a pull with the OLD
+cursor still delivers the new row (`late row delivered=true`), and the poll
+after that is fast again.
+
+### S2 — a batch of rows meant a Sheet write per row
+
+`push` called `appendRow` once per row: each one a separate round trip inside
+the script lock. A collector coming back online after a morning offline pushes
+their whole queue at once.
+
+Now every new row for a store is collected and written with ONE `setValues`.
+
+### S3 — every receipt serial read and rewrote the whole Config sheet
+
+`nextReceiptNo_` did `readConfig_()` + `setConfig_()` per serial, inside the row
+loop. Twenty payments meant twenty full Config reads and twenty writes.
+`reserveReceiptNos_` takes them all in one read/write, counting in memory —
+still atomic, because `push` holds the script lock throughout.
+
+    push of 20 rows into one store, Sheet operations
+      before   1 index read + 20×(Config read + write) + 20 appendRow  = 61
+      after    1 index read +  1×(Config read + write) +  1 setValues  =  4
+
+Verified on 400 rows: 400 saved, **400 unique consecutive serials**
+2026000001–2026000400, one `setValues`, `data_ts` stamped.
+
+### Client compatibility
+The idle response carries `data:{}` and `notif:null`. `mergeDelta` already
+ignores empty stores and `if (resp.notif)` already guards the feed, so no client
+change was needed — checked rather than assumed. `me` and `config` still ride
+every idle response, so a permission change still reaches a phone within one
+poll.
+
+VERIFIED: 372 passed, 0 failed; the push/pull harness above runs the real
+`Code.gs`. Nothing here can be exercised against the live Sheet until the
+redeploy — this is now the largest item on that checklist.
