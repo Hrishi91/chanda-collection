@@ -4553,3 +4553,29 @@ may enrich report rows for display (byCat, cash/upi columns — documented
 divergence #2), but a SHARED number drifting fails the suite.
 
 525 passed, 0 failed. Client-only; sw + CODE_VERSION → v4.5.6 in lockstep.
+
+## 2026-07-27 — v4.5.6 deployed: the fingerprint pays off on its first use
+
+Hrishi deployed and sent a new `/exec`. For the first time the check was a
+single tokenless call rather than an inference:
+
+    curl -sL "$EXEC"
+    → {"ok":true,"service":"chanda-khata","version":"chanda-v4.5.6"}
+
+deployed === `CODE_VERSION` in Code.gs === `VERSION` in sw.js — all three
+`chanda-v4.5.6`. That equality is the proof R1's guard is live: it shipped in
+the same file, and the version test forbids the pair drifting. No probe, no
+"the action exists so it is probably recent", no waiting to find out during a
+restore. Two rounds of exactly that yesterday are what bought this line.
+
+Also answered along the way, for the record: **no redeploy was needed for any
+of A19/A20/A21/R2** — those were client-only and had already reached every
+phone through Pages. The only things that had been waiting on a deployment were
+R1 (restore guard) and the marker itself, and the honest advice was "no rush
+unless you are about to restore a backup". Worth keeping that distinction sharp
+in future: "is this client or server?" decides whether Hrishi has to do
+anything at all.
+
+config.js rebaked (fifth URL of the cycle — this account mints one per deploy).
+Backend and client are now on the same version, and **nothing is pending a
+redeploy.** 525 passed, 0 failed.

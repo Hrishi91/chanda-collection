@@ -455,7 +455,7 @@ proven to bite.
 
 ### Registered, awaiting Hrishi's call (no code changed)
 
-- **R1 MED — FIXED 2026-07-26 (rides the next redeploy) — push upsert could regress a settled handover on restore.** `push`
+- **R1 MED — FIXED & DEPLOYED 2026-07-27 — push upsert could regress a settled handover on restore.** `push`
   overwrites the full `SHEETS.handovers` width by id. Admin backup-import
   deliberately sets `synced:0` (A14), so a restored sender copy still reading
   `status:'pending'` re-pushes and would flip a server-side `confirmed`/

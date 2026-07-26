@@ -325,13 +325,15 @@ give different numbers:
 - [x] ~~`ensureCol_()` not in the running code~~ — resolved by the second
       2026-07-26 deployment, which carries it, so `rejectReason` heals its own
       header whether or not `setup()` was ever run.
-- [ ] **One more redeploy, whenever convenient** — to activate the `doGet` version
-      marker (`CODE_VERSION`), after which any deployment can be verified with a
-      single tokenless `curl`. Nothing waits on it; today's backend is complete.
+- [x] ~~One more redeploy to activate the `doGet` version marker~~
+      (2026-07-27). **Nothing is now waiting on a redeploy.** Any deployment can
+      be verified in one tokenless call:
+      `curl -sL "$EXEC"` → `{"ok":true,"service":"chanda-khata","version":"chanda-v4.5.6"}`
+      — compare against `CODE_VERSION` in apps-script/Code.gs.
 
 - [x] ~~**R1** — settled handovers AND resolved corrections now survive a
       restore re-push (`SETTLED_ON_UPSERT` + `preserve()` on both write-sites)~~
-      (2026-07-26; **rides the next redeploy**).
+      (2026-07-26; **DEPLOYED 2026-07-27**, verified by version marker).
 - [x] ~~**R2** — uncapped typed-amount fallback removed; zero ceiling now shows
       an empty-state that names the in-transit money~~ (2026-07-26, client-only).
 
