@@ -3814,3 +3814,23 @@ applied. Tests parse the allow object itself — proven to bite — and assert t
 `live_mode`, `data_ts` and the serial counters can never be written through it.
 
 378 passed, 0 failed. A16's server half needs one more redeploy.
+
+## v4.0.1 deployed — A16 verified live, 45/45
+
+Rebaked for the A16 deployment. Fingerprinted it first — `setConfig` with an
+unlisted key now answers `unknown-config-key` where the old build answered
+`{ok:true}`. That fingerprint is the reliable check, not a file timestamp:
+Hrishi rightly suspected something was stale, and the file was fine — it was the
+DEPLOYMENT that was still old, which no file date can tell you.
+
+The kill switch, end to end on the live sheet:
+
+    1. flip off (the exact call the button makes)  → {"ok":true,"applied":["chat_off"]}
+    2. stored?                                     → chat_off='on'
+    3. collector sends a message                   → rejected (saved 0, rejected 1)
+    4. flip back on                                → {"ok":true,"applied":["chat_off"]}
+    5. same collector sends again                  → delivered (saved 1)
+
+`applied:["chat_off"]` in the response is the part that would have caught this
+in the first place — the old action returned a bare `ok:true` whether it wrote
+anything or not.
