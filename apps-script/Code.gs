@@ -27,7 +27,12 @@ var SHEETS = {
               'status', 'confirmedBy', 'confirmedAt', 'collector', 'createdAt', 'receivedAt', 'fromId', 'toId', 'collectorId', 'collectorRole',
               // JSON {cat:{cash,upi}} of which source categories the money
               // came from — keeps both sides' per-category in-hand exact
-              'breakdown'],
+              'breakdown',
+              // why the receiver said "পাইনি". APPENDED LAST on purpose: setup()
+              // migrates headers by adding missing names at the end, and every
+              // write here is position-based, so inserting mid-list would shift
+              // every column after it in existing sheets.
+              'rejectReason'],
   // audit-preserving corrections: a void points at another record's id
   voids: ['id', 'year', 'targetStore', 'targetId', 'reason', 'collector', 'createdAt', 'receivedAt', 'collectorId'],
   // a collector's "this is wrong" flag → a cashier/admin approves(void)/rejects
@@ -261,12 +266,24 @@ function reserveReceiptNos_(year, howMany) {
 // year dataset (so `pull` can include it without a second sheet read).
 function notifData_(u, d) {
   d = activeData_(d); // a voided (e.g. undo-voided) handover must not keep notifying the cashier
-  var out = { handovers: 0, approvals: 0, corrections: 0 };
-  var items = { handovers: [], approvals: [], corrections: [] };
+  var out = { handovers: 0, approvals: 0, corrections: 0, rejections: 0 };
+  var items = { handovers: [], approvals: [], corrections: [], rejections: [] };
+  // A refusal only reaches the SENDER, and it is the one notification that is
+  // not a task queue: their in-hand figure does not move on a rejection (the
+  // money never came off), only their handover ceiling grows back — so without
+  // being told, money would quietly become spendable again with no explanation.
+  // Everyone gets this, cashier or not.
+  (d.handovers || []).forEach(function (h) {
+    if (String(h.status) !== 'rejected') return;
+    if (String(h.fromId || h.from) !== String(u.row.username) && h.from !== u.row.name) return;
+    items.rejections.push({ id: h.id, to: h.to, amount: Number(h.amount) || 0,
+                            date: h.date, reason: h.rejectReason || '' });
+  });
+  out.rejections = items.rejections.length;
   var isCashier = Number(u.row.cashier) === 1 || u.row.role === 'admin';
   if (isCashier) {
     (d.handovers || []).forEach(function (h) {
-      if ((String(h.toId || h.to) === String(u.row.username) || h.to === u.row.name) && h.status !== 'confirmed') {
+      if (isRecipient_(h, u) && h.status !== 'confirmed' && h.status !== 'rejected') {
         // breakdown rides along so the receiver's notification shows the same
         // per-category / cash-UPI detail the giver picked
         items.handovers.push({ id: h.id, from: h.from, amount: Number(h.amount) || 0,
@@ -942,6 +959,56 @@ var ACTIONS = {
     throw new Error('not-found');
   },
 
+  // "পাইনি" — the other half of confirmHandover, and the reason the ❌ slot in
+  // আমার হিসাব could never fill before this.
+  //
+  // A rejection is NOT a void: the parcel really was claimed, and both people
+  // need the record of the claim and of the refusal. It simply stops being in
+  // transit, so the sender's handover ceiling grows back by that amount while
+  // their in-hand figure never moved (it never came off — see mySummary).
+  //
+  // A reason is REQUIRED. "পাইনি" with no explanation is an accusation the
+  // sender cannot act on; with one ("খামে ২৫০ ছিল না, ২০০ ছিল") it is
+  // information, and they know whether to re-send or to talk.
+  rejectHandover: function (b) {
+    var u = requireUser_(b.token);
+    if (Number(u.row.cashier) !== 1 && u.row.role !== 'admin') throw new Error('not-cashier');
+    var reason = String(b.reason || '').trim().slice(0, 200);
+    if (!reason) throw new Error('reason-required');
+    var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.handovers);
+    var cols = SHEETS.handovers;
+    if (sh.getLastRow() < 2) throw new Error('not-found');
+    var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) !== String(b.id)) continue;
+      var r = i + 2;
+      var hv = sh.getRange(r, 1, 1, cols.length).getValues()[0];
+      var rowObj = {};
+      cols.forEach(function (c, ci) { rowObj[c] = hv[ci]; });
+      // same gate as confirming, and for the same reason: refusing money moves
+      // both books too, so only the person it was sent to may do it.
+      var mine = isRecipient_(rowObj, u);
+      if (!mine && u.row.role !== 'admin') throw new Error('not-recipient');
+      if (String(rowObj.status) === 'confirmed') throw new Error('already-confirmed');
+      if (String(rowObj.status) === 'rejected') throw new Error('already-rejected');
+      sh.getRange(r, cols.indexOf('status') + 1).setValue('rejected');
+      // confirmedBy/At double as "who answered, and when" — the status says what
+      // the answer was, so a rejection needs no extra pair of columns.
+      sh.getRange(r, cols.indexOf('confirmedBy') + 1).setValue(u.row.name);
+      sh.getRange(r, cols.indexOf('confirmedAt') + 1).setValue(new Date().toISOString());
+      var rrCol = cols.indexOf('rejectReason');
+      if (rrCol >= 0) sh.getRange(r, rrCol + 1).setValue(reason);
+      // bump receivedAt so the delta pull carries this in-place status change
+      sh.getRange(r, cols.indexOf('receivedAt') + 1).setValue(new Date().toISOString());
+      touchData_(); // the sender's handover ceiling changes the moment this lands
+      logAudit_(u.row, mine ? 'handover:reject' : 'handover:reject-on-behalf',
+        '₹' + hv[cols.indexOf('amount')] + ' from ' + hv[cols.indexOf('from')] +
+        (mine ? '' : ' → ' + (rowObj.to || rowObj.toId)) + ' — ' + reason);
+      return { ok: true };
+    }
+    throw new Error('not-found');
+  },
+
   // ---------- expense subjects ----------
   listSubjects: function (b) {
     requireUser_(b.token); // cashier needs the list to record an expense
@@ -1381,7 +1448,10 @@ function personalSummary_(d, ident) {
     var amt = num_(h.amount);
     if (isTo(h) && h.status === 'confirmed') received += amt;
     if (isFrom(h) && h.status === 'confirmed') handedOver += amt;
-    if (isFrom(h) && h.status !== 'confirmed') pending += amt;
+    // MIRRORS js/aggregate.js personalSummary: a rejected parcel is neither
+    // handed over nor in transit — it came back. `!== 'confirmed'` alone would
+    // keep reporting it as awaiting confirmation for ever.
+    if (isFrom(h) && h.status !== 'confirmed' && h.status !== 'rejected') pending += amt;
   });
   var collected = sumBy_(money, function (r) { return r.amount; });
   var expenseTotal = sumBy_(myExp, function (e) { return e.amount; });

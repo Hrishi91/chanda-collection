@@ -308,7 +308,21 @@
     if (notifCounts.handovers > 0) parts.push(notifCounts.handovers + ' ' + t('notif_handovers'));
     if (notifCounts.approvals > 0) parts.push(notifCounts.approvals + ' ' + t('notif_approvals'));
     if (notifCounts.corrections > 0) parts.push(notifCounts.corrections + ' ' + t('notif_corrections'));
+    if (notifCounts.rejections > 0) parts.push(notifCounts.rejections + ' ' + t('notif_rejections'));
     return parts.join(' • ');
+  }
+  // Locally dismissed rejection notices. A rejection has no "done" state on the
+  // server — the row stays 'rejected' — so without this the banner would nag for
+  // the rest of the season. Kept per device on purpose: it is a read receipt, not
+  // data, and the money record itself lives in the summary and the handover book.
+  function rejSeenIds() {
+    try { return JSON.parse(Settings.get('rejSeen') || '[]') || []; } catch (e) { return []; }
+  }
+  function rejSeen(id) { return rejSeenIds().indexOf(String(id)) >= 0; }
+  function rejMarkSeen(id) {
+    const ids = rejSeenIds();
+    if (ids.indexOf(String(id)) < 0) ids.push(String(id));
+    Settings.set('rejSeen', JSON.stringify(ids.slice(-200))); // cap: it only grows
   }
   function notifRow(msg, actions) {
     return '<div class="notif-item" style="display:block">' +
@@ -323,7 +337,8 @@
     const el = document.getElementById('notif-banner');
     if (!el) return;
     const it = notifItems || {};
-    const haveDetail = (it.approvals && it.approvals.length) || (it.handovers && it.handovers.length) || (it.corrections && it.corrections.length);
+    const haveDetail = (it.approvals && it.approvals.length) || (it.handovers && it.handovers.length) ||
+      (it.corrections && it.corrections.length) || (it.rejections && it.rejections.length);
     let html = '';
     (it.approvals || []).forEach(function (a) {
       html += notifRow('🙋 <b>' + esc(a.name) + '</b> (@' + esc(a.username) + ') — ' + esc(t('notif_wants_approve')),
@@ -340,6 +355,18 @@
       html += notifRow('⚠️ ' + esc(c.reason || (c.targetStore + '/' + c.targetId)) +
           (c.by ? ' <span class="row-sub">— ' + esc(c.by) + '</span>' : ''),
         '<button class="chip" data-nav="review">👁 ' + esc(t('review_btn')) + '</button>');
+    });
+    // A refusal only ever reaches the SENDER, and unlike the others it is not a
+    // task the server can mark done — the row stays 'rejected' for good. So the
+    // dismissal is local to this device; the permanent record lives in আমার
+    // হিসাব's ❌ slot and in 📗 জমা-খাতা, so dismissing loses nothing.
+    (it.rejections || []).filter(function (x) { return !rejSeen(x.id); }).forEach(function (x) {
+      html += notifRow('❌ <b>' + esc(x.to || '?') + '</b> — ' + fmtMoney(x.amount) + ' ' +
+          esc(t('notif_rejected')) + ' <span class="row-sub">' + esc(fmtDate(x.date)) + '</span>' +
+          (x.reason ? '<div class="row-sub">“' + esc(x.reason) + '”</div>' : '') +
+          '<div class="row-sub">' + esc(t('notif_rejected_sub')) + '</div>',
+        '<button class="chip on" data-go="handover">🤝 ' + esc(t('handover_title')) + '</button>' +
+        '<button class="chip" data-rejseen="' + esc(x.id) + '">' + esc(t('got_it')) + '</button>');
     });
     // fallback: no detail from the server → show the old count chips
     if (!haveDetail) {
@@ -359,6 +386,10 @@
     el.querySelectorAll('[data-nav]').forEach(function (b) {
       b.onclick = function () { navigate(b.dataset.nav); };
     });
+    el.querySelectorAll('[data-rejseen]').forEach(function (b) {
+      b.onclick = function () { rejMarkSeen(b.dataset.rejseen); renderNotifBanner(); };
+    });
+    wireNav(); // the rejection notice offers "🤝 জমা দিলাম", which is a data-go
     el.querySelectorAll('[data-na]').forEach(function (b) {
       b.onclick = function () {
         b.disabled = true;
@@ -377,12 +408,13 @@
   // Apply a notification payload (from `pull` or the standalone action):
   // update the banner, toast on new items, refresh the current data view.
   function applyNotifications(n, items) {
-    n = n || { handovers: 0, approvals: 0, corrections: 0 };
-    const total = (n.handovers || 0) + (n.approvals || 0) + (n.corrections || 0);
-    const prev = (notifCounts.handovers || 0) + (notifCounts.approvals || 0) + (notifCounts.corrections || 0);
+    n = n || { handovers: 0, approvals: 0, corrections: 0, rejections: 0 };
+    const total = (n.handovers || 0) + (n.approvals || 0) + (n.corrections || 0) + (n.rejections || 0);
+    const prev = (notifCounts.handovers || 0) + (notifCounts.approvals || 0) + (notifCounts.corrections || 0) +
+      (notifCounts.rejections || 0);
     const changed = total !== prev;
     notifCounts = n;
-    notifItems = items || { handovers: [], approvals: [], corrections: [] };
+    notifItems = items || { handovers: [], approvals: [], corrections: [], rejections: [] };
     renderNotifBanner();
     if (total > prev) { const m = notifText(); if (m) { toast('🔔 ' + m); osNotify(m); } }
     // auto-refresh a data view (e.g. admin panel) when the count changes,
@@ -2285,9 +2317,14 @@
   function slotRowsHTML(rows, noteKey) {
     return rows.map(function (h) {
       const split = ' · 💵' + fmtMoney(Number(h.cashAmount) || 0) + ' · 📱' + fmtMoney(Number(h.upiAmount) || 0);
+      // A refused parcel carries the receiver's REASON — that is the whole point
+      // of the slot, and it is the only thing the sender can act on. Falling back
+      // to the pending wording ("hasn't confirmed yet") would be a plain lie.
+      const tail = noteKey === 'slot_rejected_row'
+        ? (h.rejectReason ? ' · “' + esc(h.rejectReason) + '”' : ' · ' + esc(t('slot_rejected_norsn')))
+        : esc(t(noteKey)) + (noteKey === 'slot_got_row' ? split : '');
       return '<div class="kid"><span class="k">' + esc(h.to || h.toId || h.from || '?') +
-        '<span class="note">' + esc(fmtDate(h.date)) + ' · ' + esc(t(noteKey)) +
-        (noteKey === 'slot_got_row' ? split : '') + '</span></span>' +
+        '<span class="note">' + esc(fmtDate(h.date)) + ' · ' + tail + '</span></span>' +
         '<span class="v">' + fmtMoney(Number(h.amount) || 0) + '</span></div>';
     }).join('');
   }
@@ -2342,7 +2379,7 @@
               slotRowsHTML(pend.rows, 'slot_await_row') +
               '<div class="expl">' + tMoney('slot_pending_note', m.afterApprove) + '</div>', 'pendbox') : '') +
             (rej.total ? grpHTML(true, esc(t('slot_rejected')), fmtMoney(rej.total),
-              slotRowsHTML(rej.rows, 'slot_await_row') +
+              slotRowsHTML(rej.rows, 'slot_rejected_row') +
               '<div class="expl">' + esc(t('slot_rejected_note')) + '</div>', 'nobox') : '') +
             (ok.total ? grpHTML(false, esc(t('slot_confirmed')), fmtMoney(ok.total),
               slotRowsHTML(ok.rows, 'slot_got_row') +
@@ -2460,6 +2497,44 @@
     });
     return parts.length ? '<div class="bd-line">' + parts.join('') + '</div>' : '';
   }
+  // One label for a handover's outcome, used by every screen that shows one, so
+  // "⏳" can never mean two different things in two places.
+  // Direction-neutral on purpose: the same row is read by the sender ("mine came
+  // back") and the receiver ("I said I hadn't got it"), so the wording states the
+  // FACT — that "not received" was recorded — rather than either point of view.
+  // `flag_pending` used to be borrowed here; it is the correction-flag wording
+  // ("flag করা"), which says nothing true about a handover in transit.
+  function hoStatusLabel(status) {
+    return status === 'confirmed' ? ' • ✅ ' + esc(t('ho_confirmed'))
+      : status === 'rejected' ? ' • ❌ ' + esc(t('ho_rejected'))
+      : ' • ⏳ ' + esc(t('ho_pending'));
+  }
+  // Wire ✅ পেয়েছি / ❌ পাইনি. Module level, next to the renderers that use it:
+  // a handler reaching for a function declared inside another function throws
+  // only when a user taps, which is how three buttons once went dead unnoticed.
+  // A rejection REQUIRES a reason — "পাইনি" with no explanation is an accusation
+  // the sender cannot act on, so an empty prompt aborts instead of sending.
+  function wireHandoverAnswers(root, after) {
+    root.querySelectorAll('[data-hid]').forEach(function (b) {
+      b.onclick = function () {
+        b.disabled = true;
+        Auth.call('confirmHandover', { token: Auth.token(), id: b.dataset.hid })
+          .then(function () { toast(t('saved')); after(); })
+          .catch(function (e) { b.disabled = false; toast(errMsg(e)); });
+      };
+    });
+    root.querySelectorAll('[data-hrej]').forEach(function (b) {
+      b.onclick = function () {
+        const reason = window.prompt(t('reject_reason_q'), '');
+        if (reason === null) return;                       // cancelled
+        if (!String(reason).trim()) { toast(t('err_reason_required')); return; }
+        b.disabled = true;
+        Auth.call('rejectHandover', { token: Auth.token(), id: b.dataset.hrej, reason: String(reason).trim() })
+          .then(function () { toast(t('rejected_done')); after(); })
+          .catch(function (e) { b.disabled = false; toast(errMsg(e)); });
+      };
+    });
+  }
   // "জমা-খাতা" — everything this person handed over and everything handed to
   // them, in one place. Personal, so no report permission gates it, and it
   // reads the local snapshot, so it works with no signal.
@@ -2475,8 +2550,10 @@
       const head = '<div class="cat-group tot-group">' +
         '<div class="sh-row ro"><span class="cat-name">📥 ' + esc(t('hb_received')) + '</span>' + money(r.received) + '</div>' +
         (r.pendingIn.total ? '<div class="sh-row ro"><span class="cat-name">⏳ ' + esc(t('hb_pending_in')) + '</span>' + money(r.pendingIn) + '</div>' : '') +
+        (r.rejectedIn.total ? '<div class="sh-row ro"><span class="cat-name">❌ ' + esc(t('hb_rejected_in')) + '</span>' + money(r.rejectedIn) + '</div>' : '') +
         '<div class="sh-row ro"><span class="cat-name">📤 ' + esc(t('hb_sent')) + '</span>' + money(r.sent) + '</div>' +
         (r.pendingOut.total ? '<div class="sh-row ro"><span class="cat-name">⏳ ' + esc(t('hb_pending_out')) + '</span>' + money(r.pendingOut) + '</div>' : '') +
+        (r.rejectedOut.total ? '<div class="sh-row ro"><span class="cat-name">❌ ' + esc(t('hb_rejected_out')) + '</span>' + money(r.rejectedOut) + '</div>' : '') +
         '</div>';
       const tabs = [['all', t('all')], ['in', '📥 ' + t('hb_received')], ['out', '📤 ' + t('hb_sent')]];
       const rows = r.rows.filter(function (x) { return hbFilter === 'all' || x.dir === hbFilter; });
@@ -2491,9 +2568,9 @@
               ' · 📱' + fmtMoney((x.snap.available || {}).upi) + '</div>' : '');
         return '<div class="row hb-row" data-hb="' + esc(x.id) + '" style="flex-wrap:wrap">' +
           '<div style="flex:1 1 55%"><b>' + (x.dir === 'in' ? '📥 ' : '📤 ') + esc(x.who) + '</b>' +
-          '<div class="row-sub">' + esc(fmtDate(x.date)) +
-          (x.status !== 'confirmed' ? ' • ⏳ ' + esc(t('flag_pending')) : ' • ✅') +
-          (x.note ? ' • ' + esc(x.note) : '') + '</div></div>' + money(x) +
+          '<div class="row-sub">' + esc(fmtDate(x.date)) + hoStatusLabel(x.status) +
+          (x.note ? ' • ' + esc(x.note) : '') + '</div>' +
+          (x.rejectReason ? '<div class="row-sub">“' + esc(x.rejectReason) + '”</div>' : '') + '</div>' + money(x) +
           (detail ? '<div class="hb-detail" hidden>' + detail + '</div>' : '') + '</div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>';
       $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('hb_title')) + '</div>' +
@@ -2518,17 +2595,26 @@
     $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('loading')) + '</div>';
     Auth.call('pendingHandovers', { token: Auth.token(), year: Settings.get('year') }).then(function (resp) {
       const mine = resp.handovers || [];
-      const pending = mine.filter(function (h) { return h.status !== 'confirmed'; });
+      // three outcomes, three lists — a refused parcel must leave the queue, or
+      // the cashier is asked about it for ever
+      const pending = mine.filter(function (h) { return h.status !== 'confirmed' && h.status !== 'rejected'; });
       const done = mine.filter(function (h) { return h.status === 'confirmed'; })
+        .sort(function (a, b) { return String(b.confirmedAt).localeCompare(String(a.confirmedAt)); }).slice(0, 15);
+      const refused = mine.filter(function (h) { return h.status === 'rejected'; })
         .sort(function (a, b) { return String(b.confirmedAt).localeCompare(String(a.confirmedAt)); }).slice(0, 15);
       function card(h, withBtn) {
         return '<div class="row" style="flex-wrap:wrap;cursor:default"><div><b>' + esc(h.from) + '</b>' +
           '<div class="row-sub">' + esc(fmtDate(h.date)) + (h.note ? ' • ' + esc(h.note) : '') +
-          ' • ' + esc(t('cash')) + ' ' + fmtMoney(h.cashAmount) + ' + UPI ' + fmtMoney(h.upiAmount) + '</div></div>' +
+          ' • ' + esc(t('cash')) + ' ' + fmtMoney(h.cashAmount) + ' + UPI ' + fmtMoney(h.upiAmount) +
+          (h.rejectReason ? '</div><div class="row-sub">❌ “' + esc(h.rejectReason) + '”' : '') + '</div></div>' +
           '<b>' + fmtMoney(h.amount) + '</b>' +
           '<div style="flex-basis:100%">' + breakdownLines(h) + '</div>' +
-          (withBtn ? '<div style="flex-basis:100%;margin-top:8px"><button class="primary" data-hid="' +
-            esc(h.id) + '">' + esc(t('confirm_receive')) + '</button></div>' : '') + '</div>';
+          // Both answers sit side by side, deliberately: leaving only "পেয়েছি"
+          // is what forced a cashier to confirm money they had not received.
+          (withBtn ? '<div class="chips" style="flex-basis:100%;margin-top:8px">' +
+            '<button class="chip on" data-hid="' + esc(h.id) + '">' + esc(t('confirm_receive')) + '</button>' +
+            '<button class="chip" data-hrej="' + esc(h.id) + '">❌ ' + esc(t('reject_receive')) + '</button>' +
+            '</div>' : '') + '</div>';
       }
       // RECEIVED and SENT are separate parts: this screen is where a cashier
       // acts on what is coming in, but they also need to see what they have
@@ -2545,34 +2631,20 @@
           '<div class="section">📥 ' + esc(t('confirmed_handovers')) + '</div>' +
           (done.length ? done.map(function (h) { return card(h, false); }).join('')
                        : '<div class="empty">' + esc(t('none_here')) + '</div>') +
+          (refused.length ? '<div class="section">❌ ' + esc(t('refused_handovers')) + '</div>' +
+            refused.map(function (h) { return card(h, false); }).join('') : '') +
           '<div class="section">📤 ' + esc(t('hb_sent')) + '</div>' +
           (outRows.length ? outRows.map(function (x) {
             return '<div class="row" style="cursor:default;flex-wrap:wrap"><div style="flex:1 1 55%"><b>' +
               esc(x.who) + '</b><div class="row-sub">' + esc(fmtDate(x.date)) +
-              (x.status !== 'confirmed' ? ' • ⏳ ' + esc(t('flag_pending')) : ' • ✅') + '</div></div>' +
+              hoStatusLabel(x.status) + '</div></div>' +
               '<span class="cat-split">💵' + fmtMoney(x.cash) + ' · 📱' + fmtMoney(x.upi) + '</span>' +
               '<b class="cat-tot">' + fmtMoney(x.total) + '</b></div>';
           }).join('') : '<div class="empty">' + esc(t('none_here')) + '</div>') +
           '<div class="grid one" style="margin-top:10px"><button class="tile wide" data-go="hbook">📗 ' +
             esc(t('hb_title')) + '</button></div>';
         wireNav();
-        document.querySelectorAll('[data-hid]').forEach(function (b) {
-          b.onclick = function () {
-            b.disabled = true;
-            Auth.call('confirmHandover', { token: Auth.token(), id: b.dataset.hid })
-              .then(function () { toast(t('saved')); renderCashier(); })
-              .catch(function (e) { b.disabled = false; toast(errMsg(e)); });
-          };
-        });
-      });
-      return;
-      document.querySelectorAll('[data-hid]').forEach(function (b) {
-        b.onclick = function () {
-          b.disabled = true;
-          Auth.call('confirmHandover', { token: Auth.token(), id: b.dataset.hid })
-            .then(function () { toast(t('saved')); renderCashier(); })
-            .catch(function (e) { b.disabled = false; toast(errMsg(e)); });
-        };
+        wireHandoverAnswers(document, renderCashier);
       });
     }).catch(function () {
       $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('needs_net')) + '</div>';

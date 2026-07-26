@@ -4240,3 +4240,98 @@ failed.
 
 **NEEDS A REDEPLOY** — Code.gs changed. Client side is only the two error
 messages, hence the sw bump.
+
+## 2026-07-26 — v4.5.0: "পাইনি" — the reject path (phase খ)
+
+Third and last of the three. The ❌ slot shipped in v4.4.0 could never fill,
+because `confirmHandover` only ever wrote `'confirmed'` — a cashier had no way to
+say the money had not arrived. So the only honest answer available was the wrong
+one: confirm money you do not have, or leave the collector's parcel in limbo.
+
+### A rejection is not a void
+
+The parcel really was claimed. Both people need the record of the claim AND of
+the refusal, so `rejectHandover` writes a third status rather than voiding the
+row. What changes is only which bucket it falls in:
+
+    ⏳ pending    inside the hero, out of the ceiling   (in transit)
+    ✅ confirmed  out of the hero, out of the ceiling   (settled)
+    ❌ rejected   inside the hero, INSIDE the ceiling   (it came back)
+
+Proven live on real data, three seeds of the same row:
+
+| status | hero | ceiling | ps.pending | in "কাকে কত জমা দিয়েছি" | book |
+|---|---|---|---|---|---|
+| pending | 1000 | 600 | 400 | yes | pendingOut 400 |
+| rejected | 1000 | **1000** | 0 | no | rejectedOut 400 |
+| confirmed | 600 | 600 | 0 | yes | — |
+
+The middle row is the whole feature: the money comes back into the ceiling, into
+**its own pot** (road 600 → 1000), while the hero never moves. Which is exactly
+why the sender has to be told — see the notice below.
+
+### The six inline copies of "not confirmed means pending"
+
+Six sites each wrote `status !== 'confirmed'` by hand. Every one of them would
+have gone on deducting a refused parcel for ever: money the cashier had rejected,
+stranded outside the handover ceiling and inside nobody's pocket.
+
+    js/aggregate.js   personalSummary · cashierView · handoverReport
+    apps-script       notifData_ (the cashier's nag) · personalSummary_
+    js/app.js         renderCashier's pending filter
+
+Replaced with named predicates — `hoConfirmed` / `hoRejected` / `hoPending` —
+so the three-way rule lives in one place and cannot be re-written inline. A test
+now breaks each site individually; all five breaks were verified to fail.
+
+### A reason is required
+
+`reject-required` on the server, and the client aborts before calling if the
+prompt comes back blank. "পাইনি" with no explanation is an accusation the sender
+cannot act on; *"খামে ৪০০ ছিল না, ৩০০ ছিল"* tells them whether to re-send or to
+talk. The reason travels with the row into the sender's ❌ slot, the notice, and
+📗 জমা-খাতা. `rejectReason` is appended **last** in `SHEETS.handovers` — setup()
+migrates headers by appending and every write is position-based, so a name
+inserted mid-list would shift every column after it in existing sheets.
+
+Same recipient gate as confirming (A17), because refusing money moves both books
+too; `already-confirmed` / `already-rejected` make both answers final.
+
+### Telling the sender, without nagging for ever
+
+A rejection is the one notification with no server-side "done" state — the row
+stays `rejected`. And it is the one where **nothing visibly changes** for the
+sender: their hero does not move, only their ceiling grows back. Silence would
+mean money quietly becoming spendable again with no explanation.
+
+So: a notice with the reason, a "🤝 জমা দিলাম" button to re-send, and **বুঝেছি**
+which dismisses it *locally* (`Settings.rejSeen`, capped at 200 ids). Local on
+purpose — it is a read receipt, not data. The money record itself lives in the ❌
+slot and the handover book, so dismissing loses nothing.
+
+### Two wordings fixed while in there
+
+`hoStatusLabel()` replaced three inline status strings. The pending one had been
+borrowing `flag_pending` — "flag করা — অপেক্ষায়", which is *correction-flag*
+wording and says nothing true about a handover in transit. And the rejected label
+is deliberately direction-neutral ("“পাইনি” বলা হয়েছে"): the same row is read by
+the sender ("mine came back") and the receiver ("I said I hadn't got it"), so it
+states the fact rather than either point of view.
+
+Also removed: the unreachable duplicate `[data-hid]` wiring that sat after a
+`return` in renderCashier — dead since it was written, and now replaced by one
+shared `wireHandoverAnswers()` at module level.
+
+VERIFIED live on a fresh port (8841, with the backend stubbed so nothing touched
+the live Sheet): both answers render side by side and are really wired
+(`typeof onclick === 'function'`, not just a data attribute); ❌ পাইনি sends
+`rejectHandover` with the right id and reason; **Cancel sends nothing and leaves
+the button usable**; a blank reason sends nothing and toasts "কারণ লেখা দরকার";
+the refused parcel leaves the cashier's queue into its own ❌ section with the
+reason; জমা-খাতা shows "❌ পাইনি বলেছি ₹400" in the head and the reason on the
+row; the sender's notice renders with reason + re-send button, and বুঝেছি clears
+it and it does **not** come back on the next poll. No console errors.
+472 passed, 0 failed.
+
+**NEEDS: `setup()` in the Apps Script editor (for the new `rejectReason`
+column) AND a redeploy.**

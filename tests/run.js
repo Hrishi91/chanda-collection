@@ -965,6 +965,37 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
     eq(i18nSrc.indexOf('  ' + k + ':') >= 0, true, 'i18n: ' + k + ' has a real message, not err_network');
   });
 
+  // rejectHandover: the other half of confirming. Same recipient gate, a REQUIRED
+  // reason, and the column must be appended LAST or setup()'s header migration
+  // shifts every position-based write after it in sheets that already exist.
+  const rejStart = src.indexOf('rejectHandover: function');
+  eq(rejStart >= 0, true, 'reject: the server action exists at all');
+  const rejSrc = src.slice(rejStart, src.indexOf('\n  },', rejStart));
+  eq(rejSrc.indexOf('isRecipient_') >= 0, true, 'reject: gated by the same shared recipient rule as confirm');
+  eq(rejSrc.indexOf("throw new Error('reason-required')") >= 0, true,
+     'reject: refuses to record a refusal with no reason');
+  eq(rejSrc.indexOf("throw new Error('already-confirmed')") >= 0, true, 'reject: cannot un-confirm a settled parcel');
+  eq(rejSrc.indexOf("throw new Error('already-rejected')") >= 0, true, 'reject: cannot re-refuse');
+  eq(rejSrc.indexOf("setValue('rejected')") >= 0, true, "reject: writes status='rejected', not a void");
+  eq(rejSrc.indexOf('touchData_()') >= 0, true, "reject: stamps the change so the sender's delta pull sees it");
+  eq(rejSrc.indexOf('handover:reject') >= 0, true, 'reject: audited');
+  // read the column list itself, comments stripped, and check the LAST name —
+  // setup() migrates headers by appending, and every write is position-based, so
+  // a name inserted mid-list shifts every column after it in existing sheets
+  const hoStart = src.indexOf('  handovers: [');
+  const hoCols = src.slice(hoStart, src.indexOf('],', hoStart))
+    .replace(/\/\/[^\n]*/g, '').match(/'([a-zA-Z]+)'/g).map(function (q) { return q.slice(1, -1); });
+  eq(hoCols[hoCols.length - 1], 'rejectReason', 'reject: rejectReason is the LAST handovers column (migration rule)');
+  eq(hoCols.indexOf('breakdown'), hoCols.length - 2, 'reject: …appended after breakdown, not inserted before it');
+  // the two server mirrors of "not confirmed means pending" must both know better
+  eq(src.indexOf("h.status !== 'confirmed' && h.status !== 'rejected'") >= 0, true,
+     'reject: the server stops filing a refused parcel as pending');
+  eq((src.match(/status !== 'confirmed' && h\.status !== 'rejected'/g) || []).length, 2,
+     'reject: BOTH server mirrors fixed (the cashier nag and personalSummary_)');
+  ['err_already_rejected', 'err_reason_required'].forEach(function (k) {
+    eq(i18nSrc.indexOf('  ' + k + ':') >= 0, true, 'i18n: ' + k + ' has a real message, not err_network');
+  });
+
   // the daily report split must match on both sides too
   var gsRep = new Function('g', src + '\n g.computeReport_ = computeReport_;');
   // (computeReport_ needs activeData_/num_ which the same eval already defines)
@@ -1081,6 +1112,48 @@ const hoLegacy = handoverable({
 }, 'z');
 eq(hoLegacy.total, 300, 'handoverable: a breakdown-less pending row still lowers the ceiling');
 eq(hoLegacy.byCat.road, { cash: 300, upi: 0 }, 'handoverable: …drained in the fixed category order');
+
+// ---- a handover has THREE outcomes, and every reader must agree ---------------
+// Six sites used to write `status !== 'confirmed'` inline, meaning "pending". The
+// day a rejected row exists, all six would keep deducting it from the sender for
+// ever: money the cashier refused, stranded out of the ceiling and in nobody's
+// pocket. This table is the whole contract, in one place.
+const rjBase = {
+  parties: [], voids: [], corrections: [], payments: [], expenses: [],
+  daily: [{ id: 'd', collectorId: 'y', type: 'road', amount: 1000, cashAmount: 1000, upiAmount: 0 }],
+};
+const rjWith = function (status) {
+  return Object.assign({}, rjBase, { handovers: [{
+    id: 'h', fromId: 'y', from: 'যমুনা', toId: 'j', to: 'Jadav', amount: 400,
+    cashAmount: 400, upiAmount: 0, status: status, rejectReason: 'খামে কম ছিল',
+    breakdown: JSON.stringify({ road: { cash: 400, upi: 0 } }) }] });
+};
+[['pending',   1000,  600, 400, 1,  600, 400,   0],
+ ['rejected',  1000, 1000,   0, 0, 1000,   0, 400],
+ ['confirmed',  600,  600,   0, 1,  600,   0,   0],
+].forEach(function (c) {
+  const st = c[0], d = rjWith(st);
+  eq(mySummary(d, 'y').hero.total, c[1], 'outcome ' + st + ': hero (what I answer for)');
+  eq(handoverable(d, 'y').total, c[2], 'outcome ' + st + ': handover ceiling (what I can pass on)');
+  eq(personalSummary(d, 'y').pending, c[3], 'outcome ' + st + ': personalSummary.pending');
+  eq(personalSummary(d, 'y').handedTo.length, c[4], 'outcome ' + st + ': appears under "কাকে কত জমা দিয়েছি"?');
+  eq(cashierView(d, 'y').availableTotal, c[5], 'outcome ' + st + ': cashierView.available');
+  eq(handoverReport(d, 'y').pendingOut.total, c[6], 'outcome ' + st + ': book pendingOut');
+  eq(handoverReport(d, 'y').rejectedOut.total, c[7], 'outcome ' + st + ': book rejectedOut');
+});
+// the money comes BACK on a rejection — into its own pot, not a general pool
+eq(handoverable(rjWith('rejected'), 'y').byCat.road, { cash: 1000, upi: 0 },
+   'rejected: the refused 400 returns to the road pot it came from');
+eq(handoverable(rjWith('pending'), 'y').byCat.road, { cash: 600, upi: 0 },
+   'pending: …and is set aside while in transit');
+// the receiver's side: a parcel they refused is not theirs and not incoming
+eq(handoverReport(rjWith('rejected'), 'j').rejectedIn.total, 400, 'rejected: the receiver sees what they refused');
+eq(handoverReport(rjWith('rejected'), 'j').pendingIn.total, 0, 'rejected: …and it has left their to-do list');
+eq(mySummary(rjWith('rejected'), 'j').hero.total, 0, 'rejected: refusing adds nothing to the receiver');
+eq(mySummary(rjWith('rejected'), 'j').incoming.rejected.total, 400, 'rejected: it lands in the receiver\'s ❌ slot');
+// the reason travels with the row — it is the sender's only clue what to do
+eq(handoverReport(rjWith('rejected'), 'y').rows[0].rejectReason, 'খামে কম ছিল',
+   'rejected: the reason reaches the sender through the book');
 
 // A ReferenceError in a click handler does not exist until somebody taps. Run
 // the scope checker as part of the suite so it cannot rot in a corner.

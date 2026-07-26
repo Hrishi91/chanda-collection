@@ -114,6 +114,17 @@
            (r.upiAmount === undefined || r.upiAmount === '');
   }
 
+  // A handover has THREE outcomes, and every reader must agree on which is which.
+  // Before v4.5.0 six sites each wrote `status !== 'confirmed'` inline, meaning
+  // "pending" — so the day a `rejected` row could exist, all six would have gone
+  // on deducting it from the sender for ever: money the cashier had refused would
+  // sit in limbo, out of the handover ceiling, in nobody's pocket.
+  // Named predicates, used everywhere, so that can't be re-introduced by hand.
+  function hoConfirmed(h) { return h.status === 'confirmed'; }
+  function hoRejected(h) { return h.status === 'rejected'; }
+  // "in transit": sent, not yet answered. The sender still answers for it.
+  function hoPending(h) { return !hoConfirmed(h) && !hoRejected(h); }
+
   // Per-person accountability. True cash in hand for X =
   //   collected(by X) + received(confirmed handovers TO X)
   //   − handedOver(confirmed handovers FROM X) − spent(expenses by X).
@@ -202,9 +213,14 @@
     };
     (data.handovers || []).forEach(function (h) {
       const amt = Number(h.amount) || 0;
-      if (isTo(h) && h.status === 'confirmed') received += amt;
+      if (isTo(h) && hoConfirmed(h)) received += amt;
       if (!isFrom(h)) return;
-      const isPending = h.status !== 'confirmed';
+      // A REJECTED parcel was handed to nobody: it belongs in neither
+      // `handedOver` nor `pending`, and it must not appear under "কাকে কত জমা
+      // দিয়েছি" either — the money never left. It shows up as its own ❌ slot,
+      // built from handoverSlots().
+      if (hoRejected(h)) return;
+      const isPending = hoPending(h);
       if (isPending) pending += amt; else handedOver += amt;
       let bd = null;
       try { const b = JSON.parse(h.breakdown || 'null'); if (b && typeof b === 'object') bd = b; } catch (e) {}
@@ -593,14 +609,18 @@
     const received = zero(), handedOut = zero(), pendingOut = zero(), byName = {};
     (d.handovers || []).forEach(function (h) {
       const s2 = splitOf(h);
-      if (isTo(h) && h.status === 'confirmed') {
+      if (isTo(h) && hoConfirmed(h)) {
         addTo(received, s2);
         const id = String(h.fromId || h.from || '?');
         const g = byName[id] || (byName[id] = { id: id, name: h.from || id, cash: 0, upi: 0 });
         if (h.from) g.name = h.from;
         g.cash += s2.cash; g.upi += s2.upi;
       }
-      if (isFrom(h)) addTo(h.status === 'confirmed' ? handedOut : pendingOut, s2);
+      // `available` is the cap on what this cashier may pass on, so pending
+      // counts as already out (the notes are gone). A REJECTED parcel is the
+      // opposite: it came back, so it must not be deducted at all — counting it
+      // as pendingOut would shrink the cap for ever and strand the money.
+      if (isFrom(h) && !hoRejected(h)) addTo(hoConfirmed(h) ? handedOut : pendingOut, s2);
     });
     const spent = zero();
     (d.expenses || []).filter(mine).forEach(function (e) { addTo(spent, splitOf(e)); });
@@ -637,15 +657,18 @@
     const zero = function () { return { cash: 0, upi: 0, total: 0 }; };
     const add = function (t, s2) { t.cash += s2.cash; t.upi += s2.upi; t.total += s2.cash + s2.upi; };
     const received = zero(), sent = zero(), pendingIn = zero(), pendingOut = zero();
+    // Three outcomes, three buckets per direction. `rejected*` used to be folded
+    // into `pending*`, which would have told the sender their money was still in
+    // transit long after the cashier refused it.
+    const rejectedIn = zero(), rejectedOut = zero();
     const rows = [];
     (d.handovers || []).forEach(function (h) {
       const to = String(h.toId || h.to || '?'), from = String(h.fromId || h.from || '?');
       const isIn = to === me, isOut = from === me;
       if (!isIn && !isOut) return;
       const s2 = splitOf(h);
-      const done = h.status === 'confirmed';
-      if (isIn) add(done ? received : pendingIn, s2);
-      if (isOut) add(done ? sent : pendingOut, s2);
+      if (isIn) add(hoConfirmed(h) ? received : hoRejected(h) ? rejectedIn : pendingIn, s2);
+      if (isOut) add(hoConfirmed(h) ? sent : hoRejected(h) ? rejectedOut : pendingOut, s2);
       let cats = [], snap = null;
       try {
         const b = JSON.parse(h.breakdown || 'null');
@@ -664,12 +687,18 @@
         date: h.date || h.createdAt, status: h.status || 'pending',
         cash: s2.cash, upi: s2.upi, total: s2.cash + s2.upi,
         note: h.note || '', cats: cats, snap: snap,
+        // why the receiver refused it — the sender's only clue about what to do
+        rejectReason: h.rejectReason || '',
       });
     });
     rows.sort(function (a, b) {
       return String(b.date || '').localeCompare(String(a.date || ''));
     });
     return { received: received, sent: sent, pendingIn: pendingIn, pendingOut: pendingOut,
+             rejectedIn: rejectedIn, rejectedOut: rejectedOut,
+             // net is CONFIRMED money only: a pending or refused parcel has not
+             // changed anyone's position yet, so folding it in here would make
+             // the book disagree with the summary hero.
              net: { cash: received.cash - sent.cash, upi: received.upi - sent.upi,
                     total: received.total - sent.total },
              rows: rows };

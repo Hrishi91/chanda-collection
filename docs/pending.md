@@ -286,7 +286,7 @@ deploy.
 3. Hand over the `/exec` URL for rebaking, then the switch gets tested live
    (flip on → a message must be refused → flip off → it must go through).
 
-## Money-display work (Hrishi, 2026-07-26) — phase ক DONE, phase খ open
+## Money-display work (Hrishi, 2026-07-26) — ALL FOUR DONE, awaiting setup() + redeploy
 
 Decision recorded, because every figure depends on it: **an unconfirmed handover
 still counts as the SENDER's money.** The receiver is credited only on confirm,
@@ -307,16 +307,14 @@ give different numbers:
       `pendingHandovers` and `confirmHandover`; re-confirm throws
       `already-confirmed`; an admin confirming for someone else is logged as
       `handover:confirm-on-behalf`. **Rides the pending redeploy.**
-- [ ] **Phase খ — the reject path.** `confirmHandover` only ever writes
-      `'confirmed'`; there is no way for a cashier to say "পাইনি", so the ❌ slot
-      can never fill. Needs: a `rejectHandover` action, a `rejectReason` column
-      appended at the END of `SHEETS.handovers`, the sender notified (their hero
-      does NOT move on a rejection — only the cap grows back, so silence would be
-      confusing), and **four readers fixed** that still treat "not confirmed" as
-      "pending" and would therefore deduct a rejected parcel for ever:
-      `personalSummary` ([aggregate.js:207](../js/aggregate.js)),
-      `cashierView` (:452), `handoverReport` (:495), `bump()` (:198) — plus the
-      `Code.gs` mirrors. **Needs a Sheet migration and a redeploy.**
+- [x] ~~**Phase খ — the reject path**~~ (2026-07-26, v4.5.0). `rejectHandover`
+      writes a third status (not a void — both sides need the record of the claim
+      AND the refusal); `rejectReason` appended LAST in `SHEETS.handovers`; a
+      reason is mandatory on both sides; the six inline copies of "not confirmed
+      means pending" replaced by `hoConfirmed`/`hoRejected`/`hoPending`; the
+      sender gets a notice with the reason and a local-only "বুঝেছি" dismiss
+      (their hero does not move on a rejection — only the ceiling grows back, so
+      silence would be confusing). **NEEDS `setup()` + a redeploy.**
 - [x] ~~**Handover caps**~~ (2026-07-26, v4.4.1, client-only, verified live on
       port 8791). `Aggregate.handoverable()` now gives the per-pot free figures,
       the per-money-type ceiling, and the two reasons separately so the screen can
