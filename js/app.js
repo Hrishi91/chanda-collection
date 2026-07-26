@@ -447,7 +447,7 @@
   // Returning to the app (or a pull-to-refresh) re-renders the current data
   // view so users never have to manually refresh — skipped mid-entry and on
   // transient screens.
-  const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party', 'entries', 'review', 'hbook', 'messages'];
+  const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party', 'entries', 'review', 'hbook', 'messages', 'anomalies'];
   function onAppFocus() {
     if (!notifViaPull) checkNotifications(); // old backend only — pull carries it otherwise
     autoSync(); // push anything still pending when the user returns
@@ -1006,6 +1006,17 @@
   // before opening this party, so the receipt screen can send them straight
   // back to the same search results (not a "new entry" — a payment is
   // against a party someone already picked, unlike a fresh shop/person/bus).
+  // One payment, identified the way a human identifies it: the receipt number
+  // they can compare against the donor's phone, who took it, when, and a short
+  // id so the same row can be found on the admin's duplicate screen. Used by
+  // BOTH the entry-time warning and that screen, so the two never describe the
+  // same row differently.
+  function dupLine(p) {
+    const when = p.createdAt ? fmtDateTime(p.createdAt) : fmtDate(p.date);
+    return '• ' + (p.receiptNo ? t('receipt_no') + ' ' + p.receiptNo + ' · ' : '') +
+      fmtMoney(p.amount) + ' · ' + (p.collector || p.collectorId || '?') + ' · ' + when +
+      '  [' + String(p.id).slice(0, 8) + ']';
+  }
   // `editing` is set by the correction path (renderEditEntry), which reuses
   // this flow to write the replacement row — see the A22 note in save().
   function paymentFlow(party, origin, editing) {
@@ -1035,11 +1046,14 @@
           : viewData().then(function (data) {
               const hits = Aggregate.samePaymentsOn(data, party.id, m.total, todayISO());
               if (!hits.length) return true;
-              const rcpt = hits.map(function (h) { return h.receiptNo; }).filter(Boolean)[0];
+              // Show WHAT is already there, not just that something is. Who took
+              // it decides the answer on the spot: "যমুনা · ৩ মিনিট আগে" and it
+              // was my own double-tap; "বাপি · সকালে" and this is a real second
+              // instalment somebody else collected.
               return window.confirm(t('dup_pay_warn')
                 .replace('{n}', fmtMoney(m.total))
                 .replace('{who}', party.name || '')
-                .replace('{rcpt}', rcpt ? ' (' + rcpt + ')' : '')) && 'confirmed-duplicate';
+                .replace('{list}', hits.map(dupLine).join('\n'))) && 'confirmed-duplicate';
             });
         // A human answered the question, so record the answer: without it the
         // reconcile banner would keep flagging a pair the collector has already
@@ -1370,7 +1384,8 @@
       const ICON = { shop: ['🏪', 'new_shop'], person: ['🙍', 'new_person'], member: ['🤝', 'new_member'],
                      bus: ['🚌', 'daily_bus'], road: ['🛣️', 'daily_road'], toto: ['🛺', 'daily_toto'],
                      expense: ['🧾', 'expense'], cashier: ['💰', 'confirm_handover'],
-                     review: ['🛠️', 'review_title'], handover: ['', 'handover'], hbook: ['📗', 'hb_title'] };
+                     review: ['🛠️', 'review_title'], handover: ['', 'handover'], hbook: ['📗', 'hb_title'],
+                     anomalies: ['🩺', 'anom_title'] };
       const drawTile = function (k) {
         const d = ICON[k] || ['', k];
         return '<button class="tile" data-go="' + k + '">' + (d[0] ? d[0] + ' ' : '') + esc(t(d[1])) + '</button>';
@@ -2742,8 +2757,85 @@
         msg += esc(t('reconcile_off').replace('{diff}', rcpMoney(Math.abs(r.totalInHand - r.expected)))) + '<br>';
       }
       if (others.length) msg += esc(t('reconcile_anoms').replace('{n}', others.length));
-      el.innerHTML = '<div class="card" style="border:1.5px solid #c0392b;background:#fdecea">' +
-        '<b>⚠️ ' + esc(t('reconcile_title')) + '</b><div class="row-sub" style="margin-top:4px">' + msg + '</div></div>';
+      // Tappable: a banner that names a count and cannot say WHICH row teaches
+      // people to ignore it, and then the day a real ₹5,000 gap appears nobody
+      // looks. Every anomaly reconcile can raise now has a screen behind it.
+      el.innerHTML = '<button class="card" data-go="anomalies" style="border:1.5px solid #c0392b;' +
+        'background:#fdecea;width:100%;text-align:left;font-family:inherit;cursor:pointer">' +
+        '<b>⚠️ ' + esc(t('reconcile_title')) + '</b><div class="row-sub" style="margin-top:4px">' + msg +
+        '<br>' + esc(t('anom_open')) + ' ›</div></button>';
+      wireNav();
+    });
+  }
+
+  // ---------- the anomaly desk (admin / cashier) ----------
+  // reconcile has always detected seven kinds of trouble and shown a COUNT.
+  // Detection nobody can act on is worse than none: it looks like a guard.
+  // Each row here says what a human would say, names the rows involved, and
+  // carries an action where one honestly exists.
+  const ANOM_ACTIONABLE = { possible_duplicate_payment: 1 };
+  function renderAnomalies() {
+    if (!Auth.isCashier()) { $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
+    $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('loading')) + '</div>';
+    viewData().then(function (data) {
+      const r = Aggregate.reconcile(data);
+      const byId = {}; (data.payments || []).forEach(function (p) { byId[p.id] = p; });
+      const partyById = {}; (data.parties || []).forEach(function (p) { partyById[p.id] = p; });
+      const rows = r.anomalies.map(function (a) {
+        if (a.type === 'possible_duplicate_payment') {
+          const dup = byId[a.id], first = byId[a.firstId];
+          const nm = (partyById[a.partyId] || {}).name || a.partyId;
+          return '<div class="card"><div class="card-title">🔁 ' + esc(t('anom_dup')) + '</div>' +
+            '<div class="row-sub">' + esc(nm) + ' · ' + fmtMoney(a.amount) + ' · ' + esc(fmtDate(a.date)) + '</div>' +
+            '<div class="bd-line" style="display:block;margin-top:6px">' +
+              (first ? esc(dupLine(first)) + '<br>' : '') + (dup ? esc(dupLine(dup)) : '') + '</div>' +
+            '<div class="chips" style="margin-top:8px">' +
+              '<button class="chip on" data-dupok="' + esc(a.id) + '">✓ ' + esc(t('anom_dup_ok')) + '</button>' +
+              (dup && canVoid(dup) ? '<button class="chip void-btn" data-dupvoid="' + esc(a.id) + '">✖️ ' + esc(t('anom_dup_void')) + '</button>' : '') +
+              '<button class="chip" data-goparty="' + esc(a.partyId) + '">👁 ' + esc(t('view')) + '</button>' +
+            '</div></div>';
+        }
+        // everything else: say it plainly and point at the row. No button —
+        // these are data surgery, and a wrong "fix" here moves real money.
+        const line = a.type === 'unbalanced'
+            ? t('anom_unbalanced').replace('{diff}', fmtMoney(Math.abs(a.diff)))
+          : a.type === 'overpaid' ? t('anom_overpaid').replace('{who}', a.party || '?').replace('{n}', fmtMoney(a.paid || 0)).replace('{p}', fmtMoney(a.pledged || 0))
+          : a.type === 'orphan_payment' ? t('anom_orphan').replace('{n}', fmtMoney(a.amount))
+          : a.type === 'negative_inhand' ? t('anom_negative').replace('{who}', a.collector || a.id || '?').replace('{n}', fmtMoney(a.inHand || 0))
+          : a.type === 'duplicate_id' ? t('anom_dupid').replace('{store}', a.store || '')
+          : a.type === 'split_mismatch' ? t('anom_split').replace('{store}', a.store || '').replace('{n}', fmtMoney(a.amount || 0)).replace('{s}', fmtMoney(a.split || 0))
+          : a.type === 'breakdown_mismatch' ? t('anom_breakdown').replace('{n}', fmtMoney(a.amount || 0)).replace('{s}', fmtMoney(a.breakdownSum || 0))
+          : a.type;
+        return '<div class="card"><div class="card-title">⚠️ ' + esc(t('anom_' + a.type + '_t') || a.type) + '</div>' +
+          '<div class="row-sub">' + esc(line) + '</div>' +
+          (a.id ? '<div class="bd-line">[' + esc(String(a.id).slice(0, 8)) + ']</div>' : '') +
+          (a.partyId ? '<div class="chips" style="margin-top:8px"><button class="chip" data-goparty="' +
+            esc(a.partyId) + '">👁 ' + esc(t('view')) + '</button></div>' : '') + '</div>';
+      });
+      $view().innerHTML = backBar('report') + '<div class="flow-title">🩺 ' + esc(t('anom_title')) + '</div>' +
+        (rows.length ? rows.join('') : '<div class="empty">' + esc(t('anom_none')) + '</div>');
+      wireNav();
+      document.querySelectorAll('[data-goparty]').forEach(function (b) {
+        b.onclick = function () { navigate('party', { id: b.dataset.goparty }); };
+      });
+      // "a separate instalment" — the same answer a collector gives at entry
+      // time, stamped on the same field, so the pair stops being raised for
+      // everyone. Append-only: the row is updated in place and re-queued.
+      document.querySelectorAll('[data-dupok]').forEach(function (b) {
+        b.onclick = function () {
+          b.disabled = true;
+          DB.get('payments', b.dataset.dupok).then(function (row) {
+            if (!row) return;
+            row.dupOk = 1; row.synced = 0; // re-push so every device stops asking
+            return DB.put('payments', row).then(function () { toast(t('saved')); autoSync(); renderAnomalies(); });
+          }).catch(function (e) { b.disabled = false; toast(errMsg(e)); });
+        };
+      });
+      document.querySelectorAll('[data-dupvoid]').forEach(function (b) {
+        b.onclick = function () { renderVoidReason('payments', b.dataset.dupvoid, function () { navigate('anomalies'); }); };
+      });
+    }).catch(function () {
+      $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('fetch_fail')) + '</div>';
     });
   }
   function loadMySummary() {
@@ -3825,6 +3917,7 @@
     else if (current.view === 'hbook') renderHandoverBook();
     else if (current.view === 'messages') { chatOn() ? renderMessages() : renderHome(); }
     else if (current.view === 'entries') renderMyEntries();
+    else if (current.view === 'anomalies') renderAnomalies();
     else if (current.view === 'findparty') renderFindParty();
     else if (current.view === 'review') renderReviewCorrections();
     else if (current.view === 'audit') { Auth.isAdmin() ? renderAuditLog() : renderHome(); }

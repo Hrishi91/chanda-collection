@@ -121,6 +121,19 @@ The fifth was the gap: every other layer is id-based, and a re-entry has a
 different uuid. It is also invisible to reconcile's invariant, because both
 rows really were collected.
 
+## When something IS wrong: the anomaly desk (A23)
+
+`reconcile` raises eight anomaly types. The ⚠️ banner on 📊 রিপোর্ট is a button
+onto **🩺 অসঙ্গতি পরীক্ষা** (cashier/admin), where each one is a sentence plus the
+rows involved. Only duplicates carry actions — ✓ আলাদা কিস্তি (stamp `dupOk`) or
+✖️ বাড়তিটা বাতিল (the normal audited void). The rest are deliberately
+read-only: they are data surgery, and a wrong "fix" moves real money.
+
+Rule for anyone adding a ninth type: **detection without a sentence is not
+detection.** A count nobody can act on trains people to ignore the banner, and
+then the real gap goes unread too. The test suite enforces it — every type must
+have a title and a message.
+
 ## Data-integrity assumptions (now watched, A21)
 
 The flows always write `amount === cashAmount + upiAmount`, and a collector's

@@ -549,6 +549,43 @@ does not name is written and never read back — this nearly bit twice
 (`rejectReason`, then `dupOk`). The write path heals its own header instead of
 depending on `setup()` having been re-run.
 
+### A23. MED (usability of the safety net) — FIXED 2026-07-27 — detection nobody could act on
+**Where:** `checkReconcile` (js/app.js) and the A22 warning.
+**Cause:** `reconcile` has always detected EIGHT kinds of trouble — unbalanced,
+overpaid, orphan_payment, negative_inhand, duplicate_id, split_mismatch,
+breakdown_mismatch, possible_duplicate_payment — and rendered a **count**: "আরও
+2টা অসঙ্গতি … entry দেখো". No list, no donor, no amount, no id, no button, and
+the card was not even tappable. Finding a duplicate payment meant already
+knowing which donor, because ✏️ আমার entry's "সবার" tab covers only daily and
+expenses; payments live on the donor's page.
+**Why it mattered more after A22:** a new anomaly type was adding +1 to an
+opaque counter. A banner that says "something is wrong somewhere" and cannot say
+what teaches people to ignore it — and then the day a real ₹5,000 gap appears,
+nobody looks. Detection that cannot be acted on is worse than none: it looks
+like a guard.
+**Found how:** Hrishi asked *"if duplicate, how will admin identify and confirm
+it"* — the honest answer was "they cannot".
+**FIXED:** the banner is a button onto a 🩺 অসঙ্গতি পরীক্ষা desk (cashier/admin
+only). Every anomaly gets a human sentence and the rows it involves. A duplicate
+shows BOTH payments — receipt no · amount · collector · timestamp · short id —
+and offers the two honest answers: **✓ আলাদা কিস্তি** (stamps the same `dupOk`
+the collector's answer uses, and re-queues the row so every device stops asking)
+or **✖️ বাড়তিটা বাতিল** (via the existing audited `renderVoidReason`, not a new
+delete path). The other seven get a sentence and a 👁 link where one exists —
+deliberately NO button, because those are data surgery and a wrong "fix" moves
+real money.
+**Same change to the entry-time warning:** it now lists the existing rows rather
+than merely asserting one exists. Who took the earlier payment is what decides
+the answer on the spot — "যমুনা · 3 minutes ago" is my own double-tap;
+"বাপি · this morning" is a real second instalment somebody else collected. One
+`dupLine()` feeds both surfaces, so the popup and the desk can never describe
+the same row differently.
+**Verified live** driving the real UI: banner tappable → desk lists both
+anomalies with full identity; ✓ stamps dupOk + synced=0 and the duplicate leaves
+the list; fixing the last anomaly makes the banner disappear entirely. No
+console errors. Pinned: every anomaly type is asserted to have a title and a
+message, so a desk that prints a raw type name fails the suite.
+
 ### Verified green in the two-user pass
 | Path | Result |
 |---|---|

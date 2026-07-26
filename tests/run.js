@@ -1394,6 +1394,38 @@ eq(payFlowSrc.indexOf('const dupCheck = editing') >= 0, true, 'A22: …and the c
 eq(a22App.indexOf("paymentFlow({ id: row.partyId, name: row.partyName || '' }, 'entries', true)") >= 0, true,
    'A22: the correction path really passes editing=true');
 eq(a22I18n.indexOf('  dup_pay_warn:') >= 0, true, 'A22: the warning has a real bilingual message');
+// A23: the warning must NAME the rows, not just their existence — who took the
+// earlier one is what decides the answer on the spot.
+eq(a22App.indexOf('function dupLine') >= 0, true, 'A23: one row-describing helper');
+eq(a22I18n.indexOf('{list}') >= 0, true, 'A23: the popup splices the actual rows in');
+const dupLineSrc = a22App.slice(a22App.indexOf('function dupLine'), a22App.indexOf('function dupLine') + 600);
+['receiptNo', 'amount', 'collector'].forEach(function (f) {
+  eq(dupLineSrc.indexOf(f) >= 0, true, 'A23: the line carries ' + f);
+});
+eq(/String\(p\.id\)\.slice\(0, 8\)/.test(dupLineSrc), true,
+   'A23: …and a short id, so the same row is findable on the admin desk');
+// the desk itself: reachable, gated, and actionable where an action honestly exists
+eq(a22App.indexOf('function renderAnomalies') >= 0, true, 'A23: the anomaly desk exists');
+const deskSrc = a22App.slice(a22App.indexOf('function renderAnomalies'), a22App.indexOf('function loadMySummary'));
+eq(deskSrc.indexOf('Auth.isCashier()') >= 0, true, 'A23: the desk is cashier/admin only');
+eq(deskSrc.indexOf('data-dupok') >= 0 && deskSrc.indexOf('data-dupvoid') >= 0, true,
+   'A23: a duplicate offers both answers — settle it, or void the extra');
+eq(deskSrc.indexOf('row.dupOk = 1') >= 0 && deskSrc.indexOf('row.synced = 0') >= 0, true,
+   "A23: settling stamps the SAME field the collector's answer uses, and re-pushes it");
+eq(deskSrc.indexOf('renderVoidReason') >= 0, true, 'A23: voiding reuses the existing audited path, not a new delete');
+eq(a22App.indexOf("current.view === 'anomalies') renderAnomalies()") >= 0, true, 'A23: routed');
+eq(/REFRESHABLE = \[[^\]]*'anomalies'/.test(a22App), true, 'A23: …and refreshes with the rest');
+eq(a22App.indexOf("data-go=\"anomalies\"") >= 0, true, 'A23: the reconcile banner opens it');
+// every anomaly reconcile can raise must have a human sentence — a desk that
+// prints a raw type name is the old count wearing a new coat
+['unbalanced', 'overpaid', 'orphan_payment', 'negative_inhand', 'duplicate_id',
+ 'split_mismatch', 'breakdown_mismatch'].forEach(function (ty) {
+  eq(a22I18n.indexOf('  anom_' + ty + '_t:') >= 0, true, 'A23: ' + ty + ' has a title');
+});
+['anom_dup', 'anom_unbalanced', 'anom_overpaid', 'anom_orphan', 'anom_negative',
+ 'anom_dupid', 'anom_split', 'anom_breakdown', 'anom_none', 'anom_open'].forEach(function (k) {
+  eq(a22I18n.indexOf('  ' + k + ':') >= 0, true, 'A23: ' + k + ' has a message');
+});
 // answering the question must SETTLE it — otherwise the admin's banner keeps
 // asking all season about a pair the collector already confirmed (the A19 trap)
 const a22ok = JSON.parse(JSON.stringify(a22)); a22ok.payments[1].dupOk = 1;

@@ -4633,3 +4633,53 @@ nothing and OK saves a genuine second instalment; afterwards the reconcile
 banner is silent. No console errors. 548 passed, 0 failed.
 
 **Needs a redeploy** (Code.gs: the `dupOk` column + `ensureCols_`).
+
+## 2026-07-27 — v4.6.1: A23 — the anomaly desk, and a warning that names names
+
+Hrishi: *"if duplicate, how admin will identify and will confirm it"* — and then
+the design: *"in popup it will give the duplicate id with basic data, amount,
+collector name etc, after that also if user want to proceed then ok; in
+duplicate screen admin will check on this."*
+
+The honest answer to his question was: **they cannot.** `reconcile` has always
+detected eight kinds of trouble and rendered a COUNT — "আরও 2টা অসঙ্গতি … entry
+দেখো". No list, no donor, no amount, no id, no button; the card was not even
+tappable. And finding a duplicate payment meant already knowing which donor,
+since ✏️ আমার entry's "সবার" tab covers only daily and expenses — payments live
+on the donor's page. So yesterday's A22 anomaly was adding +1 to an opaque
+counter.
+
+That is worse than not detecting: a banner that says "something is wrong
+somewhere" and cannot say what teaches people to ignore it, and then the day a
+real ₹5,000 gap appears nobody looks.
+
+**Two halves, one shared row-describer.**
+
+`dupLine()` renders a payment the way a human identifies it — receipt no ·
+amount · collector · timestamp · short id — and feeds BOTH surfaces, so the
+popup and the desk can never describe the same row differently.
+
+*The popup* now lists what is already there instead of asserting that something
+is. Who took the earlier one is what decides the answer while the collector is
+still standing in front of the donor: "যমুনা · 3 minutes ago" is my own
+double-tap; "বাপি · this morning" is a genuine second instalment.
+
+*The desk* (🩺 অসঙ্গতি পরীক্ষা, cashier/admin only) gives every anomaly a human
+sentence and the rows involved. A duplicate shows both payments and the two
+honest answers: ✓ আলাদা কিস্তি stamps the SAME `dupOk` field the collector's
+answer uses and re-queues the row (`synced = 0`) so every device stops asking;
+✖️ বাড়তিটা বাতিল goes through the existing audited `renderVoidReason`, not a new
+delete path. The other seven types get a sentence and a 👁 link where one exists
+— deliberately no button, because those are data surgery and a wrong "fix" moves
+real money.
+
+VERIFIED live on a fresh port with two different anomaly types seeded: banner
+tappable → desk lists both with full identity (both receipts, both timestamps,
+both short ids); ✓ stamps dupOk with synced=0 and the duplicate leaves the list;
+fixing the last anomaly makes the banner disappear entirely. No console errors.
+
+Pinned: every one of the eight types is asserted to have a title AND a message,
+so a desk that prints a raw type name fails the suite — the rule is now
+"detection without a sentence is not detection" (recorded in money-model.md).
+
+579 passed, 0 failed. Client-only; sw + CODE_VERSION → v4.6.1 in lockstep.
