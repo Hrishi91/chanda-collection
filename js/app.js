@@ -1295,7 +1295,7 @@
       if (listDueOnly) rows = rows.filter(function (p) { return (Number(p.pledged) || 0) - (paidBy[p.id] || 0) > 0; });
       if (listQuery) rows = rows.filter(function (p) { return matchParty(p, listQuery); });
       $view().innerHTML =
-        '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' +
+        (canEntry('otherdonor') ? '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' : '') +
         '<input id="search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(listQuery) + '">' +
         chips.html + (busRows ? '' : dueChip(listDueOnly)) +
         (busRows ? drawBusList(data) :
@@ -1330,9 +1330,11 @@
   // balance — so a collector who receives a later installment can record it
   // even though they didn't create the party.
   function renderFindParty() {
-    // find-party exists to TAKE a later instalment, which is common to everyone:
-    // the donor may have been written down by anyone, and whoever is nearest
-    // when the money is offered must be able to record it.
+    // Reaching donors somebody else wrote down is its own grant: it shows one
+    // collector the whole committee's donor list, which is not every collector's
+    // business. Guard the ROUTE too, not just the button — Back and history can
+    // reach a screen whose button is hidden.
+    if (!canEntry('otherdonor')) { navigate('list'); return; }
     const chips = typeChips(findFilter, false);
     findFilter = chips.valid;
     $view().innerHTML = backBar('list') + '<div class="flow-title">' + esc(t('find_party_title')) + '</div>' +
@@ -2909,7 +2911,7 @@
         const set = String(u.entries || '').split(',').filter(Boolean);
         const kinds = [['shop', t('new_shop')], ['person', t('new_person')], ['member', t('new_member')],
                        ['bus', t('daily_bus')], ['road', t('daily_road')], ['toto', t('daily_toto')],
-                       ['review', t('review_title')]];
+                       ['review', t('review_title')], ['otherdonor', t('find_party_btn')]];
         const chips = kinds.map(function (k) {
           const on = !set.length || set.indexOf(k[0]) >= 0; // empty = all on
           return '<button class="chip' + (on ? ' on' : '') + '" data-ent-user="' + u.id + '" data-ent-id="' + k[0] + '">' + esc(k[1]) + '</button>';
@@ -2980,7 +2982,12 @@
       $view().innerHTML = backBar('settings') + '<div class="flow-title">' + esc(t('admin_panel')) + '</div>' +
         (isLive() ? '' : '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
           '<b>🟡 ' + esc(t('training_mode')) + '</b><div class="row-sub">' + esc(t('training_admin_hint')) + '</div>' +
-          '<button id="golive-btn" class="primary big block" style="margin-top:8px">🚀 ' + esc(t('golive_btn')) + '</button></div>') +
+          '<button id="golive-btn" class="primary big block" style="margin-top:8px">🚀 ' + esc(t('golive_btn')) + '</button>' +
+          // Practice runs leave the book full of junk. This clears it and stays
+          // in training, so the next rehearsal starts from a clean sheet —
+          // unlike Go Live, which is one-way. Only ever offered while training.
+          '<button id="clear-tr-btn" class="ghost block" style="margin-top:6px">🧹 ' + esc(t('clear_training_btn')) + '</button>' +
+          '<div class="row-sub" style="margin-top:6px">' + esc(t('clear_training_hint')) + '</div></div>') +
         '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
         fold('👥', 'adm_users', groups.pending.length || '',
           section('pending_users', groups.pending) +
@@ -2997,6 +3004,25 @@
           '<button id="restore-btn" class="ghost big block">' + esc(t('restore_btn')) + '</button>' +
           '<button id="rollover-btn" class="ghost big block">' + esc(t('rollover_btn')) + '</button>', false);
       document.getElementById('adm-refresh').onclick = renderAdmin;
+      const clearBtn = document.getElementById('clear-tr-btn');
+      if (clearBtn) clearBtn.onclick = function () {
+        if (isLive()) { toast(t('already_live')); return; }
+        if (!window.confirm(t('clear_training_confirm1'))) return;
+        const typed = window.prompt(t('clear_training_confirm2'));
+        if (String(typed || '').trim().toUpperCase() !== 'CLEAR') { toast(t('golive_cancelled')); return; }
+        clearBtn.disabled = true;
+        Auth.call('clearTraining', { token: Auth.token(), confirm: 'CLEAR' })
+          .then(function (r) {
+            // the server bumped data_epoch, so this device must drop its own
+            // copy too — otherwise the phone keeps showing rows the sheet lost
+            return DB.clearAll().then(function () {
+              toast(t('clear_training_done') + (r && r.backup ? ' · ' + r.backup : ''));
+              return pullCentral();
+            });
+          })
+          .then(function () { updateBadge(); navigate('home'); })
+          .catch(function (e) { clearBtn.disabled = false; toast(errMsg(e)); });
+      };
       const goLiveBtn = document.getElementById('golive-btn');
       if (goLiveBtn) goLiveBtn.onclick = function () {
         // destructive + one-way → three gates: confirm, type LIVE, final confirm

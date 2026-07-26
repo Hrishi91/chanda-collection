@@ -269,7 +269,10 @@ function notifData_(u, d) {
 // NOT permissions, because everyone needs them: চাঁদা নেওয়া (a later instalment
 // from a donor anyone may have created), জমা দেওয়া, আমার entry / সংশোধন, বাকি.
 var ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto'];
-var PERM_KEYS = ENTRY_KINDS.concat(['review']);
+// 'review' is the cashier's correction desk; 'otherdonor' is reaching donors
+// somebody ELSE wrote down, to take a later instalment. Neither is an entry
+// kind, but both ride the same field so granting stays one screen.
+var PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor']);
 
 // Which permission key a row needs, from the row itself. null = common.
 function permForRow_(store, row) {
@@ -638,6 +641,47 @@ var ACTIONS = {
   // master lists), reset the serial counters, stamp live_mode + a new data
   // epoch so every device wipes its local training cache on the next pull.
   // Destructive + one-way → the client gates it behind a typed confirmation.
+  // Wipe the practice data and carry on practising. Same clearing as goLive —
+  // every transactional sheet, and the serial counters so numbering restarts —
+  // but it does NOT set live_mode, so it can be run again tomorrow.
+  //
+  // REFUSED once live. After go-live this button would be "delete the whole
+  // year's takings", and no amount of confirming makes that a thing a phone
+  // screen should offer.
+  clearTraining: function (b) {
+    var me = requireAdmin_(b.token);
+    if (String(readConfig_().live_mode || '') === 'on') throw new Error('already-live');
+    if (String(b.confirm) !== 'CLEAR') throw new Error('confirm-required');
+    // mandatory snapshot, same reasoning as goLive: losing practice data is
+    // survivable, losing it with no copy is not
+    var backupFile;
+    try { backupFile = dailyBackup(); }
+    catch (e) { throw new Error('backup-failed: ' + (e && e.message || e)); }
+    var lock = LockService.getScriptLock(); lock.waitLock(30000);
+    try {
+      var ss = SpreadsheetApp.getActive();
+      // ESSENTIALS ARE UNTOUCHED: Users, Config, Lists (areas/locations),
+      // ExpenseSubjects and Audit are not in SHEETS — only the transactional
+      // stores are, so approvals, permissions and master data all survive.
+      Object.keys(SHEETS).forEach(function (store) {
+        var sh = ss.getSheetByName(SHEET_TITLES[store]);
+        if (sh && sh.getLastRow() > 1) sh.deleteRows(2, sh.getLastRow() - 1);
+      });
+      var csh = configSheet_();
+      if (csh.getLastRow() > 1) {
+        var vals = csh.getRange(2, 1, csh.getLastRow() - 1, 1).getValues();
+        for (var i = vals.length - 1; i >= 0; i--) {
+          if (String(vals[i][0]).indexOf('receiptSeq_') === 0) csh.deleteRow(i + 2);
+        }
+      }
+      // every device clears its local copy on the next pull, or phones would
+      // keep showing practice rows the sheet no longer has
+      setConfig_('data_epoch', String(Date.now()));
+      logAudit_(me.row, 'training:clear', 'practice data cleared; backup=' + backupFile);
+      return { ok: true, backup: backupFile };
+    } finally { lock.releaseLock(); }
+  },
+
   goLive: function (b) {
     var me = requireAdmin_(b.token);
     var digits = Math.min(9, Math.max(4, Number(b.digits) || 6)); // locked in at go-live

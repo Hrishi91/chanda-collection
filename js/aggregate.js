@@ -608,12 +608,16 @@
   // (it names a donor and issues a receipt); road/toto are the street rounds.
   //
   // Deliberately NOT permissions, because everyone needs them to do the job:
-  //   চাঁদা নেওয়া (a later instalment from a donor anyone may have created),
-  //   জমা দেওয়া (handover), আমার entry / সংশোধন, বাকি (the dues list).
+  //   চাঁদা নেওয়া from a donor THEY wrote down, জমা দেওয়া (handover),
+  //   আমার entry / সংশোধন, বাকি (the dues list).
+  // Reaching somebody ELSE's donor is a separate grant ('otherdonor').
   // `review` is not an entry kind — it gates the cashier's correction desk —
   // but it rides the same field so granting stays one screen for the admin.
   const ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto'];
-  const PERM_KEYS = ENTRY_KINDS.concat(['review']);
+  // 'review' is the cashier's correction desk; 'otherdonor' is reaching donors
+  // somebody ELSE wrote down, to take a later instalment. Neither is an entry
+  // kind, but both ride the same field so granting stays one screen.
+  const PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor']);
   // Which permission key a row needs, from the row itself. Stores with no key
   // are common to everyone.
   function permForRow(store, row) {

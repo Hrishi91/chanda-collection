@@ -3187,3 +3187,54 @@ VERIFIED
 - app loads clean, no console errors.
 - NOT verifiable until the redeploy: the server gate itself and the admin
   attribution. Both go into the three-role pass right after.
+
+## v3.94.0 — clear the practice data; reaching other people's donors is a grant
+
+Two more before the redeploy, so they ride the same one.
+
+### 🧹 Clear practice data (admin, training only)
+
+Rehearsals leave the book full of junk, and until now the only way out was Go
+Live — which is one-way. `clearTraining` does the same clearing as `goLive` (every
+transactional sheet, and the `receiptSeq_` counters so numbering restarts) but
+does NOT set `live_mode`, so the next rehearsal starts clean and you can do it
+again tomorrow.
+
+Essentials survive because they were never in `SHEETS`: **Users, Config, Lists
+(areas/locations), ExpenseSubjects and Audit** are separate, so approvals,
+permissions, area duties, expense subjects and receipt settings all stay.
+
+Three guards:
+- **Refused once live** (`already-live`). After go-live this button would read
+  "delete the whole year's takings", and no amount of confirming makes that
+  something a phone screen should offer.
+- **Mandatory backup first**, same reasoning as goLive — losing practice data is
+  survivable, losing it with no copy is not.
+- Typed `CLEAR`, plus `confirm: 'CLEAR'` checked server-side as well.
+
+`data_epoch` is bumped, and the admin's own device runs `DB.clearAll()` before
+re-pulling — otherwise that phone would keep showing rows the sheet no longer has.
+
+### 'otherdonor' — reaching a donor somebody else wrote down
+
+Hrishi: "যেকোনো দাতা খুঁজে জমা নাও — this screen also should be with permission".
+
+This narrows an earlier decision of his, deliberately. Taking a later instalment
+from **your own** donor stays common to everyone; what now needs a grant is the
+screen that shows one collector **the whole committee's donor list**. That is not
+every collector's business, and it is the difference between "record the money in
+front of you" and "browse everyone's book".
+
+Eighth permission key, same field, same empty-means-all rule. The ROUTE is
+guarded as well as the button — Back and history can reach a screen whose button
+is hidden.
+
+VERIFIED
+- 5 new tests: the key exists on both sides, a narrowly-granted user is denied it,
+  an empty grant still means all, an admin is never narrowed, and — the one that
+  keeps the earlier decision intact — `permForRow('payments', …)` is still `null`,
+  so recording a payment remains common. **329 passed, 0 failed.**
+- browser: `PERM_KEYS` now has 8 entries and a bus-only user is denied
+  `otherdonor`. No console errors.
+- NOT verifiable until the redeploy: `clearTraining` itself. It is destructive by
+  design, so it gets tested on the training sheet right after, before go-live.

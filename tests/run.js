@@ -477,6 +477,7 @@ eq(mayCashierAct('admin'), false, 'duties: cashier may not act on an admin entry
 // ---- collection permissions: one key per thing a person actually collects ----
 eq(ENTRY_KINDS, ['shop', 'person', 'member', 'bus', 'road', 'toto'], 'perms: six collection keys, bus with the new-entry types');
 eq(PERM_KEYS.indexOf('review') >= 0, true, 'perms: the correction desk rides the same field');
+eq(PERM_KEYS.indexOf('otherdonor') >= 0, true, 'perms: reaching somebody else\'s donor is its own grant');
 eq(PERM_KEYS.indexOf('payment'), -1, 'perms: taking a later instalment is NOT a permission');
 eq(PERM_KEYS.indexOf('handover'), -1, 'perms: handing money over is NOT a permission');
 
@@ -504,6 +505,12 @@ eq(permAllowed(busOnly, 'bus'), true, 'perms: granted key allowed');
 eq(permAllowed(busOnly, 'road'), false, 'perms: ungranted key blocked');
 eq(permAllowed(busOnly, 'shop'), false, 'perms: a bus-only collector cannot add a shop');
 eq(permAllowed(busOnly, 'review'), false, 'perms: once anything is granted, review must be granted too');
+eq(permAllowed(busOnly, 'otherdonor'), false, 'perms: …and so must reaching other people\'s donors');
+eq(permAllowed(fresh, 'otherdonor'), true, 'perms: empty grant still means ALL, including other donors');
+eq(permAllowed(admin, 'otherdonor'), true, 'perms: an admin is never narrowed');
+// a payment itself stays common — what is gated is REACHING a donor you did not
+// write down, not taking money from one you did
+eq(permForRow('payments', { amount: 100 }), null, 'perms: recording a payment is still common to everyone');
 eq(permAllowed(busOnly, null), true, 'perms: a common action stays open to a narrowly-granted user');
 eq(permAllowed(busOnly, permForRow('payments', {})), true, 'perms: bus-only collector may still take a later instalment');
 eq(permAllowed(busOnly, permForRow('handovers', {})), true, 'perms: bus-only collector may still hand money over');

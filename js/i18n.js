@@ -234,6 +234,15 @@ const I18N = {
   q_cash_amount: { bn: 'নগদ কত টাকা?', en: 'Cash amount?' },
   q_upi_amount: { bn: 'UPI-তে কত টাকা?', en: 'UPI amount?' },
   cat_payment: { bn: '🧾 চাঁদা (পুরোনো)', en: '🧾 Chanda (older)' },
+  clear_training_btn: { bn: 'প্র্যাকটিসের ডেটা মুছে ফেলো', en: 'Clear practice data' },
+  clear_training_hint: { bn: 'entry, চাঁদা, খরচ, জমা — সব মুছবে। user, permission, এলাকা, খরচের বিষয়, receipt সেটিং থাকবে। Go Live হবে না, training-এই থাকবে।',
+                         en: 'Clears entries, payments, expenses and handovers. Users, permissions, areas, expense subjects and receipt settings stay. Does NOT go live.' },
+  clear_training_confirm1: { bn: 'প্র্যাকটিসের সব entry মুছে যাবে। user/permission/এলাকা থাকবে। একটা backup আগে নেওয়া হবে। চালিয়ে যাব?',
+                             en: 'Every practice entry will be deleted. Users, permissions and areas stay. A backup is taken first. Continue?' },
+  clear_training_confirm2: { bn: 'নিশ্চিত হলে লেখো: CLEAR', en: 'Type CLEAR to confirm' },
+  clear_training_done: { bn: '🧹 প্র্যাকটিসের ডেটা মুছে গেছে', en: '🧹 Practice data cleared' },
+  already_live: { bn: 'Go Live হয়ে গেছে — এখন আর মোছা যাবে না', en: 'Already live — this cannot be used now' },
+  err_already_live: { bn: 'Go Live হয়ে গেছে — এখন আর মোছা যাবে না', en: 'Already live — this cannot be used now' },
   import_owner_title: { bn: '📥 কার খাতা ফেরাচ্ছ?', en: '📥 Whose book is this?' },
   import_owner_hint: { bn: 'ফাইলের প্রতিটা entry এই লোকের নামে বসবে। সাধারণত যার ফোন থেকে backup নেওয়া হয়েছিল।',
                        en: "Every entry in the file will be stamped with this person. Usually whoever's phone the backup came from." },
@@ -313,8 +322,8 @@ const I18N = {
   // Permission chips reuse the tile labels themselves (new_shop, daily_bus …)
   // so a grant reads exactly like the button it turns on. Only the section
   // heading and the always-open note live here.
-  perms_common: { bn: 'সবার জন্য খোলা: চাঁদা নেওয়া · জমা দেওয়া · আমার entry/সংশোধন · বাকি',
-                  en: 'Open to everyone: take payment · handover · my entries/fix · dues' },
+  perms_common: { bn: 'সবার জন্য খোলা: নিজের দাতার চাঁদা · জমা দেওয়া · আমার entry/সংশোধন · বাকি',
+                  en: "Open to everyone: payments from one's own donors · handover · my entries/fix · dues" },
   inhand_auto_cashier: { bn: '(ক্যাশিয়ার হলে "কার হাতে কত" এমনিই থাকে)', en: '(cashiers always get "Cash in hand")' },
   // --- personal "my summary" ---
   my_summary: { bn: '📱 আমার হিসাব', en: '📱 My summary' },
