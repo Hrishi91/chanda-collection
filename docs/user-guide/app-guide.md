@@ -81,7 +81,7 @@ exactly: the giver keeps the remainder under the same category and the
 receiver gains it under that same category (cashier→cashier→admin chains stay
 category-aware). The receiving cashier **sees that same breakdown before
 approving**, and it also appears in the central "cash in hand" report and in
-every user's own **"What I hold, by source"**.
+every user's own **"My summary"**, under 📥 new entries / 🛣️ road-toto.
 
 It becomes confirmed only when the cashier opens **✅ Confirm receipts** and
 taps "Received". Until confirmed the money stays counted **in the
@@ -104,10 +104,22 @@ by collector" always correct.
 
 - **Ledger (খাতা)** — list of all donors; search, filter by "Dues only", tap a
   name for details + add payment.
-- **Report** — everyone's own **"My summary"** at the top (collected / handed
-  over / in hand). Below are the **central reports** (overview, dues, cash in
-  hand, by collector, **📍 by area**, expenses, daily); each user sees only what
-  the admin grants.
+- **Report** — everyone's own **"My summary"** at the top. It opens with a single
+  figure — *what is in your account right now*, plus its 💵/📱 split. **"Show the
+  working"** reveals the group totals (📥 new entries, 🛣️ road/toto); tapping a
+  group opens the pots inside it. Every figure below the top one is a **slice of
+  it**, so nothing on the screen can contradict the headline.
+  - **⏳ awaiting approval** stays *inside* that figure — the receiver has not
+    said "received" yet, so the sender still answers for it. The screen states
+    what the figure becomes once approved.
+  - **✅ approved** parcels are greyed out and explicitly *not* part of the
+    figure; they are kept only as proof.
+  - **🎨 What the colours mean** is a tap away: green = in your account, yellow =
+    counted but leaving, blue = your move, grey = done, red = shortfall. One
+    colour, one meaning — and every line also carries an icon and words, so
+    nothing depends on colour alone.
+  Below are the **central reports** (overview, dues, cash in hand, by collector,
+  **📍 by area**, expenses, daily); each user sees only what the admin grants.
 - **📍 By area** — how much each road collected and what is still due, ranked by
   collection (🥇🥈🥉).
 - **Opens instantly** — ledger and reports render from data already stored on the

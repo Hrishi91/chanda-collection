@@ -286,6 +286,41 @@ deploy.
 3. Hand over the `/exec` URL for rebaking, then the switch gets tested live
    (flip on → a message must be refused → flip off → it must go through).
 
+## Money-display work (Hrishi, 2026-07-26) — phase ক DONE, phase খ open
+
+Decision recorded, because every figure depends on it: **an unconfirmed handover
+still counts as the SENDER's money.** The receiver is credited only on confirm,
+so deducting the sender too would leave that money in nobody's book and shrink
+the central total. Two different questions follow from it, and they legitimately
+give different numbers:
+
+| question | figure | source |
+|---|---|---|
+| how much do I answer for? | includes pending | `myAvailable` → the summary hero |
+| how much can I hand over now? | excludes pending | must be `hero − pendingOut` |
+
+- [x] ~~**Phase ক — আমার হিসাব as three levels** + colour legend + the three
+      handover slots (⏳ / ✅ / ❌ dormant)~~ (2026-07-26, v4.4.0, client-only,
+      verified live on port 8767; see build-log)
+- [ ] **Phase খ — the reject path.** `confirmHandover` only ever writes
+      `'confirmed'`; there is no way for a cashier to say "পাইনি", so the ❌ slot
+      can never fill. Needs: a `rejectHandover` action, a `rejectReason` column
+      appended at the END of `SHEETS.handovers`, the sender notified (their hero
+      does NOT move on a rejection — only the cap grows back, so silence would be
+      confusing), and **four readers fixed** that still treat "not confirmed" as
+      "pending" and would therefore deduct a rejected parcel for ever:
+      `personalSummary` ([aggregate.js:207](../js/aggregate.js)),
+      `cashierView` (:452), `handoverReport` (:495), `bump()` (:198) — plus the
+      `Code.gs` mirrors. **Needs a Sheet migration and a redeploy.**
+- [ ] **Handover caps** (own commit, client-only). Collector chips are capped
+      from `myAvailable`, which does not deduct pending — so with ₹2,000 in the
+      account, ₹700 pending and a ₹100 road debt, the chips offer ₹1,400 while
+      only ₹1,300 is held. Two clamps needed: per pot (minus that pot's pending)
+      **and** per money type in total (💵 max, 📱 max), because a negative pot is
+      skipped by the chips yet still reduces the cash actually held. `#sh-total`
+      already exists ([app.js:651](../js/app.js)) — it needs the cap and a guard
+      on "next", with the reason spelled out on screen.
+
 ## Before go-live, still open
 
 - [ ] **Reports permission** — a DECISION, not a fix. Most collectors have an

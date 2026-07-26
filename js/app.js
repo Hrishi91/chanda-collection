@@ -2205,9 +2205,6 @@
           fmtMoney(r.inHand) + '</b></span><div class="row-sub">' + esc(t('inhand_col')) + '</div></div></div>';
       }).join('') + '</div>';
   }
-  // "কোন খাতে কত আছে" — the same source-category × cash/UPI table the
-  // handover screen uses, so a collector can answer "how much bus money do I
-  // still hold?" from the report too, not only mid-handover.
   // order = how every report lists the pots; bus grouped with the new-entry
   // types to match the home screen and the handover sheet
   const OWN_SRC = Aggregate.OWN_SRC;
@@ -2215,63 +2212,136 @@
                            payment: 'cat_payment', bus: 'daily_bus',
                            road: 'daily_road', toto: 'daily_toto', received: 'cat_received',
                            other: 'cat_other' };
-  function byCatHTML(byCat) {
-    if (!byCat) return '';
-    const rows = Object.keys(CAT_LABEL_KEYS)
-      .filter(function (k) { return byCat[k] && (byCat[k].cash || byCat[k].upi); })
-      .map(function (k) {
-        const c = byCat[k].cash, u = byCat[k].upi;
-        return '<div class="row" style="cursor:default"><div class="cat-name">' + esc(t(CAT_LABEL_KEYS[k])) + '</div>' +
-          '<span class="cat-split">💵' + fmtMoney(c) + ' · 📱' + fmtMoney(u) + '</span>' +
-          '<b class="cat-tot">' + fmtMoney(c + u) + '</b></div>';
-      });
-    if (!rows.length) return '';
-    return '<div class="section" style="margin-top:14px">' + esc(t('my_by_cat')) + '</div>' + rows.join('');
+  // byCatHTML() and handedToHTML() lived here until v4.4.0. Both are now inside
+  // mySummaryHTML's drill-down: the pot table became level 2 of each group, and
+  // "কাকে কত জমা দিয়েছি" became the three handover slots — per handover rather
+  // than merged per person, because one parcel can be approved while another
+  // from the same person is rejected.
+  // Dictionary text with money figures spliced in. The WORDS go through esc();
+  // the figures come from fmtMoney (digits, ₹, −, commas only), so this stays
+  // injection-free while keeping markup out of i18n.js. Never pass user data.
+  function tMoney(key) {
+    const nums = Array.prototype.slice.call(arguments, 1);
+    const parts = esc(t(key)).split('{n}');
+    let out = parts[0];
+    for (let i = 1; i < parts.length; i++) out += '<b>' + fmtMoney(nums[i - 1] || 0) + '</b>' + parts[i];
+    return out;
   }
-  // "কাকে কত জমা দিয়েছি" — each receiver by name, then the categories that went
-  // to them. Read straight off one's own outgoing handovers, which already
-  // record both, so this can never disagree with the receiver's own screen.
-  function handedToHTML(list) {
-    if (!list || !list.length) return '';
-    return '<div class="section" style="margin-top:14px">' + esc(t('my_handed_to')) + '</div>' +
-      list.map(function (r) {
-        return '<div class="row" style="cursor:default;flex-wrap:wrap"><div style="flex:1 1 60%"><b>🧑 ' +
-          esc(r.name) + '</b>' +
-          (r.pending ? '<div class="row-sub">⏳ ' + esc(t('my_pending')) + ' ' + fmtMoney(r.pending) + '</div>' : '') +
-          '</div><span class="cat-split">💵' + fmtMoney(r.cash) + ' · 📱' + fmtMoney(r.upi) + '</span>' +
-          '<b class="cat-tot">' + fmtMoney(r.total) + '</b>' +
-          (r.cats.length ? '<div style="flex-basis:100%">' + r.cats.map(function (c) {
-            return '<div class="bd-line">' + esc(t(CAT_LABEL_KEYS[c.key] || 'cat_other')) + ' — 💵' +
-              fmtMoney(c.cash) + ' · 📱' + fmtMoney(c.upi) + '</div>';
-          }).join('') + '</div>' : '') + '</div>';
-      }).join('');
+  const SUM_GROUP_KEYS = { entry: 'grp_entry', daily: 'grp_daily', other: 'grp_received' };
+  function grpHTML(open, name, amt, kids, cls) {
+    return '<div class="grp' + (open ? ' open' : '') + (cls ? ' ' + cls : '') + '">' +
+      '<button class="head" data-grp="1"><span class="car">▶</span><span class="nm">' + name + '</span>' +
+      '<span class="amt">' + amt + '</span></button><div class="kids">' + kids + '</div></div>';
   }
-  function mySummaryHTML(d, deviceOnly) {
-    return '<div class="card"><div class="card-title">' + esc(t('my_summary')) + '</div>' +
-      (deviceOnly ? '<div class="row-sub" style="margin-bottom:8px">' + esc(t('my_device_note')) + '</div>' : '') +
-      '<div class="stat3">' +
-        '<div class="' + (d.inHand > 0 ? 'red' : 'green') + '"><span>' + esc(t('my_inhand')) + '</span><b>' + fmtMoney(d.inHand) + '</b></div>' +
-        '<div><span>' + esc(t('my_collected')) + '</span><b>' + fmtMoney(d.collected) + '</b></div>' +
-        '<div><span>' + esc(t('my_handed')) + '</span><b>' + fmtMoney(d.handedOver || 0) + '</b></div>' +
+  // level 2 of a group: the pots inside it. A pot can be negative when its
+  // expenses outran it — Hrishi's rule is that this stays visible and gets
+  // squared up later by exchanging cash, so it is never hidden or borrowed from.
+  function potKidsHTML(pots) {
+    return pots.map(function (p) {
+      const neg = p.total < 0;
+      return '<div class="kid' + (neg ? ' neg' : '') + '"><span class="k">' +
+        esc(t(CAT_LABEL_KEYS[p.key] || 'cat_other')) +
+        (neg ? '<span class="note">' + esc(t('sum_pot_debt')) + '</span>' : '') +
+        '</span><span class="v">' + fmtMoney(p.total) + '</span></div>';
+    }).join('');
+  }
+  // level 2 of a handover slot: one row per HANDOVER, not per person. A cashier
+  // can approve one parcel and reject another, so merging them by name would
+  // leave a row that matches neither outcome.
+  function slotRowsHTML(rows, noteKey) {
+    return rows.map(function (h) {
+      const split = ' · 💵' + fmtMoney(Number(h.cashAmount) || 0) + ' · 📱' + fmtMoney(Number(h.upiAmount) || 0);
+      return '<div class="kid"><span class="k">' + esc(h.to || h.toId || h.from || '?') +
+        '<span class="note">' + esc(fmtDate(h.date)) + ' · ' + esc(t(noteKey)) +
+        (noteKey === 'slot_got_row' ? split : '') + '</span></span>' +
+        '<span class="v">' + fmtMoney(Number(h.amount) || 0) + '</span></div>';
+    }).join('');
+  }
+  function legendHTML() {
+    const rows = [['green', 'legend_green', 'legend_green_v'], ['gold', 'legend_gold', 'legend_gold_v'],
+                  ['blue', 'legend_blue', 'legend_blue_v'], ['grey', 'legend_grey', 'legend_grey_v'],
+                  ['red', 'legend_red', 'legend_red_v']];
+    return '<div class="calc lg" style="margin-top:10px">' +
+      grpHTML(false, esc(t('legend_title')), '',
+        rows.map(function (r) {
+          return '<div class="kid lgrow"><span class="k"><i class="sw sw-' + r[0] + '"></i>' +
+            esc(t(r[1])) + '<span class="note">' + esc(t(r[2])) + '</span></span></div>';
+        }).join('') + '<div class="expl">' + esc(t('legend_note')) + '</div>') + '</div>';
+  }
+  // m = Aggregate.mySummary(). Three levels: the hero alone, then the group
+  // totals, then each group's pots. Everything below the hero is a slice OF the
+  // hero, so no figure on this screen can contradict the one at the top.
+  function mySummaryHTML(m, deviceOnly) {
+    const hero = m.hero.total, pend = m.out.pending, rej = m.out.rejected, ok = m.out.confirmed;
+    const pin = m.incoming.pending;
+    return '<div class="sum-hero">' +
+        '<div class="lbl">' + esc(t('sum_hero')) + '</div>' +
+        '<div class="big' + (hero < 0 ? ' neg' : '') + '">' + fmtMoney(hero) + '</div>' +
+        '<div class="split">💵 ' + esc(t('cash')) + ' <b>' + fmtMoney(m.hero.cash) + '</b> · 📱 ' +
+          esc(t('upi')) + ' <b>' + fmtMoney(m.hero.upi) + '</b></div>' +
+        (deviceOnly ? '<div class="sub" style="font-size:12px;color:var(--sub);margin-top:6px">' +
+          esc(t('my_device_note')) + '</div>' : '') +
+        '<button class="sum-more" id="sum-toggle">' + esc(t('sum_open')) + '</button>' +
+        // money that is NOT in the hero but needs an action from this person
+        (pin.total ? '<div class="strip act">' + tMoney('strip_pend_in', pin.total) +
+          '<span class="sub">' + esc(t('strip_pend_in_sub')) + '</span>' +
+          '<button class="cta" data-go="cashier">' + esc(t('strip_pend_in_cta')) + '</button></div>' : '') +
+        // money that IS in the hero but is on its way out
+        (pend.total ? '<div class="strip">' + tMoney('strip_pend_out', pend.total) +
+          '<span class="sub">' + tMoney('strip_pend_out_sub', m.afterApprove) + '</span></div>' : '') +
+        // money that came back: the hero never moved, which is exactly what
+        // confuses people, so say it in so many words
+        (rej.total ? '<div class="strip act">' + tMoney('strip_rejected', rej.total) +
+          '<span class="sub">' + tMoney('strip_rejected_sub', hero) + '</span></div>' : '') +
       '</div>' +
-      '<div class="stat3">' +
-        '<div><span>' + esc(t('cash')) + '</span><b>' + fmtMoney(d.cash) + '</b></div>' +
-        '<div><span>' + esc(t('upi')) + '</span><b>' + fmtMoney(d.upi) + '</b></div>' +
-        '<div><span>' + esc(t('my_received')) + '</span><b>' + fmtMoney(d.received || 0) + '</b></div>' +
-      '</div>' +
-      (d.pending ? '<div class="row" style="cursor:default"><div>⏳ ' + esc(t('my_pending')) + '</div><b>' + fmtMoney(d.pending) + '</b></div>' : '') +
-      // no separate road/toto/bus strip: byCatHTML below shows every category
-      // with its cash/UPI split AND groups bus with the new entries, so the old
-      // strip only repeated the same money under a second, wrong grouping.
-      byCatHTML(d.byCat) +
-      handedToHTML(d.handedTo) +
-      '</div>' +
-      (d.expenses && d.expenses.length ?
-        '<div class="card"><div class="card-title">' + esc(t('my_expenses')) + ' — ' + fmtMoney(d.expenseTotal) + '</div>' +
-        d.expenses.map(function (e) {
-          return '<div class="row" style="cursor:default"><div><b>' + esc(e.desc) + '</b><div class="row-sub">' +
-            esc(fmtDate(e.date)) + '</div></div><b>' + fmtMoney(e.amount) + '</b></div>';
-        }).join('') + '</div>' : '');
+      '<div id="sum-body" hidden>' +
+        '<div class="secttl">' + esc(t('sum_where')) + '</div><div class="calc">' +
+          m.groups.map(function (g) {
+            return grpHTML(true, esc(t(SUM_GROUP_KEYS[g.key] || 'cat_other')), fmtMoney(g.total), potKidsHTML(g.pots));
+          }).join('') +
+          '<div class="final"><span class="k">' + esc(t('sum_total')) + '</span>' +
+            '<span class="v">' + fmtMoney(hero) + '</span></div>' +
+        '</div>' +
+        (pend.total || rej.total || ok.total ?
+          '<div class="secttl">' + esc(t('sum_handover')) + '</div><div class="calc">' +
+            (pend.total ? grpHTML(true, esc(t('slot_pending')), fmtMoney(pend.total),
+              slotRowsHTML(pend.rows, 'slot_await_row') +
+              '<div class="expl">' + tMoney('slot_pending_note', m.afterApprove) + '</div>', 'pendbox') : '') +
+            (rej.total ? grpHTML(true, esc(t('slot_rejected')), fmtMoney(rej.total),
+              slotRowsHTML(rej.rows, 'slot_await_row') +
+              '<div class="expl">' + esc(t('slot_rejected_note')) + '</div>', 'nobox') : '') +
+            (ok.total ? grpHTML(false, esc(t('slot_confirmed')), fmtMoney(ok.total),
+              slotRowsHTML(ok.rows, 'slot_got_row') +
+              '<div class="expl">' + tMoney('slot_confirmed_note', hero) + '</div>', 'okbox') : '') +
+          '</div>' : '') +
+        legendHTML() +
+        '<div class="tillnow">' + esc(t('till_now')) + ' — ' +
+          esc(t('my_collected')) + ' <b>' + fmtMoney(m.tillNow.collected) + '</b>' +
+          (m.tillNow.received ? ' · ' + esc(t('my_received')) + ' <b>' + fmtMoney(m.tillNow.received) + '</b>' : '') +
+          ' · ' + esc(t('expense')) + ' <b>' + fmtMoney(m.tillNow.expenseTotal) + '</b>' +
+          ' · ' + esc(t('my_handed')) + ' <b>' + fmtMoney(m.tillNow.handedOver) + '</b>' +
+          '<span class="sub">' + esc(t('till_now_sub')) + '</span></div>' +
+        (m.expenses.length ?
+          '<div class="card" style="margin-top:12px"><div class="card-title">' + esc(t('my_expenses')) +
+          ' — ' + fmtMoney(m.tillNow.expenseTotal) + '</div>' +
+          m.expenses.map(function (e) {
+            return '<div class="row" style="cursor:default"><div><b>' + esc(e.desc) + '</b><div class="row-sub">' +
+              esc(fmtDate(e.date)) + '</div></div><b>' + fmtMoney(e.amount) + '</b></div>';
+          }).join('') + '</div>' : '') +
+      '</div>';
+  }
+  // Accordion wiring. Kept at module level next to the renderer: a handler that
+  // reaches for a function declared inside another function throws only when a
+  // user taps it, which is how three buttons once went dead unnoticed.
+  function wireSummary(root) {
+    const body = root.querySelector('#sum-body'), tog = root.querySelector('#sum-toggle');
+    if (tog && body) tog.onclick = function () {
+      body.hidden = !body.hidden;
+      tog.textContent = t(body.hidden ? 'sum_open' : 'sum_close');
+    };
+    root.querySelectorAll('[data-grp]').forEach(function (h) {
+      h.onclick = function () { h.parentNode.classList.toggle('open'); };
+    });
   }
   function reportCollectorsHTML(d) {
     const rows = d.rows || [];
@@ -2513,7 +2583,9 @@
     viewData().then(function (data) {
       const el = document.getElementById('my-summary');
       if (!el) return; // view changed while computing
-      el.innerHTML = mySummaryHTML(Aggregate.personalSummary(data, ident), false);
+      el.innerHTML = mySummaryHTML(Aggregate.mySummary(data, ident), false);
+      wireSummary(el);
+      wireNav(); // the pending-in strip's CTA is a data-go button
     });
   }
   function showReportButtons(ids) {

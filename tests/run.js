@@ -2,7 +2,7 @@
 const { parseAmount } = require('../js/numparse.js');
 const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
         roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed,
-        cashierView, handoverReport, allowedReports,
+        cashierView, handoverReport, allowedReports, mySummary, handoverSlots,
         mentionsMe, messageFeed, activeData, chatLoad, homeTiles } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
@@ -952,6 +952,67 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
 })();
 
 // ---- scope check ----------------------------------------------------------
+// ---- mySummary: the আমার হিসাব model -----------------------------------------
+// যমুনা: 2000 shop (1200c/800u) + 500 person cash + 900 bus (400c/500u)
+//        + 300 road cash + 400 toto cash = 4100 collected
+//        − 400 চা-জল out of the ROAD pot (more than road holds → road goes −100)
+//        − 1700 confirmed to Jadav (shop 1200c + bus 500u)
+//        − 700 pending to Jadav (person 300c, toto 400c)  ← still hers
+//        − 250 REJECTED (bus)                              ← never left her
+const msData = {
+  parties: [{ id: 's1', type: 'shop' }, { id: 'p1', type: 'person' }],
+  voids: [], corrections: [],
+  payments: [{ id: 'a', collectorId: 'y', partyId: 's1', amount: 2000, cashAmount: 1200, upiAmount: 800 },
+             { id: 'b', collectorId: 'y', partyId: 'p1', amount: 500, cashAmount: 500, upiAmount: 0 }],
+  daily: [{ id: 'd1', collectorId: 'y', type: 'bus', amount: 900, cashAmount: 400, upiAmount: 500 },
+          { id: 'd2', collectorId: 'y', type: 'road', amount: 300, cashAmount: 300, upiAmount: 0 },
+          { id: 'd3', collectorId: 'y', type: 'toto', amount: 400, cashAmount: 400, upiAmount: 0 }],
+  expenses: [{ id: 'x', collectorId: 'y', amount: 400, cashAmount: 400, upiAmount: 0,
+               source: 'collection', srcCat: 'road', desc: 'চা-জল', date: '2026-07-24' }],
+  handovers: [
+    { id: 'h1', fromId: 'y', toId: 'j', to: 'Jadav', amount: 1700, cashAmount: 1200, upiAmount: 500,
+      status: 'confirmed', breakdown: JSON.stringify({ shop: { cash: 1200, upi: 0 }, bus: { cash: 0, upi: 500 } }) },
+    { id: 'h2', fromId: 'y', toId: 'j', to: 'Jadav', amount: 300, cashAmount: 300, upiAmount: 0,
+      status: 'pending', breakdown: JSON.stringify({ person: { cash: 300, upi: 0 } }) },
+    { id: 'h3', fromId: 'y', toId: 'j', to: 'Jadav', amount: 400, cashAmount: 400, upiAmount: 0,
+      status: 'pending', breakdown: JSON.stringify({ toto: { cash: 400, upi: 0 } }) },
+    { id: 'h4', fromId: 'y', toId: 'j', to: 'Jadav', amount: 250, cashAmount: 250, upiAmount: 0,
+      status: 'rejected', breakdown: JSON.stringify({ bus: { cash: 250, upi: 0 } }) },
+  ],
+};
+const ms = mySummary(msData, 'y');
+eq(ms.hero.total, 2000, 'mySummary: hero = 4100 − 400 spent − 1700 confirmed (pending/rejected stay hers)');
+eq([ms.hero.cash, ms.hero.upi], [1200, 800], 'mySummary: hero split comes from myAvailable, not from collected');
+// THE invariant: nothing on the screen may be larger than the number on top
+eq(ms.groups.reduce(function (s, g) { return s + g.total; }, 0), ms.hero.total,
+   'mySummary: group totals sum to hero exactly');
+eq(ms.groups.map(function (g) { return [g.key, g.total]; }), [['entry', 1700], ['daily', 300]],
+   'mySummary: pods group as 📥 entry (shop+person+bus) and 🛣️ daily (road+toto)');
+eq(ms.groups[1].pots.map(function (p) { return [p.key, p.total]; }), [['toto', 400], ['road', -100]],
+   'mySummary: an overspent pot stays visible and negative, sorted last');
+// the three slots are kept apart, and `rejected` is bucketed by NAME
+eq(ms.out.pending.total, 700, 'mySummary: both pending parcels land in the pending slot');
+eq(ms.out.pending.rows.length, 2, 'mySummary: one row per handover, not merged per person');
+eq(ms.out.rejected.total, 250, 'mySummary: a rejected handover gets its own slot');
+eq(ms.out.confirmed.total, 1700, 'mySummary: confirmed handovers are out of the hero, kept as proof');
+eq(ms.afterApprove, 1300, 'mySummary: afterApprove = hero − pending, shown before it happens');
+// a rejection must NOT keep being treated as in-transit
+const msRejOnly = mySummary(Object.assign({}, msData, {
+  handovers: msData.handovers.filter(function (h) { return h.status === 'rejected'; }) }), 'y');
+eq(msRejOnly.out.pending.total, 0, 'mySummary: a rejected row is never filed as pending');
+eq(msRejOnly.afterApprove, msRejOnly.hero.total, 'mySummary: a rejection does not lower the hero');
+// season-to-date is a DIFFERENT clock and must not be folded into the hero
+eq(ms.tillNow.collected, 4100, 'mySummary: tillNow.collected is the season total, not the hero');
+eq(ms.tillNow.handedOver, 1700, 'mySummary: tillNow.handedOver counts confirmed only');
+// direction: the receiver sees the same parcels on the incoming side
+const msJ = mySummary(msData, 'j');
+eq(msJ.incoming.pending.total, 700, 'mySummary: the receiver sees the unconfirmed parcels as incoming');
+eq(msJ.hero.total, 1700, 'mySummary: …but only the confirmed 1700 counts in their own hero');
+eq(msJ.out.pending.total, 0, 'mySummary: an incoming parcel never shows up as outgoing');
+// handoverSlots on its own: a voided handover is gone here too
+eq(handoverSlots(Object.assign({}, msData, { voids: [{ id: 'v', targetId: 'h2' }] }), 'y').out.pending.total, 400,
+   'handoverSlots: a voided handover leaves the slots');
+
 // A ReferenceError in a click handler does not exist until somebody taps. Run
 // the scope checker as part of the suite so it cannot rot in a corner.
 try {

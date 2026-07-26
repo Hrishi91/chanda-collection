@@ -401,6 +401,89 @@
     return { cash: cash, upi: upi, byCat: cats, byGiver: byGiver };
   }
 
+  // ---------------------------------------------------------------------------
+  // আমার হিসাব — the model behind the personal summary screen.
+  //
+  // ONE rule decides every figure here: money on a handover that has not been
+  // confirmed yet still belongs to the SENDER. The receiver has not
+  // acknowledged it, so nobody else can be holding it, and if it were taken off
+  // the sender too it would sit in no one's book at all — the central total
+  // would silently shrink by that amount. So `hero` (what this person answers
+  // for) counts pending-out money as still theirs, and the pending slot below
+  // says so in words.
+  //
+  // The three handover slots are kept APART on purpose:
+  //   pending    still inside `hero`, will leave it once confirmed
+  //   confirmed  already gone from `hero`, kept only as proof
+  //   rejected   never left `hero` — the money is back in play
+  // `rejected` is bucketed by name rather than as "not confirmed", because
+  // filing a rejection as pending would keep deducting it from the handover cap
+  // for ever. No writer sets that status yet; this reader is ready for it.
+  //
+  // Invariant, asserted in tests: the group totals sum to hero.total exactly.
+  // Nothing on this screen may ever be larger than the number at the top.
+  const SUMMARY_GROUPS = [
+    { key: 'entry', cats: ['shop', 'person', 'member', 'payment', 'bus'] },
+    { key: 'daily', cats: ['road', 'toto'] },
+    { key: 'other', cats: ['received', 'other'] },
+  ];
+  function slotOf(h) {
+    return h.status === 'confirmed' ? 'confirmed' : h.status === 'rejected' ? 'rejected' : 'pending';
+  }
+  // {cash, upi, total, rows} for a list of handover rows, newest first.
+  function parcel(rows) {
+    let cash = 0, upi = 0;
+    rows.forEach(function (h) { const s = splitOf(h); cash += s.cash; upi += s.upi; });
+    return { cash: cash, upi: upi, total: cash + upi, rows: rows };
+  }
+  // Every handover this person is a party to, split by direction and slot.
+  function handoverSlots(data, ident) {
+    data = activeData(data);
+    const me = String(ident);
+    const out = { in: { pending: [], confirmed: [], rejected: [] },
+                  out: { pending: [], confirmed: [], rejected: [] } };
+    (data.handovers || []).forEach(function (h) {
+      const to = String(h.toId || h.to || '?'), from = String(h.fromId || h.from || '?');
+      // a row addressed to oneself would otherwise land in both directions
+      if (from === me) out.out[slotOf(h)].push(h);
+      else if (to === me) out.in[slotOf(h)].push(h);
+    });
+    const wrap = function (d) {
+      return { pending: parcel(d.pending), confirmed: parcel(d.confirmed), rejected: parcel(d.rejected) };
+    };
+    return { in: wrap(out.in), out: wrap(out.out) };
+  }
+  function mySummary(data, ident) {
+    const av = myAvailable(data, ident);
+    const ps = personalSummary(data, ident);
+    const sl = handoverSlots(data, ident);
+    const hero = { cash: av.cash, upi: av.upi, total: av.cash + av.upi };
+    const groups = SUMMARY_GROUPS.map(function (g) {
+      let cash = 0, upi = 0; const pots = [];
+      g.cats.forEach(function (k) {
+        const v = av.byCat[k];
+        if (!v || !(v.cash || v.upi)) return;
+        cash += v.cash; upi += v.upi;
+        pots.push({ key: k, cash: v.cash, upi: v.upi, total: v.cash + v.upi });
+      });
+      pots.sort(function (a, b) { return b.total - a.total; });
+      return { key: g.key, cash: cash, upi: upi, total: cash + upi, pots: pots };
+    }).filter(function (g) { return g.pots.length; });
+    return {
+      hero: hero,
+      groups: groups,
+      // what hero becomes once every pending handover is confirmed
+      afterApprove: hero.total - sl.out.pending.total,
+      out: sl.out,
+      incoming: sl.in,
+      // season-to-date figures — a DIFFERENT clock from hero, labelled as such
+      // on screen so nobody tries to reconcile the two.
+      tillNow: { collected: ps.collected, received: ps.received,
+                 expenseTotal: ps.expenseTotal, handedOver: ps.handedOver },
+      expenses: ps.expenses || [],
+    };
+  }
+
   // The cashier's / admin's handover screen. They do NOT pick categories — money
   // pooled from many people has no honest category left — so this returns the
   // figures they read before typing an amount:
@@ -850,6 +933,7 @@
                 ENTRY_KINDS: ENTRY_KINDS, PERM_KEYS: PERM_KEYS,
                 permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC,
                 cashierView: cashierView, handoverReport: handoverReport,
+                mySummary: mySummary, handoverSlots: handoverSlots,
                 mentionsMe: mentionsMe, messageFeed: messageFeed,
                 activeData: activeData, chatLoad: chatLoad, homeTiles: homeTiles };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

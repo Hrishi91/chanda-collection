@@ -4037,3 +4037,97 @@ pickers, and the admin year field (type=number).
 VERIFIED on the served file: amount→numeric, phone→tel, others unchanged, the
 old `inputmode="text"` gone; number-word parsing still green; no console errors.
 386 passed, 0 failed. Client-only.
+
+## 2026-07-26 — v4.4.0: আমার হিসাব as progressive disclosure
+
+Hrishi: *"my summery will confuse the user"* → *"the summery should be simple
+that in hand how much he is having in his hand … if he expand at first he will
+see the group wise calculations and he want to go deeper then sub groups"* →
+*"you need to think about cashier level, then it will be automatically simple
+for collector"* → *"we are showing the total amounts of this group means till
+now"* → *"the color details also should be available there"*.
+
+The old summary was two `stat3` grids: six figures on one row-pair, and the last
+two were **wrong together**. `personalSummary().cash/.upi` is the split of what
+was *collected*; it sat directly under "in hand". With the season's real data
+that read "হাতে ১,৮০০ · নগদ ২,৪০০" — two numbers that cannot both be true.
+
+### Three levels, and one rule that makes them safe
+
+    level 0   এখন আমার হিসাবে আছে ₹2,000   💵1,200 · 📱800
+    level 1   📥 নতুন এন্ট্রি 1,700 · 🛣️ রোড/টোটো 300  → মোট 2,000
+    level 2   দোকান 800 · ব্যক্তি 500 · বাস 400 | টোটো 400 · রোড −100
+
+The rule: **every figure below the hero is a slice OF the hero.** Not a
+subtraction chain (তুলেছি − খরচ − জমা), which was the first attempt and which
+mixes two clocks — the groups would be season-to-date while the hero is
+right-now. On a cashier that gap becomes absurd: Jadav's `byGiver` gross is
+₹4,200 while he holds ₹1,600. Now nothing on the screen can be larger than the
+number on top, and `mySummary()` asserts Σgroups === hero (test bites: proved by
+dropping `road` from the group and watching it fail 2100 ≠ 2000).
+
+Designing for the **cashier first** was Hrishi's call and it paid: the group set
+is the cashier's set (📥 / 🛣️ / 🤝 received), so a collector's screen is the same
+code with the third group empty. Grouping matches the handover sheet exactly —
+no new vocabulary to learn between the two screens.
+
+### Pending handovers count as still yours — Hrishi's decision, and it is right
+
+I recommended the opposite (deduct pending, so the figure matches a night-time
+cash count). Hrishi: *"pending জমা 'এখনও আমার হাতে' ধরা হবে"*. He is right and my
+version had a hole: `myAvailable` credits the receiver only on *confirmed*, so
+deducting the sender too would leave the money in **nobody's** book — proved
+live, a ₹300 pending parcel made Σ inHand read 700 instead of 1000.
+
+So the three slots are kept apart, and `rejected` is bucketed **by name**, never
+as "not confirmed":
+
+    ⏳ pending    inside the hero, leaving  — states what the hero becomes
+    ✅ confirmed  outside the hero, closed  — grey, collapsed, proof only
+    ❌ rejected   never left the hero       — blue, "nothing came off"
+
+Rows are per **handover**, not merged per person: a cashier can approve one
+parcel and reject another from the same person, and the merged row would then
+match neither. Test proves a rejection is never filed as pending (mis-bucketing
+it reads 950 instead of 700).
+
+No writer sets `rejected` yet — that is phase (খ). This reader is ready for it;
+four other sites still read "not confirmed" as pending and must be fixed there.
+
+### Colour: one colour, one meaning
+
+`legend_title` is a collapsed row under the summary, always a tap away.
+
+    🟩 সবুজ  হিসাবে আছে        🟨 হলুদ  আছে, কিন্তু বেরিয়ে যাবে
+    🟦 নীল   তোমার কাজ বাকি     ⬛ ধূসর  শেষ ও বন্ধ, শুধু প্রমাণ
+    🟥 লাল   ঘাটতি / ঋণ
+
+Red is **only** for a shortfall. Money coming back is not red — it is a job to
+do, so it is blue. Giving red two meanings is exactly the confusion being
+removed. Colour is never the sole carrier: every line also has an icon and
+words, and the legend says so.
+
+`i18n.js` stayed plain text — markup in the dictionary would break the 315
+`esc(t(...))` call sites. `tMoney()` splices `fmtMoney()` output into `{n}` and
+bolds it; the words still go through `esc()`.
+
+Wording: "হাতে আছে" → **"হিসাবে আছে"**. Under Hrishi's rule a pending parcel has
+left the pocket but not the book, so "in hand" would contradict the cash count.
+
+### Removed
+
+`byCatHTML()` and `handedToHTML()` — the pot table became level 2, and "কাকে কত
+জমা দিয়েছি" became the three slots. Orphan keys `my_by_cat`, `my_handed_to`,
+`my_inhand` deleted.
+
+VERIFIED in the real app (fresh port 8767, real IndexedDB, sync URL pointed at a
+dead local path so nothing touched the live backend): hero ₹2,000 = 💵1,200 +
+📱800, groups 1,700 + 300 = 2,000, ⏳700 → "দাঁড়াবে ₹1,300", ❌250 → "₹2,000
+অপরিবর্তিত", ✅1,700 grey and out of the total, road −₹100 red with its note, all
+five legend rows, four slot colours checked by computed style, no console errors.
+404 passed, 0 failed. Client-only — **no Code.gs change, no redeploy.**
+
+Still open (phase খ, own commit): the reject path itself, and the handover cap —
+collector chips are capped from `myAvailable`, which does not deduct pending, so
+₹1,400 is selectable while ₹1,300 is held (₹700 pending + ₹100 road debt the
+chips skip entirely).

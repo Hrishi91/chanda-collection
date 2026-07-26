@@ -143,7 +143,9 @@ window.HELP = [
     body: {
       bn: [
         '<b>📒 খাতা</b> — সব চাঁদাদাতার list; উপরে খুঁজতে পারো, "বাকি আছে" দিয়ে filter করো, নাম চেপে বিস্তারিত + টাকা জমা।',
-        '<b>📊 রিপোর্ট</b> — উপরে সবার নিজের <b>"আমার হিসাব"</b> (তুলেছি/জমা দিয়েছি/হাতে আছে)।',
+        '<b>📊 রিপোর্ট</b> — উপরে সবার নিজের <b>"আমার হিসাব"</b>। প্রথমে শুধু একটা সংখ্যা: <b>এখন আমার হিসাবে আছে</b> (নগদ + UPI)। জানতে চাইলে <b>"হিসাব দেখি"</b> চাপো — তখন ভাগ ধরে (📥 নতুন এন্ট্রি, 🛣️ রোড/টোটো) কত আছে দেখাবে, আর কোনো ভাগে চাপলে তার ভেতরের দোকান/ব্যক্তি/বাস… খুলে যাবে। উপরের সংখ্যার চেয়ে বড় কিছু নিচে কোথাও থাকে না।',
+        '<b>⏳ জমা দিয়েছ কিন্তু অনুমোদন হয়নি</b> — সেই টাকা <b>এখনও তোমার হিসাবেই ধরা থাকে</b>, কারণ যিনি নেবেন তিনি এখনও "পেয়েছি" বলেননি। অনুমোদন হলে কত দাঁড়াবে, সেটা আগেই লেখা থাকে। <b>✅ অনুমোদিত</b> টাকা ধূসর — ওটা হিসাবে আর নেই, শুধু প্রমাণ হিসেবে রাখা।',
+        '<b>🎨 রঙের মানে</b> — এক রং, এক মানে: সবুজ = হিসাবে আছে, হলুদ = আছে কিন্তু বেরিয়ে যাবে, নীল = তোমার কাজ বাকি, ধূসর = শেষ ও বন্ধ, লাল = ঘাটতি/ঋণ। "আমার হিসাব"-এর নিচে <b>রঙের মানে</b> চেপে যেকোনো সময় দেখে নিতে পারো। রং না বুঝলেও ক্ষতি নেই — প্রতি লাইনে চিহ্ন আর লেখাও থাকে।',
         'নিচে <b>কেন্দ্রীয় রিপোর্ট</b> — মোট হিসাব, বাকির তালিকা, কার হাতে কত, কে কত তুলল, <b>📍 এলাকা-ভিত্তিক</b>, খরচ, আর <b>দিনের রোড/টোটো</b>। admin যাকে যেটা permission দেবে সে সেটাই দেখবে। <b>বাস কালেকশন দৈনিক রিপোর্টে নেই</b> — বাস নাম-নম্বর নিয়ে receipt কাটে, তাই ওটা 📒 খাতার <b>বাস</b> tab-এ, দোকান/ব্যক্তির পাশে।',
         '<b>📍 এলাকা-ভিত্তিক</b> — কোন রাস্তায় কত উঠল, কত বাকি; সবচেয়ে বেশি তোলা এলাকা উপরে (🥇🥈🥉)।',
         '<b>দ্রুত খোলে:</b> রিপোর্ট আর খাতা ফোনে জমানো তথ্য থেকে সঙ্গে সঙ্গে দেখায়, নেট থাকলে পিছনে নিজে থেকে আপডেট হয় — তাই অপেক্ষা করতে হয় না, offline-ও খোলে।',
@@ -151,7 +153,9 @@ window.HELP = [
       ],
       en: [
         '<b>📒 Ledger</b> — list of all donors; search at top, filter by "Dues only", tap a name for details + add payment.',
-        '<b>📊 Report</b> — everyone\'s own <b>"My summary"</b> at the top (collected / handed over / in hand).',
+        '<b>📊 Report</b> — everyone\'s own <b>"My summary"</b> at the top. It opens with one figure: <b>what is in your account right now</b> (cash + UPI). Tap <b>"Show the working"</b> for the group totals (📥 new entries, 🛣️ road/toto), and tap a group to open the pots inside it. Nothing below is ever larger than the figure on top.',
+        '<b>⏳ Handed over but not approved</b> — that money is <b>still counted as yours</b>, because the receiver has not said "received" yet. The screen tells you in advance what your figure becomes once they do. <b>✅ Approved</b> parcels are greyed out: no longer counted, kept only as proof.',
+        '<b>🎨 Colours</b> — one colour, one meaning: green = in your account, yellow = counted but leaving, blue = your move, grey = done and closed, red = shortfall. Tap <b>What the colours mean</b> under "My summary" any time. Nothing depends on colour alone — every line also has an icon and words.',
         'Below are the <b>central reports</b> — overview, dues list, cash in hand, by collector, <b>📍 by area</b>, expenses, daily. Each user sees only what the admin grants.',
         '<b>📍 By area</b> — how much each road collected and what is still due, ranked by collection (🥇🥈🥉).',
         '<b>Opens instantly:</b> ledger and reports render from data already stored on the phone and refresh in the background — no waiting, and they work offline.',
@@ -185,7 +189,7 @@ window.HELP = [
         '<b>🧾 রসিদ</b> — টাকা জমা নিলে (নতুন দাতার প্রথম জমা হোক বা কিস্তি) সেভের সাথে সাথে রসিদ পাতা <b>নিজে থেকেই খোলে</b> (দাতা, তারিখ, এই কিস্তি, মোট জমা/কথা, বাকি, <b>রসিদ নং</b>)। দুটো বোতাম: <b>📷 WhatsApp/ছবি</b> (ছবি রসিদ) আর <b>💬 SMS/message</b> (দাতার WhatsApp না থাকলে — সংক্ষিপ্ত লেখা)। বাস কালেকশনেও একই — নাম+নম্বর দিয়ে সাথে সাথে রসিদ।',
         'রসিদ পাঠানোর পর নিচে দুটো বোতাম: তালিকা/খোঁজা থেকে এসেছ তো "🔍 তালিকায় ফিরি" (পরের দাতা ধরতে), নতুন দোকান/ব্যক্তি/সদস্য/বাস হলে "➕ আরেকটা" (একই টাইপের পরের এন্ট্রি) — আর সবসময় "শেষ, হোমে ফিরি"।',
         'রসিদ নম্বর (যেমন 2026-0007) প্রতিটা জমায় আলাদা, sync হলে বসে — কখনো ডবল হয় না।',
-        '<b>রিপোর্টেও একই ভাঙা</b> — "আমার হিসাব"-এ <b>কোন খাতে কত আছে</b> অংশে খাতভিত্তিক নগদ/UPI/মোট দেখা যায়, তাই "আমার হাতে বাসের কত টাকা?" জানতে জমার স্ক্রিনে যেতে হয় না।',
+        '<b>রিপোর্টেও একই ভাঙা</b> — "আমার হিসাব"-এ <b>হিসাব দেখি → 📥 নতুন এন্ট্রি</b> খুললে দোকান/ব্যক্তি/সদস্য/বাস ধরে কত আছে দেখা যায়, তাই "আমার হাতে বাসের কত টাকা?" জানতে জমার স্ক্রিনে যেতে হয় না।',
         '<b>ডিজাইন admin ঠিক করে</b> — Admin → 🧾 রসিদ ডিজাইন-এ layout, কমিটির নাম, লোগো, রঙ, নিচের বার্তা বসানো যায়; live preview দেখায়।',
         '<b>📞 মনে করাও</b> — যে দাতার <b>বাকি আছে আর ফোন নম্বর দেওয়া আছে</b>, তার পাতায় এই বোতাম। চাপলে WhatsApp খুলে বার্তা আগে থেকেই লেখা থাকে (নাম + কত বাকি) — <b>তুমি নিজে send করবে</b>।',
         'রসিদের ছবি তোমার ফোনেই তৈরি — কোথাও আপলোড হয় না।',

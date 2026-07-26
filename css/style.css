@@ -292,3 +292,93 @@ b.msg-at { color: var(--saffron); }
 .bd-item { display: inline-flex; align-items: baseline; gap: 4px; }
 .bd-item b { color: var(--ink); font-size: 13px; }
 .bd-split { font-size: 11.5px; color: var(--sub); }
+
+/* ---- আমার হিসাব: progressive disclosure (v4.4.0) ----
+   Level 0 is the hero alone; "হিসাব দেখি" reveals the group totals; tapping a
+   group reveals its pots. Every figure below the hero is a SLICE of the hero,
+   so nothing here can ever be larger than the number at the top. */
+.sum-hero {
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+  padding: 18px 14px 14px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+.sum-hero .lbl { font-size: 13px; color: var(--sub); font-weight: 600; }
+.sum-hero .big {
+  font-size: 34px; font-weight: 800; color: var(--green); line-height: 1.15;
+  margin: 4px 0 2px; font-variant-numeric: tabular-nums;
+}
+.sum-hero .big.neg { color: var(--red); }
+.sum-hero .split { font-size: 14px; color: var(--sub); font-weight: 600; }
+.sum-hero .split b { color: var(--ink); font-weight: 700; }
+.sum-more {
+  margin-top: 12px; width: 100%; border: 1px solid var(--line); background: var(--bg);
+  color: var(--sub); border-radius: 99px; padding: 10px; font-size: 13.5px;
+  font-weight: 700; cursor: pointer; font-family: inherit;
+}
+/* the strips sit OUTSIDE the arithmetic on purpose: money that is not in the
+   hero (incoming, unreconciled) or is in it but leaving (pending out) */
+.strip {
+  margin-top: 10px; background: #fff8e6; border: 1px solid var(--gold);
+  border-radius: 12px; padding: 10px 12px; font-size: 13px; text-align: left; line-height: 1.55;
+}
+.strip .sub { color: var(--sub); font-size: 12.5px; display: block; margin-top: 3px; }
+.strip .sub b, .strip b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.strip.act { background: #eef6ff; border-color: #8fb8e8; }   /* blue = your move */
+.strip .cta {
+  display: block; margin-top: 6px; font-weight: 800; color: #1a5fa8;
+  font-size: 12.5px; background: none; border: 0; padding: 0; font-family: inherit; cursor: pointer;
+}
+.secttl {
+  margin: 18px 2px 7px; font-size: 12px; font-weight: 800; color: var(--sub);
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.calc { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.grp { border-bottom: 1px solid var(--line); }
+.grp:last-child { border-bottom: 0; }
+.grp > .head {
+  display: flex; align-items: center; gap: 9px; padding: 12px 13px; background: none;
+  border: 0; width: 100%; font-family: inherit; font-size: 15px; color: var(--ink);
+  text-align: left; cursor: pointer;
+}
+.grp > .head .nm { flex: 1; font-weight: 600; }
+.grp > .head .amt { font-weight: 700; font-variant-numeric: tabular-nums; }
+.grp > .head .car { color: var(--sub); font-size: 11px; width: 11px; transition: transform .15s; }
+.grp.open > .head .car { transform: rotate(90deg); }
+.grp .kids { display: none; padding: 3px 13px 10px 36px; background: var(--bg); }
+.grp.open .kids { display: block; }
+.kid {
+  display: flex; justify-content: space-between; gap: 8px; padding: 7px 0;
+  font-size: 14px; border-bottom: 1px dashed var(--line);
+}
+.kid:last-child { border-bottom: 0; }
+.kid .v { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kid .note { display: block; font-size: 12px; color: var(--sub); font-weight: 400; margin-top: 1px; }
+.kid.neg .v { color: var(--red); }
+.expl {
+  margin-top: 9px; font-size: 12.5px; color: var(--sub); line-height: 1.6;
+  border-top: 1px dashed var(--line); padding-top: 8px;
+}
+.expl b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.final { display: flex; justify-content: space-between; padding: 13px; background: #f2fbf5; border-top: 1px solid var(--line); }
+.final .k { font-weight: 700; }
+.final .v { font-weight: 800; font-size: 18px; color: var(--green); font-variant-numeric: tabular-nums; }
+/* slot colours — one colour, one meaning (see legend_note in i18n.js) */
+.pendbox > .head .amt, .pendbox .kid .v { color: #a9791a; }          /* gold: leaving */
+.nobox   > .head .amt, .nobox   .kid .v { color: #1a5fa8; }          /* blue: your move */
+.actbox  > .head .amt, .actbox  .kid .v { color: #1a5fa8; }
+.okbox   > .head, .okbox > .head .amt   { color: var(--sub); }       /* grey: settled */
+.okbox .kid .k, .okbox .kid .v          { color: var(--sub); }
+.lg > .grp > .head .nm { font-weight: 700; color: var(--sub); font-size: 13.5px; }
+.lgrow .k { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; font-weight: 700; font-size: 13.5px; }
+.lgrow .note { flex-basis: 100%; margin-left: 22px; font-weight: 400; }
+.sw {
+  width: 14px; height: 14px; border-radius: 4px; display: inline-block;
+  flex: 0 0 auto; margin-top: 2px; border: 1px solid rgba(0,0,0,.12);
+}
+.sw-green { background: var(--green); } .sw-gold { background: var(--gold); }
+.sw-blue { background: #8fb8e8; } .sw-grey { background: var(--sub); } .sw-red { background: var(--red); }
+.tillnow {
+  margin-top: 14px; padding: 11px 13px; background: var(--bg); border: 1px dashed var(--line);
+  border-radius: 12px; font-size: 12.5px; color: var(--sub); line-height: 1.7;
+}
+.tillnow b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.tillnow .sub { display: block; margin-top: 4px; font-size: 11.5px; }
