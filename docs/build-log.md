@@ -4415,3 +4415,40 @@ running code — either `setup()` was run (same effect) or the next redeploy pic
 up.
 
 484 passed, 0 failed. **Needs a redeploy** (Code.gs mirror).
+
+## 2026-07-26 — v4.5.3: make a deployment identifiable from outside
+
+Hrishi redeployed with the A18 mirror + `ensureCol_` and sent a new `/exec`;
+`config.js` rebaked (fourth URL today — this account mints a new one per deploy).
+
+Fingerprinted first, as always. The first probe came back as Google's "Page not
+found" HTML for both `doGet` and `rejectHandover` — a freshly-minted deployment
+warming up, not a broken one. A clean retry: `doGet` → `{"ok":true,...}`,
+`rejectHandover` → `no-token` (the action exists), a bogus action →
+`unknown action` (so the probe really does discriminate). Worth writing down: a
+brand-new `/exec` can answer HTML for a few seconds; retry before concluding
+anything.
+
+### The gap that probe cannot close
+
+`rejectHandover` existing only proves the deployment is **v4.5.0 or later**. It
+cannot tell a v4.5.0 deployment from a v4.5.2 one — and v4.5.2 was where A18 and
+`ensureCol_` landed. Everything that would distinguish them sits behind a login
+token, so there was no way to prove the deployed code was current.
+
+That is the same shape as A16, where the file was current and the DEPLOYMENT was
+stale, and it has now cost two rounds of "probably fine, can't prove it".
+
+`doGet` is the only unauthenticated surface, so the version now travels there:
+
+    curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"chanda-v4.5.3"}
+
+One curl, no token, nothing written. `CODE_VERSION` is asserted against `sw.js`'s
+`VERSION` in tests/run.js, so the two cannot drift by someone bumping one and
+forgetting the other — proven to bite by bumping sw.js alone.
+
+**This deployment still cannot be version-checked** (the marker is not in it).
+From the next redeploy onward it can, exactly.
+
+486 passed, 0 failed. Needs one more redeploy to activate the marker — no rush,
+nothing else waits on it.

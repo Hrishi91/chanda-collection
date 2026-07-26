@@ -986,6 +986,14 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
   eq(rejSrc.indexOf("ensureCol_(sh, 'rejectReason')") >= 0, true,
      'reject: heals its own header instead of depending on setup() having been run');
   eq(src.indexOf('function ensureCol_') >= 0, true, 'reject: ensureCol_ exists');
+  // A deployment must be identifiable from outside, with no token and no writes:
+  // twice a redeploy has been assumed instead of proven. doGet carries the version,
+  // and this keeps it in step with sw.js so neither can be bumped alone.
+  const swVer = (require('fs').readFileSync(__dirname + '/../sw.js', 'utf8').match(/chanda-v[\d.]+/) || [])[0];
+  const gsVer = (src.match(/CODE_VERSION = '(chanda-v[\d.]+)'/) || [])[1];
+  eq(gsVer, swVer, 'deployment: Code.gs CODE_VERSION matches sw.js VERSION');
+  eq(/function doGet\(\)[^\n]*version: CODE_VERSION/.test(src), true,
+     'deployment: doGet reports the version, so one curl can fingerprint it');
   // THREE server mirrors now, not two: the cashier nag, personalSummary_, and the
   // central in-hand report — the last one found only by asking "what else reads a
   // handover status?" instead of trusting a count.

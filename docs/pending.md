@@ -322,13 +322,12 @@ give different numbers:
       clamps were needed: an overspent pot vanishes from the chips yet still
       lowers the cash held, so Σ chips overshot by exactly the debt.
 
-- [ ] **Did `setup()` run on the 2026-07-26 deployment?** If yes, nothing to do.
-      If not, either run it once or redeploy — `ensureCol_()` (the guard that stops
-      a brand-new column silently swallowing its value) was written after that
-      deployment, so the running code still depends on the header being there.
-      Without it a rejection's REASON is written into an unlabelled column and
-      never read back: status flips, money returns to the ceiling, explanation
-      gone, no error anywhere.
+- [x] ~~`ensureCol_()` not in the running code~~ — resolved by the second
+      2026-07-26 deployment, which carries it, so `rejectReason` heals its own
+      header whether or not `setup()` was ever run.
+- [ ] **One more redeploy, whenever convenient** — to activate the `doGet` version
+      marker (`CODE_VERSION`), after which any deployment can be verified with a
+      single tokenless `curl`. Nothing waits on it; today's backend is complete.
 
 ## Before go-live, still open
 

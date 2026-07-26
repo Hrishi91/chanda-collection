@@ -388,7 +388,17 @@ function doPost(e) {
     return json_({ ok: false, error: String(err && err.message || err) });
   }
 }
-function doGet() { return json_({ ok: true, service: 'chanda-khata' }); }
+// doGet is the ONLY unauthenticated surface, which makes it the only place a
+// deployment can be identified from the outside. Twice now a redeploy has been
+// assumed rather than proven — once the file was current but the DEPLOYMENT was
+// stale (the chat kill switch, A16), and today `rejectHandover` existing was all
+// that could be checked, which cannot tell a v4.5.0 deployment from a v4.5.2 one.
+// So the version travels here: one curl, no token, nothing written.
+//   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
+// CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
+// cannot drift apart by someone forgetting to bump one of them.
+var CODE_VERSION = 'chanda-v4.5.3';
+function doGet() { return json_({ ok: true, service: 'chanda-khata', version: CODE_VERSION }); }
 
 var ACTIONS = {
 
