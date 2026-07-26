@@ -157,9 +157,14 @@
 
   // ---------- pull-down: one central snapshot, render every screen local ----------
   let centralData = null, centralCursor = '', centralYear = '';
+  // Bumped wherever centralData is replaced or merged — viewData memoises on
+  // it. Every assignment below goes through setCentral()/mergeDelta() so this
+  // can never drift; a missed bump would show a stale screen after a pull.
+  let centralVersion = 0;
+  function setCentral(v) { centralData = v; centralVersion++; }
   let centralConfig = {}; // receipt-design config (committee name/logo/footer/colour/layout)
   try { centralConfig = JSON.parse(localStorage.getItem('ck_config') || '{}') || {}; } catch (e) { centralConfig = {}; }
-  try { centralData = JSON.parse(localStorage.getItem('ck_central') || 'null'); } catch (e) { centralData = null; }
+  try { setCentral(JSON.parse(localStorage.getItem('ck_central') || 'null')); } catch (e) { setCentral(null); }
   try { centralCursor = localStorage.getItem('ck_central_cursor') || ''; } catch (e) { centralCursor = ''; }
   try { centralYear = localStorage.getItem('ck_central_year') || ''; } catch (e) { centralYear = ''; }
   // merge a delta (only changed rows) into the cached snapshot, upsert by id.
@@ -180,6 +185,7 @@
       incoming.forEach(function (r) { if (r && r.id != null) byId[r.id] = r; });
       centralData[s] = Object.keys(byId).map(function (k) { return byId[k]; });
     });
+    if (changed) centralVersion++; // in-place merge still invalidates the memo
     return { changed: changed, chatOnly: changed && chatOnly };
   }
   function pullCentral() {
@@ -187,7 +193,7 @@
     const year = String(Settings.get('year'));
     // switching year invalidates the snapshot — force a full pull, never merge
     // one year's delta into another year's cache.
-    if (centralYear !== year) { centralData = null; centralCursor = ''; centralYear = year; }
+    if (centralYear !== year) { setCentral(null); centralCursor = ''; centralYear = year; }
     const params = { token: Auth.token(), year: year };
     // ask for a delta only when we already hold a snapshot at a known cursor
     if (centralData && centralCursor) params.since = centralCursor;
@@ -200,7 +206,7 @@
       if (newEpoch && newEpoch !== seenEpoch) {
         try { localStorage.setItem('ck_epoch', newEpoch); } catch (e) {}
         if (resp.config) { centralConfig = resp.config; try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {} }
-        centralData = null; centralCursor = '';
+        setCentral(null); centralCursor = '';
         try { localStorage.removeItem('ck_central'); localStorage.removeItem('ck_central_cursor'); } catch (e) {}
         return DB.clearAll().then(function () { return pullCentral(); }); // clean full pull
       }
@@ -209,7 +215,7 @@
         const m = mergeDelta(resp.data || {});
         changed = m.changed; chatOnly = m.chatOnly;
       } else {
-        centralData = resp.data || null; // full snapshot (first pull / cache miss)
+        setCentral(resp.data || null); // full snapshot (first pull / cache miss)
         changed = true;
       }
       if (resp.cursor != null) centralCursor = String(resp.cursor);
@@ -259,8 +265,17 @@
   }
   // central snapshot overlaid with this device's own rows (so a just-saved
   // entry shows before it syncs back). Falls back to local-only if no pull yet.
+  // The merge is pure: same local rows + same central snapshot = same result.
+  // It was being rebuilt two or three times per button tap, each time walking
+  // every row of every store. Memoised on the pair of versions that can change
+  // it — the DB's write counter, and a counter bumped wherever centralData is
+  // replaced or merged. Miss either and the screen goes stale, so both are
+  // bumped in one place each.
+  let viewMemo = null, viewMemoKey = '';
   function viewData() {
-    return DB.allData().then(function (local) {
+    const key = DB.dataVersion() + ':' + centralVersion;
+    if (viewMemo && viewMemoKey === key) return viewMemo;
+    const p = DB.allData().then(function (local) {
       if (!centralData) return local;
       const merged = {};
       DB.STORES.forEach(function (s) {
@@ -271,6 +286,8 @@
       });
       return merged;
     });
+    viewMemo = p; viewMemoKey = key;
+    return p;
   }
 
   // ---------- in-app notifications ----------
@@ -2582,7 +2599,7 @@
       DB.unsyncedCount().then(function (n) {
         if (n > 0) { toast('⏳ ' + n + t('unsynced_n')); return; } // never strand unsynced entries
         // drop the central snapshot so the next login starts with a clean full pull
-        centralData = null; centralCursor = ''; centralYear = '';
+        setCentral(null); centralCursor = ''; centralYear = '';
         ['ck_central', 'ck_central_cursor', 'ck_central_year'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
         Auth.logout(); authView = 'login'; navigate('home');
       });

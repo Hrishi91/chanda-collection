@@ -3834,3 +3834,48 @@ The kill switch, end to end on the live sheet:
 `applied:["chat_off"]` in the response is the part that would have caught this
 in the first place — the old action returned a bare `ok:true` whether it wrote
 anything or not.
+
+## v4.1.0 — P1: every button tap was reading the whole database three times
+
+Hrishi, using the app: "buttons are responding too slow."
+
+Measured before touching anything. One tap did this:
+
+    navigate() → render()
+      renderX()       → viewData()        → DB.allData()  — 8 object stores
+                                           + merge with centralData — 8 stores
+      updateBadge()   → DB.unsyncedCount() → DB.allData()  — 8 stores AGAIN
+                      → viewData()        → DB.allData()  — 8 stores AGAIN
+                                           + merge AGAIN
+
+Three full IndexedDB traversals and two full merges, per tap, with nothing
+changing between them. `viewData()` alone is called from 21 places. It got worse
+with the chat: `updateBadge` gained a `viewData()` of its own for the unread dot,
+so the badge that says "you have messages" was costing a whole database read
+every time any screen painted.
+
+Two caches, each invalidated by exactly one counter:
+
+- **`DB.allData()`** serves the same promise until a write bumps `version`.
+  Correctness rests entirely on bumping in EVERY write path, so `put`, `del`,
+  `bulkPut` and `clearAll` all call `touch()` and nothing writes without it. The
+  promise is cached, not just the result, so several callers in one paint share
+  one traversal instead of racing three.
+- **`viewData()`** memoises the merge on `DB.dataVersion() + centralVersion`.
+  Every assignment to `centralData` now routes through `setCentral()`, and the
+  in-place merge in `mergeDelta` bumps too — a missed bump would leave a stale
+  screen after a pull, which is worse than the slowness it fixes.
+
+Measured in the browser on a seeded 2,000-row season:
+
+    cold viewData        8.0 ms
+    warm viewData        0.0 ms
+    warm again           0.0 ms
+    3 calls (one tap)    0.1 ms      ← was three cold reads
+
+STALENESS IS THE REAL RISK of this change, so it was tested directly rather than
+assumed: a `put` is visible immediately, a `del` is visible immediately,
+`unsyncedCount` sees a fresh unsynced row, and the version bumps on write. All
+four green, plus no console errors, and the seeded rows cleared afterwards.
+
+378 passed, 0 failed. Client-only — no redeploy needed.

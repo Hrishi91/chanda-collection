@@ -32,11 +32,20 @@ const DB = (function () {
     });
   }
 
-  function put(store, obj) { return tx(store, 'readwrite', function (s) { s.put(obj); return obj; }); }
+  // A screen paint used to cost THREE full traversals of every object store:
+  // the screen's own read, unsyncedCount's, and the chat badge's. Nothing had
+  // changed between them. `version` bumps on every write; allData hands back
+  // the same snapshot until it does. Correctness rests entirely on bumping in
+  // EVERY write path — put, del, bulkPut, clearAll — so they all go through
+  // `touch()` and nothing writes without it.
+  let version = 0, cached = null, cachedAt = -1;
+  function touch() { version++; cached = null; }
+  function put(store, obj) { touch(); return tx(store, 'readwrite', function (s) { s.put(obj); return obj; }); }
   // Only safe to call on a row that never left the device (synced:0) — used by
   // the entry-flow Undo toast to cleanly retract an unsynced save.
-  function del(store, id) { return tx(store, 'readwrite', function (s) { s.delete(id); }); }
+  function del(store, id) { touch(); return tx(store, 'readwrite', function (s) { s.delete(id); }); }
   function bulkPut(store, objs) {
+    touch();
     return tx(store, 'readwrite', function (s) { objs.forEach(function (o) { s.put(o); }); return objs.length; });
   }
   function getAll(store) {
@@ -59,15 +68,26 @@ const DB = (function () {
   }
 
   function allData() {
-    return Promise.all(STORES.map(getAll)).then(function (r) {
+    // Serve the same snapshot until something is written. The promise itself is
+    // cached, so several callers in one paint share ONE traversal rather than
+    // racing three of their own.
+    if (cached && cachedAt === version) return cached;
+    const v = version;
+    const p = Promise.all(STORES.map(getAll)).then(function (r) {
       const out = {};
       STORES.forEach(function (s, i) { out[s] = r[i]; });
       return out;
     });
+    // only keep it if no write landed while we were reading
+    if (v === version) { cached = p; cachedAt = v; }
+    return p;
   }
+  // the version a caller can memoise against (viewData does)
+  function dataVersion() { return version; }
   // Wipe every store (used when the system goes live and training data is
   // discarded). Clears all local rows across all stores.
   function clearAll() {
+    touch();
     return open().then(function (db) {
       return Promise.all(STORES.map(function (s) {
         return new Promise(function (res, rej) {
@@ -99,7 +119,8 @@ const DB = (function () {
   }
 
   return { STORES: STORES, put: put, del: del, bulkPut: bulkPut, getAll: getAll, get: get,
-           allData: allData, unsyncedCount: unsyncedCount, newRow: newRow, clearAll: clearAll };
+           allData: allData, unsyncedCount: unsyncedCount, newRow: newRow, clearAll: clearAll,
+           dataVersion: dataVersion };
 })();
 
 // Tiny localStorage settings helper.
