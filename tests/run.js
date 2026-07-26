@@ -2,7 +2,7 @@
 const { parseAmount } = require('../js/numparse.js');
 const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
         roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed,
-        cashierView } = require('../js/aggregate.js');
+        cashierView, handoverReport } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -597,6 +597,47 @@ eq(snapRecv.byCat, { received: { cash: 600, upi: 300 } }, 'snapshot: reserved __
 eq(snapRecv.cash + snapRecv.upi, 900, 'snapshot: the receiver still gets the full amount');
 eq(snapRecv.byGiver, [{ id: 'jadav', name: 'Jadav', cash: 600, upi: 300, total: 900 }],
    'snapshot: it arrives named — "handed over by Jadav"');
+
+// ---- the handover book -------------------------------------------------------
+// Everything one person handed over and everything handed to them, in one
+// place. Read straight off the handover rows — nothing derived — so it can
+// never disagree with what the other side sees.
+const hbData = {
+  parties: [], payments: [], daily: [], expenses: [], voids: [], corrections: [],
+  handovers: [
+    { id: '1', fromId: 'yamini', from: 'Yamini mahato', toId: 'jadav', amount: 1700, cashAmount: 1200, upiAmount: 500,
+      date: '2026-07-20', status: 'confirmed', breakdown: JSON.stringify({ shop: { cash: 1200, upi: 0 }, bus: { cash: 0, upi: 500 } }) },
+    { id: '2', fromId: 'biplab', from: 'Biplab', toId: 'jadav', amount: 300, cashAmount: 300, upiAmount: 0,
+      date: '2026-07-21', status: 'confirmed' },
+    { id: '3', fromId: 'jadav', toId: 'hrishi', to: 'hrishikesh mahato', amount: 900, cashAmount: 600, upiAmount: 300,
+      date: '2026-07-22', status: 'confirmed', breakdown: JSON.stringify({ __snap: { available: { cash: 2200, upi: 800 } } }) },
+    { id: '4', fromId: 'jadav', toId: 'salil', to: 'সলিল', amount: 400, cashAmount: 400, upiAmount: 0,
+      date: '2026-07-23', status: 'pending' },
+    { id: '5', fromId: 'x', toId: 'y', amount: 999, cashAmount: 999, upiAmount: 0, date: '2026-07-24', status: 'confirmed' },
+  ],
+};
+const hb = handoverReport(hbData, 'jadav');
+eq(hb.received, { cash: 1500, upi: 500, total: 2000 }, 'book: received totals');
+eq(hb.sent, { cash: 600, upi: 300, total: 900 }, 'book: sent counts confirmed only');
+eq(hb.pendingOut, { cash: 400, upi: 0, total: 400 }, 'book: unconfirmed outgoing shown apart');
+eq(hb.net.total, 1100, 'book: net = received − sent');
+eq(hb.rows.length, 4, 'book: other people\'s handovers are not in MY book');
+eq(hb.rows.map(function (r) { return r.dir; }), ['out', 'out', 'in', 'in'], 'book: newest first, both directions');
+eq(hb.rows[3].cats, [{ key: 'shop', cash: 1200, upi: 0 }, { key: 'bus', cash: 0, upi: 500 }],
+   'book: a collector\'s row keeps the categories they picked');
+eq(hb.rows[1].snap, { available: { cash: 2200, upi: 800 } }, 'book: a cashier\'s row keeps their snapshot');
+eq(hb.rows[1].cats, [], 'book: …and no phantom category from the snapshot');
+eq(hb.rows[2].cats, [], 'book: a row with no breakdown at all simply has none');
+eq(hb.rows[0].who, 'সলিল', 'book: outgoing rows are labelled with the receiver');
+eq(hb.rows[3].who, 'Yamini mahato', 'book: incoming rows are labelled with the giver');
+// the book and the personal summary must agree on the totals
+const hbSum = personalSummary(hbData, 'jadav');
+eq(hb.sent.total, hbSum.handedOver, 'book: sent === personalSummary handedOver');
+eq(hb.received.total, hbSum.received, 'book: received === personalSummary received');
+eq(hb.pendingOut.total, hbSum.pending, 'book: unconfirmed outgoing === personalSummary pending');
+// a voided handover leaves the book, like everywhere else
+eq(handoverReport(Object.assign({}, hbData, { voids: [{ id: 'v', targetId: '1' }] }), 'jadav').received.total, 300,
+   'book: a voided handover is gone from the book too');
 
 // ---- an expense must not wander between categories ---------------------------
 // The bug: an expense with no named source pot was drained from whatever pots

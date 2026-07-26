@@ -209,6 +209,7 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
 .sh-actions { display: flex; gap: 8px; margin-bottom: 10px; }
 .sh-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .sh-row .cat-name { flex: 1 1 auto; font-weight: 600; font-size: 15px; }
+.hb-detail { flex-basis: 100%; }
 /* the cashier's read-only position above the two amount boxes */
 .sh-row.ro { cursor: default; }
 .sh-row.ro .cat-split { margin-left: auto; font-size: 12.5px; color: var(--sub); white-space: nowrap; }

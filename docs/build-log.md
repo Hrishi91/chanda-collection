@@ -2958,3 +2958,46 @@ VERIFIED
   stylesheet and real `cashierView` figures, and showed Hrishi the picture
   before committing: ₹2,000+₹1,500 → red, warning, Next disabled;
   ₹2,500+₹500 → ₹3,000, Next live (cash over the cash held, total within).
+
+## v3.90.0 — 📗 জমা-খাতা: what came in and what went out, in one place
+
+Hrishi: "under handover we should see the below report … how much amount you got
+from others, how much amount you sent … both will be available sent and received"
+— and separately, "in handover list received will be different part and send will
+be different part for cashier and the admin".
+
+A new personal screen, `handoverReport(data, ident)`:
+
+    📥 পেয়েছি              💵১৫০০ · 📱৫০০   ₹২,০০০
+    📤 পাঠিয়েছি             💵৬০০  · 📱৩০০    ₹৯০০
+    ⏳ পাঠিয়েছি (confirm বাকি) 💵৪০০ · 📱০     ₹৪০০
+    [ সব | 📥 পেয়েছি | 📤 পাঠিয়েছি ]
+    📤 সলিল             23 Jul  ⏳            ₹৪০০
+    📤 hrishikesh mahato 22 Jul ✅            ₹৯০০   ← tap: পাঠানোর সময়ের অবস্থা
+    📥 Yamini mahato    20 Jul  ✅          ₹১,৭০০   ← tap: দোকান ৳১২০০ · বাস ৳৫০০
+
+Tapping a row opens whatever detail its sender recorded — a collector's rows have
+the categories they picked, a cashier's have the snapshot of where they stood.
+Rows older than either feature simply show the amount, with nothing invented to
+fill the gap.
+
+Personal, so no report permission gates it, and it reads the local snapshot, so
+it works with no signal — unlike the cashier's confirm screen, which needs the
+network for the pending queue.
+
+জমা নাও now has BOTH parts for cashiers and admins: 📥 pending, 📥 confirmed, and
+📤 what they have sent (last 15), with a link into the full book. The sent side
+comes from the local snapshot, so it is there even when the pending fetch is the
+only thing that needed the network.
+
+Extracted `wireNav()` while doing it: the `data-go` tile routing was inline in
+`renderHome`, so any other screen offering a tile would have had to duplicate it.
+
+VERIFIED
+- 16 new tests. The ones that matter: the book's totals equal
+  `personalSummary`'s `handedOver` / `received` / `pending` — three numbers a
+  user can see side by side, so they must never drift. Also: other people's
+  handovers stay out of my book, a `__snap` row yields no phantom category, a
+  breakdown-less row yields none either, and a voided handover leaves the book
+  like it leaves everything else. **303 passed, 0 failed.**
+- browser: totals and row shapes as expected, no console errors.

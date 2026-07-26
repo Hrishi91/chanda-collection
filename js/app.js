@@ -347,7 +347,7 @@
   // Returning to the app (or a pull-to-refresh) re-renders the current data
   // view so users never have to manually refresh — skipped mid-entry and on
   // transient screens.
-  const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party', 'entries', 'review'];
+  const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party', 'entries', 'review', 'hbook'];
   function onAppFocus() {
     if (!notifViaPull) checkNotifications(); // old backend only — pull carries it otherwise
     autoSync(); // push anything still pending when the user returns
@@ -1160,6 +1160,7 @@
         '<div class="grid one"><button class="tile wide" data-go="list">💰 ' + esc(t('add_payment')) + ' / ' + esc(t('dues_only')) + '</button></div>';
       const cashTiles =
         '<button class="tile" data-go="handover">' + esc(t('handover')) + '</button>' + // common to everyone
+        '<button class="tile" data-go="hbook">📗 ' + esc(t('hb_title')) + '</button>' +
         (cashier ? '<button class="tile" data-go="cashier">' + esc(t('confirm_handover')) + '</button>' : '') +
         (canReview() ? '<button class="tile" data-go="review">🛠️ ' + esc(t('review_title')) + '</button>' : '');
       $view().innerHTML =
@@ -1177,18 +1178,24 @@
       const freshThen = function (fn) {
         Promise.race([Lists.refresh(), new Promise(function (r) { setTimeout(r, 1500); })]).then(fn);
       };
-      document.querySelectorAll('[data-go]').forEach(function (b) {
-        b.onclick = function () {
-          const g = b.dataset.go;
-          if (g === 'shop' || g === 'person' || g === 'member') freshThen(function () { startFlow(newPartyFlow(g)); });
-          else if (g === 'road' || g === 'toto' || g === 'bus') startFlow(dailyFlow(g));
-          else if (g === 'expense') startExpense();
-          else if (g === 'handover') startHandover();
-          else navigate(g);
-        };
-      });
+      wireNav();
       renderNotifBanner();   // show cached counts immediately
       if (!notifViaPull) checkNotifications();  // old backend only; pull refreshes otherwise
+    });
+  }
+
+  // Every data-go button behaves the same wherever it appears, so a screen that
+  // wants to offer a tile does not have to re-implement the routing.
+  function wireNav() {
+    document.querySelectorAll('[data-go]').forEach(function (b) {
+      b.onclick = function () {
+        const g = b.dataset.go;
+        if (g === 'shop' || g === 'person' || g === 'member') freshThen(function () { startFlow(newPartyFlow(g)); });
+        else if (g === 'road' || g === 'toto' || g === 'bus') startFlow(dailyFlow(g));
+        else if (g === 'expense') startExpense();
+        else if (g === 'handover') startHandover();
+        else navigate(g);
+      };
     });
   }
 
@@ -2093,6 +2100,59 @@
     });
     return parts.length ? '<div class="bd-line">' + parts.join('') + '</div>' : '';
   }
+  // "জমা-খাতা" — everything this person handed over and everything handed to
+  // them, in one place. Personal, so no report permission gates it, and it
+  // reads the local snapshot, so it works with no signal.
+  let hbFilter = 'all'; // all | in | out
+  function renderHandoverBook() {
+    const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
+    viewData().then(function (data) {
+      const r = Aggregate.handoverReport(data, ident);
+      const money = function (o) {
+        return '<span class="cat-split">💵' + fmtMoney(o.cash) + ' · 📱' + fmtMoney(o.upi) + '</span>' +
+               '<b class="cat-tot">' + fmtMoney(o.total) + '</b>';
+      };
+      const head = '<div class="cat-group tot-group">' +
+        '<div class="sh-row ro"><span class="cat-name">📥 ' + esc(t('hb_received')) + '</span>' + money(r.received) + '</div>' +
+        (r.pendingIn.total ? '<div class="sh-row ro"><span class="cat-name">⏳ ' + esc(t('hb_pending_in')) + '</span>' + money(r.pendingIn) + '</div>' : '') +
+        '<div class="sh-row ro"><span class="cat-name">📤 ' + esc(t('hb_sent')) + '</span>' + money(r.sent) + '</div>' +
+        (r.pendingOut.total ? '<div class="sh-row ro"><span class="cat-name">⏳ ' + esc(t('hb_pending_out')) + '</span>' + money(r.pendingOut) + '</div>' : '') +
+        '</div>';
+      const tabs = [['all', t('all')], ['in', '📥 ' + t('hb_received')], ['out', '📤 ' + t('hb_sent')]];
+      const rows = r.rows.filter(function (x) { return hbFilter === 'all' || x.dir === hbFilter; });
+      const body = rows.length ? rows.map(function (x) {
+        const detail = x.cats.length
+          ? x.cats.map(function (c) {
+              return '<div class="bd-line">' + esc(t(CAT_LABEL_KEYS[c.key] || 'cat_other')) +
+                ' — 💵' + fmtMoney(c.cash) + ' · 📱' + fmtMoney(c.upi) + '</div>';
+            }).join('')
+          : (x.snap ? '<div class="bd-line">' + esc(t('hb_snap')) + ' — ' +
+              esc(t('cs_available')) + ' 💵' + fmtMoney((x.snap.available || {}).cash) +
+              ' · 📱' + fmtMoney((x.snap.available || {}).upi) + '</div>' : '');
+        return '<div class="row hb-row" data-hb="' + esc(x.id) + '" style="flex-wrap:wrap">' +
+          '<div style="flex:1 1 55%"><b>' + (x.dir === 'in' ? '📥 ' : '📤 ') + esc(x.who) + '</b>' +
+          '<div class="row-sub">' + esc(fmtDate(x.date)) +
+          (x.status !== 'confirmed' ? ' • ⏳ ' + esc(t('flag_pending')) : ' • ✅') +
+          (x.note ? ' • ' + esc(x.note) : '') + '</div></div>' + money(x) +
+          (detail ? '<div class="hb-detail" hidden>' + detail + '</div>' : '') + '</div>';
+      }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>';
+      $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('hb_title')) + '</div>' +
+        head +
+        '<div class="chips tabs">' + tabs.map(function (tb) {
+          return '<button class="chip' + (hbFilter === tb[0] ? ' on' : '') + '" data-hbf="' + tb[0] + '">' + esc(tb[1]) + '</button>';
+        }).join('') + '</div>' + body;
+      document.querySelectorAll('[data-hbf]').forEach(function (b) {
+        b.onclick = function () { hbFilter = b.dataset.hbf; renderHandoverBook(); };
+      });
+      // tap a row to open its detail — the same breakdown the sender chose
+      document.querySelectorAll('.hb-row').forEach(function (el) {
+        const det = el.querySelector('.hb-detail');
+        if (!det) return;
+        el.style.cursor = 'pointer';
+        el.onclick = function () { det.hidden = !det.hidden; };
+      });
+    });
+  }
   function renderCashier() {
     if (!Auth.isCashier()) { $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
     $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('loading')) + '</div>';
@@ -2110,13 +2170,42 @@
           (withBtn ? '<div style="flex-basis:100%;margin-top:8px"><button class="primary" data-hid="' +
             esc(h.id) + '">' + esc(t('confirm_receive')) + '</button></div>' : '') + '</div>';
       }
-      $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('confirm_handover')) + '</div>' +
-        '<div class="section">' + esc(t('pending_handovers')) + ' (' + pending.length + ')</div>' +
-        (pending.length ? pending.map(function (h) { return card(h, true); }).join('')
-                        : '<div class="empty">' + esc(t('none_here')) + '</div>') +
-        '<div class="section">' + esc(t('confirmed_handovers')) + '</div>' +
-        (done.length ? done.map(function (h) { return card(h, false); }).join('')
-                     : '<div class="empty">' + esc(t('none_here')) + '</div>');
+      // RECEIVED and SENT are separate parts: this screen is where a cashier
+      // acts on what is coming in, but they also need to see what they have
+      // passed on without leaving it. The sent side reads the local snapshot,
+      // so it is there even when the pending fetch is all that needed the net.
+      const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
+      viewData().then(function (data) {
+        const book = Aggregate.handoverReport(data, ident);
+        const outRows = book.rows.filter(function (x) { return x.dir === 'out'; }).slice(0, 15);
+        $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('confirm_handover')) + '</div>' +
+          '<div class="section">📥 ' + esc(t('pending_handovers')) + ' (' + pending.length + ')</div>' +
+          (pending.length ? pending.map(function (h) { return card(h, true); }).join('')
+                          : '<div class="empty">' + esc(t('none_here')) + '</div>') +
+          '<div class="section">📥 ' + esc(t('confirmed_handovers')) + '</div>' +
+          (done.length ? done.map(function (h) { return card(h, false); }).join('')
+                       : '<div class="empty">' + esc(t('none_here')) + '</div>') +
+          '<div class="section">📤 ' + esc(t('hb_sent')) + '</div>' +
+          (outRows.length ? outRows.map(function (x) {
+            return '<div class="row" style="cursor:default;flex-wrap:wrap"><div style="flex:1 1 55%"><b>' +
+              esc(x.who) + '</b><div class="row-sub">' + esc(fmtDate(x.date)) +
+              (x.status !== 'confirmed' ? ' • ⏳ ' + esc(t('flag_pending')) : ' • ✅') + '</div></div>' +
+              '<span class="cat-split">💵' + fmtMoney(x.cash) + ' · 📱' + fmtMoney(x.upi) + '</span>' +
+              '<b class="cat-tot">' + fmtMoney(x.total) + '</b></div>';
+          }).join('') : '<div class="empty">' + esc(t('none_here')) + '</div>') +
+          '<div class="grid one" style="margin-top:10px"><button class="tile wide" data-go="hbook">📗 ' +
+            esc(t('hb_title')) + '</button></div>';
+        wireNav();
+        document.querySelectorAll('[data-hid]').forEach(function (b) {
+          b.onclick = function () {
+            b.disabled = true;
+            Auth.call('confirmHandover', { token: Auth.token(), id: b.dataset.hid })
+              .then(function () { toast(t('saved')); renderCashier(); })
+              .catch(function (e) { b.disabled = false; toast(errMsg(e)); });
+          };
+        });
+      });
+      return;
       document.querySelectorAll('[data-hid]').forEach(function (b) {
         b.onclick = function () {
           b.disabled = true;
@@ -2911,6 +3000,7 @@
     else if (current.view === 'settings') renderSettings();
     else if (current.view === 'admin') { Auth.isAdmin() ? renderAdmin() : renderHome(); }
     else if (current.view === 'cashier') renderCashier();
+    else if (current.view === 'hbook') renderHandoverBook();
     else if (current.view === 'entries') renderMyEntries();
     else if (current.view === 'findparty') renderFindParty();
     else if (current.view === 'review') renderReviewCorrections();

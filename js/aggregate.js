@@ -465,6 +465,59 @@
     };
   }
 
+  // One person's handover book: everything that came IN from other people and
+  // everything that went OUT, in one place, newest first. Reads straight off
+  // the handover rows — nothing here is derived, so it can never disagree with
+  // what the other side sees.
+  //
+  // Each row carries whatever detail its sender recorded: a collector's rows
+  // have `cats` (the per-category breakdown they picked), a cashier's have
+  // `snap` (where they stood when they passed it on). Rows older than either
+  // feature have neither, and simply show the amount.
+  function handoverReport(data, ident) {
+    const d = activeData(data);
+    const me = String(ident);
+    const zero = function () { return { cash: 0, upi: 0, total: 0 }; };
+    const add = function (t, s2) { t.cash += s2.cash; t.upi += s2.upi; t.total += s2.cash + s2.upi; };
+    const received = zero(), sent = zero(), pendingIn = zero(), pendingOut = zero();
+    const rows = [];
+    (d.handovers || []).forEach(function (h) {
+      const to = String(h.toId || h.to || '?'), from = String(h.fromId || h.from || '?');
+      const isIn = to === me, isOut = from === me;
+      if (!isIn && !isOut) return;
+      const s2 = splitOf(h);
+      const done = h.status === 'confirmed';
+      if (isIn) add(done ? received : pendingIn, s2);
+      if (isOut) add(done ? sent : pendingOut, s2);
+      let cats = [], snap = null;
+      try {
+        const b = JSON.parse(h.breakdown || 'null');
+        if (b && typeof b === 'object') {
+          if (b.__snap) snap = b.__snap;
+          Object.keys(b).forEach(function (k) {
+            if (k.slice(0, 2) === '__') return;
+            const c = Number(b[k].cash) || 0, u = Number(b[k].upi) || 0;
+            if (c || u) cats.push({ key: k, cash: c, upi: u });
+          });
+        }
+      } catch (e) {}
+      rows.push({
+        id: h.id, dir: isIn ? 'in' : 'out',
+        who: isIn ? (h.from || from) : (h.to || to),
+        date: h.date || h.createdAt, status: h.status || 'pending',
+        cash: s2.cash, upi: s2.upi, total: s2.cash + s2.upi,
+        note: h.note || '', cats: cats, snap: snap,
+      });
+    });
+    rows.sort(function (a, b) {
+      return String(b.date || '').localeCompare(String(a.date || ''));
+    });
+    return { received: received, sent: sent, pendingIn: pendingIn, pendingOut: pendingOut,
+             net: { cash: received.cash - sent.cash, upi: received.upi - sent.upi,
+                    total: received.total - sent.total },
+             rows: rows };
+  }
+
   // Parties with outstanding due, biggest due first.
   function duesList(parties, payments, voids) {
     const v = voidedIds({ voids: voids });
@@ -702,7 +755,7 @@
                 roleOf: roleOf, rowRole: rowRole,
                 ENTRY_KINDS: ENTRY_KINDS, PERM_KEYS: PERM_KEYS,
                 permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC,
-                cashierView: cashierView };
+                cashierView: cashierView, handoverReport: handoverReport };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
 })();
