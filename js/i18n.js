@@ -234,6 +234,8 @@ const I18N = {
   q_cash_amount: { bn: 'নগদ কত টাকা?', en: 'Cash amount?' },
   q_upi_amount: { bn: 'UPI-তে কত টাকা?', en: 'UPI amount?' },
   cat_payment: { bn: '🧾 চাঁদা (পুরোনো)', en: '🧾 Chanda (older)' },
+  fix_btn: { bn: 'ঠিক করি', en: 'Fix' },
+  edit_title: { bn: '✏️ সংশোধন', en: '✏️ Correction' },
   hb_title: { bn: '📗 জমা-খাতা', en: '📗 Handover book' },
   hb_received: { bn: 'পেয়েছি', en: 'Received' },
   hb_sent: { bn: 'পাঠিয়েছি', en: 'Sent' },

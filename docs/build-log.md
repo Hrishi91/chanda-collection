@@ -3001,3 +3001,48 @@ VERIFIED
   breakdown-less row yields none either, and a voided handover leaves the book
   like it leaves everything else. **303 passed, 0 failed.**
 - browser: totals and row shapes as expected, no console errors.
+
+## v3.91.0 — fix your own flagged entry yourself
+
+Hrishi: "in amar entry and songsodhon after flagging, the made entry user can
+edit the entry also if needs" — and, when asked who: "the entry made user only
+can edit".
+
+A flagged entry of your own now carries **✏️ ঠিক করি**. It reopens the same flow
+with today's values already in the boxes, so a one-field fix is one tap on Next
+for everything else.
+
+APPEND-ONLY IS INTACT. An edit does not rewrite the row: `finishFlow` writes a
+**void** for the old one (`reason: 'edit — <the flag reason>'`) and then saves a
+new row. It reads as an edit; the book keeps both. That matters for three
+reasons — "what did it say before, and who changed it" always has an answer; a
+receipt serial is not silently reused under different figures; and two phones
+editing the same row cannot merge into something that is half one edit and half
+the other, which a field-level update would allow.
+
+WHO AND WHAT. Only the person who made the entry, only after they have flagged
+it (they have declared it wrong, and nobody knows better than they do what it
+should say), and only `payments` / `daily` / `expenses`. Handovers are excluded
+on purpose: they have two sides and are settled by confirming, not editing.
+
+The cashier's review desk now hides flags whose target has already been voided —
+otherwise a settled flag would invite a second void on a row that is already gone.
+
+Two small things done along the way:
+- `startFlow` gained an `editing` mode. A normal flow SKIPS steps whose answer is
+  already known (presets are context); an edit is the opposite — every answer is
+  known, and the point is to walk through them. Text boxes open prefilled and the
+  current chip shows as selected.
+- `fix_btn`, not `edit_btn`: `edit_btn` already existed for the admin lists, and
+  in a JS object literal the later key silently wins — my label would have
+  overwritten theirs. Added a check over the whole table afterwards: 373 keys,
+  no duplicates.
+
+VERIFIED: 303 passed, 0 failed; app loads clean. The button itself needs a
+logged-in session with a flagged entry, so it joins the post-redeploy list.
+
+KNOWN, not changed here: the server does not gate the `voids` store at all —
+`permForRow_` returns null for it, so any authenticated client may push a void.
+The UI has always gated this (`canVoid`), and this change makes collectors write
+voids legitimately for the first time. Worth a server-side rule, but that is a
+Code.gs change and a redeploy, so it is listed rather than slipped in.

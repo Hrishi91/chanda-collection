@@ -388,15 +388,20 @@
   // step: {key, qKey, kind:text|amount|choice, options:[{v,labelKey}], optional, showIf(answers)}
   function startFlow(def) {
     flowState = { def: def, answers: Object.assign({}, def.presets || {}), idx: 0 };
+    // A normal flow skips any step whose answer is already known (presets are
+    // context, not input). An EDIT is the opposite: every answer is known, and
+    // the point is to walk through them and change what is wrong.
+    if (def.editing) { renderEntry(); try { history.pushState({ v: 'entry' }, ''); } catch (e) {} return; }
     try { history.pushState({ v: 'entry' }, ''); } catch (e) {} // Back cancels the entry
     skipHidden();
     renderEntry();
   }
   function visible(step) { return !step.showIf || step.showIf(flowState.answers); }
   function skipHidden() {
-    const st = flowState.def.steps;
+    const st = flowState.def.steps, editing = flowState.def.editing;
     while (flowState.idx < st.length &&
-           (!visible(st[flowState.idx]) || flowState.answers[st[flowState.idx].key] !== undefined)) {
+           (!visible(st[flowState.idx]) ||
+            (!editing && flowState.answers[st[flowState.idx].key] !== undefined))) {
       flowState.idx++;
     }
   }
@@ -462,7 +467,16 @@
   function finishFlow() {
     const def = flowState.def;
     savingFlow = true;
-    def.save(flowState.answers).then(function (result) {
+    // Correcting an entry is append-only, like everything else here: the old row
+    // is VOIDED and a new one written. Nothing is overwritten, so "what did it
+    // say before, and who changed it" always has an answer, the receipt serial
+    // is not silently reused, and two phones editing at once cannot produce a
+    // row that is half one edit and half the other.
+    const pre = def.editing
+      ? DB.put('voids', DB.newRow({ targetStore: def.editing.store, targetId: def.editing.id,
+                                    reason: 'edit — ' + (def.editing.reason || '') }))
+      : Promise.resolve();
+    pre.then(function () { return def.save(flowState.answers); }).then(function (result) {
       savingFlow = false;
       const r = result || {};
       flowState = null;
@@ -611,9 +625,13 @@
         '<div class="cat-selected" id="cs-total"></div>' +
         '<div class="flow-actions"><button id="cs-next" class="primary">' + esc(t('next')) + '</button></div>';
     } else {
+      // when correcting, the box opens with what the entry says today, so a
+      // one-field fix is one tap on Next for everything else
+      const prev = flowState.def.editing && flowState.answers[s.key] !== undefined
+        ? String(flowState.answers[s.key]) : '';
       html += '<div class="input-row">' +
         '<input id="flow-input" ' + (s.kind === 'amount' ? 'inputmode="text" placeholder="৫০০ / পাঁচশো"' : '') +
-        ' autocomplete="off">' +
+        ' value="' + esc(prev) + '" autocomplete="off">' +
         (Voice.supported() ? '<button id="mic-btn" class="mic">🎤</button>' : '') +
         '<button id="next-btn" class="primary">' + esc(t('next')) + '</button></div>' +
         '<div class="hint" id="flow-hint">' + esc(Voice.supported() ? t('mic_hint') : '') + '</div>';
@@ -626,6 +644,7 @@
 
     // wire up
     document.querySelectorAll('.chip').forEach(function (c) {
+      if (flowState.def.editing && String(flowState.answers[s.key]) === c.dataset.v) c.classList.add('on');
       c.onclick = function () { submitAnswer(c.dataset.v); };
     });
     const input = document.getElementById('flow-input');
@@ -1091,11 +1110,18 @@
       },
     };
   }
-  function startExpense() {
+  function startExpense(edit) {
     const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
     const availP = viewData().then(function (data) { return Aggregate.myAvailable(data, ident); });
     const go = function (subjects) {
-      availP.then(function (avail) { startFlow(expenseFlow(subjects, avail)); });
+      availP.then(function (avail) {
+        const def = expenseFlow(subjects, avail);
+        if (edit) {
+          def.presets = edit.presets; def.editing = edit.editing;
+          def.title = t('edit_title') + ' — ' + def.title; def.returnTo = 'entries';
+        }
+        startFlow(def);
+      });
     };
     if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {
       Auth.call('listSubjects', { token: Auth.token() })
@@ -1778,6 +1804,38 @@
         .then(function () { toast(t('voided_done')); updateBadge(); autoSync(); backFn(); });
     };
   }
+  // Correcting your own flagged entry. The old row is voided and a new one
+  // written (see finishFlow) — so it reads as an edit, but the book stays
+  // append-only and the previous values survive for anyone who asks.
+  function startEdit(store, row, reason) {
+    const money = {
+      payMode: (Number(row.cashAmount) > 0 && Number(row.upiAmount) > 0) ? 'both'
+             : (Number(row.upiAmount) > 0 ? 'upi' : 'cash'),
+      cashAmount: Number(row.cashAmount) || (Number(row.upiAmount) ? 0 : Number(row.amount) || 0),
+      upiAmount: Number(row.upiAmount) || 0,
+      note: row.note || '',
+    };
+    let def = null;
+    if (store === 'payments') {
+      def = paymentFlow({ id: row.partyId, name: row.partyName || '' }, 'entries');
+      def.presets = money;
+    } else if (store === 'daily') {
+      def = dailyFlow(row.type);
+      def.presets = Object.assign({ busName: row.busName || '', busNumber: row.busNumber || '' }, money);
+    } else if (store === 'expenses') {
+      // the expense flow needs its subject list; reuse the same loader the
+      // normal entry path uses so an offline edit still works
+      startExpense({ presets: Object.assign({ subject: row.subject || '', comment: row.desc || '',
+                                              srcCat: row.srcCat || '' }, money),
+                     editing: { store: store, id: row.id, reason: reason } });
+      return;
+    }
+    if (!def) return;
+    def.editing = { store: store, id: row.id, reason: reason };
+    def.title = t('edit_title') + ' — ' + def.title;
+    def.returnTo = 'entries';
+    startFlow(def);
+  }
   // A collector can't void their own entry — they flag it for a cashier/admin.
   function renderFlag(targetStore, targetId, summary, backFn) {
     $view().innerHTML = '<button class="ghost back-bar" id="flag-back">← ' + esc(t('back')) + '</button>' +
@@ -1826,7 +1884,17 @@
           : r.rejected ? ' • <span class="void-tag">' + esc(t('rejected_label')) + '</span>' : '';
         const busReceipt = (!isVoid && it.store === 'daily' && r.type === 'bus')
           ? '<button class="chip" data-drcp="' + esc(r.id) + '">🧾</button>' : '';
-        const action = busReceipt + ((isVoid || isFlag) ? '' :
+        // Once you have flagged your OWN entry you may fix it yourself: you have
+        // declared it wrong, and nobody knows better than you what it should
+        // say. Only the person who made it, and only these three stores — a
+        // handover has two sides and is settled by confirming, not editing.
+        const mineNow = (r.collectorId || r.collector) === meId;
+        const canEdit = isFlag && !isVoid && mineNow &&
+          ['payments', 'daily', 'expenses'].indexOf(it.store) >= 0;
+        const editBtn = canEdit
+          ? '<button class="chip void-btn" data-ed="' + it.store + '|' + esc(r.id) + '">✏️ ' + esc(t('fix_btn')) + '</button>'
+          : '';
+        const action = busReceipt + editBtn + ((isVoid || isFlag) ? '' :
           (canVoid(r) ? '<button class="chip void-btn" data-vd="' + it.store + '|' + esc(r.id) + '">' + esc(t('void_btn')) + '</button>'
                       : '<button class="chip void-btn" data-fl="' + it.store + '|' + esc(r.id) + '">' + esc(t('flag_btn')) + '</button>'));
         return '<div class="row' + (isVoid ? ' voided' : '') + '" style="cursor:default"><div style="flex:1 1 60%"><b>' +
@@ -1851,6 +1919,14 @@
           renderFlag(p[0], p[1], it ? entrySummary(p[0], it.r) : '', function () { navigate('entries'); });
         };
       });
+      document.querySelectorAll('[data-ed]').forEach(function (b) {
+        b.onclick = function () {
+          const p = b.dataset.ed.split('|'), it = list.find(function (x) { return x.r.id === p[1]; });
+          if (!it) return;
+          const c = (data.corrections || []).filter(function (x) { return x.targetId === p[1] && x.status !== 'rejected'; })[0];
+          startEdit(it.store, it.r, c ? c.reason : '');
+        };
+      });
       document.querySelectorAll('[data-drcp]').forEach(function (b) {
         b.onclick = function () { navigate('receipt', { store: 'daily', id: b.dataset.drcp }); };
       });
@@ -1860,8 +1936,16 @@
   function renderReviewCorrections() {
     if (!canReview()) { $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
     $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('loading')) + '</div>';
-    Auth.call('pendingCorrections', { token: Auth.token(), year: Settings.get('year') }).then(function (resp) {
-      const list = resp.corrections || [];
+    Promise.all([
+      Auth.call('pendingCorrections', { token: Auth.token(), year: Settings.get('year') }),
+      viewData(),
+    ]).then(function (both) {
+      const resp = both[0], data = both[1];
+      // A flag whose target the author has already corrected is settled — the
+      // old row is voided and a new one stands in its place. Showing it here
+      // would invite a second void on a row that is already gone.
+      const done = {}; (data.voids || []).forEach(function (v) { if (v.targetId) done[v.targetId] = 1; });
+      const list = (resp.corrections || []).filter(function (c) { return !done[c.targetId]; });
       const html = list.length ? list.map(function (c) {
         return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 100%"><b>' +
           esc(c.targetSummary || c.targetStore) + '</b><div class="row-sub">' + esc(c.collector || '') +
