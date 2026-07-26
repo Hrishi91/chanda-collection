@@ -888,8 +888,10 @@
         { key: 'name', qKey: type === 'shop' ? 'q_shop_name' : 'q_person_name', kind: 'text' },
         { key: 'owner', qKey: 'q_owner_name', kind: 'text', optional: true,
           showIf: function () { return type === 'shop'; } },
-        { key: 'side', qKey: 'q_side', kind: 'choice', options: sideOptions(), showIf: function () { return type === 'shop'; } },
-        { key: 'location', qKey: 'q_location', kind: 'choice', options: locationOptions(), optional: true,
+        // optionsFn, not options: read when the user REACHES this step, so a
+        // background list refresh that finishes meanwhile is already included.
+        { key: 'side', qKey: 'q_side', kind: 'choice', optionsFn: sideOptions, showIf: function () { return type === 'shop'; } },
+        { key: 'location', qKey: 'q_location', kind: 'choice', optionsFn: locationOptions, optional: true,
           showIf: function () { return type !== 'shop' && Lists.get('location').length > 0; } },
         { key: 'phone', qKey: 'q_phone', kind: 'text', optional: true,
           validate: phoneErrIN, clean: cleanPhoneIN },
@@ -1290,11 +1292,15 @@
         (cashTiles ? '<div class="grid" style="margin-top:10px">' + cashTiles + '</div>' : '') +
         '<div class="grid one" style="margin-top:10px"><button class="tile wide" data-go="entries">✏️ ' +
           esc(t('my_entries_title')) + '</button></div>';
-      // refresh the areas/locations cache (≤1.5s), then run — so an admin's
-      // just-added area shows the moment a collector opens a new-entry form.
-      const freshThen = function (fn) {
-        Promise.race([Lists.refresh(), new Promise(function (r) { setTimeout(r, 1500); })]).then(fn);
-      };
+      // Open the form NOW; refresh the master lists behind it. This used to
+      // race the refresh against a 1.5s timeout and wait for whichever won —
+      // but an Apps Script round trip is 3–5s, so the timeout ALWAYS won and
+      // every দোকান/ব্যক্তি/সদস্য tap sat dead for a second and a half before
+      // anything appeared. The wait bought nothing either: the area and
+      // location steps read their options through optionsFn when the user
+      // reaches them, which is several taps later — by then the refresh has
+      // long landed.
+      const freshThen = function (fn) { Lists.refresh().catch(function () {}); fn(); };
       wireNav();
       renderNotifBanner();   // show cached counts immediately
       if (!notifViaPull) checkNotifications();  // old backend only; pull refreshes otherwise

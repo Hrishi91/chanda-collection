@@ -3879,3 +3879,41 @@ assumed: a `put` is visible immediately, a `del` is visible immediately,
 four green, plus no console errors, and the seeded rows cleared afterwards.
 
 378 passed, 0 failed. Client-only — no redeploy needed.
+
+## v4.1.1 — the 1.5-second dead wait on the three most-used buttons
+
+Hrishi: "its lagging, previously it was not."
+
+v4.1.0 fixed a real cost (three database reads per tap) but it was not what he
+was feeling — the fix was live and the lag remained. So: measure, do not guess
+again. Every aggregation on a seeded 2,000-row season came back under 3 ms:
+
+    computeTotals 0.97 · messageFeed 2.52 · myAvailable 0.36
+    personalSummary 0.42 · inHandRows 1.69 · reconcile 1.50
+
+Nothing there explains a visible lag. The clue was a number noted and walked
+past during the live pass: **a full pull took 3,625 ms and an idle one 5,228 ms**
+— an Apps Script round trip is seconds, not milliseconds. So the slow buttons
+had to be the ones that touch the network. And one did, invisibly:
+
+    const freshThen = function (fn) {
+      Promise.race([Lists.refresh(), new Promise(r => setTimeout(r, 1500))]).then(fn);
+    };
+
+দোকান / ব্যক্তি / সদস্য — the three most-used buttons in the app — raced a list
+refresh against a 1.5-second timeout and waited for whichever won. The refresh is
+a 3–5 second round trip, so **the timeout always won, and every tap sat dead for
+exactly 1.5 seconds** before anything appeared.
+
+The wait bought nothing. The area and location steps it was protecting are
+several taps further in, and the flow engine already evaluates `optionsFn` when
+a step is REACHED. Switching those two steps from `options:` (built once, when
+the flow is created) to `optionsFn:` (read at render time) means the form opens
+instantly and still shows an area the admin added moments ago — the refresh runs
+behind the form and lands long before anyone reaches that question.
+
+Introduced in `afe290a` "Refresh master lists when opening a new-entry form",
+which is why he remembered the app being quicker before.
+
+VERIFIED: the timeout race is gone from the served file, both steps use
+`optionsFn`, 378 passed, 0 failed, no console errors. Client-only.
