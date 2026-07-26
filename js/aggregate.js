@@ -565,7 +565,17 @@
       if (u < 0) debtUpi -= u;
       byCat[k] = { cash: Math.max(0, c), upi: Math.max(0, u) };
     });
-    const cash = Math.max(0, av.cash - pend.cash), upi = Math.max(0, av.upi - pend.upi);
+    // A20: a money type can be OVER-committed — send ₹500 cash pending, then a
+    // ₹100 expense drains cash to ₹450. Math.max(0, 450−500) would throw the
+    // −50 away, and the OTHER type's ceiling would quietly offer money whose
+    // promise already exceeds the whole account (total promised > hero, books
+    // go negative once everything confirms). The deficit in one type must come
+    // off the other type's ceiling: in practice that parcel will be settled in
+    // the other form, so the other form is what is spoken for.
+    const defCash = Math.max(0, pend.cash - av.cash);
+    const defUpi = Math.max(0, pend.upi - av.upi);
+    const cash = Math.max(0, av.cash - pend.cash - defUpi);
+    const upi = Math.max(0, av.upi - pend.upi - defCash);
     return { cash: cash, upi: upi, total: cash + upi, byCat: byCat,
              pendingOut: { cash: pend.cash, upi: pend.upi, total: pend.total },
              debt: { cash: debtCash, upi: debtUpi, total: debtCash + debtUpi } };
@@ -832,6 +842,38 @@
       paidByParty[p.partyId] = (paidByParty[p.partyId] || 0) + (Number(p.amount) || 0);
       if (p.partyId && !partyIds[p.partyId]) {
         anomalies.push({ type: 'orphan_payment', id: p.id, partyId: p.partyId, amount: Number(p.amount) || 0 });
+      }
+    });
+    // A21: a row whose amount disagrees with its own cash+upi split (or a
+    // handover whose stored breakdown does not sum to its amount) makes the two
+    // clocks diverge silently: personalSummary/inHandRows read `amount`,
+    // myAvailable/the pots read the split — so "আমার হাতে" and its own ভাগ stop
+    // agreeing and NOTHING said why. The app never writes such a row (flows
+    // compute amount = cash+upi); a hand-edited Sheet cell or a buggy import
+    // can. Reconcile's whole job is to catch broken entries loudly.
+    const splitCheck = function (rows, store) {
+      (rows || []).forEach(function (r) {
+        if (isCashOnly(r)) return; // legacy: no split fields, amount IS the cash
+        const amt = Number(r.amount) || 0;
+        const sp = (Number(r.cashAmount) || 0) + (Number(r.upiAmount) || 0);
+        if (Math.round(sp) !== Math.round(amt)) {
+          anomalies.push({ type: 'split_mismatch', store: store, id: r.id, amount: amt, split: sp });
+        }
+      });
+    };
+    splitCheck(payments, 'payments'); splitCheck(daily, 'daily');
+    splitCheck(expenses, 'expenses'); splitCheck(data.handovers, 'handovers');
+    (data.handovers || []).forEach(function (h) {
+      if (!h.breakdown) return;
+      let bd = null; try { bd = JSON.parse(h.breakdown); } catch (e) { return; }
+      if (!bd || typeof bd !== 'object') return;
+      let bsum = 0, cats = 0;
+      Object.keys(bd).forEach(function (k) {
+        if (k.slice(0, 2) === '__') return; // reserved metadata (a cashier's snapshot)
+        cats++; bsum += (Number(bd[k].cash) || 0) + (Number(bd[k].upi) || 0);
+      });
+      if (cats && Math.round(bsum) !== Math.round(Number(h.amount) || 0)) {
+        anomalies.push({ type: 'breakdown_mismatch', id: h.id, amount: Number(h.amount) || 0, breakdownSum: bsum });
       }
     });
     // party paid more than pledged

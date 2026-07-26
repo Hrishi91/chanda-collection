@@ -1,0 +1,117 @@
+# The money model — every calculation and what feeds what
+
+*Written 2026-07-26 from a machine-extracted call graph and a 37-invariant
+cross-check (now permanent in `tests/run.js`, the "graph:" and "mirror:"
+blocks). If you change any function here, the invariant block is what tells you
+which other answers you just changed.*
+
+## The layers
+
+```
+raw rows (IndexedDB / Sheet)
+   │
+   ├─ voidedIds → activeData          void filter — EVERY money reader goes through it
+   │                                  (messages deliberately excluded — see note 1)
+   │
+   ├─ leaf vocabulary
+   │    splitOf / isCashOnly          money type   (legacy row = pure cash)
+   │    hoConfirmed/hoRejected/hoPending  handover outcome (three, never two)
+   │    ck                            identity     (username first, name fallback)
+   │
+   ├─ myAvailable        ◄── THE pot engine: what X holds NOW, by category × type
+   │     ├─ personalSummary.byCat     (must be identical — tested)
+   │     ├─ mySummary.hero/groups     (আমার হিসাব levels 0–2)
+   │     ├─ inHandRows.byCat          (central report's per-person pots)
+   │     └─ handoverable              hero − pending, per pot AND per type
+   │
+   ├─ handoverSlots      ◄── the three-outcome partition of handover rows
+   │     ├─ mySummary slots (⏳/✅/❌)
+   │     └─ handoverable's pending set-aside
+   │
+   ├─ personalSummary    amount-clock: collected/received/handedOver/pending/inHand
+   ├─ cashierView        the cashier screen's independent path (must equal handoverable)
+   ├─ handoverReport     the 📗 book: six buckets (in/out × pending/confirmed/rejected)
+   │
+   ├─ inHandRows         central "কার হাতে কত" (one row per person)
+   │     └─ reconcile    Σ inHand === collected − expenses, plus anomaly scan
+   │
+   └─ computeReport      overview/dues/inhand/collectors/expenses/daily
+         (inhand delegates to inHandRows — same engine, not a re-derivation)
+```
+
+## The two clocks
+
+Almost every past confusion came from mixing these:
+
+| clock | question | functions |
+|---|---|---|
+| **right now** | what does X hold / owe this minute? | myAvailable, mySummary.hero, handoverable, cashierView, inHandRows.inHand |
+| **season to date** | how much has flowed through X? | personalSummary.collected/received/handedOver, handoverReport buckets, computeTotals |
+
+They legitimately disagree (a cashier can have ₹50,000 through their hands and
+₹2,000 in them). No screen may print numbers from both clocks side by side
+without labelling them — আমার হিসাব keeps season figures in the dashed
+footer for exactly this reason.
+
+## The decisions every figure rests on
+
+1. **A pending handover is still the SENDER's money.** The receiver is credited
+   only on confirm; deducting the sender early would leave the money in
+   nobody's book and shrink the central total (proved live: ₹300 pending made
+   Σ inHand read 700 instead of 1000).
+2. **A rejected handover never left the sender.** Third status, never folded
+   into "not confirmed" (A18): otherwise it is deducted from the ceiling for
+   ever while sitting in nobody's pocket.
+3. **The ceiling ≠ the hero.** hero answers "what do I answer for" (includes
+   pending); handoverable answers "what can I physically pass on" (excludes it,
+   per pot and per money type, with cross-type deficits charged — A20).
+4. **Named pots never borrow silently.** An overspent pot goes negative and
+   says so (Hrishi's rule: squared up later by exchanging cash). Only legacy
+   rows with no srcCat use the deterministic `drain` order.
+5. **Void is the only delete.** Append-only everywhere; corrections resolve
+   into voids; `activeData` is the single gate.
+
+## Invariants (all enforced in tests/run.js)
+
+- Σ inHandRows.inHand === total collected − total expenses (reconcile),
+  through chains, voids, rejections.
+- personalSummary.inHand === myAvailable.total === mySummary.hero — the
+  amount-clock and the split-clock meet at the top.
+- personalSummary.byCat === myAvailable.byCat (two code paths, one table).
+- Σ pots === hero — the drill-down always explains its own headline.
+- handoverReport.sent === personalSummary.handedOver; pendingOut === pending;
+  handoverSlots === the book's three buckets.
+- handoverable.total === hero − pendingOut === cashierView.availableTotal
+  (A20: even when one money type is over-committed).
+- central row per person === that person's own hero (two independent engines).
+- chain pending sits with each sender exactly once.
+- computeReport('inhand') IS inHandRows.
+- Code.gs mirrors agree on every SHARED field of all six reports and
+  personalSummary_ (subset rule — see note 2).
+- sw.js VERSION === Code.gs CODE_VERSION (deployments are identifiable).
+
+## Deliberate divergences (do not "fix" these by reflex)
+
+1. **`activeData` omits `messages`** while Code.gs `activeData_` keeps them —
+   client-side money aggregation runs per collector and a season of chat made
+   it 11× slower. messageFeed filters its own voids. (Tested; documented at
+   the function.)
+2. **Server report rows are leaner than client rows.** The client enriches
+   (byCat on inhand, cash/upi columns on collectors/expenses) for display; the
+   server surface is legacy/fallback and does not carry them. The mirror test
+   therefore checks *subset agreement*: every field the server does report must
+   match the client exactly. A shared number drifting fails the suite;
+   enrichment does not.
+3. **The category trail ends at the cashier hop.** Pooled money has no honest
+   category, so a cashier's outgoing handover stores a `__snap` of their
+   position instead of a per-category breakdown. `__`-prefixed keys are
+   metadata everywhere — never categories, never in anomaly sums.
+
+## Data-integrity assumptions (now watched, A21)
+
+The flows always write `amount === cashAmount + upiAmount`, and a collector's
+handover breakdown always sums to its amount. A hand-edited Sheet cell or a
+buggy import can break both, which silently splits the two clocks. `reconcile`
+now flags `split_mismatch` (any money store) and `breakdown_mismatch`
+(handovers, `__` keys exempt) so the banner catches it instead of two screens
+quietly disagreeing.

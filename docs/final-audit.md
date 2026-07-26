@@ -483,6 +483,35 @@ proven to bite.
 - **R5 INFO —** the rejections feed resends all season (rare rows; payload
   negligible). R6 INFO — reason silently truncated at 200 chars server-side.
 
+### A20. MED (money) — FIXED 2026-07-26 — the handover ceiling leaked across money types
+**Where:** `handoverable` (js/aggregate.js), client-only.
+**Cause:** a money type can be over-committed — send ₹500 cash pending, then a
+₹100 expense drains cash to ₹450. `Math.max(0, 450−500)` threw the −50 away, so
+the OTHER type's ceiling still offered money whose total promise exceeded the
+whole account: 💵0 + 📱300 = 300 offered while hero − pending = 250. Once
+everything confirmed, someone's book went −50. `cashierView` (the cashier's own
+screen cap) was right at 250 — so the two paths disagreed, which is exactly the
+kind of split the interdependency sweep exists to catch.
+**Found how:** Hrishi asked to *"analyse all the calculations and inter
+dependency calculations"* — a 37-invariant cross-check on a rich chain scenario;
+34 held, this one didn't (twice: `ceiling === hero − pending` and
+`cashierView === handoverable`).
+**FIXED:** the deficit in one type is charged to the other type's ceiling
+(`defCash`/`defUpi`) — in practice that parcel gets settled in the other form,
+so the other form is what is spoken for. Both equalities restored; pinned;
+proven to bite by reverting the two lines.
+
+### A21. LOW (integrity) — FIXED 2026-07-26 — reconcile was blind to split drift
+**Where:** `reconcile` (js/aggregate.js), client-only.
+**Cause:** `personalSummary`/`inHandRows` read `amount`; `myAvailable`/the pots
+read `cashAmount+upiAmount`. A row where the two disagree (hand-edited Sheet
+cell, buggy import — the app itself never writes one) makes "আমার হাতে" and its
+own drill-down silently diverge, and reconcile said nothing — despite loud
+anomaly detection being its entire purpose.
+**FIXED:** `split_mismatch` (all four money stores; legacy no-split rows exempt
+— their amount IS the cash) and `breakdown_mismatch` (handovers; `__snap`
+metadata exempt). Both surfaced through the existing ⚠️ banner path.
+
 ### Verified green in the two-user pass
 | Path | Result |
 |---|---|

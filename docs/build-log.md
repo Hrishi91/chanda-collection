@@ -4516,3 +4516,40 @@ pending-aware toast and NO flow; add ₹300 fresh → the flow opens at 💵₹3
 (800 collected − 500 pending, the ceiling doing its job). No console errors.
 Source assertions pin both the gate and the fallback's absence. 501 passed, 0
 failed. sw + CODE_VERSION → v4.5.5 in lockstep.
+
+## 2026-07-26 — v4.5.6: the calculation-interdependency audit (A20, A21, money-model.md)
+
+Hrishi: *"analyse all the calculations and inter dependency calculations."*
+
+Method, not vibes: (1) the call graph of every function in aggregate.js,
+extracted mechanically; (2) a 37-invariant cross-check on one rich scenario —
+3 people, a handover chain, all three statuses, a void, legacy rows, a
+cross-collector payment, an overspent pot; (3) a server-mirror diff of all six
+reports + personalSummary_ against the REAL Code.gs; (4) adversarial probes
+with amount ≠ split. Full map now lives in **docs/money-model.md** — the
+layers, the two clocks (right-now vs season-to-date), the five decisions every
+figure rests on, the deliberate divergences, and the invariant list.
+
+34 of 37 held. Three of the failures were my own hand arithmetic (the code was
+right — the self-consistency checks are the real proof). Two were real:
+
+**A20 (MED):** the ceiling leaked across money types. Send 💵500 pending, then
+spend 💵100: cash held 450 < cash promised 500, and Math.max(0,·) discarded the
+−50, so the UPI ceiling offered 300 while hero − pending = 250 — total promised
+could exceed the whole account, books −50 after confirmations. cashierView was
+right; handoverable wasn't; the two paths disagreed by exactly the deficit.
+Fixed: a deficit in one type now comes off the other type's ceiling. Both
+`ceiling === hero − pending` and `cashierView === handoverable` restored.
+
+**A21 (LOW):** reconcile was blind to the one corruption that splits the two
+clocks — amount ≠ cash+upi (or a breakdown that doesn't sum to its amount).
+Now flagged as split_mismatch / breakdown_mismatch through the existing banner;
+legacy rows and __snap metadata exempt.
+
+The sweep is not a one-off: the rich scenario + the layer-crossing equalities +
+subset-agreement with the server mirrors are now permanent tests ("graph:" and
+"mirror:" blocks). The mirror rule is subset-agreement on purpose: the client
+may enrich report rows for display (byCat, cash/upi columns — documented
+divergence #2), but a SHARED number drifting fails the suite.
+
+525 passed, 0 failed. Client-only; sw + CODE_VERSION → v4.5.6 in lockstep.

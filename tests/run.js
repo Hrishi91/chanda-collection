@@ -1228,6 +1228,118 @@ eq(mySummary(rjWith('rejected'), 'j').incoming.rejected.total, 400, 'rejected: i
 eq(handoverReport(rjWith('rejected'), 'y').rows[0].rejectReason, 'খামে কম ছিল',
    'rejected: the reason reaches the sender through the book');
 
+// ---- A20: a money type can be over-committed — the deficit crosses types ----
+// Jadav holds 💵450 + 📱300 = 750 after sending 💵500 pending and then spending
+// 💵100. Cash promised (500) now exceeds cash held (450); the −50 must come off
+// the UPI ceiling, or total promised exceeds the whole account and the books go
+// negative once everything confirms.
+const xtD = { parties: [], voids: [], corrections: [], payments: [], daily: [],
+  expenses: [{ id: 'x', collectorId: 'j', amount: 100, cashAmount: 100, upiAmount: 0 }],
+  handovers: [
+    { id: 'h1', fromId: 'y', toId: 'j', amount: 700, cashAmount: 400, upiAmount: 300,
+      status: 'confirmed', breakdown: JSON.stringify({ shop: { cash: 400, upi: 300 } }) },
+    { id: 'h5', fromId: 'b', toId: 'j', amount: 150, cashAmount: 150, upiAmount: 0, status: 'confirmed' },
+    { id: 'h4', fromId: 'j', toId: 'ad', amount: 500, cashAmount: 500, upiAmount: 0,
+      status: 'pending', breakdown: JSON.stringify({ shop: { cash: 400, upi: 0 }, received: { cash: 100, upi: 0 } }) }] };
+const xt = handoverable(xtD, 'j');
+eq(xt.total, 250, 'A20: ceiling = hero − pending even when one type is over-committed');
+eq([xt.cash, xt.upi], [0, 250], 'A20: the cash deficit (50) comes off the UPI ceiling');
+eq(xt.total, cashierView(xtD, 'j').availableTotal,
+   'A20: handoverable and cashierView agree again — two paths, one answer');
+
+// ---- A21: reconcile flags rows whose split disagrees with their amount ------
+// The app always writes amount = cash+upi; a hand-edited Sheet cell or buggy
+// import can break that, and then the amount-clock (personalSummary) and the
+// split-clock (myAvailable) silently diverge. Reconcile now says so loudly.
+const a21base = { parties: [], voids: [], corrections: [], daily: [], expenses: [], handovers: [],
+  payments: [{ id: 'p', collectorId: 'y', collector: 'য', partyId: 'z', amount: 400, cashAmount: 300, upiAmount: 0 }] };
+eq(reconcile(a21base).anomalies.some(function (a) { return a.type === 'split_mismatch'; }), true,
+   'A21: amount 400 vs split 300 is flagged');
+const a21ok = JSON.parse(JSON.stringify(a21base)); a21ok.payments[0].cashAmount = 400;
+eq(reconcile(a21ok).anomalies.filter(function (a) { return a.type === 'split_mismatch'; }).length, 0,
+   'A21: a consistent row is not flagged');
+const a21legacy = JSON.parse(JSON.stringify(a21base)); delete a21legacy.payments[0].cashAmount; delete a21legacy.payments[0].upiAmount;
+eq(reconcile(a21legacy).anomalies.filter(function (a) { return a.type === 'split_mismatch'; }).length, 0,
+   'A21: a legacy row (no split fields) is exempt — amount IS the cash');
+const a21bd = { parties: [], voids: [], corrections: [], daily: [], expenses: [], payments: [],
+  handovers: [{ id: 'h', fromId: 'y', toId: 'j', amount: 700, cashAmount: 400, upiAmount: 300, status: 'confirmed',
+                breakdown: JSON.stringify({ shop: { cash: 300, upi: 300 } }) }] };
+eq(reconcile(a21bd).anomalies.some(function (a) { return a.type === 'breakdown_mismatch'; }), true,
+   'A21: a handover breakdown that does not sum to its amount is flagged');
+const a21snap = JSON.parse(JSON.stringify(a21bd));
+a21snap.handovers[0].breakdown = JSON.stringify({ __snap: { available: { cash: 1, upi: 2 } } });
+eq(reconcile(a21snap).anomalies.filter(function (a) { return a.type === 'breakdown_mismatch'; }).length, 0,
+   'A21: a cashier snapshot-only breakdown is metadata, never flagged');
+
+// ---- the calculation graph holds together: one rich scenario, every layer ---
+// 3 people, a handover chain, all three statuses, a void, legacy rows, a
+// cross-collector payment, an overspent pot. The layer-crossing equalities that
+// individual tests above do not already cover:
+const graphD = {
+  parties: [{ id: 's1', type: 'shop', collectorId: 'y', pledged: 3000 },
+            { id: 'p1', type: 'person', collectorId: 'b', pledged: 1000 }],
+  payments: [
+    { id: 'g1', collectorId: 'y', collector: 'যমুনা', partyId: 's1', amount: 2000, cashAmount: 1200, upiAmount: 800 },
+    { id: 'g2', collectorId: 'y', collector: 'যমুনা', partyId: 'p1', amount: 400, cashAmount: 400, upiAmount: 0 },
+    { id: 'g3', collectorId: 'b', collector: 'বাপি', partyId: 's1', amount: 500 },              // legacy
+    { id: 'gV', collectorId: 'y', collector: 'যমুনা', partyId: 's1', amount: 999, cashAmount: 999, upiAmount: 0 }],
+  daily: [{ id: 'g4', collectorId: 'y', collector: 'যমুনা', type: 'road', amount: 300, cashAmount: 300, upiAmount: 0 },
+          { id: 'g5', collectorId: 'b', collector: 'বাপি', type: 'toto', amount: 200, cashAmount: 200, upiAmount: 0 }],
+  expenses: [{ id: 'gx', collectorId: 'y', collector: 'যমুনা', amount: 400, cashAmount: 400, upiAmount: 0, source: 'collection', srcCat: 'road' }],
+  handovers: [
+    { id: 'gh1', fromId: 'y', from: 'যমুনা', toId: 'j', to: 'Jadav', amount: 700, cashAmount: 400, upiAmount: 300,
+      status: 'confirmed', breakdown: JSON.stringify({ shop: { cash: 400, upi: 300 } }) },
+    { id: 'gh2', fromId: 'y', from: 'যমুনা', toId: 'j', to: 'Jadav', amount: 300, cashAmount: 300, upiAmount: 0,
+      status: 'pending', breakdown: JSON.stringify({ person: { cash: 300, upi: 0 } }) },
+    { id: 'gh3', fromId: 'y', from: 'যমুনা', toId: 'j', to: 'Jadav', amount: 250, cashAmount: 250, upiAmount: 0,
+      status: 'rejected', rejectReason: 'কম', breakdown: JSON.stringify({ bus: { cash: 250, upi: 0 } }) },
+    { id: 'gh4', fromId: 'j', from: 'Jadav', toId: 'ad', to: 'হৃষি', amount: 500, cashAmount: 500, upiAmount: 0,
+      status: 'pending', breakdown: JSON.stringify({ shop: { cash: 400, upi: 0 }, received: { cash: 100, upi: 0 } }) }],
+  voids: [{ id: 'gv', targetId: 'gV' }], corrections: [],
+};
+const gRows = inHandRows(graphD);
+eq(gRows.reduce(function (a, r) { return a + r.inHand; }, 0), 3400 - 400,
+   'graph: Σ central inHand === collected − expenses, chain and rejection included');
+[['যমুনা', 'y'], ['বাপি', 'b'], ['Jadav', 'j']].forEach(function (c) {
+  eq(gRows.filter(function (r) { return r.collector === c[0]; })[0].inHand, mySummary(graphD, c[1]).hero.total,
+     'graph: central row(' + c[0] + ') === that person\'s own hero — two independent engines');
+});
+eq([gRows.filter(function (r) { return r.collector === 'যমুনা'; })[0].pending,
+    gRows.filter(function (r) { return r.collector === 'Jadav'; })[0].pending], [300, 500],
+   'graph: chain pending sits with each sender once — never double-counted');
+eq(computeReport('inhand', graphD).rows, gRows, "graph: report('inhand') IS inHandRows, not a re-derivation");
+eq(reconcile(graphD).balanced, true, 'graph: and the invariant banner stays silent on all of it');
+
+// ---- server mirrors agree on every SHARED field -----------------------------
+// The client enriches report rows (byCat, cash/upi columns) that the legacy
+// server report surface does not carry — allowed. What is NOT allowed is a
+// shared field disagreeing. subsetEq: every field the server reports must exist
+// on the client side with the same value.
+(function mirrorSubset() {
+  const src2 = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  const g2 = {}; new Function('g', src2 + '\n g.computeReport_ = computeReport_; g.personalSummary_ = personalSummary_;')(g2);
+  const subsetEq = function (sv, cl, path) {
+    if (sv === null || typeof sv !== 'object') return String(sv) === String(cl) ? null : (path + ': ' + sv + ' vs ' + cl);
+    if (Array.isArray(sv)) {
+      if (!Array.isArray(cl) || cl.length !== sv.length) return path + ': length';
+      for (let i = 0; i < sv.length; i++) { const d = subsetEq(sv[i], cl[i], path + '[' + i + ']'); if (d) return d; }
+      return null;
+    }
+    for (const k in sv) { const d = subsetEq(sv[k], (cl || {})[k], path + '.' + k); if (d) return d; }
+    return null;
+  };
+  ['overview', 'dues', 'inhand', 'collectors', 'expenses', 'daily'].forEach(function (id) {
+    eq(subsetEq(g2.computeReport_(id, graphD), computeReport(id, graphD), id), null,
+       'mirror: server report(' + id + ') agrees with the client on every shared field');
+  });
+  ['y', 'b', 'j'].forEach(function (k) {
+    const sv = g2.personalSummary_(graphD, k), cl = personalSummary(graphD, k);
+    eq(subsetEq({ collected: sv.collected, received: sv.received, handedOver: sv.handedOver,
+                  pending: sv.pending, inHand: sv.inHand }, cl, 'ps.' + k), null,
+       'mirror: personalSummary_(' + k + ') numbers match the client');
+  });
+})();
+
 // A ReferenceError in a click handler does not exist until somebody taps. Run
 // the scope checker as part of the suite so it cannot rot in a corner.
 try {
