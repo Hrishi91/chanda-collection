@@ -262,6 +262,14 @@ on his phone after the redeploy).
   INSTABILITY (an unsourced bill migrating between categories) was a separate
   defect and is fixed in v3.86.0.
 
+## ⚠️ Code.gs redeploy needed (v3.93.0)
+
+Two server changes, no new columns, so **no `setup()`** — New deployment only,
+then hand over the URL for rebaking.
+
+- `voids` is gated for the first time (`voidAllowed_`).
+- An admin restoring a backup may file rows under the collector they belong to.
+
 ## Next decision — Go Live
 
 Training mode is still ON (default since it shipped). Every entry made so

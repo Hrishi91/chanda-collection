@@ -413,6 +413,7 @@ var ACTIONS = {
       var ss = SpreadsheetApp.getActive();
       var savedIds = [];
       var rejectedIds = []; // permission-blocked rows (UI never sends these; tampering does)
+      var reassigned = {};  // username → rows an admin filed under someone else
       var receipts = {}; // paymentId → assigned serial, so the client can adopt it
       // server-side mirror of the client's gating — the UI hides what a user may
       // not insert, but the server must not trust the client. The key comes from
@@ -428,6 +429,7 @@ var ACTIONS = {
         if (r.store === 'expenses' && String(r.row.source) !== 'collection' && !isCashier) {
           rejectedIds.push(r.row.id); return;
         }
+        if (r.store === 'voids' && !voidAllowed_(user, r.row)) { rejectedIds.push(r.row.id); return; }
         if (!entryAllowed_(user, permForRow_(r.store, r.row))) { rejectedIds.push(r.row.id); return; }
         (byStore[r.store] = byStore[r.store] || []).push(r.row);
       });
@@ -449,6 +451,26 @@ var ACTIONS = {
           // own identity, so normal use is unchanged. (Handover from/to are
           // separate fields and stay as sent — a handover is BY definition
           // about two other parties, and confirmHandover is the gate there.)
+          // Identity comes from the token (A9) — with ONE exception: an admin
+          // restoring a collector's backup must be able to file those rows
+          // under the collector they belong to, or the money lands on the
+          // admin's head and every in-hand figure is wrong. Only an admin, only
+          // when the row names someone, and it is written to the audit log.
+          var claimed = String(row.collectorId || '');
+          var reassign = user.row.role === 'admin' && claimed && claimed !== user.row.username
+            ? findUser_('username', claimed) : null;
+          if (reassign) {
+            row.collector = reassign.row.name;
+            row.collectorId = reassign.row.username;
+            row.collectorRole = roleOf_(reassign.row.role, reassign.row.cashier);
+            reassigned[claimed] = (reassigned[claimed] || 0) + 1;
+            var values0 = cols.map(function (c) { return row[c] !== undefined ? row[c] : ''; });
+            var isNew0 = !idRow[row.id];
+            if (!isNew0) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([values0]);
+            else sh.appendRow(values0);
+            savedIds.push(row.id);
+            return;
+          }
           row.collector = user.row.name;
           row.collectorId = user.row.username; // stable identity
           // roleOf_, NOT the raw Users-sheet role: entry rows speak
@@ -475,7 +497,12 @@ var ACTIONS = {
           savedIds.push(row.id);
         });
       });
-      return { ok: true, savedIds: savedIds, receipts: receipts, rejectedIds: rejectedIds };
+      // an admin filing rows under someone else is unusual enough to record
+      Object.keys(reassigned).forEach(function (u2) {
+        logAudit_(user.row, 'restore:attribute', reassigned[u2] + ' rows → @' + u2);
+      });
+      return { ok: true, savedIds: savedIds, receipts: receipts, rejectedIds: rejectedIds,
+               reassigned: reassigned };
     } finally { lock.releaseLock(); }
   },
 
@@ -1077,6 +1104,34 @@ function roleOf_(role, cashier) {
 function rowRole_(stored) {
   var s = String(stored || '');
   return (s === 'admin' || s === 'cashier') ? s : 'collector';
+}
+// Who owns the row a void points at? Returns null when it cannot be found —
+// callers treat that as "not mine", which is the safe answer.
+function targetOwner_(store, id) {
+  var sh = SHEET_TITLES[store] ? SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES[store]) : null;
+  if (!sh || sh.getLastRow() < 2) return null;
+  var values = sh.getDataRange().getValues(), header = values[0];
+  var idCol = header.indexOf('id'), whoCol = header.indexOf('collectorId'), roleCol = header.indexOf('collectorRole');
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][idCol]) === String(id)) {
+      return { collectorId: String(whoCol >= 0 ? values[i][whoCol] : ''),
+               role: rowRole_(roleCol >= 0 ? values[i][roleCol] : '') };
+    }
+  }
+  return null;
+}
+// May this user void that row? Mirrors js/app.js canVoid, plus the two paths
+// that void one's OWN row: Undo right after saving, and correcting a flagged
+// entry. Until now `voids` was the one store the server did not gate at all.
+//   admin    → anything
+//   cashier  → a plain collector's entry, never their own
+//   anyone   → their own entry
+function voidAllowed_(u, row) {
+  if (u.row.role === 'admin') return true;
+  var owner = targetOwner_(String(row.targetStore || ''), row.targetId);
+  if (!owner) return false;
+  if (owner.collectorId && owner.collectorId === u.row.username) return true; // undo / self-correction
+  return Number(u.row.cashier) === 1 && owner.role === 'collector';
 }
 function targetCollectorRole_(store, id) {
   var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES[store]);

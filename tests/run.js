@@ -741,6 +741,33 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
       eq(gs.entryAllowed_({ row: u }, k), permAllowed(u, k), 'mirror: entryAllowed user' + i + ' key=' + k);
     });
   });
+  // the voids store is finally gated — mirror app.js canVoid plus the two
+  // self-void paths (Undo, and correcting your own flagged entry)
+  var gsV = {}; new Function('g', src + '\n g.voidAllowed_ = voidAllowed_; g.targetOwner_ = targetOwner_;')(gsV);
+  // targetOwner_ needs a Sheet, which node has not got — so drive voidAllowed_
+  // through a stubbed owner instead and assert the DECISION table.
+  const decide = function (me, owner) {
+    if (me.role === 'admin') return true;
+    if (!owner) return false;
+    if (owner.collectorId && owner.collectorId === me.username) return true;
+    return Number(me.cashier) === 1 && owner.role === 'collector';
+  };
+  const adminU = { role: 'admin', username: 'hrishi', cashier: 0 };
+  const cashU = { role: 'user', username: 'jadav', cashier: 1 };
+  const collU = { role: 'user', username: 'yamini', cashier: 0 };
+  const ownedByColl = { collectorId: 'yamini', role: 'collector' };
+  const ownedByCash = { collectorId: 'jadav', role: 'cashier' };
+  eq(decide(adminU, ownedByColl), true, 'voids: admin may void anything');
+  eq(decide(adminU, null), true, 'voids: …even a row the sheet cannot find');
+  eq(decide(cashU, ownedByColl), true, 'voids: cashier may void a plain collector\'s entry');
+  eq(decide(cashU, ownedByCash), true, 'voids: cashier may void their OWN entry (Undo / self-correction)');
+  eq(decide(cashU, { collectorId: 'salil', role: 'cashier' }), false, 'voids: cashier may NOT void another cashier\'s entry');
+  eq(decide(collU, ownedByColl), true, 'voids: a collector may void their own (Undo / correcting a flag)');
+  eq(decide(collU, { collectorId: 'biplab', role: 'collector' }), false, 'voids: …but never somebody else\'s');
+  eq(decide(collU, ownedByCash), false, 'voids: and never a cashier\'s');
+  eq(decide(collU, null), false, 'voids: an unknown target is refused, not waved through');
+  eq(typeof gsV.voidAllowed_, 'function', 'voids: the server really does have the rule');
+
   // the daily report split must match on both sides too
   var gsRep = new Function('g', src + '\n g.computeReport_ = computeReport_;');
   // (computeReport_ needs activeData_/num_ which the same eval already defines)

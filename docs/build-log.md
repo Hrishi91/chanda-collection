@@ -3134,3 +3134,56 @@ the same serial, this one replaces it.
 VERIFIED: 310 passed, 0 failed; app loads clean; 376 i18n keys, no duplicates.
 The share sheet itself is a device behaviour — it needs a real phone, so it goes
 on the go-live smoke test with the mic and the install prompt.
+
+## v3.93.0 — restoring a backup files it under the right person; voids get a rule
+
+Two things, both server-side, so they ride one redeploy.
+
+### Import is admin-only, and it asks whose book it is
+
+Hrishi: "backup file ferot ano only admin, he will select the user inside".
+
+The Settings screen's **Import backup** button was visible to everyone. It
+rewrites the device's whole book from a JSON file — in a collector's hands that
+is a way to quietly ruin your own figures, and no collector has a reason to use
+it. Admin only now.
+
+The harder half: a backup file usually comes off a collector's dead or wiped
+phone, and every row in it is theirs. Importing it as the admin would have
+stamped the lot with the admin's name and inflated their in-hand by a whole
+collector's takings. So between choosing the file and writing anything, the
+admin now picks the owner from the approved-user list, and every row is stamped
+with that person. ("Keep as written" is still offered, and is the only option
+when offline, since the user list needs the network.)
+
+That required an exception on the server, stated plainly because it touches A9:
+`push` takes identity from the token and only from the token — EXCEPT that an
+**admin** may name another user in `collectorId`, in which case the row is filed
+under them. Only an admin, only when the named user exists, the role word is
+re-derived from the Users sheet rather than trusted, and every batch writes a
+`restore:attribute` line to the audit log. An admin can already reassign
+anything by editing the Sheet directly; this makes the supported path do it
+visibly instead of forcing them into the raw sheet.
+
+### `voids` finally has a server-side rule
+
+Flagged in the v3.91.0 note as known-and-not-fixed: `permForRow_` returned null
+for `voids`, so any authenticated client could void any row. The UI has always
+gated it (`canVoid`), but v3.91.0 made collectors write voids legitimately for
+the first time, and a rule the server does not enforce is not a rule.
+
+`voidAllowed_` now mirrors `canVoid`, plus the two paths that void one's OWN
+row — Undo straight after saving, and correcting a flagged entry:
+
+    admin    → anything
+    cashier  → a plain collector's entry, and their own
+    anyone   → their own entry
+    unknown target → refused, not waved through
+
+VERIFIED
+- 10 new tests over the decision table, including the ones that matter most:
+  a collector may void their own row but never anybody else's, and a cashier may
+  not void another cashier's. **320 passed, 0 failed.**
+- app loads clean, no console errors.
+- NOT verifiable until the redeploy: the server gate itself and the admin
+  attribution. Both go into the three-role pass right after.

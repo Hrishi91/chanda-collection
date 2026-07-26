@@ -2452,8 +2452,11 @@
       }).join('') + '</div>' +
       '<button id="sync-btn" class="primary big block">☁️ ' + esc(t('sync_now')) + '</button>' +
       '<button id="export-btn" class="ghost big block">' + esc(t('export_backup')) + '</button>' +
-      '<button id="import-btn" class="ghost big block">' + esc(t('import_backup')) + '</button>' +
-      '<input type="file" id="import-file" accept=".json" hidden>' +
+      // Importing a JSON file rewrites this device's book. In anyone's hands but
+      // the admin's that is a way to quietly ruin your own figures, and there is
+      // no reason a collector would ever need it.
+      (Auth.isAdmin() ? '<button id="import-btn" class="ghost big block">' + esc(t('import_backup')) + '</button>' +
+        '<input type="file" id="import-file" accept=".json" hidden>' : '') +
       '<button id="chpw-btn" class="ghost big block">🔑 ' + esc(t('change_pw_title')) + '</button>' +
       '<button id="logout-btn" class="ghost big block">🚪 ' + esc(t('logout')) + '</button>' +
       '<div class="empty">v2 • ' + esc(location.hostname) + '</div>';
@@ -2499,8 +2502,9 @@
       });
     };
     const fileEl = document.getElementById('import-file');
-    document.getElementById('import-btn').onclick = function () { fileEl.click(); };
-    fileEl.onchange = function () {
+    const impBtn = document.getElementById('import-btn');
+    if (impBtn) impBtn.onclick = function () { fileEl.click(); };
+    if (fileEl) fileEl.onchange = function () {
       const f = fileEl.files[0]; if (!f) return;
       f.text().then(function (txt) {
         let d;
@@ -2514,12 +2518,57 @@
         });
         fileEl.value = '';
         if (!counts.length) { toast(t('import_empty')); return; }
-        if (!window.confirm(t('import_confirm') + '\n\n' + counts.join(', '))) return;
-        Promise.all(Object.keys(clean).map(function (s) { return DB.bulkPut(s, clean[s]); }))
-          .then(function () { toast(t('saved')); updateBadge(); render(); })
-          .catch(function () { toast(t('fetch_fail')); });
+        // WHOSE book is this? A file usually comes off a collector's dead or
+        // wiped phone, and every row in it belongs to them — not to the admin
+        // doing the restoring. Ask once, stamp every row, so the money lands
+        // against the right person instead of inflating the admin's in-hand.
+        renderImportOwner(counts, function (owner) {
+          const stamped = {};
+          Object.keys(clean).forEach(function (st) {
+            stamped[st] = clean[st].map(function (r) {
+              if (!owner) return r;
+              return Object.assign({}, r, { collector: owner.name, collectorId: owner.username, synced: 0 });
+            });
+          });
+          Promise.all(Object.keys(stamped).map(function (st) { return DB.bulkPut(st, stamped[st]); }))
+            .then(function () { toast(t('saved')); updateBadge(); navigate('settings'); })
+            .catch(function () { toast(t('fetch_fail')); });
+        });
       }).catch(function () { toast(t('import_bad')); fileEl.value = ''; });
     };
+  }
+
+  // Who does an imported file belong to? Admin-only screen, shown between
+  // choosing the file and writing anything, so the answer is given before the
+  // rows exist rather than corrected afterwards.
+  function renderImportOwner(counts, done) {
+    $view().innerHTML = backBar('settings') + '<div class="flow-title">' + esc(t('import_owner_title')) + '</div>' +
+      '<div class="hint" style="margin-bottom:10px">' + esc(t('import_owner_hint')) + '</div>' +
+      '<div class="card"><div class="row-sub">' + esc(counts.join(' · ')) + '</div></div>' +
+      '<div id="imp-users"><div class="empty">' + esc(t('loading')) + '</div></div>';
+    const paint = function (users) {
+      document.getElementById('imp-users').innerHTML =
+        users.map(function (u) {
+          return '<div class="row" data-impu="' + esc(u.username) + '"><div><b>' + esc(u.name) + '</b>' +
+            '<div class="row-sub">@' + esc(u.username) + '</div></div></div>';
+        }).join('') +
+        '<button id="imp-keep" class="ghost big block" style="margin-top:10px">' + esc(t('import_owner_keep')) + '</button>';
+      document.querySelectorAll('[data-impu]').forEach(function (el) {
+        el.onclick = function () {
+          const u = users.filter(function (x) { return x.username === el.dataset.impu; })[0];
+          if (u && window.confirm(t('import_confirm') + '\n\n' + u.name + '\n' + counts.join(', '))) done(u);
+        };
+      });
+      document.getElementById('imp-keep').onclick = function () {
+        if (window.confirm(t('import_confirm') + '\n\n' + counts.join(', '))) done(null);
+      };
+    };
+    Auth.call('listUsers', { token: Auth.token() })
+      .then(function (r) {
+        paint((r.users || []).filter(function (u) { return u.status === 'approved'; })
+          .map(function (u) { return { username: u.username, name: u.name }; }));
+      })
+      .catch(function () { paint([]); }); // offline: only "keep as written" is offered
   }
 
   // ---------- in-app guide ----------
