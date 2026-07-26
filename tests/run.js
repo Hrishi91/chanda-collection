@@ -3,7 +3,7 @@ const { parseAmount } = require('../js/numparse.js');
 const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
         roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed,
         cashierView, handoverReport, allowedReports,
-        mentionsMe, messageFeed, activeData } = require('../js/aggregate.js');
+        mentionsMe, messageFeed, activeData, chatLoad } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -678,6 +678,32 @@ eq(Object.prototype.hasOwnProperty.call(
 eq(messageFeed({ messages: [{ id: 'a', createdAt: '1' }, { id: 'b', createdAt: '2' }],
                  voids: [{ id: 'v', targetId: 'a' }] }, { username: 'x' }, '').rows.map(function (r) { return r.id; }),
    ['b'], 'chat: messageFeed filters voided messages itself');
+
+// ---- what the chat is costing ------------------------------------------------
+// Chat adds no requests (it rides the 60s pull), so what grows is the payload
+// and the localStorage snapshot every phone keeps. `perDay` is watched too,
+// because a book that reaches 2,000 over a season is fine and one that does it
+// in three days is not — "growing fast" is the thing worth catching early.
+const chatOf = function (n, spreadDays) {
+  const now = Date.now(), msgs = [];
+  for (let i = 0; i < n; i++) {
+    msgs.push({ id: 'm' + i, text: 'একটা সাধারণ বার্তা এখানে',
+                createdAt: new Date(now - Math.floor(i / n * spreadDays * 86400000)).toISOString() });
+  }
+  return { messages: msgs };
+};
+const nowIso = new Date().toISOString();
+eq(chatLoad(chatOf(200, 10), nowIso).level, 'ok', 'chat load: a normal season is fine');
+eq(chatLoad(chatOf(1600, 10), nowIso).level, 'watch', 'chat load: a big book is worth watching');
+eq(chatLoad(chatOf(3200, 10), nowIso).level, 'high', 'chat load: a very big book is high');
+// the rate signal on its own — small total, alarming speed
+eq(chatLoad(chatOf(900, 1), nowIso).level, 'high', 'chat load: 900 in a day is high even though the total is small');
+eq(chatLoad({ messages: [] }, nowIso).level, 'ok', 'chat load: an empty book is ok');
+eq(chatLoad({}, nowIso).count, 0, 'chat load: no messages key at all is ok');
+// bytes track the text, so long messages count for more than short ones
+const shortB = chatLoad({ messages: [{ id: 'a', text: 'ok', createdAt: nowIso }] }, nowIso).bytes;
+const longB = chatLoad({ messages: [{ id: 'a', text: new Array(200).join('x'), createdAt: nowIso }] }, nowIso).bytes;
+eq(longB > shortB, true, 'chat load: a long message costs more than a short one');
 
 // ---- the handover book -------------------------------------------------------
 // Everything one person handed over and everything handed to them, in one

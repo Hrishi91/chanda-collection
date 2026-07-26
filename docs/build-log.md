@@ -3481,3 +3481,53 @@ and delta pulls only carry what is new. No fix needed; worth knowing.
 
 VERIFIED: 348 passed, 0 failed; browser on a fresh port, numbers above, no
 console errors.
+
+## v3.98.0 — the chat tells the admin what it costs, and can be switched off
+
+Hrishi: "if cost getting cross fast I should get notification to stop the
+messenger… I will stop the messenger."
+
+### Measuring the right thing
+
+Chat sends NO extra requests — it rides the 60s pull — so the Apps Script
+runtime quota is not what is at risk. What grows is the **pull payload and the
+localStorage snapshot every phone keeps**. `chatLoad()` reports count, bytes and
+`perDay`.
+
+`perDay` matters as much as the total, and that is the half that answers what he
+actually asked. A book reaching 2,000 over a season is fine; one reaching it in
+three days is not. So 900 messages in a single day is `high` even though the
+total is small:
+
+    200 over 10 days   →  41 KB,  21/24h  →  ok
+    1600 over 10 days  → 325 KB, 161/24h  →  watch
+    3200 over 10 days  → 650 KB, 321/24h  →  high
+    900 in ONE day     → 183 KB, 900/24h  →  high   ← the rate alone
+
+Thresholds and why: localStorage is ~5 MB and the snapshot also holds
+parties/payments/daily, so ~600 KB of chat is where a full pull on a cheap phone
+starts being felt. Watch at half that.
+
+### Telling him, once
+
+The admin — nobody else — gets an OS notification **when the level changes**,
+not every minute. A warning that repeats is a warning nobody reads. The home
+banner carries the numbers and the ⏹️ button right there, so noticing and acting
+are the same gesture.
+
+### The switch
+
+`Config.chat_off = 'on'` hides the 💬 tab for everyone, blocks the route and
+refuses new messages. **Enforced on the server too** — a phone with the screen
+still cached would otherwise keep writing after the admin turned it off.
+
+Nothing is deleted, and it can be switched back on. The admin panel's 🗂️ data
+section always shows the current cost next to the toggle, so turning it back on
+is an informed choice rather than a guess.
+
+VERIFIED
+- 7 new tests on the levels, including the rate-alone case and that a long
+  message costs more bytes than a short one. **355 passed, 0 failed.**
+- browser on a fresh port: all four levels as above, no console errors.
+- NOT verifiable until the redeploy: the server-side refusal. It rides the same
+  pending deploy as the `Messages` sheet.

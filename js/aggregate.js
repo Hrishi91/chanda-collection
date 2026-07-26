@@ -553,6 +553,29 @@
     return { rows: rows, unread: unread, mentioned: mentioned };
   }
 
+  // What the chat is costing. It adds NO extra requests (it rides the 60s pull),
+  // so the thing that actually grows is the pull payload and the localStorage
+  // snapshot every phone keeps. Budget: localStorage is ~5 MB and the snapshot
+  // also holds parties/payments/daily, so ~600 KB of chat is the point where a
+  // full pull on a cheap phone starts being felt.
+  //
+  // `perDay` is the last 24 hours, because "growing fast" is the thing worth
+  // catching early — a book that reaches 2,000 over a season is fine; one that
+  // does it in three days is not.
+  const CHAT_WATCH = { count: 1500, bytes: 300 * 1024, perDay: 400 };
+  const CHAT_HIGH = { count: 3000, bytes: 600 * 1024, perDay: 800 };
+  function chatLoad(data, nowIso) {
+    const rows = (data && data.messages) || [];
+    let bytes = 0;
+    rows.forEach(function (r) { bytes += (String(r.text || '').length * 2) + 160; }); // text + the row's own columns
+    const cut = new Date(new Date(nowIso || new Date().toISOString()).getTime() - 86400000).toISOString();
+    let perDay = 0;
+    rows.forEach(function (r) { if (String(r.createdAt || '') >= cut) perDay++; });
+    const over = function (lim) { return rows.length >= lim.count || bytes >= lim.bytes || perDay >= lim.perDay; };
+    return { count: rows.length, bytes: bytes, perDay: perDay,
+             level: over(CHAT_HIGH) ? 'high' : (over(CHAT_WATCH) ? 'watch' : 'ok') };
+  }
+
   // Parties with outstanding due, biggest due first.
   function duesList(parties, payments, voids) {
     const v = voidedIds({ voids: voids });
@@ -798,7 +821,7 @@
                 permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mentionsMe: mentionsMe, messageFeed: messageFeed,
-                activeData: activeData };
+                activeData: activeData, chatLoad: chatLoad };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
 })();

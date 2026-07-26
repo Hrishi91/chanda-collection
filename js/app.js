@@ -236,7 +236,11 @@
       } catch (e) { /* quota */ }
       // a mention has to reach the phone, and messages land here — so this is
       // the one place it can be checked without a poll of its own
-      viewData().then(checkMentionNotify).catch(function () {});
+      viewData().then(function (d2) {
+        checkMentionNotify(d2);
+        chatLoadHTML = chatLoadBannerHTML(checkChatLoad(d2));
+        renderNotifBanner();
+      }).catch(function () {});
       updateBadge(); // unread chat count on the 💬 tab
       if (!changed || flowState) return; // idle poll (empty delta) → no re-render
       // new chat and nothing else: the badge and the chat screen are the only
@@ -297,6 +301,7 @@
   // Rich, actionable feed: each pending item shows who/what + inline buttons.
   // Falls back to the plain count when detail items aren't available (e.g. an
   // older backend that only returns counts).
+  let chatLoadHTML = '';
   function renderNotifBanner() {
     const el = document.getElementById('notif-banner');
     if (!el) return;
@@ -325,7 +330,15 @@
       if (notifCounts.approvals > 0) html += '<button class="notif-item" data-nav="admin">🔔 ' + notifCounts.approvals + ' ' + esc(t('notif_approvals')) + ' ›</button>';
       if (notifCounts.corrections > 0) html += '<button class="notif-item" data-nav="review">🔔 ' + notifCounts.corrections + ' ' + esc(t('notif_corrections')) + ' ›</button>';
     }
-    el.innerHTML = html;
+    el.innerHTML = (chatLoadHTML || '') + html;
+    const offBtn = document.getElementById('chat-off-btn');
+    if (offBtn) offBtn.onclick = function () {
+      if (!window.confirm(t('chat_stop_confirm'))) return;
+      offBtn.disabled = true;
+      Auth.call('setConfig', { token: Auth.token(), key: 'chat_off', value: 'on' })
+        .then(function () { centralConfig.chat_off = 'on'; toast(t('chat_stopped')); render(); })
+        .catch(function (e) { offBtn.disabled = false; toast(errMsg(e)); });
+    };
     el.querySelectorAll('[data-nav]').forEach(function (b) {
       b.onclick = function () { navigate(b.dataset.nav); };
     });
@@ -2648,6 +2661,29 @@
       .catch(function () { paint([]); }); // offline: only "keep as written" is offered
   }
 
+  // Tell the ADMIN when the chat starts costing something, and give them the
+  // switch right there. Only the admin, only when the level changes — a warning
+  // that repeats every minute is a warning nobody reads.
+  let chatWarned = null;
+  function checkChatLoad(data) {
+    if (!Auth.isAdmin() || !chatOn()) return null;
+    const l = Aggregate.chatLoad(data);
+    if (l.level !== 'ok' && chatWarned !== l.level) {
+      chatWarned = l.level;
+      osNotify(t(l.level === 'high' ? 'chat_load_high' : 'chat_load_watch') +
+               ' — ' + l.count + ' / ' + Math.round(l.bytes / 1024) + ' KB');
+    }
+    if (l.level === 'ok') chatWarned = null;
+    return l;
+  }
+  function chatLoadBannerHTML(l) {
+    if (!l || l.level === 'ok') return '';
+    return notifRow((l.level === 'high' ? '🔴 ' : '🟠 ') +
+      esc(t(l.level === 'high' ? 'chat_load_high' : 'chat_load_watch')) +
+      ' <span class="row-sub">' + l.count + ' ' + esc(t('chat_msgs')) + ' · ' +
+      Math.round(l.bytes / 1024) + ' KB · ' + esc(t('chat_per_day')) + ' ' + l.perDay + '</span>',
+      '<button class="chip" id="chat-off-btn">' + esc(t('chat_stop_btn')) + '</button>');
+  }
   // A mention has to reach the phone, not just the tab. Messages arrive with the
   // 60s pull, so this runs after every pull rather than on a timer of its own.
   // `msgNotified` keeps the last id already announced, so re-opening the app or
@@ -2668,6 +2704,10 @@
     if (first) return;
     osNotify('💬 ' + (last.collector || '') + ': ' + String(last.text || '').slice(0, 90));
   }
+
+  // The admin can switch the chat off (Config `chat_off`). The nav tab, the
+  // route and the send button all read this one answer.
+  function chatOn() { return String((centralConfig || {}).chat_off || '') !== 'on'; }
 
   // ---------- committee chat ----------
   // One window, everybody in it. Messages are just another store, so they ride
@@ -2747,6 +2787,7 @@
   function sendMessage(input) {
     const txt = String(input.value || '').trim();
     if (!txt) return;
+    if (!chatOn()) { toast(t('chat_off_toast')); return; }
     // the mentions column is derived from the text, so what you typed and who
     // gets notified can never disagree
     const mentions = (txt.match(/@([a-z0-9._-]+)/gi) || []).map(function (m) { return m.slice(1).toLowerCase(); });
@@ -3224,6 +3265,12 @@
           listMgmtCard('area', 'manage_areas', areas) +
           listMgmtCard('location', 'manage_locations', locations), false) +
         fold('🗂️', 'adm_data', '',
+          // the chat switch lives with the other data controls, and always says
+          // what it is costing — so turning it back on is an informed choice
+          '<div class="row" style="cursor:default;flex-wrap:wrap"><div style="flex:1 1 60%"><b>💬 ' +
+            esc(t('nav_messages')) + '</b><div class="row-sub" id="chat-load-line">—</div></div>' +
+            '<button class="chip" id="chat-toggle">' +
+              esc(chatOn() ? t('chat_stop_btn') : t('chat_restart_btn')) + '</button></div>' +
           '<button id="audit-btn" class="ghost big block">' + esc(t('audit_btn')) + '</button>' +
           '<button id="backup-btn" class="ghost big block">' + esc(t('backup_now_btn')) + '</button>' +
           '<button id="restore-btn" class="ghost big block">' + esc(t('restore_btn')) + '</button>' +
@@ -3267,6 +3314,24 @@
           pullCentral().then(function () { navigate('home'); }); // epoch bump wipes local training data
         }).catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
       };
+      const chatTog = document.getElementById('chat-toggle');
+      if (chatTog) chatTog.onclick = function () {
+        const turningOff = chatOn();
+        if (turningOff && !window.confirm(t('chat_stop_confirm'))) return;
+        chatTog.disabled = true;
+        Auth.call('setConfig', { token: Auth.token(), key: 'chat_off', value: turningOff ? 'on' : '' })
+          .then(function () {
+            centralConfig.chat_off = turningOff ? 'on' : '';
+            toast(t(turningOff ? 'chat_stopped' : 'saved')); renderAdmin();
+          })
+          .catch(function (e) { chatTog.disabled = false; toast(errMsg(e)); });
+      };
+      viewData().then(function (d2) {
+        const l = Aggregate.chatLoad(d2), el = document.getElementById('chat-load-line');
+        if (el) el.textContent = l.count + ' ' + t('chat_msgs') + ' · ' + Math.round(l.bytes / 1024) +
+          ' KB · ' + t('chat_per_day') + ' ' + l.perDay +
+          (l.level === 'ok' ? '' : (l.level === 'high' ? '  🔴' : '  🟠'));
+      }).catch(function () {});
       document.getElementById('audit-btn').onclick = function () { navigate('audit'); };
       document.getElementById('receipt-btn').onclick = function () { navigate('receiptcfg'); };
       // on-demand snapshot — the cheap insurance before anything one-way
@@ -3437,6 +3502,7 @@
     document.querySelectorAll('#bottomnav button').forEach(function (b) {
       b.classList.toggle('on', b.dataset.nav === current.view);
       const k = b.dataset.nav;
+      if (k === 'messages') b.hidden = !chatOn();
       b.querySelector('span').textContent = t(k === 'list' ? 'khata' : (k === 'messages' ? 'nav_messages' : k));
     });
     if (!Auth.loggedIn()) { renderAuth(); updateBadge(); return; }
@@ -3452,7 +3518,7 @@
     else if (current.view === 'admin') { Auth.isAdmin() ? renderAdmin() : renderHome(); }
     else if (current.view === 'cashier') renderCashier();
     else if (current.view === 'hbook') renderHandoverBook();
-    else if (current.view === 'messages') renderMessages();
+    else if (current.view === 'messages') { chatOn() ? renderMessages() : renderHome(); }
     else if (current.view === 'entries') renderMyEntries();
     else if (current.view === 'findparty') renderFindParty();
     else if (current.view === 'review') renderReviewCorrections();

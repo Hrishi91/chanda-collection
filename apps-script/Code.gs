@@ -430,6 +430,7 @@ var ACTIONS = {
       // the ROW (its type), not the store, because bus and road live in the same
       // store yet are separate permissions.
       var isCashier = Number(user.row.cashier) === 1 || user.row.role === 'admin';
+      var chatOff = String(readConfig_().chat_off || '') === 'on';
       var byStore = {};
       (b.records || []).forEach(function (r) {
         if (!SHEETS[r.store] || !r.row || !r.row.id) return;
@@ -440,6 +441,10 @@ var ACTIONS = {
           rejectedIds.push(r.row.id); return;
         }
         if (r.store === 'voids' && !voidAllowed_(user, r.row)) { rejectedIds.push(r.row.id); return; }
+        // the chat kill switch is enforced HERE, not only in the UI — otherwise
+        // a phone with the screen still cached could keep writing after the
+        // admin turned it off
+        if (r.store === 'messages' && chatOff) { rejectedIds.push(r.row.id); return; }
         if (!entryAllowed_(user, permForRow_(r.store, r.row))) { rejectedIds.push(r.row.id); return; }
         (byStore[r.store] = byStore[r.store] || []).push(r.row);
       });
