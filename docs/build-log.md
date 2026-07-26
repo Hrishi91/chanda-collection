@@ -4001,3 +4001,39 @@ VERIFIED: 7 new tests, including two that assert the question and its option
 builder are actually absent from `js/app.js` rather than merely unused.
 **386 passed, 0 failed**; browser confirms both cases; no console errors.
 Client-only.
+
+## v4.3.0 — the keyboard follows the question
+
+Hrishi: "input time type wise keyboard change — number time number, other time
+combined keyboard."
+
+The entry flow uses ONE `<input>` for every step, and it carried a single fixed
+hint. Worse than fixed: amounts were explicitly `inputmode="text"`, so the step a
+collector types most — a rupee amount, fifty times a day — opened the LETTER
+keyboard and made them hunt for digits.
+
+    amount steps (5)   inputmode="text"  →  numeric, placeholder ৫০০
+    phone step         (nothing)         →  tel, placeholder 9xxxxxxxxx
+    text steps (12)    (nothing)         →  unchanged: the combined keyboard
+
+`text` on amounts was deliberate once — the app parses Bengali number words, so
+the box had to accept "পাঁচশো". But words arrive by VOICE; the mic sits right
+beside the box, and `mic_hint` is printed under it. Nobody was typing them.
+Parsing is untouched — verified after the change that ৫০০, পাঁচশো, পাঁচ হাজার,
+1500, দেড় হাজার and সাড়ে তিনশো all still resolve — and anyone who does want to
+type a word can still switch keyboards.
+
+Bus number stays on the combined keyboard on purpose: "WB-11" is letters and
+digits together.
+
+Also added `enterkeyhint` while touching every input, so the phone's Enter key
+says what it does: **next** through a flow, **send** in the chat, **search** in
+the two search boxes.
+
+Untouched because they were already right: the cashier's cash/UPI boxes
+(numeric), register's phone (tel), every password (type=password), the file
+pickers, and the admin year field (type=number).
+
+VERIFIED on the served file: amount→numeric, phone→tel, others unchanged, the
+old `inputmode="text"` gone; number-word parsing still green; no console errors.
+386 passed, 0 failed. Client-only.

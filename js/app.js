@@ -691,9 +691,18 @@
       // one-field fix is one tap on Next for everything else
       const prev = flowState.def.editing && flowState.answers[s.key] !== undefined
         ? String(flowState.answers[s.key]) : '';
+      // The keyboard follows the question. One input serves every step, so it
+      // used to open the letter keyboard even for a rupee amount — and an
+      // amount is the thing a collector types most, fifty times a day.
+      //
+      // `numeric`, not `text`, on amounts. Words like "পাঁচশো" still parse and
+      // are still the point of the mic button beside the box; they were never
+      // really typed. Anyone who wants to type one can still switch keyboards.
+      const kb = s.kind === 'amount' ? 'inputmode="numeric" enterkeyhint="next" placeholder="৫০০"'
+        : s.key === 'phone' ? 'inputmode="tel" enterkeyhint="next" placeholder="9xxxxxxxxx"'
+        : 'enterkeyhint="next"';
       html += '<div class="input-row">' +
-        '<input id="flow-input" ' + (s.kind === 'amount' ? 'inputmode="text" placeholder="৫০০ / পাঁচশো"' : '') +
-        ' value="' + esc(prev) + '" autocomplete="off">' +
+        '<input id="flow-input" ' + kb + ' value="' + esc(prev) + '" autocomplete="off">' +
         (Voice.supported() ? '<button id="mic-btn" class="mic">🎤</button>' : '') +
         '<button id="next-btn" class="primary">' + esc(t('next')) + '</button></div>' +
         '<div class="hint" id="flow-hint">' + esc(Voice.supported() ? t('mic_hint') : '') + '</div>';
@@ -1419,7 +1428,7 @@
       if (listQuery) rows = rows.filter(function (p) { return matchParty(p, listQuery); });
       $view().innerHTML =
         (canEntry('otherdonor') ? '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' : '') +
-        '<input id="search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(listQuery) + '">' +
+        '<input id="search" class="search" enterkeyhint="search" placeholder="' + esc(t('search')) + '" value="' + esc(listQuery) + '">' +
         chips.html + (busRows ? '' : dueChip(listDueOnly)) +
         (busRows ? drawBusList(data) :
         (rows.length ? rows.map(function (p) {
@@ -1462,7 +1471,7 @@
     findFilter = chips.valid;
     $view().innerHTML = backBar('list') + '<div class="flow-title">' + esc(t('find_party_title')) + '</div>' +
       '<div class="hint" style="margin-bottom:8px">' + esc(t('find_party_hint')) + '</div>' +
-      '<input id="fp-search" class="search" placeholder="' + esc(t('search')) + '" value="' + esc(findQuery) + '">' +
+      '<input id="fp-search" class="search" enterkeyhint="search" placeholder="' + esc(t('search')) + '" value="' + esc(findQuery) + '">' +
       chips.html + dueChip(findDueOnly) +
       '<div id="fp-results"><div class="empty">' + esc(t('loading')) + '</div></div>';
     document.getElementById('fp-search').oninput = function (e) { findQuery = e.target.value; renderFPResults(); };
@@ -2790,7 +2799,7 @@
         '<div id="msg-list" class="msg-list">' + body + '</div>' +
         '<div id="msg-picker" class="chips" hidden></div>' +
         '<div class="input-row msg-compose">' +
-          '<input id="msg-input" maxlength="500" placeholder="' + esc(t('msg_ph')) + '" autocomplete="off" value="' + esc(msgDraft) + '">' +
+          '<input id="msg-input" maxlength="500" enterkeyhint="send" placeholder="' + esc(t('msg_ph')) + '" autocomplete="off" value="' + esc(msgDraft) + '">' +
           '<button id="msg-at" class="ghost">@</button>' +
           '<button id="msg-send" class="primary">' + esc(t('msg_send')) + '</button>' +
         '</div>';
