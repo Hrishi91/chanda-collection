@@ -3014,11 +3014,23 @@ for everything else.
 
 APPEND-ONLY IS INTACT. An edit does not rewrite the row: `finishFlow` writes a
 **void** for the old one (`reason: 'edit — <the flag reason>'`) and then saves a
-new row. It reads as an edit; the book keeps both. That matters for three
-reasons — "what did it say before, and who changed it" always has an answer; a
-receipt serial is not silently reused under different figures; and two phones
-editing the same row cannot merge into something that is half one edit and half
-the other, which a field-level update would allow.
+new row. It reads as an edit; the book keeps both. Three reasons:
+
+1. "What did it say before, and who changed it" always has an answer.
+2. A receipt serial is not silently reused under different figures.
+3. Sync. The row is already on the server and pulled onto every phone. A void
+   plus a new row is two appends, so the existing delta pull carries it
+   everywhere on its own. An in-place field edit would need every device to
+   re-read and overwrite its local copy, and `syncNow` marks rows synced BY ID —
+   an edited row would re-enter the queue and race that pass. That race is
+   bug A1, already fixed once; there is no reason to reopen the class.
+
+(Hrishi caught a wrong justification here: an earlier draft claimed two phones
+could otherwise merge halves of two different edits. They cannot — only the
+author may edit, so there is no second editor. The real concurrent case is the
+AUTHOR editing while a cashier voids the same row: append-only gives two voids
+on one target, which is harmless because voided ids are a set. A field-level
+update would leave an altered row next to a void, with no way to tell which won.)
 
 WHO AND WHAT. Only the person who made the entry, only after they have flagged
 it (they have declared it wrong, and nobody knows better than they do what it
