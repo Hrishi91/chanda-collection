@@ -615,6 +615,57 @@ was caught, naming "সাহা স্টোর (রতন সাহা) · �
 No console errors. Pinned, including that the step stays `optional: true` — a
 future "tidy-up" that makes it blocking fails the suite.
 
+### A25. (feature) 2026-07-27 — committee-member registry, built on the donor it already was
+**Hrishi's spec:** a member list (name, position, email, mobile, app-user) kept
+by the admin; collection = pick a member, enter an amount, many times, comment
+mandatory.
+**The decision that mattered:** `member` was ALREADY a party type — a money pot
+in `AVAIL_CATS`, a permission in `ENTRY_KINDS`, a row in `computeTotals.byType`,
+a category in handover breakdowns, and part-payments/dues already worked. A new
+`members` store would have created a SECOND money path needing its own receipts,
+dues, pots and reconcile — the exact divergence docs/money-model.md exists to
+prevent. So: extend, don't duplicate. Only fields are new.
+**Built:** `position` (an admin-editable `Lists` kind, seeded সভাপতি/সম্পাদক/
+কোষাধ্যক্ষ/সদস্য, so the committee's real titles are Hrishi's to set), `email`
+(loose validation — the app sends no mail, so a strict RFC pattern would reject
+real addresses and buy nothing), and `appUser`. All appended LAST on `parties`;
+`ensureCols_` materialises them, so no `setup()` run is needed.
+**The trap named up front:** `appUser` is INFORMATIONAL ONLY. Money belongs to
+whoever collected it, never to whoever the payment is "about"; the admin card
+says so in words, because "credit it to the member" is the reflex that would
+break every in-hand figure.
+**Mandatory comment:** the member note step carries no `optional`, so the flow
+renders no Skip button at all rather than validating after the fact.
+**Caught while building:** the correction path builds a payment flow from
+`{id, name}` only — no `type` — so an edited member payment would have silently
+dropped back to an optional comment. It now looks the donor up first.
+**Verified live:** পদ chips render in Bengali; a bad email is rejected and a good
+one saved; the member row stores position + email + pledged; the payment step has
+NO Skip and refuses to advance while blank; linking @yamini05 to রতন সাহা saved
+and **left the money at ₹600, untouched**.
+
+### A26. (feature) 2026-07-27 — a red dot only where the work can be finished
+**Hrishi:** *"if anything pending in application by the user there should be red
+dot in the button."*
+**Rule taken from today's own failures** (A19's ghost toast, A23's blind
+counter): a marker that cannot be cleared teaches people to ignore markers. So
+every dot maps to a screen that contains the action which clears it —
+`cashier` (parcels to answer), `review` (flags to decide), `anomalies`
+(reconcile findings), `handover` (my refused parcels), `entries` (my own flagged
+rows, which only I may correct). No new counting: all of it is already computed.
+**Two real bugs found by verifying rather than assuming:**
+1. The dot lit `anomalies`, which **had no home tile at all** — the desk was
+   reachable only by tapping the reconcile banner on 📊 রিপোর্ট. Added it to
+   `homeTiles` for cashier/admin, which also means a cashier who never opens
+   reports now discovers the desk exists.
+2. The ✏️ and 💰 tiles are hand-rolled (wide, custom label) and bypassed
+   `drawTile`, so they silently missed the marker. One `dotMark()` helper now
+   serves every tile however it is built.
+**And the dot must go OUT:** recomputed on every home paint, repainting only when
+the map actually changed — the change-check is what stops render→refresh→render
+looping. Verified live end to end: dot appears, the duplicate is settled on the
+desk, back to home, dot gone.
+
 ### Verified green in the two-user pass
 | Path | Result |
 |---|---|

@@ -11,6 +11,14 @@ window.Lists = (function () {
       { id: 'singhadaha', nameBn: 'সিংহদহ রোড', nameEn: 'Singhadaha Road' },
     ],
     location: [],
+    // seeded so the member flow works before an admin edits anything; the
+    // admin can rename or replace every one of these from the panel
+    position: [
+      { id: 'president', nameBn: 'সভাপতি', nameEn: 'President' },
+      { id: 'secretary', nameBn: 'সম্পাদক', nameEn: 'Secretary' },
+      { id: 'treasurer', nameBn: 'কোষাধ্যক্ষ', nameEn: 'Treasurer' },
+      { id: 'member', nameBn: 'সদস্য', nameEn: 'Member' },
+    ],
   };
   function cache() {
     try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; }

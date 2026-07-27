@@ -16,7 +16,17 @@ var SHEETS = {
   // NOTE: new columns are appended at the END so setup()'s migration (which
   // appends missing headers) keeps push's position-based writes aligned with
   // existing sheets. Do not insert columns mid-array.
-  parties:  ['id', 'year', 'type', 'name', 'owner', 'side', 'phone', 'pledged', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'location', 'collectorRole'],
+  parties:  ['id', 'year', 'type', 'name', 'owner', 'side', 'phone', 'pledged', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'location', 'collectorRole',
+             // committee-member registry (v4.7.0). Only ever set when type='member';
+             // APPENDED LAST per the header rule, and push's ensureCols_ materialises
+             // them, so no separate setup() run is needed.
+             //   position  a Lists id (kind='position') — সভাপতি / সম্পাদক / …
+             //   email     record-keeping only; this app sends no mail
+             //   appUser   username of this member's app account, INFORMATIONAL ONLY.
+             //             Money still belongs to whoever COLLECTED it — linking a
+             //             member to a user must never move a rupee, or the in-hand
+             //             model (docs/money-model.md) stops holding.
+             'position', 'email', 'appUser'],
   payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo',
              // 1 = the collector was warned this looked like a same-day repeat
              // and confirmed it is a genuine second instalment. Travels to the
@@ -421,7 +431,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.6.2';
+var CODE_VERSION = 'chanda-v4.7.0';
 function doGet() { return json_({ ok: true, service: 'chanda-khata', version: CODE_VERSION }); }
 
 var ACTIONS = {
@@ -1128,7 +1138,7 @@ var ACTIONS = {
   addItem: function (b) {
     var me = requireAdmin_(b.token);
     var kind = String(b.kind || '').trim(), bn = String(b.nameBn || '').trim(), en = String(b.nameEn || '').trim();
-    if (['area', 'location'].indexOf(kind) < 0 || (!bn && !en)) throw new Error('bad-input');
+    if (LIST_KINDS.indexOf(kind) < 0 || (!bn && !en)) throw new Error('bad-input');
     var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
     sh.appendRow([Utilities.getUuid(), kind, bn || en, en || bn, sh.getLastRow(), new Date().toISOString()]);
     logAudit_(me.row, kind + ':add', bn || en);
@@ -1329,6 +1339,10 @@ var ACTIONS = {
 // header). That has now nearly bitten twice — rejectReason, then dupOk — so the
 // write path heals itself instead of depending on setup() having been re-run
 // after each new field.
+// Admin-editable master lists. 'position' joined area/location in v4.7.0 for the
+// committee-member registry. ONE place to add a kind, so the server's gate and
+// the admin screen can never disagree about what is editable.
+var LIST_KINDS = ['area', 'location', 'position'];
 function ensureCols_(sh, cols) {
   var last = sh.getLastColumn();
   var have = last ? sh.getRange(1, 1, 1, last).getValues()[0].map(String) : [];

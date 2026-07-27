@@ -68,6 +68,8 @@ window.HELP = [
       bn: [
         '<b>🏪 দোকান / 🙍 ব্যক্তি / 🤝 সদস্য</b> — নতুন চাঁদাদাতা যোগ করা (কত টাকা কথা হলো + এখন কিছু দিলে সেটা)। সেভের পর "➕ আরেকটা" বোতাম দিয়ে একই রাস্তায় পরের দোকান দ্রুত তোলা যায় (এলাকা মনে রাখে)।',
         '<b>🛣️ রোড / 🛺 টোটো / 🚌 বাস</b> — দিনের রাস্তার কালেকশন (বাসে নাম+নম্বর)।',
+        '<b>🤝 সদস্য</b> — কমিটির সদস্য যোগ করার সময় <b>পদ</b> আর <b>email</b>-ও জিজ্ঞেস করে (পদের তালিকা admin ঠিক করে)। সদস্যের চাঁদা নেওয়ার সময় <b>কীসের চাঁদা সেটা লিখতেই হবে</b> — মাসিক, অনুষ্ঠান, বিশেষ দান — কারণ এক সদস্য বছরে বহুবার দেন, শুধু অঙ্ক দেখে পরে আর বোঝা যায় না।',
+        '<b>🔴 লাল বিন্দু</b> — কোনো বোতামে লাল বিন্দু মানে <b>ওখানে তোমার কাজ বাকি</b>। কাজটা সেরে ফেললে বিন্দু নিজেই নিভে যায়, তাই যেটা জ্বলে আছে সেটা সত্যিই বাকি।',
         '<b>💰 টাকা জমা / বাকি</b> — কারো বাকি টাকা পরে জমা নেওয়া (খাতা list-এ যায়)।',
         '<b>🤝 জমা দিলাম</b> — তোমার হাতের টাকা cashier-কে জমা দেওয়া।',
         '<b>🧾 খরচ</b> (শুধু cashier/admin) ও <b>✅ জমা নেওয়া confirm</b> (শুধু cashier)।',
@@ -75,6 +77,8 @@ window.HELP = [
       en: [
         '<b>🏪 Shop / 🙍 Person / 🤝 Member</b> — add a new donor (pledged amount + anything paid now). After saving, an "➕ One more" button lets you quickly add the next shop on the same road (area remembered).',
         '<b>🛣️ Road / 🛺 Toto / 🚌 Bus</b> — daily road collections (bus asks name + number).',
+        '<b>🤝 Member</b> — adding a committee member also asks for their <b>position</b> and <b>email</b> (the admin maintains the list of positions). Taking a member\'s contribution <b>requires a comment</b> — monthly, function, special donation — because one member pays many times a season and the amount alone will not say which.',
+        '<b>🔴 Red dot</b> — a dot on a button means <b>there is something there for you to finish</b>. It goes out by itself once the work is done, so a dot that is lit is genuinely outstanding.',
         '<b>💰 Add payment / dues</b> — take a later installment against someone\'s balance (opens the ledger).',
         '<b>🤝 Hand over</b> — give the cash in your hand to a cashier.',
         '<b>🧾 Expense</b> (cashier/admin only) and <b>✅ Confirm receipts</b> (cashier only).',

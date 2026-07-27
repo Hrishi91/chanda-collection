@@ -96,6 +96,13 @@
     return String(s || '').replace(/[\s\-()]/g, '').replace(/^(\+?91|0)/, '');
   }
   // null if a valid 10-digit Indian mobile, else an error key.
+  // Deliberately loose: an address the app never sends to only has to LOOK
+  // like one. A strict RFC pattern here would reject real addresses and buy
+  // nothing, since nothing downstream consumes it.
+  function emailErr(v) {
+    const s = String(v || '').trim();
+    return (!s || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) ? null : 'err_email';
+  }
   function phoneErrIN(s) {
     return /^\d{10}$/.test(cleanPhoneIN(s)) ? null : 'err_phone_in';
   }
@@ -430,6 +437,8 @@
     notifCounts = n;
     notifItems = items;
     renderNotifBanner();
+    // a dot's source just changed — repaint home if that is where we are
+    syncDots(); // a dot's source just changed
     if (total > prev) { const m = notifText(); if (m) { toast('🔔 ' + m); osNotify(m); } }
     // auto-refresh a data view (e.g. admin panel) when the count changes,
     // so a new registration/handover shows without a manual refresh
@@ -925,6 +934,12 @@
   function locationOptions() {
     return Lists.get('location').map(function (l) { return { v: l.id, label: Lists.labelOf('location', l.id) }; });
   }
+  // Committee positions (সভাপতি / সম্পাদক / …) — the same admin-editable master
+  // list mechanism as areas and locations, so Hrishi adds his committee's real
+  // titles himself instead of living with names hard-coded here.
+  function positionOptions() {
+    return Lists.get('position').map(function (p) { return { v: p.id, label: Lists.labelOf('position', p.id) }; });
+  }
   function modeOptions(withNone) {
     const o = [{ v: 'cash', labelKey: 'mode_cash' }, { v: 'upi', labelKey: 'mode_upi' },
                { v: 'both', labelKey: 'mode_both' }];
@@ -949,6 +964,8 @@
     const party = DB.newRow({
       type: type, name: a.name, owner: a.owner || '', side: a.side || '',
       location: a.location || '', phone: a.phone || '', pledged: a.pledged || 0,
+      // members only; blank for every other donor type
+      position: a.position || '', email: a.email || '', appUser: a.appUser || '',
     });
     const m = moneyOf(a);
     let paymentId = null;
@@ -981,6 +998,15 @@
         { key: 'side', qKey: 'q_side', kind: 'choice', optionsFn: sideOptions, showIf: function () { return type === 'shop'; } },
         { key: 'location', qKey: 'q_location', kind: 'choice', optionsFn: locationOptions, optional: true,
           showIf: function () { return type !== 'shop' && Lists.get('location').length > 0; } },
+        // --- committee-member registry fields (v4.7.0), members only ---
+        // Asked here rather than on a separate admin screen because the person
+        // filling this in is the one talking to the member; a second screen
+        // would mean the details are entered later, from memory, or never.
+        { key: 'position', qKey: 'q_position', kind: 'choice', optionsFn: positionOptions, optional: true,
+          showIf: function () { return type === 'member' && Lists.get('position').length > 0; } },
+        { key: 'email', qKey: 'q_email', kind: 'text', optional: true,
+          validate: emailErr, clean: function (v) { return String(v || '').trim(); },
+          showIf: function () { return type === 'member'; } },
         // still optional — but skipping it asks once more (see confirmSkipKey
         // in renderEntry). The number is what makes 📞 dues reminders possible
         // AND what turns a weak name match into a near-certain duplicate call.
@@ -1055,10 +1081,18 @@
   // `editing` is set by the correction path (renderEditEntry), which reuses
   // this flow to write the replacement row — see the A22 note in save().
   function paymentFlow(party, origin, editing) {
+    // A committee member's contribution MUST say what it is for (Hrishi's rule).
+    // A member pays many times a season — monthly subscription, a function, a
+    // special donation — and unlike a shop's chanda the amount alone does not
+    // say which. Left optional it would be skipped every time and the register
+    // would be a column of bare numbers nobody can explain months later.
+    const isMember = String(party.type || '') === 'member';
     return {
       title: t('add_payment') + ' — ' + party.name,
       steps: moneySteps(false).concat([
-        { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
+        isMember
+          ? { key: 'note', qKey: 'q_note_member', kind: 'text' }   // no `optional` → mandatory
+          : { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
       ]),
       save: function (a) {
         const m = moneyOf(a);
@@ -1404,7 +1438,47 @@
   }
 
   // ---------- views ----------
+  // Which home tiles have unfinished work. Reads only what the app already
+  // knows: the notification counts the poll keeps fresh, and the local snapshot.
+  // Module level so a handler can never reach for it out of scope (the freshThen
+  // lesson), and pure — it returns a map, it does not touch the DOM.
+  let dotState = {};
+  function pendingDots() { return dotState; }
+  function refreshDots() {
+    const u = Auth.current(); if (!u) { dotState = {}; return Promise.resolve(); }
+    const d = {};
+    if (notifCounts.handovers > 0) d.cashier = 1;
+    if (notifCounts.corrections > 0) d.review = 1;
+    if (notifCounts.rejections > 0) d.handover = 1;   // mine came back — resend or talk
+    return viewData().then(function (data) {
+      const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
+      // my own flagged rows: only the author can correct them, so this dot is
+      // addressed to exactly the person looking at it
+      const mineFlagged = (data.corrections || []).filter(function (c) {
+        return c.status !== 'rejected' && String(c.collectorId || c.collector || '') === String(ident);
+      });
+      if (mineFlagged.length) d.entries = 1;
+      if (Auth.isCashier()) {
+        const r = Aggregate.reconcile(data);
+        if (!r.balanced || r.anomalies.length) d.anomalies = 1;
+      }
+        dotState = d;
+      return d;
+    }).catch(function () { dotState = d; return d; });
+  }
+  // Recompute on every home paint and repaint ONLY if the map actually changed —
+  // otherwise finishing a job (settling a duplicate, fixing a flagged row) leaves
+  // its dot burning until the next notification poll, and a dot that outlives its
+  // work is the thing that teaches people to ignore dots.
+  // The changed-check is what stops render → refresh → render looping for ever.
+  function syncDots() {
+    const before = JSON.stringify(dotState);
+    refreshDots().then(function () {
+      if (JSON.stringify(dotState) !== before && !flowState && current.view === 'home') renderHome();
+    });
+  }
   function renderHome() {
+    syncDots();
     DB.allData().then(function (data) {
       const today = todayISO();
       const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
@@ -1421,9 +1495,29 @@
                      expense: ['🧾', 'expense'], cashier: ['💰', 'confirm_handover'],
                      review: ['🛠️', 'review_title'], handover: ['', 'handover'], hbook: ['📗', 'hb_title'],
                      anomalies: ['🩺', 'anom_title'] };
+      // 🔴 A dot means "there is something HERE you can finish". Every source
+      // below is already computed elsewhere — no new counting, no new polling.
+      //
+      // The rule, learned the hard way twice today (A19's ghost toast, A23's
+      // blind counter): a marker that cannot be cleared teaches people to stop
+      // looking. So `pendingDots` only ever lights a tile whose screen has the
+      // action that clears it, and each one goes out on its own:
+      //   cashier    parcels waiting for পেয়েছি / পাইনি
+      //   review     correction flags waiting for a decision
+      //   anomalies  reconcile findings (admin/cashier), incl. duplicates
+      //   handover   MY parcels that came back refused — I must resend or talk
+      //   entries    my own flagged rows, which only I can correct
+      const dots = pendingDots();
+      // one marker helper for EVERY tile, however it is built — the ✏️ and 💰
+      // tiles are hand-rolled (wide, custom label) and silently missed the dot
+      // when only drawTile knew about it.
+      const dotMark = function (k) {
+        return dots[k] ? '<i class="tile-dot" title="' + esc(t('pending_here')) + '"></i>' : '';
+      };
       const drawTile = function (k) {
         const d = ICON[k] || ['', k];
-        return '<button class="tile" data-go="' + k + '">' + (d[0] ? d[0] + ' ' : '') + esc(t(d[1])) + '</button>';
+        return '<button class="tile" data-go="' + k + '">' +
+          (d[0] ? d[0] + ' ' : '') + esc(t(d[1])) + dotMark(k) + '</button>';
       };
       const partyTiles = plan.entry.map(drawTile).join('');
       const dailyTiles = plan.daily.map(drawTile).join('');
@@ -1468,7 +1562,7 @@
         paymentTile +
         (cashTiles ? '<div class="grid" style="margin-top:10px">' + cashTiles + '</div>' : '') +
         '<div class="grid one" style="margin-top:10px"><button class="tile wide" data-go="entries">✏️ ' +
-          esc(t('my_entries_title')) + '</button></div>';
+          esc(t('my_entries_title')) + dotMark('entries') + '</button></div>';
       wireNav();
       renderNotifBanner();   // show cached counts immediately
       if (!notifViaPull) checkNotifications();  // old backend only; pull refreshes otherwise
@@ -2167,8 +2261,20 @@
     };
     let def = null;
     if (store === 'payments') {
-      def = paymentFlow({ id: row.partyId, name: row.partyName || '' }, 'entries', true);
-      def.presets = Object.assign({ __receipt: row.receiptNo || '' }, money);
+      // The donor TYPE decides whether the comment is mandatory (members) — and
+      // a payment row does not carry it, so look the donor up first. Async like
+      // startExpense's subject load; without this an edited member payment would
+      // silently drop back to an optional comment.
+      viewData().then(function (data) {
+        const ep = (data.parties || []).filter(function (x) { return x.id === row.partyId; })[0] || {};
+        const d = paymentFlow({ id: row.partyId, name: row.partyName || ep.name || '', type: ep.type || '' }, 'entries', true);
+        d.presets = Object.assign({ __receipt: row.receiptNo || '' }, money);
+        d.editing = { store: store, id: row.id, reason: reason };
+        d.title = t('edit_title') + ' — ' + d.title;
+        d.returnTo = 'entries';
+        startFlow(d);
+      });
+      return;
     } else if (store === 'daily') {
       def = dailyFlow(row.type);
       def.presets = Object.assign({ busName: row.busName || '', busNumber: row.busNumber || '',
@@ -3528,10 +3634,37 @@
       Auth.call('listUsers', { token: Auth.token() }),
       Auth.call('listSubjects', { token: Auth.token() }).catch(function () { return { subjects: [] }; }),
       Auth.call('listItems', { token: Auth.token() }).catch(function () { return { items: [] }; }),
+      viewData(), // committee members are donors — read them from the same snapshot
     ]).then(function (res) {
       const resp = res[0], subjects = res[1].subjects || [], items = res[2].items || [];
+      const adminMembers = (res[3].parties || []).filter(function (p) { return p.type === 'member'; });
       const areas = items.filter(function (i) { return i.kind === 'area'; });
       const locations = items.filter(function (i) { return i.kind === 'location'; });
+      const positions = items.filter(function (i) { return i.kind === 'position'; });
+      // 🎖️ Committee-member registry. Members ARE donors (type='member'), so this
+      // is a view over the same rows every report and receipt already uses — not
+      // a second list that could drift. Only the registry FIELDS are edited here;
+      // adding a member and taking their money stay where they are, in the entry
+      // flow and the ledger, because that is where the person doing the talking
+      // already is. The app-user link lives ONLY here: the full user list is an
+      // admin-only call, so a collector's device cannot offer it.
+      const memberRows = (adminMembers || []).slice()
+        .sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'bn'); });
+      const membersCard = '<div class="card"><div class="card-title">🎖️ ' + esc(t('adm_members')) +
+        ' (' + memberRows.length + ')</div>' +
+        '<div class="row-sub" style="margin-bottom:6px">' + esc(t('adm_members_hint')) + '</div>' +
+        (memberRows.length ? memberRows.map(function (m) {
+          const bits = [];
+          if (m.position) bits.push('🎖️ ' + Lists.labelOf('position', m.position));
+          if (m.phone) bits.push('📞 ' + m.phone);
+          if (m.email) bits.push('✉️ ' + m.email);
+          if (m.appUser) bits.push('👤 @' + m.appUser);
+          return '<div class="row" style="cursor:default;flex-wrap:wrap"><div style="flex:1 1 60%"><b>' +
+            esc(m.name) + '</b><div class="row-sub">' + esc(bits.join(' · ') || t('adm_member_bare')) + '</div></div>' +
+            '<div class="chips" style="margin:0">' +
+              '<button class="chip" data-mem-link="' + esc(m.id) + '">👤 ' + esc(t('adm_link_user')) + '</button>' +
+            '</div></div>';
+        }).join('') : '<div class="empty">' + esc(t('adm_no_members')) + '</div>') + '</div>';
       const year = String(Settings.get('year'));
       const groups = { pending: [], approved: [], blocked: [] };
       resp.users.forEach(function (u) { (groups[u.status] || groups.blocked).push(u); });
@@ -3695,7 +3828,9 @@
           '<button id="receipt-btn" class="ghost big block">' + esc(t('receipt_design_btn')) + '</button>' +
           subjectsCard +
           listMgmtCard('area', 'manage_areas', areas) +
-          listMgmtCard('location', 'manage_locations', locations), false) +
+          listMgmtCard('location', 'manage_locations', locations) +
+          listMgmtCard('position', 'list_position', positions) +
+          membersCard, false) +
         fold('🗂️', 'adm_data', '',
           // the chat switch lives with the other data controls, and always says
           // what it is costing — so turning it back on is an informed choice
@@ -3815,6 +3950,33 @@
           const s = subjects.find(function (x) { return x.id === b.dataset.subjEdit; }) || {};
           const nm = window.prompt(t('edit_item_title'), s.name || ''); if (nm === null) return;
           if (nm.trim()) adminAction('editSubject', { id: b.dataset.subjEdit, name: nm.trim() });
+        };
+      });
+      // Link a member to their app account. INFORMATIONAL ONLY — money still
+      // belongs to whoever collected it (docs/money-model.md); this just records
+      // that সদস্য X and user @x are the same person, so an admin reading the
+      // register knows who already has the app.
+      document.querySelectorAll('[data-mem-link]').forEach(function (b) {
+        b.onclick = function () {
+          const m = adminMembers.filter(function (x) { return x.id === b.dataset.memLink; })[0];
+          if (!m) return;
+          const approved = (resp.users || []).filter(function (u) { return u.status === 'approved'; });
+          const menu = approved.map(function (u, i) { return (i + 1) + '. ' + u.name + ' (@' + u.username + ')'; }).join('\n');
+          const pick = window.prompt(t('adm_link_prompt').replace('{who}', m.name) +
+            '\n\n' + menu + '\n\n' + t('adm_link_clear'), m.appUser || '');
+          if (pick === null) return;
+          const v = String(pick).trim();
+          let uname = '';
+          if (v) {
+            const n = Number(v);
+            const u = (n >= 1 && n <= approved.length) ? approved[n - 1]
+              : approved.filter(function (x) { return x.username === v.replace(/^@/, ''); })[0];
+            if (!u) { toast(t('adm_link_bad')); return; }
+            uname = u.username;
+          }
+          m.appUser = uname; m.synced = 0; // re-push so every device sees the link
+          DB.put('parties', m).then(function () { toast(t('saved')); autoSync(); renderAdmin(); })
+            .catch(function (e) { toast(errMsg(e)); });
         };
       });
       const afterList = function () { Lists.refresh(); }; // refresh the client cache too

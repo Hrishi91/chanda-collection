@@ -699,15 +699,16 @@ eq(tilesFor('').setUp, false, 'tiles: nothing granted is not set up');
 eq(tilesFor('').common, [], 'tiles: …so not even the common screens');
 eq(tilesFor('', 1).setUp, false, 'tiles: a cashier granted nothing is not set up either (Hrishi\'s rule)');
 // role tiles ride the role, and the desk needs its own grant on top
-eq(tilesFor('bus', 1).role, ['cashier'], 'tiles: a cashier gets the confirm desk');
+eq(tilesFor('bus', 1).role, ['cashier', 'anomalies'], 'tiles: a cashier gets the confirm desk + the anomaly desk');
 eq(tilesFor('bus', 1).daily.indexOf('expense') >= 0, true, 'tiles: …and general expenses');
-eq(tilesFor('bus,review', 1).role, ['cashier', 'review'], 'tiles: the correction desk needs its grant');
+eq(tilesFor('bus,review', 1).role, ['cashier', 'review', 'anomalies'], 'tiles: the correction desk needs its grant');
+eq(tilesFor('bus', 0).role, [], 'tiles: a plain collector gets no desk at all — including the anomaly desk');
 eq(tilesFor('bus').role, [], 'tiles: a plain collector gets neither');
 // an admin is never narrowed, whatever the field says
 const admTiles = tilesFor('', 0, 'admin');
 eq(admTiles.setUp, true, 'tiles: an admin is always set up');
 eq(admTiles.entry, ['shop', 'person', 'member', 'bus'], 'tiles: …and gets every category');
-eq(admTiles.role, ['cashier', 'review'], 'tiles: …and every desk');
+eq(admTiles.role, ['cashier', 'review', 'anomalies'], 'tiles: …and every desk, incl. the anomaly desk');
 
 // ---- what the chat is costing ------------------------------------------------
 // Chat adds no requests (it rides the 60s pull), so what grows is the payload
@@ -1391,8 +1392,10 @@ eq(/function paymentFlow\(party, origin, editing\)/.test(a22App), true, 'A22: pa
 const payFlowSrc = a22App.slice(a22App.indexOf('function paymentFlow'), a22App.indexOf('function handoverFlow'));
 eq(payFlowSrc.indexOf('Aggregate.samePaymentsOn') >= 0, true, 'A22: the entry-time check uses the SHARED rule');
 eq(payFlowSrc.indexOf('const dupCheck = editing') >= 0, true, 'A22: …and the correction path is exempt from it');
-eq(a22App.indexOf("paymentFlow({ id: row.partyId, name: row.partyName || '' }, 'entries', true)") >= 0, true,
-   'A22: the correction path really passes editing=true');
+// the correction path passes editing=true AND the donor type (the type decides
+// whether a member's comment is mandatory, and a payment row does not carry it)
+eq(/paymentFlow\(\{ id: row\.partyId,[^)]*type: ep\.type[^)]*\}, 'entries', true\)/.test(a22App), true,
+   'A22/A25: the correction path passes editing=true and the looked-up donor type');
 eq(a22I18n.indexOf('  dup_pay_warn:') >= 0, true, 'A22: the warning has a real bilingual message');
 // A23: the warning must NAME the rows, not just their existence — who took the
 // earlier one is what decides the answer on the spot.
@@ -1406,6 +1409,14 @@ eq(/String\(p\.id\)\.slice\(0, 8\)/.test(dupLineSrc), true,
    'A23: …and a short id, so the same row is findable on the admin desk');
 // the desk itself: reachable, gated, and actionable where an action honestly exists
 eq(a22App.indexOf('function renderAnomalies') >= 0, true, 'A23: the anomaly desk exists');
+// reachable from HOME, not only by tapping the reconcile banner — otherwise the
+// "needs you" dot has no tile to sit on and the desk stays undiscovered
+eq(homeTiles({ role: 'admin', entries: 'shop' }).role.indexOf('anomalies') >= 0, true,
+   'A23: the desk is a home tile for an admin');
+eq(homeTiles({ role: 'user', cashier: 1, entries: 'shop' }).role.indexOf('anomalies') >= 0, true,
+   'A23: …and for a cashier');
+eq(homeTiles({ role: 'user', cashier: 0, entries: 'shop' }).role.indexOf('anomalies') >= 0, false,
+   'A23: …but never for a plain collector');
 const deskSrc = a22App.slice(a22App.indexOf('function renderAnomalies'), a22App.indexOf('function loadMySummary'));
 eq(deskSrc.indexOf('Auth.isCashier()') >= 0, true, 'A23: the desk is cashier/admin only');
 eq(deskSrc.indexOf('data-dupok') >= 0 && deskSrc.indexOf('data-dupvoid') >= 0, true,
@@ -1478,6 +1489,54 @@ eq(a24I18n.slice(a24I18n.indexOf('  dup_party_warn:'), a24I18n.indexOf('  dup_pa
    'A24: the warning NAMES the existing donor rather than just asserting one exists');
 // window.confirm renders plain text — escaping it would print literal entities
 eq(a24App.indexOf('function esc0') >= 0, true, 'A24: confirm text uses esc0, not esc — plain text, not HTML');
+
+// ---- A25: committee members are DONORS, not a second ledger ------------------
+// The obvious build was a new `members` store. That would have meant a SECOND
+// money path — its own receipts, dues, pots, reconcile — and money-model.md
+// exists because two paths eventually disagree. A member stays a party of
+// type 'member'; only registry FIELDS are new.
+const a25App = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+const a25I18n = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+const a25Gs = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+eq(a25Gs.indexOf("var STORES = ['members'") >= 0 || /  members: \[/.test(a25Gs), false,
+   'A25: no second members store — a member is a party of type member');
+eq(AVAIL_CATS_HAS_MEMBER(), true, 'A25: …so member money keeps using the pot it always had');
+function AVAIL_CATS_HAS_MEMBER() {
+  return JSON.stringify(mySummary({ parties: [{ id: 'm', type: 'member' }], voids: [], corrections: [],
+    payments: [{ id: 'p', partyId: 'm', collectorId: 'z', amount: 500, cashAmount: 500, upiAmount: 0 }],
+    daily: [], expenses: [], handovers: [] }, 'z').groups[0].pots[0].key) === '"member"';
+}
+// the registry columns ride the parties sheet, appended LAST (header rule)
+const a25Cols = a25Gs.slice(a25Gs.indexOf('  parties:  ['), a25Gs.indexOf('],', a25Gs.indexOf('  parties:  [')))
+  .replace(/\/\/[^\n]*/g, '').match(/'([a-zA-Z]+)'/g).map(function (q) { return q.slice(1, -1); });
+eq(a25Cols.slice(-3), ['position', 'email', 'appUser'], 'A25: registry columns appended last on parties');
+// positions are an ADMIN master list, like areas and locations — not hard-coded
+eq(/var LIST_KINDS = \['area', 'location', 'position'\]/.test(a25Gs), true, 'A25: position is a Lists kind');
+eq(a25Gs.indexOf('LIST_KINDS.indexOf(kind) < 0') >= 0, true, 'A25: …and the server gate reads that one list');
+eq(require('fs').readFileSync(__dirname + '/../js/lists.js', 'utf8').indexOf("position: [") >= 0, true,
+   'A25: seeded so the flow works before an admin edits anything');
+// a member's contribution MUST say what it is for
+const a25Pay = a25App.slice(a25App.indexOf('function paymentFlow'), a25App.indexOf('function handoverFlow'));
+eq(a25Pay.indexOf("String(party.type || '') === 'member'") >= 0, true, 'A25: the flow knows a member from a shop');
+eq(a25Pay.indexOf("qKey: 'q_note_member', kind: 'text' }") >= 0, true,
+   'A25: …and a member note carries NO `optional`, so there is no Skip button');
+eq(a25I18n.indexOf('  q_note_member:') >= 0, true, 'A25: with its own wording');
+// linking a member to an app account must never move money
+eq(a25App.indexOf('data-mem-link') >= 0, true, 'A25: the admin can link an app account');
+eq(a25I18n.slice(a25I18n.indexOf('  adm_members_hint:'), a25I18n.indexOf('  adm_members_hint:') + 300)
+   .indexOf('টাকার হিসাব বদলায় না') >= 0, true,
+   'A25: …and the screen says in words that it changes no money');
+
+// ---- A26: a dot only where the work can be finished --------------------------
+eq(a25App.indexOf('function refreshDots') >= 0, true, 'A26: dots are computed in one place');
+eq(a25App.indexOf('function syncDots') >= 0, true, 'A26: …and recomputed on every home paint');
+eq(a25App.indexOf("JSON.stringify(dotState) !== before") >= 0, true,
+   'A26: repaint ONLY on change — the guard that stops render→refresh→render looping');
+eq(a25App.indexOf('const dotMark = function (k)') >= 0, true,
+   'A26: one marker helper, so hand-rolled tiles cannot silently miss the dot');
+eq(a25App.indexOf("dotMark('entries')") >= 0, true,
+   'A26: …and the hand-rolled ✏️ tile calls it — the one that silently missed the dot at first');
+eq(a25I18n.indexOf('  pending_here:') >= 0, true, 'A26: the dot has a title a human can read');
 
 // A ReferenceError in a click handler does not exist until somebody taps. Run
 // the scope checker as part of the suite so it cannot rot in a corner.

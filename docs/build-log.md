@@ -4778,3 +4778,74 @@ With this, the remaining go-live list is entirely Hrishi's own operational
 steps: one Code.gs redeploy (the A22 `dupOk` column + `ensureCols_`), rotating
 the session tokens shared in chat, finalising master data, clearing the training
 data, and then all-devices-synced → 🚀 Go Live.
+
+## 2026-07-27 — v4.7.0: committee-member registry (A25) + the red dot (A26)
+
+Hrishi's spec: a member list (name, position, email, mobile, app-user)
+maintained by the admin; collection = pick a member, enter an amount, many
+times, comment mandatory. Plus: a red dot on any button with work pending.
+
+### The decision that mattered: member was ALREADY a donor
+
+`member` has been a party type all along — a money pot in `AVAIL_CATS`, a
+permission in `ENTRY_KINDS`, a row in `computeTotals.byType`, a category in
+handover breakdowns; part-payments and dues already worked. Building a `members`
+store would have created a **second money path** with its own receipts, dues,
+pots and reconcile — the exact divergence docs/money-model.md was written to
+prevent. Hrishi said it plainly: *"already member entry is there if you see,
+that will be modified."*
+
+So only FIELDS are new — `position`, `email`, `appUser`, appended last on
+`parties` (and `ensureCols_`, added yesterday, materialises them without a
+`setup()` run). Positions are an admin-editable `Lists` kind like areas and
+locations, seeded সভাপতি / সম্পাদক / কোষাধ্যক্ষ / সদস্য so the flow works
+immediately while the real titles stay Hrishi's to set.
+
+`appUser` is **informational only**, and the admin card says so in words: money
+belongs to whoever COLLECTED it, never to whoever the payment is "about".
+"Credit it to the member" is precisely the reflex that would break every
+in-hand figure.
+
+The member note step carries no `optional`, so the flow renders **no Skip button
+at all** rather than validating after the fact. A member pays many times a season
+— monthly, a function, a special donation — and the amount alone will not say
+which months later.
+
+Caught while building: the correction path constructs a payment flow from
+`{id, name}` with no `type`, so an edited member payment would have silently
+dropped back to an optional comment. It now looks the donor up first.
+
+### The dot, and the rule it had to obey
+
+Every source was already computed — no new counting, no new polling. The rule
+comes from today's own two failures (A19's ghost toast, A23's blind counter):
+**a marker that cannot be cleared teaches people to ignore markers.** So each dot
+maps to a screen containing the action that clears it, and each goes out on its
+own.
+
+Verifying rather than assuming found two real bugs:
+
+1. The dot lit `anomalies` — a tile that **did not exist on home**. The desk was
+   reachable only by tapping the reconcile banner on 📊 রিপোর্ট. Now a home tile
+   for cashier/admin, which also means a cashier who never opens reports finally
+   discovers it.
+2. The ✏️ and 💰 tiles are hand-rolled (wide, custom label) and bypassed
+   `drawTile`, so they silently missed the marker. One `dotMark()` helper now
+   serves every tile however it is built.
+
+And the dot has to go OUT: recomputed on every home paint, repainting only when
+the map actually changed — that change-check is what stops
+render→refresh→render looping for ever.
+
+VERIFIED live throughout: পদ chips in Bengali; a bad email rejected, a good one
+saved; the member row storing position + email + pledged; the payment step with
+NO Skip, refusing to advance while blank, saving "মাসিক চাঁদা — অগাস্ট";
+linking @yamini05 to রতন সাহা and **the money staying at ₹600, untouched**; the
+dot appearing, the duplicate being settled on the desk, and the dot gone on
+return to home. No console errors. 611 passed, 0 failed.
+
+Two of my own test harnesses were wrong before the code was (a user stub missing
+`years`, an assertion counting `dotMark(` uses) — recorded because a red test is
+not automatically a red product.
+
+**Needs the redeploy** (Code.gs: the three parties columns + `LIST_KINDS`).

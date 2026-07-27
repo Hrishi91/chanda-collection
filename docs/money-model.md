@@ -127,6 +127,25 @@ collides with every other fake number and poisons duplicate detection. Instead
 the Skip asks a second time (`confirmSkipKey`), and wherever a number IS present
 it is treated as the strongest identity signal available.
 
+## Committee members are DONORS (A25)
+
+A member is a `parties` row with `type='member'` — not a separate ledger. The
+obvious build was a `members` store with its own entries; that would have meant a
+**second money path**, with its own receipts, dues, pots and reconcile, and this
+whole document exists because two paths eventually disagree. So the registry adds
+only FIELDS (`position`, `email`, `appUser`, appended last on `parties`), while
+the money keeps flowing through the same engine as every other donor.
+
+`appUser` links a member to their app account and is **informational only**.
+Money belongs to whoever COLLECTED it, never to whoever it is "about" — linking
+সদস্য X to user @x must not move a rupee, or the in-hand model stops holding.
+The admin screen says so in words, because the temptation to "credit the member"
+is exactly the reflex that would break it.
+
+A member's payment REQUIRES a comment (no `optional`, so the flow shows no Skip).
+A member pays many times a season — monthly, a function, a special donation — and
+unlike a shop's chanda the amount alone does not say which.
+
 ## When something IS wrong: the anomaly desk (A23)
 
 `reconcile` raises eight anomaly types. The ⚠️ banner on 📊 রিপোর্ট is a button

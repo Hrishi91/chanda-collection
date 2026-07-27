@@ -796,6 +796,10 @@
     out.common = ['payments', 'handover', 'hbook'];
     if (isCashier) out.role.push('cashier');
     if (isCashier && granted('review')) out.role.push('review');
+    // 🩺 the anomaly desk. Was reachable ONLY by tapping the reconcile banner on
+    // 📊 রিপোর্ট — so the "something needs you" dot had no tile to sit on, and a
+    // cashier who never opened reports never learned the desk existed.
+    if (isCashier) out.role.push('anomalies');
     return out;
   }
 
