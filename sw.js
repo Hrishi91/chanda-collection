@@ -1,5 +1,5 @@
 // App-shell cache. Bump VERSION on every deploy that changes app files.
-const VERSION = 'chanda-v4.7.1';
+const VERSION = 'chanda-v4.7.2';
 // config.js is intentionally NOT precached — it carries the live backend URL
 // and is served network-first (no-store) by the fetch handler so it can never
 // be stale. Precaching it here would risk baking in a stale copy at install.
@@ -10,9 +10,23 @@ const ASSETS = [
   'js/auth.js', 'js/help.js', 'js/voice.js', 'js/sync.js', 'js/lists.js', 'js/app.js',
 ];
 
+// A28: `cache.addAll(urls)` fetches through the browser's HTTP cache, and
+// GitHub Pages says `max-age=600` on every file. So a phone that had opened the
+// app within the last 10 minutes could fill the BRAND-NEW cache with the OLD
+// js — the version bump gets spent on stale content, and nothing tries again
+// until the NEXT deploy. That is exactly how a device ends up reporting the new
+// version while running yesterday's code.
+// `cache: 'reload'` bypasses the HTTP cache for these fetches, so an install
+// always stores what the server has right now.
 self.addEventListener('install', function (e) {
-  e.waitUntil(caches.open(VERSION).then(function (c) { return c.addAll(ASSETS); })
-    .then(function () { return self.skipWaiting(); }));
+  e.waitUntil(caches.open(VERSION).then(function (c) {
+    return Promise.all(ASSETS.map(function (u) {
+      return fetch(new Request(u, { cache: 'reload' })).then(function (r) {
+        if (!r.ok) throw new Error('asset ' + u + ' ' + r.status);
+        return c.put(u, r);
+      });
+    }));
+  }).then(function () { return self.skipWaiting(); }));
 });
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (keys) {

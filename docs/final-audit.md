@@ -666,6 +666,37 @@ the map actually changed — the change-check is what stops render→refresh→r
 looping. Verified live end to end: dot appears, the duplicate is settled on the
 desk, back to home, dot gone.
 
+### A28. HIGH (delivery) — FIXED 2026-07-27 — a deploy could never reach a phone
+**Where:** `sw.js` install handler.
+**Cause:** `cache.addAll(ASSETS)` fetches **through the browser's HTTP cache**,
+and GitHub Pages sends `cache-control: max-age=600` on every file (measured). So
+a phone that had opened the app within the last ten minutes would fill the
+BRAND-NEW cache with the OLD JavaScript. The version bump is then spent on stale
+content and nothing retries until the *next* deploy — the device reports the new
+version while running yesterday's code, and every subsequent deploy can repeat
+it.
+**Found how:** Hrishi: *"not able to see any member related changes in app… i
+logged in admin only but not able to see."* Everything was live on the server and
+verified there; the gap was between the server and the handset, which is the one
+hop nothing in this project had ever checked.
+**FIXED:** install now fetches each asset with `new Request(u, {cache:'reload'})`
+and `cache.put`s the result, bypassing the HTTP cache entirely. A failed asset
+now throws, so a half-built cache can never activate (`addAll` was all-or-nothing
+by accident; this is all-or-nothing on purpose).
+**And the thing that made it undiagnosable:** the app never showed its own
+version — Settings had a hard-coded `v2` that had not changed in the project's
+life. ⚙️ Settings now prints the **actual cache the JS is served from**
+(`chanda-v4.7.2 • hostname`), plus a **🔄 আপডেট খুঁজি** button that calls
+`registration.update()` so a stuck device fixes itself without anyone knowing
+what an app-shell cache is.
+**Verified live:** seeded a stale `js/app.js` into the previous cache name to
+imitate the broken phone; the new worker fetched the real 258 KB file (member
+code present), Settings reported `chanda-v4.7.2`, and the button answered
+"✅ এটাই সর্বশেষ version".
+**Lesson:** every check in this project stopped at "the file is correct on the
+server". Nothing verified the last hop. A user saying "I can't see it" was the
+only detector we had.
+
 ### Verified green in the two-user pass
 | Path | Result |
 |---|---|

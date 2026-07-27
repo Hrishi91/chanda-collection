@@ -1559,6 +1559,28 @@ eq(a25App.indexOf("dotMark('entries')") >= 0, true,
    'A26: …and the hand-rolled ✏️ tile calls it — the one that silently missed the dot at first');
 eq(a25I18n.indexOf('  pending_here:') >= 0, true, 'A26: the dot has a title a human can read');
 
+// ---- A28: a deploy that never reaches the phone -------------------------------
+// cache.addAll() fetches through the browser's HTTP cache, and GitHub Pages
+// sends max-age=600 on every file. A phone that opened the app in the last ten
+// minutes could therefore fill the BRAND-NEW cache with the OLD js — the version
+// bump spent on stale content, with nothing retrying until the next deploy.
+const a28Sw = require('fs').readFileSync(__dirname + '/../sw.js', 'utf8');
+eq(a28Sw.indexOf("cache: 'reload'") >= 0, true,
+   'A28: install fetches assets bypassing the HTTP cache');
+eq(a28Sw.indexOf('c.addAll(ASSETS)') < 0, true,
+   'A28: …and no longer uses addAll, which cannot bypass it');
+eq(a28Sw.indexOf("throw new Error('asset '") >= 0, true,
+   'A28: a failed asset fails the install, so a half-built cache never activates');
+// and the phone can finally say which build it is running
+const a28App = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+eq(a28App.indexOf("id=\"app-ver\"") >= 0 && a28App.indexOf("k.indexOf('chanda-v') === 0") >= 0, true,
+   'A28: Settings shows the CACHE the js is actually served from, not a hard-coded string');
+eq(a28App.indexOf("'v2 • '") < 0, true, 'A28: …the old hard-coded "v2" label is gone');
+eq(a28App.indexOf('r.update()') >= 0, true, 'A28: and a button that forces an update check');
+['check_update', 'upd_found', 'upd_latest', 'upd_none'].forEach(function (k) {
+  eq(a25I18n.indexOf('  ' + k + ':') >= 0, true, 'A28: ' + k + ' has a bilingual message');
+});
+
 // A ReferenceError in a click handler does not exist until somebody taps. Run
 // the scope checker as part of the suite so it cannot rot in a corner.
 try {

@@ -3092,7 +3092,34 @@
         '<input type="file" id="import-file" accept=".json" hidden>' : '') +
       '<button id="chpw-btn" class="ghost big block">🔑 ' + esc(t('change_pw_title')) + '</button>' +
       '<button id="logout-btn" class="ghost big block">🚪 ' + esc(t('logout')) + '</button>' +
-      '<div class="empty">v2 • ' + esc(location.hostname) + '</div>';
+      // A28: which version is THIS PHONE actually running? There was no way to
+      // tell, so "I deployed but I see no change" could not be diagnosed from
+      // the device. The cache name is the honest answer — it is the cache the
+      // JS is really being served from, not what the server happens to have.
+      '<div class="empty" id="app-ver">…</div>' +
+      '<button id="upd-btn" class="ghost block">🔄 ' + esc(t('check_update')) + '</button>';
+    const verEl = document.getElementById('app-ver');
+    if (verEl && window.caches) {
+      caches.keys().then(function (ks) {
+        const mine = ks.filter(function (k) { return k.indexOf('chanda-v') === 0; });
+        verEl.textContent = (mine[0] || 'no cache') + ' • ' + location.hostname;
+      }).catch(function () { verEl.textContent = location.hostname; });
+    } else if (verEl) verEl.textContent = location.hostname;
+    const updB = document.getElementById('upd-btn');
+    if (updB) updB.onclick = function () {
+      // Ask the browser to re-check sw.js right now. A new one installs, claims
+      // the page and the controllerchange handler reloads — so the user does not
+      // have to know about app caches to get today's build.
+      if (!navigator.serviceWorker) { toast(t('upd_none')); return; }
+      updB.disabled = true;
+      navigator.serviceWorker.getRegistration().then(function (r) {
+        if (!r) { updB.disabled = false; toast(t('upd_none')); return; }
+        return r.update().then(function () {
+          toast(r.installing || r.waiting ? t('upd_found') : t('upd_latest'));
+          updB.disabled = false;
+        });
+      }).catch(function () { updB.disabled = false; toast(t('upd_none')); });
+    };
     const admB = document.getElementById('adm-btn');
     if (admB) admB.onclick = function () { navigate('admin'); };
     document.getElementById('help-btn').onclick = function () { navigate('help'); };

@@ -4945,3 +4945,47 @@ of assumption.
 
 621 passed, 0 failed. No sw bump — `config.js` is served network-first and
 deliberately never precached, so the rebake reaches devices without one.
+
+## 2026-07-27 — v4.7.2: A28 — the deploy that never reached the phone
+
+Hrishi: *"not able to see any member related changes in app"*, then *"i logged in
+admin only but not able to see, and in member entry also no change"*.
+
+Everything WAS live — checked and re-checked on the server. The gap was the one
+hop this project had never verified: **server → handset**.
+
+`cache.addAll(ASSETS)` fetches through the browser's HTTP cache, and GitHub
+Pages sends `cache-control: max-age=600` on every file (measured, not assumed).
+So a phone that had opened the app in the previous ten minutes could fill the
+**brand-new** cache with the **old** JavaScript. The version bump is then spent
+on stale content, nothing retries until the next deploy, and the device reports
+the new version while running yesterday's code. Worse, it can repeat on every
+future deploy.
+
+Install now fetches each asset with `new Request(u, { cache: 'reload' })` and
+`cache.put`s it — bypassing the HTTP cache outright. A failed asset throws, so a
+half-built cache never activates; `addAll` gave that for free by accident, and
+this makes it deliberate.
+
+**The reason it was undiagnosable at all:** the app never showed its own
+version. Settings had a hard-coded `v2` that has not changed in this project's
+entire life, so "which build is my phone on?" had no answer from the phone.
+Settings now prints the real cache name the JS is served from
+(`chanda-v4.7.2 • hostname`) and offers **🔄 আপডেট খুঁজি**, which calls
+`registration.update()` — a stuck device now fixes itself without the user
+needing to know what an app-shell cache is. Also written into the in-app guide,
+bn + en, under "something was added but you cannot see it?".
+
+VERIFIED by imitating the broken phone rather than trusting the theory: a stale
+`js/app.js` was planted in the previous cache name, then the new worker was
+allowed to install. It fetched the real 258 KB file (member-type code present),
+Settings reported `chanda-v4.7.2`, and the update button answered "✅ এটাই সর্বশেষ
+version". Both halves pinned; proven to bite by restoring `addAll`.
+
+**The lesson, and it is the uncomfortable one:** every verification in this
+project stopped at "the file is correct on the server". Nothing checked whether
+a device could actually receive it. For that whole class of fault, a user saying
+"I can't see it" was the only detector we had. Now the phone can answer for
+itself.
+
+631 passed, 0 failed. Client-only — no redeploy needed.
