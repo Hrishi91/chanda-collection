@@ -4760,3 +4760,21 @@ uses — that divergence is exactly the shape of A18.
 
 No change committed from this pass; it is a measurement, recorded so the next
 person does not re-derive it.
+
+## 2026-07-27 — real-phone smoke test PASSED (Hrishi)
+
+Install · mic permission · Bengali (bn-IN) voice entry · receipt → WhatsApp —
+**all four green on a real handset.**
+
+Worth marking clearly: this is the one item in the whole go-live checklist that
+no amount of work here could close. Everything else all season has been verified
+by driving the app in a desktop browser — but mic permission, bn-IN speech
+recognition and the WhatsApp share sheet are OS-level, and a desktop browser
+cannot stand in for any of them. Voice entry in particular is the feature a
+collector uses fifty times a day; it had 49 parser tests and zero real-device
+confirmations until now.
+
+With this, the remaining go-live list is entirely Hrishi's own operational
+steps: one Code.gs redeploy (the A22 `dupOk` column + `ensureCols_`), rotating
+the session tokens shared in chat, finalising master data, clearing the training
+data, and then all-devices-synced → 🚀 Go Live.

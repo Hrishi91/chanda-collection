@@ -22,7 +22,11 @@
 - [x] ~~END-TO-END sync test against real Apps Script deployment~~
       (2026-07-23: push→Sheet, upsert dedup, server reports, handover
       confirm, subject CRUD, myReport all verified with a real admin token)
-- [ ] Real-phone smoke test: install, mic permission, bn voice entry
+- [x] ~~Real-phone smoke test: install, mic permission, bn voice entry,
+      receipt → WhatsApp~~ (2026-07-27, Hrishi on a real handset — all four
+      green). This was the last item nobody but Hrishi could verify: mic
+      permission, bn-IN recognition and the WhatsApp share sheet are all
+      OS-level and cannot be exercised from a desktop browser.
 - [ ] Clean up test data left in the Sheet (SYNC TEST দোকান + its payment,
       Ramu→hrishikesh handover) — Hrishi to delete
 
@@ -372,9 +376,10 @@ path** — Sheets version history is the realistic recovery route).
 **→ Full final-stage audit: `docs/final-audit.md` (2026-07-25).** All six
 findings (A1 undo-vs-sync race HIGH, A2 rejectedIds MED, A3 dup-check MED,
 A4–A6 LOW) **FIXED in v3.77.0**, each verified by reproducing its failure
-live. Remaining before go-live: the checklist in final-audit.md §G
-(Code.gs redeploy for `breakdown`, setup(), token rotation, master data,
-all-synced-then-GoLive, real-phone smoke test).
+live. Remaining before go-live: the checklist in final-audit.md §G — and as of
+2026-07-27 that is down to **Hrishi's own operational steps** (one Code.gs
+redeploy, token rotation, master data, clear test data, all-synced-then-GoLive).
+The real-phone smoke test is DONE.
 
 ## P1 — nice-to-have before puja
 

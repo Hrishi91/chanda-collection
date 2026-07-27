@@ -210,8 +210,10 @@ delays (observed 2026-07-25, GitHub-side) affect deploys, never runtime.
 6. Post-live verify: two devices wiped by the epoch, first entry gets
    serial 2026000001, reconcile banner silent, receipt has no SAMPLE
    watermark.
-7. Real-phone smoke test: install, mic permission, bn-IN voice entry,
-   receipt → WhatsApp.
+7. ~~Real-phone smoke test: install, mic permission, bn-IN voice entry,
+   receipt → WhatsApp.~~ **DONE 2026-07-27 — all four green** (Hrishi, real
+   handset). Nothing on a desktop can stand in for this: mic permission, bn-IN
+   recognition and the WhatsApp share sheet are OS-level.
 8. Distribute the link + collector guide; approve registrations from the
    admin panel; assign areas + entry permissions per collector.
 

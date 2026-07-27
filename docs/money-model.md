@@ -118,14 +118,14 @@ footer for exactly this reason.
 | **the same instalment entered twice** | `samePaymentsOn` — party + amount + day. A confirm at entry, a `possible_duplicate_payment` anomaly for pairs already in the book, and `dupOk` recording the human's answer so the banner asks once (A22) |
 
 The fifth was the gap: every other layer is id-based, and a re-entry has a
-different uuid.
+different uuid. It is also invisible to reconcile's invariant, because both rows
+really were collected.
 
 **Why the phone is not mandatory** (asked and decided 2026-07-27): a blocking
 field buys fake numbers, and a fake number is worse than a blank one — it
 collides with every other fake number and poisons duplicate detection. Instead
 the Skip asks a second time (`confirmSkipKey`), and wherever a number IS present
-it is treated as the strongest identity signal available. It is also invisible to reconcile's invariant, because both
-rows really were collected.
+it is treated as the strongest identity signal available.
 
 ## When something IS wrong: the anomaly desk (A23)
 
