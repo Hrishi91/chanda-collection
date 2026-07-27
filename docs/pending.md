@@ -348,15 +348,10 @@ give different numbers:
       seeing that pair flagged. Everything else about A22 is client-side and
       already live.
 
-- [ ] **🏷️ সদস্যের ধরন — Hrishi to fill in.** The list ships EMPTY on purpose:
-      only the committee knows its own categories, and the member-entry question
-      does not appear until the first one is added (Admin → 🧾 → 🏷️ সদস্যের ধরন,
-      bn + en). **No deploy needed.**
-- [ ] **কমিটির পদ** — one seeded entry, সদস্য, and every member gets it
-      automatically. Hrishi 2026-07-27: *"by default are members only"*. Add real
-      titles from the same panel whenever the committee decides; the second entry
-      makes the question appear by itself. Renaming never disturbs members
-      already recorded — the row stores the list id, not the label.
+- [ ] **কমিটির পদ** — four seeded (সভাপতি / সম্পাদক / কোষাধ্যক্ষ / সদস্য, bn+en).
+      Edit or extend from Admin → 🧾 → 🎖️ কমিটির পদ at any time, **no deploy**;
+      renaming never disturbs members already recorded, since the row stores the
+      list id, not the label.
 
 - [ ] **Clear the `scriptUrl` field in Settings on Hrishi's phone.** He pasted
       the new `/exec` there on 2026-07-27; `config.js` now carries the same URL,

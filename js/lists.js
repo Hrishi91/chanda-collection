@@ -11,17 +11,15 @@ window.Lists = (function () {
       { id: 'singhadaha', nameBn: 'সিংহদহ রোড', nameEn: 'Singhadaha Road' },
     ],
     location: [],
-    // Hrishi 2026-07-27: just 'সদস্য' for now; the real committee titles come
-    // later, from the admin panel, with no deploy. With ONE entry the flow does
-    // not ask at all — it assigns it silently (see newPartyFlow), because a
-    // chip with a single choice is a tap that answers nothing.
+    // The committee's four posts, bilingual. Editable from the admin panel like
+    // areas and locations — renaming one never disturbs members already recorded
+    // against it, because the row stores this id, not the label.
     position: [
+      { id: 'president', nameBn: 'সভাপতি', nameEn: 'President' },
+      { id: 'secretary', nameBn: 'সম্পাদক', nameEn: 'Secretary' },
+      { id: 'treasurer', nameBn: 'কোষাধ্যক্ষ', nameEn: 'Treasurer' },
       { id: 'member', nameBn: 'সদস্য', nameEn: 'Member' },
     ],
-    // EMPTY by design — Hrishi fills this from the admin panel (bn + en). The
-    // member-type question does not exist until he does, so nobody is asked a
-    // question the committee has not decided the answers to.
-    memberType: [],
   };
   function cache() {
     try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; }

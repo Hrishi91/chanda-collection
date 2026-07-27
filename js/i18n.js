@@ -26,8 +26,6 @@ const I18N = {
   q_note_member: { bn: 'কীসের চাঁদা? (মাসিক / অনুষ্ঠান / বিশেষ দান — লিখতেই হবে)',
                    en: 'What is this contribution for? (monthly / function / special — required)' },
   q_position: { bn: 'কমিটিতে পদ কী?', en: 'Position on the committee?' },
-  q_member_type: { bn: 'সদস্যের ধরন?', en: 'Type of membership?' },
-  list_member_type: { bn: '🏷️ সদস্যের ধরন', en: '🏷️ Membership types' },
   q_email: { bn: 'Email ঠিকানা? (না থাকলে Skip)', en: 'Email address? (Skip if none)' },
   err_email: { bn: 'Email ঠিকানাটা ঠিক লাগছে না', en: "That doesn't look like an email address" },
   check_update: { bn: 'আপডেট খুঁজি', en: 'Check for update' },

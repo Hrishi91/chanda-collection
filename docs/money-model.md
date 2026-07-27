@@ -133,8 +133,7 @@ A member is a `parties` row with `type='member'` — not a separate ledger. The
 obvious build was a `members` store with its own entries; that would have meant a
 **second money path**, with its own receipts, dues, pots and reconcile, and this
 whole document exists because two paths eventually disagree. So the registry adds
-only FIELDS (`position`, `email`, `appUser`, `memberType`, appended last on
-`parties`), while
+only FIELDS (`position`, `email`, `appUser`, appended last on `parties`), while
 the money keeps flowing through the same engine as every other donor.
 
 `appUser` links a member to their app account and is **informational only**.
@@ -146,6 +145,12 @@ is exactly the reflex that would break it.
 A member's payment REQUIRES a comment (no `optional`, so the flow shows no Skip).
 A member pays many times a season — monthly, a function, a special donation — and
 unlike a shop's chanda the amount alone does not say which.
+
+**Members carry no pledge.** Registration records the person; money arrives later
+through the ordinary payment flow. So `pledged` is 0, which means: no member ever
+appears in the dues list (`due = pledged − paid` is never positive), and the
+`overpaid` anomaly SKIPS parties with a zero pledge — without that guard every
+member contribution would raise an anomaly and drown the 🩺 desk.
 
 ## When something IS wrong: the anomaly desk (A23)
 

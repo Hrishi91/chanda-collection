@@ -931,11 +931,17 @@
                          partyId: p.partyId, amount: Number(p.amount) || 0, date: String(p.date).slice(0, 10) });
       });
     });
-    // party paid more than pledged
+    // Party paid more than pledged. A pledge of ZERO means no pledge was ever
+    // agreed — committee members are registered without one and simply give what
+    // they give — so "more than pledged" is meaningless there. Without this guard
+    // EVERY member contribution would raise an anomaly and the 🩺 desk would fill
+    // with noise, which is how a useful banner stops being read (A19/A23).
     parties.forEach(function (p) {
+      const pledged = Number(p.pledged) || 0;
+      if (!pledged) return;
       const paid = paidByParty[p.id] || 0;
-      if (paid > (Number(p.pledged) || 0)) {
-        anomalies.push({ type: 'overpaid', party: p.name, pledged: Number(p.pledged) || 0, paid: paid });
+      if (paid > pledged) {
+        anomalies.push({ type: 'overpaid', party: p.name, pledged: pledged, paid: paid });
       }
     });
     // handed over more than held

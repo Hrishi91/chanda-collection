@@ -26,11 +26,7 @@ var SHEETS = {
              //             Money still belongs to whoever COLLECTED it — linking a
              //             member to a user must never move a rupee, or the in-hand
              //             model (docs/money-model.md) stops holding.
-             //   memberType  a Lists id (kind='memberType') — the committee's own
-             //             categories of membership, which only Hrishi knows, so the
-             //             list ships EMPTY and the question appears the moment he
-             //             adds the first one. No deploy to change it.
-             'position', 'email', 'appUser', 'memberType'],
+             'position', 'email', 'appUser'],
   payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo',
              // 1 = the collector was warned this looked like a same-day repeat
              // and confirmed it is a genuine second instalment. Travels to the
@@ -435,7 +431,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.7.2';
+var CODE_VERSION = 'chanda-v4.7.3';
 function doGet() { return json_({ ok: true, service: 'chanda-khata', version: CODE_VERSION }); }
 
 var ACTIONS = {
@@ -1346,7 +1342,7 @@ var ACTIONS = {
 // Admin-editable master lists. 'position' joined area/location in v4.7.0 for the
 // committee-member registry. ONE place to add a kind, so the server's gate and
 // the admin screen can never disagree about what is editable.
-var LIST_KINDS = ['area', 'location', 'position', 'memberType'];
+var LIST_KINDS = ['area', 'location', 'position'];
 function ensureCols_(sh, cols) {
   var last = sh.getLastColumn();
   var have = last ? sh.getRange(1, 1, 1, last).getValues()[0].map(String) : [];

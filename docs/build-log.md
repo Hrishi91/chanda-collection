@@ -4989,3 +4989,65 @@ a device could actually receive it. For that whole class of fault, a user saying
 itself.
 
 631 passed, 0 failed. Client-only — no redeploy needed.
+
+## 2026-07-27 — v4.7.3: the member registry, corrected to what was actually asked
+
+Hrishi: *"you did wrong on member changes."* He was right, and the correction is
+worth recording as much as the code.
+
+**What he asked for**, restated back to him and confirmed: register a committee
+member with **name, phone, email, position, app-user** — and separately, take
+their contributions with **amount + comment, both mandatory, many times over**.
+
+**What I had built instead:** a 🏷️ membership-type list nobody asked for; the
+position question hidden because I had reduced the list to a single entry; and
+`pledged` still being asked, because I extended the donor flow without asking
+whether a pledge means anything for a member.
+
+Corrected:
+
+- **🏷️ সদস্যের ধরন removed entirely** — list kind, column, step, admin card,
+  strings, tests. It was invented, not requested.
+- **Four committee posts restored** (সভাপতি / সম্পাদক / কোষাধ্যক্ষ / সদস্য, bn+en)
+  and the position is now **always asked** from the list.
+- **No pledge, no money at registration.** This screen registers the person;
+  contributions come later through 💰 টাকা জমা, which is where the amount and
+  the comment are both required and where a member can have as many entries as
+  the season needs.
+- **Adding a member stays permission-gated** on the existing `member` grant, so
+  Hrishi can hand it to whoever he likes — verified with a non-admin holding
+  nothing but that one permission.
+
+### The consequence I had to chase down
+
+A member now has `pledged: 0`, and `reconcile`'s overpaid rule was
+`paid > pledged` — so **every single member contribution would have raised an
+anomaly**, and the 🩺 desk would have filled with noise until nobody read it
+(exactly the A19/A23 failure). A pledge of zero now means "no pledge was ever
+agreed" and is skipped; a real pledge that IS exceeded still reports. Members
+also correctly never appear in the dues list, since `due = pledged − paid` is
+never positive.
+
+### And a bug of my own making, plus the gate that will catch the next one
+
+A careless regex edit left a stray `}` in js/app.js. The file could not parse,
+so **the entire app rendered blank** — and the suite stayed green, because every
+test reads app.js as *text*. Even the scope checker never runs on a file that
+does not compile.
+
+`tests/run.js` now parses all thirteen shipped files (js/*, sw.js, Code.gs)
+before anything else. Proven to bite by re-inserting a brace. This should have
+existed from the first day: it is the cheapest possible check and it guards the
+loudest possible failure.
+
+VERIFIED live end to end with a NON-admin holding only the `member` permission:
+tiles limited to member/list/handover/hbook/entries; the flow asked নাম → পদ →
+Email → ফোন and stopped — no pledge, no money, no type; the saved row carried
+position `secretary`, email, phone, `pledged: 0`; the payment flow refused a
+blank comment (no Skip button at all), and two contributions were recorded
+against the same member (₹300 "মাসিক চাঁদা — শ্রাবণ", ₹500 "প্রতিমা তহবিল");
+reconcile stayed clean with zero anomalies and the in-hand read ₹800. No console
+errors. 653 passed, 0 failed.
+
+**Rides the pending redeploy** — Code.gs lost `memberType` from `LIST_KINDS` and
+from the parties columns.

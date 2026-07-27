@@ -1509,33 +1509,47 @@ function AVAIL_CATS_HAS_MEMBER() {
 // the registry columns ride the parties sheet, appended LAST (header rule)
 const a25Cols = a25Gs.slice(a25Gs.indexOf('  parties:  ['), a25Gs.indexOf('],', a25Gs.indexOf('  parties:  [')))
   .replace(/\/\/[^\n]*/g, '').match(/'([a-zA-Z]+)'/g).map(function (q) { return q.slice(1, -1); });
-eq(a25Cols.slice(-4), ['position', 'email', 'appUser', 'memberType'], 'A25/A27: registry columns appended last on parties');
+eq(a25Cols.slice(-3), ['position', 'email', 'appUser'], 'A25: registry columns appended last on parties');
 // positions are an ADMIN master list, like areas and locations — not hard-coded
 eq(/var LIST_KINDS = \[[^\]]*'position'[^\]]*\]/.test(a25Gs), true, 'A25: position is a Lists kind');
-eq(/var LIST_KINDS = \[[^\]]*'memberType'[^\]]*\]/.test(a25Gs), true, 'A27: memberType too');
 eq(a25Gs.indexOf('LIST_KINDS.indexOf(kind) < 0') >= 0, true, 'A25: …and the server gate reads that one list');
 const a25Lists = require('fs').readFileSync(__dirname + '/../js/lists.js', 'utf8');
 eq(a25Lists.indexOf("position: [") >= 0, true, 'A25: seeded so the flow works before an admin edits anything');
-// ---- A27: everyone is a member by default; the committee's own types are its own
-// Hrishi: "by default are members only, let the input have as member by default —
-// and make another list to have member types where the admin will add the data".
-const a27Pos = a25Lists.slice(a25Lists.indexOf('position: ['), a25Lists.indexOf(']', a25Lists.indexOf('position: [')));
-eq((a27Pos.match(/\{ id:/g) || []).length, 1, 'A27: one seeded position — সদস্য');
-eq(a27Pos.indexOf("id: 'member'") >= 0, true, 'A27: …and it is the member one');
-eq(a25App.indexOf("Lists.get('position').length > 1") >= 0, true,
-   'A27: with a single position the flow does not ask — a chip with one choice answers nothing');
-eq(a25App.indexOf('function onlyPosition') >= 0 &&
-   a25App.indexOf("position: a.position || (type === 'member' ? onlyPosition() : '')") >= 0, true,
-   'A27: …it is assigned at save instead, so no member is left with a blank position');
-// the member-type list ships EMPTY: only the committee knows its own categories
-eq(/memberType: \[\]/.test(a25Lists), true, 'A27: memberType ships empty — never invented here');
-eq(a25App.indexOf("Lists.get('memberType').length > 0") >= 0, true,
-   'A27: …so the question appears only once the admin has added one');
-eq(a25App.indexOf("listMgmtCard('memberType', 'list_member_type'") >= 0, true,
-   'A27: and it is bilingual + admin-editable, like areas and locations');
-['q_member_type', 'list_member_type'].forEach(function (k) {
-  eq(a25I18n.indexOf('  ' + k + ':') >= 0, true, 'A27: ' + k + ' has a bilingual message');
+// ---- A27: the committee-member registry, as specified -----------------------
+// Hrishi corrected an earlier over-build: no membership-type list at all, four
+// real committee posts, and registration that takes no money.
+const a27Pos = a25Lists.slice(a25Lists.indexOf('position: ['), a25Lists.indexOf('],', a25Lists.indexOf('position: [')));
+eq((a27Pos.match(/\{ id:/g) || []).length, 4, 'A27: four committee posts seeded');
+['president', 'secretary', 'treasurer', 'member'].forEach(function (id) {
+  eq(a27Pos.indexOf("id: '" + id + "'") >= 0, true, 'A27: ' + id + ' is one of them');
 });
+['সভাপতি', 'সম্পাদক', 'কোষাধ্যক্ষ', 'সদস্য'].forEach(function (bn) {
+  eq(a27Pos.indexOf(bn) >= 0, true, 'A27: bilingual — ' + bn);
+});
+eq(a25App.indexOf("Lists.get('position').length > 0") >= 0, true,
+   'A27: the post is ASKED for every member, from the list');
+// the membership-type list was never wanted — it must be gone everywhere
+['js/app.js', 'js/lists.js', 'js/i18n.js', 'apps-script/Code.gs'].forEach(function (f) {
+  eq(require('fs').readFileSync(__dirname + '/../' + f, 'utf8').indexOf('memberType') < 0, true,
+     'A27: no memberType left in ' + f);
+});
+// registration REGISTERS; money comes later through the payment flow
+eq(/key: 'pledged'[\s\S]{0,160}type !== 'member'/.test(a25App), true,
+   'A27: a member is registered without a pledge');
+eq(/moneySteps\(true\)[\s\S]{0,220}type !== 'member'/.test(a25App), true,
+   'A27: …and takes no money at registration');
+// a pledge of zero means no pledge was agreed — not an overpayment
+const a27Open = { parties: [{ id: 'mm', type: 'member', name: 'সদস্য এক', pledged: 0 }],
+  voids: [], corrections: [], daily: [], expenses: [], handovers: [],
+  payments: [{ id: 'pp', partyId: 'mm', collectorId: 'z', collector: 'z', amount: 500, cashAmount: 500, upiAmount: 0, date: '2026-08-01' }] };
+eq(reconcile(a27Open).anomalies.filter(function (a) { return a.type === 'overpaid'; }).length, 0,
+   'A27: a member with no pledge is never "overpaid" — otherwise every contribution cries wolf');
+const a27Pledged = JSON.parse(JSON.stringify(a27Open)); a27Pledged.parties[0].pledged = 300;
+eq(reconcile(a27Pledged).anomalies.filter(function (a) { return a.type === 'overpaid'; }).length, 1,
+   'A27: …but a real pledge that IS exceeded still reports');
+eq(duesList(a27Open.parties, a27Open.payments, []).length, 0,
+   'A27: a member with no pledge never appears in the dues list');
+
 // a member's contribution MUST say what it is for
 const a25Pay = a25App.slice(a25App.indexOf('function paymentFlow'), a25App.indexOf('function handoverFlow'));
 eq(a25Pay.indexOf("String(party.type || '') === 'member'") >= 0, true, 'A25: the flow knows a member from a shop');
@@ -1579,6 +1593,20 @@ eq(a28App.indexOf("'v2 • '") < 0, true, 'A28: …the old hard-coded "v2" label
 eq(a28App.indexOf('r.update()') >= 0, true, 'A28: and a button that forces an update check');
 ['check_update', 'upd_found', 'upd_latest', 'upd_none'].forEach(function (k) {
   eq(a25I18n.indexOf('  ' + k + ':') >= 0, true, 'A28: ' + k + ' has a bilingual message');
+});
+
+// ---- every shipped file must PARSE ------------------------------------------
+// A stray brace from a careless edit left js/app.js unparseable and the whole
+// app rendered blank — and nothing here noticed, because every other test reads
+// app.js as TEXT. The scope checker walks it, but a file that cannot parse never
+// reaches any of that. One cheap gate, first: does it compile at all?
+['js/app.js', 'js/aggregate.js', 'js/i18n.js', 'js/db.js', 'js/auth.js', 'js/sync.js',
+ 'js/lists.js', 'js/help.js', 'js/voice.js', 'js/numparse.js', 'js/config.js', 'sw.js',
+ 'apps-script/Code.gs'].forEach(function (f) {
+  let err = null;
+  try { new Function(require('fs').readFileSync(__dirname + '/../' + f, 'utf8')); }
+  catch (e) { err = e.message; }
+  eq(err, null, 'parse: ' + f + ' compiles');
 });
 
 // A ReferenceError in a click handler does not exist until somebody taps. Run
