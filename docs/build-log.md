@@ -4892,3 +4892,56 @@ first — the code was right before the tests were.
 
 **Rides the same pending redeploy** (Code.gs: `memberType` in `LIST_KINDS` + the
 column).
+
+## 2026-07-27 — rebake for the v4.7.1 deployment, and what the /exec URL is worth hiding
+
+Hrishi deployed the pending backend, put the new `/exec` in **Settings on his own
+device**, and asked whether that was fine — so the latest link stays out of the
+public repo.
+
+### Is the URL a secret? Measured, not assumed
+
+Against the new deployment, no token:
+
+    dump / pull / push / listUsers   →  {"ok":false,"error":"no-token"}
+
+Only `login` (needs a real password) and `register` run unauthenticated, and
+`register` creates a `status:'pending'` account that can do **nothing** until an
+admin approves it — an unwanted name in the admin list, not a breach. (The
+first-registrant-becomes-admin path is long closed: that only fires on an empty
+Users sheet.) There is no shared "secret" gate on the server despite the old
+Settings field of that name; the **token** is the gate, and it holds.
+
+And the URL cannot be secret anyway in a client-side app: it sits in
+localStorage on ten phones and in every sync request. Hiding it buys nothing and
+costs onboarding.
+
+### The real problem was not security
+
+`Settings.scriptUrl` is **per device**, and it wins over `config.js`. Measured:
+
+    Hrishi's phone (Settings)        →  chanda-v4.7.1
+    every other phone (config.js)    →  chanda-v4.5.6
+
+Same Sheet, so no data split — but nine collectors would be running old SERVER
+code: no `rejectHandover` (the ❌ পাইনি button simply fails), no `dupOk` column,
+no member-registry columns, and none of the A17/A18 server fixes. A fleet split
+across two backends produces symptoms that are very hard to trace back to their
+cause.
+
+So `config.js` is rebaked, which is what moves everyone together.
+
+**Hrishi should now clear the Settings field on his own device** — it overrides
+config.js, so left in place his phone would be the one stranded on an old
+backend after the *next* redeploy, which is the hardest version of this fault to
+notice.
+
+### The version marker paid for itself
+
+`doGet` returning `CODE_VERSION` (added v4.5.3, after two rounds of "probably
+deployed, cannot prove it") answered both halves of this in one tokenless curl
+each. First real use, and "is the running code current?" became evidence instead
+of assumption.
+
+621 passed, 0 failed. No sw bump — `config.js` is served network-first and
+deliberately never precached, so the rebake reaches devices without one.

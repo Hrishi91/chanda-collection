@@ -358,6 +358,12 @@ give different numbers:
       makes the question appear by itself. Renaming never disturbs members
       already recorded — the row stores the list id, not the label.
 
+- [ ] **Clear the `scriptUrl` field in Settings on Hrishi's phone.** He pasted
+      the new `/exec` there on 2026-07-27; `config.js` now carries the same URL,
+      so the field is redundant — and because it OVERRIDES config.js, leaving it
+      means his device is the one left on a stale backend after the next
+      redeploy. That is the hardest version of this fault to spot.
+
 ## Before go-live, still open
 
 - [ ] **Reports permission** — a DECISION, not a fix. Most collectors have an
