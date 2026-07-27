@@ -1509,12 +1509,33 @@ function AVAIL_CATS_HAS_MEMBER() {
 // the registry columns ride the parties sheet, appended LAST (header rule)
 const a25Cols = a25Gs.slice(a25Gs.indexOf('  parties:  ['), a25Gs.indexOf('],', a25Gs.indexOf('  parties:  [')))
   .replace(/\/\/[^\n]*/g, '').match(/'([a-zA-Z]+)'/g).map(function (q) { return q.slice(1, -1); });
-eq(a25Cols.slice(-3), ['position', 'email', 'appUser'], 'A25: registry columns appended last on parties');
+eq(a25Cols.slice(-4), ['position', 'email', 'appUser', 'memberType'], 'A25/A27: registry columns appended last on parties');
 // positions are an ADMIN master list, like areas and locations — not hard-coded
-eq(/var LIST_KINDS = \['area', 'location', 'position'\]/.test(a25Gs), true, 'A25: position is a Lists kind');
+eq(/var LIST_KINDS = \[[^\]]*'position'[^\]]*\]/.test(a25Gs), true, 'A25: position is a Lists kind');
+eq(/var LIST_KINDS = \[[^\]]*'memberType'[^\]]*\]/.test(a25Gs), true, 'A27: memberType too');
 eq(a25Gs.indexOf('LIST_KINDS.indexOf(kind) < 0') >= 0, true, 'A25: …and the server gate reads that one list');
-eq(require('fs').readFileSync(__dirname + '/../js/lists.js', 'utf8').indexOf("position: [") >= 0, true,
-   'A25: seeded so the flow works before an admin edits anything');
+const a25Lists = require('fs').readFileSync(__dirname + '/../js/lists.js', 'utf8');
+eq(a25Lists.indexOf("position: [") >= 0, true, 'A25: seeded so the flow works before an admin edits anything');
+// ---- A27: everyone is a member by default; the committee's own types are its own
+// Hrishi: "by default are members only, let the input have as member by default —
+// and make another list to have member types where the admin will add the data".
+const a27Pos = a25Lists.slice(a25Lists.indexOf('position: ['), a25Lists.indexOf(']', a25Lists.indexOf('position: [')));
+eq((a27Pos.match(/\{ id:/g) || []).length, 1, 'A27: one seeded position — সদস্য');
+eq(a27Pos.indexOf("id: 'member'") >= 0, true, 'A27: …and it is the member one');
+eq(a25App.indexOf("Lists.get('position').length > 1") >= 0, true,
+   'A27: with a single position the flow does not ask — a chip with one choice answers nothing');
+eq(a25App.indexOf('function onlyPosition') >= 0 &&
+   a25App.indexOf("position: a.position || (type === 'member' ? onlyPosition() : '')") >= 0, true,
+   'A27: …it is assigned at save instead, so no member is left with a blank position');
+// the member-type list ships EMPTY: only the committee knows its own categories
+eq(/memberType: \[\]/.test(a25Lists), true, 'A27: memberType ships empty — never invented here');
+eq(a25App.indexOf("Lists.get('memberType').length > 0") >= 0, true,
+   'A27: …so the question appears only once the admin has added one');
+eq(a25App.indexOf("listMgmtCard('memberType', 'list_member_type'") >= 0, true,
+   'A27: and it is bilingual + admin-editable, like areas and locations');
+['q_member_type', 'list_member_type'].forEach(function (k) {
+  eq(a25I18n.indexOf('  ' + k + ':') >= 0, true, 'A27: ' + k + ' has a bilingual message');
+});
 // a member's contribution MUST say what it is for
 const a25Pay = a25App.slice(a25App.indexOf('function paymentFlow'), a25App.indexOf('function handoverFlow'));
 eq(a25Pay.indexOf("String(party.type || '') === 'member'") >= 0, true, 'A25: the flow knows a member from a shop');

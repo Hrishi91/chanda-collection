@@ -133,7 +133,8 @@ A member is a `parties` row with `type='member'` — not a separate ledger. The
 obvious build was a `members` store with its own entries; that would have meant a
 **second money path**, with its own receipts, dues, pots and reconcile, and this
 whole document exists because two paths eventually disagree. So the registry adds
-only FIELDS (`position`, `email`, `appUser`, appended last on `parties`), while
+only FIELDS (`position`, `email`, `appUser`, `memberType`, appended last on
+`parties`), while
 the money keeps flowing through the same engine as every other donor.
 
 `appUser` links a member to their app account and is **informational only**.

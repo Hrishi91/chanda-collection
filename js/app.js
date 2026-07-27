@@ -937,8 +937,22 @@
   // Committee positions (সভাপতি / সম্পাদক / …) — the same admin-editable master
   // list mechanism as areas and locations, so Hrishi adds his committee's real
   // titles himself instead of living with names hard-coded here.
+  // The sole position id when the list has exactly one, else '' — see the
+  // position step's showIf.
+  function onlyPosition() {
+    const list = Lists.get('position');
+    return list.length === 1 ? list[0].id : '';
+  }
   function positionOptions() {
     return Lists.get('position').map(function (p) { return { v: p.id, label: Lists.labelOf('position', p.id) }; });
+  }
+  // A committee's own categories of membership (আজীবন / বার্ষিক / …). Ships
+  // EMPTY on purpose: only Hrishi knows what his committee uses, and an invented
+  // list would be one more thing to correct. The step stays hidden until he adds
+  // the first one from the admin panel — no deploy, and no dead question in the
+  // meantime.
+  function memberTypeOptions() {
+    return Lists.get('memberType').map(function (m) { return { v: m.id, label: Lists.labelOf('memberType', m.id) }; });
   }
   function modeOptions(withNone) {
     const o = [{ v: 'cash', labelKey: 'mode_cash' }, { v: 'upi', labelKey: 'mode_upi' },
@@ -964,8 +978,12 @@
     const party = DB.newRow({
       type: type, name: a.name, owner: a.owner || '', side: a.side || '',
       location: a.location || '', phone: a.phone || '', pledged: a.pledged || 0,
-      // members only; blank for every other donor type
-      position: a.position || '', email: a.email || '', appUser: a.appUser || '',
+      // members only; blank for every other donor type. When the list holds a
+      // single position the flow never asked, so fill it in here — otherwise
+      // today's members would carry no position at all, and adding real titles
+      // later would leave a silent gap in the register.
+      position: a.position || (type === 'member' ? onlyPosition() : ''),
+      email: a.email || '', appUser: a.appUser || '', memberType: a.memberType || '',
     });
     const m = moneyOf(a);
     let paymentId = null;
@@ -1002,8 +1020,15 @@
         // Asked here rather than on a separate admin screen because the person
         // filling this in is the one talking to the member; a second screen
         // would mean the details are entered later, from memory, or never.
+        // Asked only when there is a real choice to make. With one position on
+        // the list (today: just সদস্য) the answer is never in doubt, so the step
+        // is skipped and savePartyAndFirstPayment assigns it — a chip with a
+        // single option is a tap that answers nothing. Add a second position in
+        // the admin panel and the question appears on its own, no deploy.
         { key: 'position', qKey: 'q_position', kind: 'choice', optionsFn: positionOptions, optional: true,
-          showIf: function () { return type === 'member' && Lists.get('position').length > 0; } },
+          showIf: function () { return type === 'member' && Lists.get('position').length > 1; } },
+        { key: 'memberType', qKey: 'q_member_type', kind: 'choice', optionsFn: memberTypeOptions, optional: true,
+          showIf: function () { return type === 'member' && Lists.get('memberType').length > 0; } },
         { key: 'email', qKey: 'q_email', kind: 'text', optional: true,
           validate: emailErr, clean: function (v) { return String(v || '').trim(); },
           showIf: function () { return type === 'member'; } },
@@ -3641,6 +3666,7 @@
       const areas = items.filter(function (i) { return i.kind === 'area'; });
       const locations = items.filter(function (i) { return i.kind === 'location'; });
       const positions = items.filter(function (i) { return i.kind === 'position'; });
+      const memberTypes = items.filter(function (i) { return i.kind === 'memberType'; });
       // 🎖️ Committee-member registry. Members ARE donors (type='member'), so this
       // is a view over the same rows every report and receipt already uses — not
       // a second list that could drift. Only the registry FIELDS are edited here;
@@ -3830,6 +3856,7 @@
           listMgmtCard('area', 'manage_areas', areas) +
           listMgmtCard('location', 'manage_locations', locations) +
           listMgmtCard('position', 'list_position', positions) +
+          listMgmtCard('memberType', 'list_member_type', memberTypes) +
           membersCard, false) +
         fold('🗂️', 'adm_data', '',
           // the chat switch lives with the other data controls, and always says

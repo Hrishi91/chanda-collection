@@ -4849,3 +4849,46 @@ Two of my own test harnesses were wrong before the code was (a user stub missing
 not automatically a red product.
 
 **Needs the redeploy** (Code.gs: the three parties columns + `LIST_KINDS`).
+
+## 2026-07-27 — v4.7.1: A27 — everyone is a member by default; types are the committee's own
+
+Hrishi, tightening yesterday's registry: *"position gulo ekhon eguloi"* → *"by
+default are members only, let the input have as member by default — and make
+another list to have member types where the admin will add the data (english and
+bengali)."*
+
+Two separate things, and they behave differently on purpose.
+
+**পদ (position) — one entry, সদস্য, never asked.** The four seeded titles are
+down to one. With a single option the flow now SKIPS the question entirely and
+`savePartyAndFirstPayment` fills the value in: a chip with one choice is a tap
+that answers nothing, but leaving the field blank would mean today's members
+carry no position at all and adding real titles later would open a silent gap in
+the register. Add a second position in the admin panel and the question appears
+by itself — no deploy.
+
+**🏷️ সদস্যের ধরন (memberType) — a NEW list, and it ships EMPTY.** Only the
+committee knows whether it runs আজীবন / বার্ষিক / সাধারণ, and inventing a list
+here would just be one more thing for Hrishi to correct. So the question does not
+exist until he adds the first entry, and then it appears on its own. Same
+bilingual admin-editable `Lists` mechanism as areas, locations and positions —
+one `LIST_KINDS` array gates the server, so the panel and the gate cannot
+disagree about what is editable.
+
+`memberType` is appended last on `parties`, after `appUser`; `ensureCols_` picks
+it up, so still no `setup()` run.
+
+VERIFIED live in both states on one fresh port. Empty list: the member flow asked
+নাম → Email → ফোন → pledge — **no position question, no type question** — and the
+saved row still read `position: 'member'`. Then, with two types added the way the
+admin panel adds them: the very next member was asked "সদস্যের ধরন?" with chips
+আজীবন সদস্য / বার্ষিক সদস্য, and saved `memberType: 'life'`, label resolving to
+আজীবন সদস্য. No console errors.
+
+621 passed, 0 failed; three new guards each proven to bite (asking with one
+position, asking with an empty type list, and a seeded type list). Two of my own
+test expectations had hard-coded the old `LIST_KINDS` and column tail and broke
+first — the code was right before the tests were.
+
+**Rides the same pending redeploy** (Code.gs: `memberType` in `LIST_KINDS` + the
+column).
