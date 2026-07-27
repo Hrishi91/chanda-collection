@@ -5100,3 +5100,37 @@ UPI both recorded against him with mandatory comments (no Skip button); in-hand
 collection still works. No console errors. 674 passed, 0 failed.
 
 **Rides the pending redeploy** — Code.gs `PERM_KEYS` gained `memberadmin`.
+
+## v4.8.1 — A30: the screen would not sit still (2026-07-27)
+
+Hrishi: "the page is getting refreshed/reloading all the time not able to do
+data entry."
+
+The red dots I added in v4.7.0 were the cause. `renderHome()` called
+`syncDots()`, and `syncDots()` took its "has anything changed?" snapshot before
+awaiting the async refresh. Two overlapping calls both compared against the same
+stale snapshot, both repainted, and each repaint launched another pair — one
+paint became two, two became four. Entry was impossible because the input was
+being torn out mid-typing.
+
+Three changes: `dotsDrawn` records what the current paint is actually showing,
+so the comparison is against the screen rather than a pre-await guess;
+`dotsBusy` allows one refresh at a time; and **`renderHome` no longer calls
+`syncDots` at all** — the router does it on arrival at home. A renderer that
+schedules its own re-entry is the bug, not the timing.
+
+Capped the service-worker auto-reload in the same pass. Its guard was a module
+variable, which is reborn `false` after each reload — no protection at all
+against a loop. It now uses `sessionStorage`: at most one automatic reload per
+tab session, and after that the user's own 🔄 আপডেট খুঁজি.
+
+Each guard was proven by breaking it: remove `dotsBusy`, or put `syncDots()`
+back in `renderHome`, or drop the sessionStorage cap, and the suite goes red on
+the matching A30 test.
+
+VERIFIED live on a fresh port: ten focus events with a dot map deliberately
+flipping every poll → **16 home paints, not hundreds**; and with that poll
+running every 300 ms the whole time, a shop entry completed all six steps and
+saved (phone 9812345678, pledge ₹1500). 677 passed, 0 failed.
+
+**Rides the pending redeploy** — Code.gs `CODE_VERSION` → `chanda-v4.8.1`.

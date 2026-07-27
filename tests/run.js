@@ -1592,8 +1592,14 @@ eq(a25I18n.slice(a25I18n.indexOf('  member_admin_hint:'), a25I18n.indexOf('  mem
 // ---- A26: a dot only where the work can be finished --------------------------
 eq(a25App.indexOf('function refreshDots') >= 0, true, 'A26: dots are computed in one place');
 eq(a25App.indexOf('function syncDots') >= 0, true, 'A26: …and recomputed on every home paint');
-eq(a25App.indexOf("JSON.stringify(dotState) !== before") >= 0, true,
-   'A26: repaint ONLY on change — the guard that stops render→refresh→render looping');
+eq(a25App.indexOf('JSON.stringify(dotState) !== dotsDrawn') >= 0, true,
+   'A26/A30: repaint compares against what is ON SCREEN, not a pre-async snapshot');
+eq(a25App.indexOf('if (dotsBusy) return;') >= 0, true,
+   'A30: one dot refresh at a time — overlapping ones cannot each decide "it changed"');
+eq(/function renderHome\(\) \{\n    DB\.allData/.test(a25App), true,
+   'A30: renderHome never calls syncDots — the renderer cannot re-enter itself');
+eq(a25App.indexOf("sessionStorage.getItem('ck_swReload')") >= 0, true,
+   'A30: at most ONE automatic service-worker reload per tab session');
 eq(a25App.indexOf('const dotMark = function (k)') >= 0, true,
    'A26: one marker helper, so hand-rolled tiles cannot silently miss the dot');
 eq(a25App.indexOf("dotMark('entries')") >= 0, true,

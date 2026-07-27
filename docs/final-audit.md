@@ -712,3 +712,64 @@ only detector we had.
 | B's delta pull (`since=cursor`) returns only the new rows, not the year | ✓ 6 rows |
 | Voided handover disappears from the pending list (A7) | ✓ |
 | Books after voiding every AUDIT row: hrishi91 in-hand identical to baseline | ✓ (total drift explained: two real ₹1000 payments Yamini entered from her phone meanwhile) |
+
+## A30 — the page reloaded for ever and no entry could be finished
+
+**Reported:** "the page is getting refreshed/reloading all the time not able to
+do data entry." The worst class of bug in this app: not a wrong number, but a
+screen that will not sit still long enough to take one.
+
+**Cause, and it was mine — the A26 red dots.** `renderHome()` called
+`syncDots()`, and `syncDots()` captured its comparison snapshot **before**
+awaiting `refreshDots()`:
+
+```js
+const before = JSON.stringify(dotState);   // taken BEFORE the async work
+refreshDots().then(function () {
+  if (JSON.stringify(dotState) !== before && ...) renderHome();
+});
+```
+
+Two calls overlapping — a notification poll landing while a paint is in flight —
+both read the same stale `before`, both concluded "it changed", and both
+repainted. Each repaint called `syncDots()` again, so one paint became two,
+two became four. The screen flashes, the flow input is torn out from under the
+thumb, and the tap goes nowhere.
+
+**Fix — three changes, and the shape matters more than any one of them:**
+
+| Guard | What it does |
+|---|---|
+| `dotsDrawn` | compare the fresh result against **what the current screen was painted with**, recorded at paint time — not against a pre-async snapshot |
+| `dotsBusy` | one refresh at a time, so overlapping calls cannot each conclude "changed" from the same starting point |
+| `renderHome` no longer calls `syncDots` | the renderer cannot re-enter itself; the router's home branch calls it once on arrival |
+
+Dots now refresh when their **source** changes (the notification payload) and
+when you arrive at home — never as a side effect of drawing.
+
+**Second reload path, capped in the same pass.** The service-worker
+`controllerchange` auto-reload was guarded by a module variable, `swReloaded` —
+which is born `false` again after the very reload it caused. If a worker were
+ever to take control on every load (a failing install that retries, a version
+changing underneath), that is an unbounded reload loop with no way out from
+inside the app. The flag now lives in `sessionStorage`, so **at most one
+automatic reload per tab session**; anything further needs the user's own
+🔄 আপডেট খুঁজি. A missed reload costs one stale screen; a reload loop costs the
+whole app.
+
+**Each guard proven to bite** by removing it and watching the suite go red:
+dropping `dotsBusy` → "A30: one dot refresh at a time" fails; putting
+`syncDots()` back in `renderHome` → "A30: renderHome never calls syncDots"
+fails; dropping the sessionStorage cap → "A30: at most ONE automatic
+service-worker reload per tab session" fails.
+
+**Verified live:** ten `focus` events (each one a full notification poll with a
+dot map that flips every time) produced **16 home paints, not hundreds** — and
+with that same poll firing every 300 ms throughout, a complete shop entry ran
+start to finish: name → owner → area → phone → pledge → "এখন দেয়নি", saved with
+phone `9812345678` and pledge ₹1500.
+
+**Lesson:** an async "did it change?" check must compare against what the user
+is looking at, not against a value read before the wait. And any code path that
+can call `location.reload()` needs a counter that survives the reload — a guard
+that resets when the page does is not a guard.

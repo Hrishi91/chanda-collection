@@ -1466,19 +1466,30 @@
       return d;
     }).catch(function () { dotState = d; return d; });
   }
-  // Recompute on every home paint and repaint ONLY if the map actually changed —
-  // otherwise finishing a job (settling a duplicate, fixing a flagged row) leaves
-  // its dot burning until the next notification poll, and a dot that outlives its
-  // work is the thing that teaches people to ignore dots.
-  // The changed-check is what stops render → refresh → render looping for ever.
+  // Refresh the dot map, and repaint home only if what is ON SCREEN is now wrong.
+  //
+  // The first cut compared against a snapshot taken BEFORE the async work, and
+  // called itself from renderHome. Two overlapping calls then both saw a stale
+  // "before", both repainted, and each repaint started another pair — a render
+  // storm that makes the screen flash and swallows taps. Two guards, and the
+  // shape matters more than either:
+  //   dotsDrawn   what the CURRENT screen was painted with — the only honest
+  //               thing to compare a fresh result against
+  //   dotsBusy    one refresh at a time; overlapping ones cannot each conclude
+  //               "it changed" from the same stale starting point
+  // renderHome no longer calls this at all, so the renderer can never re-enter
+  // itself. Dots refresh when their SOURCE changes (the notification payload)
+  // and when you arrive at home — never as a side effect of drawing.
+  let dotsDrawn = '', dotsBusy = false;
   function syncDots() {
-    const before = JSON.stringify(dotState);
+    if (dotsBusy) return;
+    dotsBusy = true;
     refreshDots().then(function () {
-      if (JSON.stringify(dotState) !== before && !flowState && current.view === 'home') renderHome();
-    });
+      dotsBusy = false;
+      if (JSON.stringify(dotState) !== dotsDrawn && !flowState && current.view === 'home') renderHome();
+    }).catch(function () { dotsBusy = false; });
   }
   function renderHome() {
-    syncDots();
     DB.allData().then(function (data) {
       const today = todayISO();
       const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
@@ -1509,6 +1520,7 @@
       //   handover   MY parcels that came back refused — I must resend or talk
       //   entries    my own flagged rows, which only I can correct
       const dots = pendingDots();
+      dotsDrawn = JSON.stringify(dots); // what this paint is showing
       // one marker helper for EVERY tile, however it is built — the ✏️ and 💰
       // tiles are hand-rolled (wide, custom label) and silently missed the dot
       // when only drawTile knew about it.
@@ -4230,7 +4242,7 @@
     const user = Auth.current();
     if (user && user.mustChange) { renderChangePw(true); updateBadge(); return; }
     if (flowState) { renderEntry(); return; }
-    if (current.view === 'home') renderHome();
+    if (current.view === 'home') { renderHome(); syncDots(); }
     else if (current.view === 'list') renderList();
     else if (current.view === 'party') renderParty(current.params);
     else if (current.view === 'report') renderReport();
@@ -4302,6 +4314,18 @@
       navigator.serviceWorker.addEventListener('controllerchange', function () {
         if (!hadController || swReloaded) return;
         swReloaded = true;
+        // `swReloaded` only guards THIS page load — it is born false again after
+        // the reload it just caused. If a worker were ever to take control on
+        // every load (a failing install that retries, a version that keeps
+        // changing under us), the app would reload for ever and no entry could
+        // be finished. sessionStorage survives the reload, so at most ONE
+        // automatic reload happens per tab session; anything further needs the
+        // user's own 🔄 আপডেট খুঁজি. A missed reload costs one stale screen; a
+        // reload loop costs the whole app.
+        let done = false;
+        try { done = sessionStorage.getItem('ck_swReload') === '1'; } catch (e) {}
+        if (done) return;
+        try { sessionStorage.setItem('ck_swReload', '1'); } catch (e) {}
         location.reload();
       });
       navigator.serviceWorker.register('sw.js');
