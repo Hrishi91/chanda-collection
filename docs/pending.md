@@ -348,6 +348,13 @@ give different numbers:
       seeing that pair flagged. Everything else about A22 is client-side and
       already live.
 
+- [ ] **Committee positions** — seeded সভাপতি / সম্পাদক / কোষাধ্যক্ষ / সদস্য.
+      Hrishi 2026-07-27: *"position gulo ekhon eguloi, will see later"* — keep
+      them for now, revisit before go-live. Editable by the admin at any time
+      (Admin → 🧾 → 🎖️ কমিটির পদ); **no deploy needed** to change them, and
+      renaming one does not touch members already recorded against it (the row
+      stores the list id, not the label).
+
 ## Before go-live, still open
 
 - [ ] **Reports permission** — a DECISION, not a fix. Most collectors have an
