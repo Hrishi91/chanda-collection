@@ -708,7 +708,19 @@ eq(tilesFor('bus').role, [], 'tiles: a plain collector gets neither');
 const admTiles = tilesFor('', 0, 'admin');
 eq(admTiles.setUp, true, 'tiles: an admin is always set up');
 eq(admTiles.entry, ['shop', 'person', 'member', 'bus'], 'tiles: …and gets every category');
-eq(admTiles.role, ['cashier', 'review', 'anomalies'], 'tiles: …and every desk, incl. the anomaly desk');
+eq(admTiles.role, ['cashier', 'review', 'anomalies', 'memberadmin'], 'tiles: …and every desk');
+// ---- A29: collecting from members ≠ keeping the member register --------------
+// Hrishi: "the member entry screen ... that was as previous to collect the
+// amount ... we will select the member there from member list and will make
+// entry of cash or upi, thats it" — and registering is "a different screen ...
+// what will have seperate permission".
+eq(homeTiles({ role: 'user', cashier: 0, entries: 'member' }).entry.indexOf('member') >= 0, true,
+   'A29: the `member` grant gives the COLLECTION tile');
+eq(homeTiles({ role: 'user', cashier: 0, entries: 'member' }).role.indexOf('memberadmin') >= 0, false,
+   'A29: …and NOT the register — one person keeps it, many people collect');
+eq(homeTiles({ role: 'user', cashier: 0, entries: 'memberadmin' }).role, ['memberadmin'],
+   'A29: the register is its own grant, and carries nothing else with it');
+eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real permission key');
 
 // ---- what the chat is costing ------------------------------------------------
 // Chat adds no requests (it rides the 60s pull), so what grows is the payload
@@ -1533,11 +1545,15 @@ eq(a25App.indexOf("Lists.get('position').length > 0") >= 0, true,
   eq(require('fs').readFileSync(__dirname + '/../' + f, 'utf8').indexOf('memberType') < 0, true,
      'A27: no memberType left in ' + f);
 });
-// registration REGISTERS; money comes later through the payment flow
-eq(/key: 'pledged'[\s\S]{0,160}type !== 'member'/.test(a25App), true,
-   'A27: a member is registered without a pledge');
-eq(/moneySteps\(true\)[\s\S]{0,220}type !== 'member'/.test(a25App), true,
-   'A27: …and takes no money at registration');
+// registration REGISTERS; money comes later through the collection screen
+const a29Reg = a25App.slice(a25App.indexOf('function memberRegisterFlow'),
+                            a25App.indexOf('function renderFindParty'));
+eq(a29Reg.indexOf("key: 'pledged'") < 0, true, 'A27: a member is registered without a pledge');
+eq(a29Reg.indexOf('moneySteps(') < 0, true, 'A27: …and takes no money at registration');
+eq(a29Reg.indexOf("pledged: 0") >= 0, true, 'A27: …the row is stored with a zero pledge, explicitly');
+['q_person_name', 'q_position', 'q_email', 'q_phone'].forEach(function (k) {
+  eq(a29Reg.indexOf(k) >= 0, true, 'A27: the register asks ' + k);
+});
 // a pledge of zero means no pledge was agreed — not an overpayment
 const a27Open = { parties: [{ id: 'mm', type: 'member', name: 'সদস্য এক', pledged: 0 }],
   voids: [], corrections: [], daily: [], expenses: [], handovers: [],
@@ -1557,10 +1573,21 @@ eq(a25Pay.indexOf("qKey: 'q_note_member', kind: 'text' }") >= 0, true,
    'A25: …and a member note carries NO `optional`, so there is no Skip button');
 eq(a25I18n.indexOf('  q_note_member:') >= 0, true, 'A25: with its own wording');
 // linking a member to an app account must never move money
-eq(a25App.indexOf('data-mem-link') >= 0, true, 'A25: the admin can link an app account');
-eq(a25I18n.slice(a25I18n.indexOf('  adm_members_hint:'), a25I18n.indexOf('  adm_members_hint:') + 300)
+eq(a25App.indexOf('data-ma-user') >= 0, true, 'A25: the register screen can link an app account');
+eq(a25App.indexOf('function renderMemberPay') >= 0, true, 'A29: the collection screen exists');
+eq(a25App.indexOf('function renderMemberAdmin') >= 0, true, 'A29: …and the register is a separate screen');
+const a29Pay = a25App.slice(a25App.indexOf('function renderMemberPay'), a25App.indexOf('function renderMemberAdmin'));
+eq(a29Pay.indexOf("canEntry('member')") >= 0, true, 'A29: collection is gated on the `member` grant');
+eq(a29Pay.indexOf("p.type === 'member'") >= 0, true, 'A29: …and lists registered members to pick from');
+eq(a29Pay.indexOf('startFlow(paymentFlow(') >= 0, true, 'A29: …then hands off to the ordinary payment flow');
+eq(a29Pay.indexOf('DB.newRow') < 0, true, 'A29: the collection screen CREATES nothing — that was the bug');
+eq(a25App.slice(a25App.indexOf('function renderMemberAdmin'), a25App.indexOf('function paintMemberAdmin'))
+   .indexOf("canEntry('memberadmin')") >= 0, true, 'A29: the register is gated on its own grant');
+eq(/if \(g === 'member'\) freshThen\(function \(\) \{ navigate\('memberpay'\); \}\)/.test(a25App), true,
+   'A29: the 🤝 tile opens collection, not a registration form');
+eq(a25I18n.slice(a25I18n.indexOf('  member_admin_hint:'), a25I18n.indexOf('  member_admin_hint:') + 400)
    .indexOf('টাকার হিসাব বদলায় না') >= 0, true,
-   'A25: …and the screen says in words that it changes no money');
+   'A25: …and the register screen says in words that linking changes no money');
 
 // ---- A26: a dot only where the work can be finished --------------------------
 eq(a25App.indexOf('function refreshDots') >= 0, true, 'A26: dots are computed in one place');

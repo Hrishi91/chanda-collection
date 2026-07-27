@@ -5051,3 +5051,52 @@ errors. 653 passed, 0 failed.
 
 **Rides the pending redeploy** — Code.gs lost `memberType` from `LIST_KINDS` and
 from the parties columns.
+
+## 2026-07-27 — v4.8.0: 🤝 সদস্য is a COLLECTION screen; the register is its own
+
+Hrishi: *"where i told to register the members… now what the member entry screen
+you have created, that was as previous to collect the amount — there the
+collections will be done from member… we will select the member there from
+member list and will make entry of cash or upi, thats it."*
+
+I had turned the 🤝 সদস্য tile into a registration form. He never asked for that.
+It was, and is again, the screen for **taking a member's contribution**.
+
+**Two screens, two grants:**
+
+| | screen | grant |
+|---|---|---|
+| collect from a member | 🤝 সদস্যের চাঁদা — pick from the register, cash/UPI + mandatory comment, as many times as the season needs | `member` (existing) |
+| keep the register | 🎖️ কমিটির সদস্য — add a member (name · post · email · phone) and link their app account | `memberadmin` (NEW) |
+
+Separate on purpose, and it is Hrishi's own line: *"what will have seperate
+permission."* One person keeps the register; many people collect. The register
+grant carries nothing else with it — verified with a user holding only
+`memberadmin`, and again with one holding only `member`, who gets the collection
+tile and cannot even see the register.
+
+`newPartyFlow` is shops and persons again — the member fields I had bolted onto
+it are gone, and so is the admin-panel card I had added, now that the register
+has a screen of its own.
+
+Linking an app account is still **informational only**, and the register screen
+now says so in words: money belongs to whoever COLLECTED it, never to whoever
+the payment is about.
+
+### Two of my own breakages, both caught by the gate added an hour earlier
+
+Deleting the old admin card with a regex left a stray `}` in js/app.js; deleting
+orphan strings left half of a two-line i18n entry behind. Both made the file
+unparseable — and the **parse gate added in v4.7.3 failed the suite immediately
+in each case**, instead of the app silently rendering blank. That gate has now
+paid for itself twice on the same day it was written.
+
+VERIFIED live end to end: 🤝 opens the picker (not a form) and says "কোনো সদস্য
+নথিভুক্ত নেই" when empty; 🎖️ registers রতন সাহা as সম্পাদক with email and phone
+and `pledged: 0`; back on 🤝 the member appears with post and phone, and his
+running total moves ₹0 → ₹300 between the two collections; ₹300 cash and ₹500
+UPI both recorded against him with mandatory comments (no Skip button); in-hand
+₹800 and reconcile clean. Dropping `memberadmin` removes the register tile while
+collection still works. No console errors. 674 passed, 0 failed.
+
+**Rides the pending redeploy** — Code.gs `PERM_KEYS` gained `memberadmin`.

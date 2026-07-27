@@ -456,7 +456,7 @@
   // Returning to the app (or a pull-to-refresh) re-renders the current data
   // view so users never have to manually refresh — skipped mid-entry and on
   // transient screens.
-  const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party', 'entries', 'review', 'hbook', 'messages', 'anomalies'];
+  const REFRESHABLE = ['home', 'list', 'report', 'admin', 'cashier', 'party', 'entries', 'review', 'hbook', 'messages', 'anomalies', 'memberpay', 'memberadmin'];
   function onAppFocus() {
     if (!notifViaPull) checkNotifications(); // old backend only — pull carries it otherwise
     autoSync(); // push anything still pending when the user returns
@@ -968,8 +968,6 @@
       // single position the flow never asked, so fill it in here — otherwise
       // today's members would carry no position at all, and adding real titles
       // later would leave a silent gap in the register.
-      position: a.position || '',
-      email: a.email || '', appUser: a.appUser || '',
     });
     const m = moneyOf(a);
     let paymentId = null;
@@ -1006,31 +1004,17 @@
         // Asked here rather than on a separate admin screen because the person
         // filling this in is the one talking to the member; a second screen
         // would mean the details are entered later, from memory, or never.
-        // The committee post — always asked for a member, straight from the
-        // admin-editable list.
-        { key: 'position', qKey: 'q_position', kind: 'choice', optionsFn: positionOptions, optional: true,
-          showIf: function () { return type === 'member' && Lists.get('position').length > 0; } },
-        { key: 'email', qKey: 'q_email', kind: 'text', optional: true,
-          validate: emailErr, clean: function (v) { return String(v || '').trim(); },
-          showIf: function () { return type === 'member'; } },
         // still optional — but skipping it asks once more (see confirmSkipKey
         // in renderEntry). The number is what makes 📞 dues reminders possible
         // AND what turns a weak name match into a near-certain duplicate call.
         { key: 'phone', qKey: 'q_phone', kind: 'text', optional: true,
           confirmSkipKey: 'skip_phone_confirm',
           validate: phoneErrIN, clean: cleanPhoneIN },
-        // A committee member has no pledge and takes no money at registration:
-        // this screen REGISTERS the person, and their contributions come later,
-        // many times a season, through 💰 টাকা জমা. Shops and persons keep both
-        // — a collector standing at a shop agrees an amount and often takes the
-        // first instalment on the spot.
-        { key: 'pledged', qKey: 'q_pledged', kind: 'amount',
-          showIf: function () { return type !== 'member'; } },
-      ].concat(moneySteps(true).map(function (st) {
-        return Object.assign({}, st, { showIf: function (a) {
-          return type !== 'member' && (!st.showIf || st.showIf(a));
-        } });
-      })),
+        // newPartyFlow is shops and persons only now — a committee member is
+        // registered on its own screen (memberRegisterFlow), with no pledge and
+        // no money, because their contributions arrive many times a season.
+        { key: 'pledged', qKey: 'q_pledged', kind: 'amount' },
+      ].concat(moneySteps(true)),
       save: function (a) {
         // dup check against the CENTRAL snapshot + own rows (viewData), not
         // just this device — two collectors adding the same shop from two
@@ -1510,7 +1494,8 @@
                      bus: ['🚌', 'daily_bus'], road: ['🛣️', 'daily_road'], toto: ['🛺', 'daily_toto'],
                      expense: ['🧾', 'expense'], cashier: ['💰', 'confirm_handover'],
                      review: ['🛠️', 'review_title'], handover: ['', 'handover'], hbook: ['📗', 'hb_title'],
-                     anomalies: ['🩺', 'anom_title'] };
+                     anomalies: ['🩺', 'anom_title'],
+                     memberadmin: ['🎖️', 'member_admin_title'] };
       // 🔴 A dot means "there is something HERE you can finish". Every source
       // below is already computed elsewhere — no new counting, no new polling.
       //
@@ -1639,7 +1624,12 @@
     document.querySelectorAll('[data-go]').forEach(function (b) {
       b.onclick = function () {
         const g = b.dataset.go;
-        if (g === 'shop' || g === 'person' || g === 'member') freshThen(function () { startFlow(newPartyFlow(g)); });
+        // 🤝 সদস্য is a COLLECTION screen, not a registration form: pick a
+        // committee member from the register and record what they gave.
+        // Registering the member is a different job with a different
+        // permission (memberadmin) — see renderMemberAdmin.
+        if (g === 'member') freshThen(function () { navigate('memberpay'); });
+        else if (g === 'shop' || g === 'person') freshThen(function () { startFlow(newPartyFlow(g)); });
         else if (g === 'road' || g === 'toto' || g === 'bus') startFlow(dailyFlow(g));
         else if (g === 'expense') startExpense();
         else if (g === 'handover') startHandover();
@@ -1749,6 +1739,152 @@
   // Find ANY party (created by any collector) and add a payment against its
   // balance — so a collector who receives a later installment can record it
   // even though they didn't create the party.
+  // 🤝 সদস্য চাঁদা — the collection screen. Pick a registered committee member,
+  // then the ordinary payment flow takes the money (cash/UPI) and the mandatory
+  // comment. Nothing is created here: a member who is not on the register yet is
+  // registered by whoever holds `memberadmin`, on their own screen.
+  let memberQuery = '';
+  function renderMemberPay() {
+    if (!canEntry('member')) { navigate('home'); return; }
+    $view().innerHTML = backBar('home') + '<div class="flow-title">🤝 ' + esc(t('member_pay_title')) + '</div>' +
+      '<div class="hint" style="margin-bottom:8px">' + esc(t('member_pay_hint')) + '</div>' +
+      '<input id="mp-search" class="search" enterkeyhint="search" placeholder="' + esc(t('search')) + '" value="' + esc(memberQuery) + '">' +
+      '<div id="mp-results"><div class="empty">' + esc(t('loading')) + '</div></div>';
+    const box = document.getElementById('mp-search');
+    box.oninput = function (e) { memberQuery = e.target.value; paintMembers(); };
+    paintMembers();
+  }
+  function paintMembers() {
+    const el = document.getElementById('mp-results'); if (!el) return;
+    viewData().then(function (data) {
+      const paidBy = Aggregate.computeTotals(data).paidByParty;
+      const q = normText(memberQuery);
+      const list = (data.parties || []).filter(function (p) { return p.type === 'member'; })
+        .filter(function (p) {
+          return !q || normText([p.name, p.phone, p.position ? Lists.labelOf('position', p.position) : ''].join(' ')).indexOf(q) >= 0;
+        })
+        .sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'bn'); });
+      if (!el.isConnected) return;
+      el.innerHTML = list.length ? list.map(function (m) {
+        const bits = [];
+        if (m.position) bits.push('🎖️ ' + Lists.labelOf('position', m.position));
+        if (m.phone) bits.push('📞 ' + m.phone);
+        return '<div class="row" data-mpay="' + esc(m.id) + '"><div><b>' + esc(m.name) + '</b>' +
+          '<div class="row-sub">' + esc(bits.join(' · ')) + '</div></div>' +
+          '<b class="cat-tot">' + fmtMoney(paidBy[m.id] || 0) + '</b></div>';
+      }).join('') : '<div class="empty">' + esc(t('member_none')) + '</div>';
+      el.querySelectorAll('[data-mpay]').forEach(function (row) {
+        row.onclick = function () {
+          const m = list.filter(function (x) { return x.id === row.dataset.mpay; })[0];
+          if (m) startFlow(paymentFlow(m, 'memberpay'));
+        };
+      });
+    });
+  }
+  // 🎖️ কমিটির সদস্য register — its own screen and its own grant. Adding a
+  // member, setting the post, and linking the app account all live here, so the
+  // collection screen stays a collection screen. The app-user picker needs the
+  // full user list, which is an admin-only call, so it degrades gracefully for a
+  // non-admin holding `memberadmin`: everything else still works, the link does
+  // not offer names.
+  let memberAdminUsers = null;
+  function renderMemberAdmin() {
+    if (!canEntry('memberadmin')) { navigate('home'); return; }
+    $view().innerHTML = backBar('home') + '<div class="flow-title">🎖️ ' + esc(t('member_admin_title')) + '</div>' +
+      '<div class="hint" style="margin-bottom:8px">' + esc(t('member_admin_hint')) + '</div>' +
+      '<button id="ma-add" class="tile wide" style="margin-bottom:10px">➕ ' + esc(t('member_add')) + '</button>' +
+      '<div id="ma-list"><div class="empty">' + esc(t('loading')) + '</div></div>';
+    document.getElementById('ma-add').onclick = function () { startFlow(memberRegisterFlow()); };
+    if (memberAdminUsers === null && Auth.isAdmin() && navigator.onLine && Sync.configured()) {
+      Auth.call('listUsers', { token: Auth.token() })
+        .then(function (r) { memberAdminUsers = (r.users || []).filter(function (u) { return u.status === 'approved'; }); paintMemberAdmin(); })
+        .catch(function () { memberAdminUsers = []; paintMemberAdmin(); });
+    }
+    paintMemberAdmin();
+  }
+  function paintMemberAdmin() {
+    const el = document.getElementById('ma-list'); if (!el) return;
+    viewData().then(function (data) {
+      if (!el.isConnected) return;
+      const list = (data.parties || []).filter(function (p) { return p.type === 'member'; })
+        .sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'bn'); });
+      el.innerHTML = '<div class="section">' + esc(t('member_admin_count').replace('{n}', list.length)) + '</div>' +
+        (list.length ? list.map(function (m) {
+          const bits = [];
+          if (m.position) bits.push('🎖️ ' + Lists.labelOf('position', m.position));
+          if (m.phone) bits.push('📞 ' + m.phone);
+          if (m.email) bits.push('✉️ ' + m.email);
+          bits.push(m.appUser ? '👤 @' + m.appUser : '👤 ' + t('member_no_user'));
+          return '<div class="row" style="cursor:default;flex-wrap:wrap"><div style="flex:1 1 60%"><b>' +
+            esc(m.name) + '</b><div class="row-sub">' + esc(bits.join(' · ')) + '</div></div>' +
+            '<div class="chips" style="margin:0">' +
+              '<button class="chip" data-ma-user="' + esc(m.id) + '">👤 ' + esc(t('adm_link_user')) + '</button>' +
+            '</div></div>';
+        }).join('') : '<div class="empty">' + esc(t('member_none_admin')) + '</div>');
+      el.querySelectorAll('[data-ma-user]').forEach(function (b) {
+        b.onclick = function () { linkMemberUser(list, b.dataset.maUser); };
+      });
+    });
+  }
+  // Linking a member to their app account. INFORMATIONAL ONLY — money always
+  // belongs to whoever COLLECTED it (docs/money-model.md), never to whoever the
+  // payment is "about".
+  function linkMemberUser(list, id) {
+    const m = list.filter(function (x) { return x.id === id; })[0];
+    if (!m) return;
+    const users = memberAdminUsers || [];
+    if (!users.length) { toast(t('member_users_na')); return; }
+    const menu = users.map(function (u, i) { return (i + 1) + '. ' + u.name + ' (@' + u.username + ')'; }).join('\n');
+    const pick = window.prompt(t('adm_link_prompt').replace('{who}', m.name) + '\n\n' + menu + '\n\n' + t('adm_link_clear'), m.appUser || '');
+    if (pick === null) return;
+    const v = String(pick).trim();
+    let uname = '';
+    if (v) {
+      const n = Number(v);
+      const u = (n >= 1 && n <= users.length) ? users[n - 1]
+        : users.filter(function (x) { return x.username === v.replace(/^@/, ''); })[0];
+      if (!u) { toast(t('adm_link_bad')); return; }
+      uname = u.username;
+    }
+    m.appUser = uname; m.synced = 0;
+    DB.put('parties', m).then(function () { toast(t('saved')); autoSync(); renderMemberAdmin(); })
+      .catch(function (e) { toast(errMsg(e)); });
+  }
+  // Registering a member: name, post, email, phone. No pledge and no money —
+  // contributions are the collection screen's job.
+  function memberRegisterFlow() {
+    return {
+      title: t('member_add'),
+      steps: [
+        { key: 'name', qKey: 'q_person_name', kind: 'text' },
+        { key: 'position', qKey: 'q_position', kind: 'choice', optionsFn: positionOptions, optional: true,
+          showIf: function () { return Lists.get('position').length > 0; } },
+        { key: 'email', qKey: 'q_email', kind: 'text', optional: true,
+          validate: emailErr, clean: function (v) { return String(v || '').trim(); } },
+        { key: 'phone', qKey: 'q_phone', kind: 'text', optional: true,
+          confirmSkipKey: 'skip_phone_confirm', validate: phoneErrIN, clean: cleanPhoneIN },
+      ],
+      returnTo: 'memberadmin',
+      save: function (a) {
+        return viewData().then(function (data) {
+          const ph = cleanPhoneIN(a.phone || '');
+          const nm = String(a.name || '').trim().toLowerCase();
+          const hit = (data.parties || []).filter(function (p) {
+            return (ph && cleanPhoneIN(p.phone || '') === ph) || String(p.name || '').trim().toLowerCase() === nm;
+          })[0];
+          if (hit && !window.confirm(t('dup_party_warn').replace('{row}',
+              esc0(hit.name) + (hit.phone ? ' · 📞 ' + hit.phone : '') +
+              (hit.type ? ' · ' + t('type_' + hit.type) : '')))) throw new Error('cancelled');
+          const row = DB.newRow({ type: 'member', name: a.name, owner: '', side: '', location: '',
+            phone: a.phone || '', pledged: 0,
+            position: a.position || '', email: a.email || '', appUser: '' });
+          return DB.put('parties', row).then(function () {
+            return { undo: [{ store: 'parties', id: row.id }], after: { navigateTo: 'memberadmin' } };
+          });
+        });
+      },
+    };
+  }
   function renderFindParty() {
     // Reaching donors somebody else wrote down is its own grant: it shows one
     // collector the whole committee's donor list, which is not every collector's
@@ -3677,37 +3813,11 @@
       Auth.call('listUsers', { token: Auth.token() }),
       Auth.call('listSubjects', { token: Auth.token() }).catch(function () { return { subjects: [] }; }),
       Auth.call('listItems', { token: Auth.token() }).catch(function () { return { items: [] }; }),
-      viewData(), // committee members are donors — read them from the same snapshot
     ]).then(function (res) {
       const resp = res[0], subjects = res[1].subjects || [], items = res[2].items || [];
-      const adminMembers = (res[3].parties || []).filter(function (p) { return p.type === 'member'; });
       const areas = items.filter(function (i) { return i.kind === 'area'; });
       const locations = items.filter(function (i) { return i.kind === 'location'; });
       const positions = items.filter(function (i) { return i.kind === 'position'; });
-      // 🎖️ Committee-member registry. Members ARE donors (type='member'), so this
-      // is a view over the same rows every report and receipt already uses — not
-      // a second list that could drift. Only the registry FIELDS are edited here;
-      // adding a member and taking their money stay where they are, in the entry
-      // flow and the ledger, because that is where the person doing the talking
-      // already is. The app-user link lives ONLY here: the full user list is an
-      // admin-only call, so a collector's device cannot offer it.
-      const memberRows = (adminMembers || []).slice()
-        .sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'bn'); });
-      const membersCard = '<div class="card"><div class="card-title">🎖️ ' + esc(t('adm_members')) +
-        ' (' + memberRows.length + ')</div>' +
-        '<div class="row-sub" style="margin-bottom:6px">' + esc(t('adm_members_hint')) + '</div>' +
-        (memberRows.length ? memberRows.map(function (m) {
-          const bits = [];
-          if (m.position) bits.push('🎖️ ' + Lists.labelOf('position', m.position));
-          if (m.phone) bits.push('📞 ' + m.phone);
-          if (m.email) bits.push('✉️ ' + m.email);
-          if (m.appUser) bits.push('👤 @' + m.appUser);
-          return '<div class="row" style="cursor:default;flex-wrap:wrap"><div style="flex:1 1 60%"><b>' +
-            esc(m.name) + '</b><div class="row-sub">' + esc(bits.join(' · ') || t('adm_member_bare')) + '</div></div>' +
-            '<div class="chips" style="margin:0">' +
-              '<button class="chip" data-mem-link="' + esc(m.id) + '">👤 ' + esc(t('adm_link_user')) + '</button>' +
-            '</div></div>';
-        }).join('') : '<div class="empty">' + esc(t('adm_no_members')) + '</div>') + '</div>';
       const year = String(Settings.get('year'));
       const groups = { pending: [], approved: [], blocked: [] };
       resp.users.forEach(function (u) { (groups[u.status] || groups.blocked).push(u); });
@@ -3873,7 +3983,7 @@
           listMgmtCard('area', 'manage_areas', areas) +
           listMgmtCard('location', 'manage_locations', locations) +
           listMgmtCard('position', 'list_position', positions) +
-          membersCard, false) +
+          '', false) +
         fold('🗂️', 'adm_data', '',
           // the chat switch lives with the other data controls, and always says
           // what it is costing — so turning it back on is an informed choice
@@ -3993,33 +4103,6 @@
           const s = subjects.find(function (x) { return x.id === b.dataset.subjEdit; }) || {};
           const nm = window.prompt(t('edit_item_title'), s.name || ''); if (nm === null) return;
           if (nm.trim()) adminAction('editSubject', { id: b.dataset.subjEdit, name: nm.trim() });
-        };
-      });
-      // Link a member to their app account. INFORMATIONAL ONLY — money still
-      // belongs to whoever collected it (docs/money-model.md); this just records
-      // that সদস্য X and user @x are the same person, so an admin reading the
-      // register knows who already has the app.
-      document.querySelectorAll('[data-mem-link]').forEach(function (b) {
-        b.onclick = function () {
-          const m = adminMembers.filter(function (x) { return x.id === b.dataset.memLink; })[0];
-          if (!m) return;
-          const approved = (resp.users || []).filter(function (u) { return u.status === 'approved'; });
-          const menu = approved.map(function (u, i) { return (i + 1) + '. ' + u.name + ' (@' + u.username + ')'; }).join('\n');
-          const pick = window.prompt(t('adm_link_prompt').replace('{who}', m.name) +
-            '\n\n' + menu + '\n\n' + t('adm_link_clear'), m.appUser || '');
-          if (pick === null) return;
-          const v = String(pick).trim();
-          let uname = '';
-          if (v) {
-            const n = Number(v);
-            const u = (n >= 1 && n <= approved.length) ? approved[n - 1]
-              : approved.filter(function (x) { return x.username === v.replace(/^@/, ''); })[0];
-            if (!u) { toast(t('adm_link_bad')); return; }
-            uname = u.username;
-          }
-          m.appUser = uname; m.synced = 0; // re-push so every device sees the link
-          DB.put('parties', m).then(function () { toast(t('saved')); autoSync(); renderAdmin(); })
-            .catch(function (e) { toast(errMsg(e)); });
         };
       });
       const afterList = function () { Lists.refresh(); }; // refresh the client cache too
@@ -4158,6 +4241,8 @@
     else if (current.view === 'messages') { chatOn() ? renderMessages() : renderHome(); }
     else if (current.view === 'entries') renderMyEntries();
     else if (current.view === 'anomalies') renderAnomalies();
+    else if (current.view === 'memberpay') renderMemberPay();
+    else if (current.view === 'memberadmin') renderMemberAdmin();
     else if (current.view === 'findparty') renderFindParty();
     else if (current.view === 'review') renderReviewCorrections();
     else if (current.view === 'audit') { Auth.isAdmin() ? renderAuditLog() : renderHome(); }

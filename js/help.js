@@ -68,7 +68,8 @@ window.HELP = [
       bn: [
         '<b>🏪 দোকান / 🙍 ব্যক্তি / 🤝 সদস্য</b> — নতুন চাঁদাদাতা যোগ করা (কত টাকা কথা হলো + এখন কিছু দিলে সেটা)। সেভের পর "➕ আরেকটা" বোতাম দিয়ে একই রাস্তায় পরের দোকান দ্রুত তোলা যায় (এলাকা মনে রাখে)।',
         '<b>🛣️ রোড / 🛺 টোটো / 🚌 বাস</b> — দিনের রাস্তার কালেকশন (বাসে নাম+নম্বর)।',
-        '<b>🤝 সদস্য</b> — কমিটির সদস্য <b>নথিভুক্ত</b> করা: নাম, <b>পদ</b> (সভাপতি / সম্পাদক / কোষাধ্যক্ষ / সদস্য — তালিকা admin ঠিক করেন), email, ফোন। সদস্যের ক্ষেত্রে <b>"কত টাকা কথা হলো" জিজ্ঞেস করা হয় না</b> — তাঁরা বারবার দেন, তাই টাকা নেওয়া হয় আলাদা ভাবে 💰 টাকা জমা দিয়ে। সেখানে <b>অঙ্ক আর কীসের চাঁদা — দুটোই লিখতেই হবে</b>, আর একই সদস্যের যতবার খুশি entry করা যায়।',
+        '<b>🤝 সদস্য</b> — কমিটির সদস্যের <b>চাঁদা তোলা</b>। তালিকা থেকে নাম বাছো → নগদ/UPI → <b>কীসের চাঁদা, লিখতেই হবে</b>। একই সদস্যের যতবার খুশি entry করা যায়; নামের পাশে দেখায় তিনি এ পর্যন্ত মোট কত দিয়েছেন।',
+        '<b>🎖️ কমিটির সদস্য</b> — <b>আলাদা স্ক্রিন, আলাদা permission</b>। কে কে সদস্য সেটা এখানে ঠিক হয়: নাম, পদ, email, ফোন, আর কার app-অ্যাকাউন্ট কোনটা। একজন রেজিস্টার রাখেন, অনেকে চাঁদা তোলেন — তাই দুটো আলাদা।',
         '<b>🔴 লাল বিন্দু</b> — কোনো বোতামে লাল বিন্দু মানে <b>ওখানে তোমার কাজ বাকি</b>। কাজটা সেরে ফেললে বিন্দু নিজেই নিভে যায়, তাই যেটা জ্বলে আছে সেটা সত্যিই বাকি।',
         '<b>নতুন কিছু যোগ হয়েছে অথচ দেখতে পাচ্ছ না?</b> ⚙️ সেটিংসের একদম নিচে লেখা থাকে তোমার ফোনে <b>কোন version</b> চলছে। পাশের <b>🔄 আপডেট খুঁজি</b> চাপলেই নতুনটা নেমে এসে নিজে থেকে খুলে যাবে।',
         '<b>💰 টাকা জমা / বাকি</b> — কারো বাকি টাকা পরে জমা নেওয়া (খাতা list-এ যায়)।',
@@ -78,7 +79,8 @@ window.HELP = [
       en: [
         '<b>🏪 Shop / 🙍 Person / 🤝 Member</b> — add a new donor (pledged amount + anything paid now). After saving, an "➕ One more" button lets you quickly add the next shop on the same road (area remembered).',
         '<b>🛣️ Road / 🛺 Toto / 🚌 Bus</b> — daily road collections (bus asks name + number).',
-        '<b>🤝 Member</b> — <b>registers</b> a committee member: name, <b>position</b> (President / Secretary / Treasurer / Member — the admin maintains the list), email, phone. Members are <b>not asked for a pledge</b>: they give many times over the season, so money is taken separately through 💰 Add payment, where <b>both the amount and what it is for are required</b>, and one member can have as many entries as you like.',
+        '<b>🤝 Member</b> — <b>collect</b> a committee member\'s contribution. Pick the name from the list → cash/UPI → <b>what it is for, required</b>. A member can have as many entries as the season needs; the figure beside each name is their total so far.',
+        '<b>🎖️ Committee members</b> — a <b>separate screen with its own permission</b>. This is where who-is-a-member is decided: name, position, email, phone, and which app account is theirs. One person keeps the register; many people collect.',
         '<b>🔴 Red dot</b> — a dot on a button means <b>there is something there for you to finish</b>. It goes out by itself once the work is done, so a dot that is lit is genuinely outstanding.',
         '<b>Something was added but you cannot see it?</b> The bottom of ⚙️ Settings shows which <b>version</b> your phone is running. Tap <b>🔄 Check for update</b> next to it and the new one downloads and reloads itself.',
         '<b>💰 Add payment / dues</b> — take a later installment against someone\'s balance (opens the ledger).',

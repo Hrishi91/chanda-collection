@@ -127,9 +127,16 @@ collides with every other fake number and poisons duplicate detection. Instead
 the Skip asks a second time (`confirmSkipKey`), and wherever a number IS present
 it is treated as the strongest identity signal available.
 
-## Committee members are DONORS (A25)
+## Committee members are DONORS (A25) — but two screens, two grants (A29)
 
-A member is a `parties` row with `type='member'` — not a separate ledger. The
+`member` (entry grant) = **collect** from a registered member: pick the name,
+cash/UPI, mandatory comment, any number of times.
+`memberadmin` (own grant) = **keep the register**: who is a member, their post,
+their app account. One person keeps it; many people collect.
+
+
+
+A member is still a `parties` row with `type='member'` — not a separate ledger. The
 obvious build was a `members` store with its own entries; that would have meant a
 **second money path**, with its own receipts, dues, pots and reconcile, and this
 whole document exists because two paths eventually disagree. So the registry adds

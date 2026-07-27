@@ -800,6 +800,9 @@
     // 📊 রিপোর্ট — so the "something needs you" dot had no tile to sit on, and a
     // cashier who never opened reports never learned the desk existed.
     if (isCashier) out.role.push('anomalies');
+    // the committee-member register — its own grant, so it can be handed to one
+    // person without also handing them the correction desk or the cash screens
+    if (granted('memberadmin')) out.role.push('memberadmin');
     return out;
   }
 
@@ -994,7 +997,11 @@
   // 'review' is the cashier's correction desk; 'otherdonor' is reaching donors
   // somebody ELSE wrote down, to take a later instalment. Neither is an entry
   // kind, but both ride the same field so granting stays one screen.
-  const PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor']);
+  // 'memberadmin' is the committee-member REGISTER — adding a member, setting
+  // their post and linking their app account. Deliberately separate from the
+  // 'member' entry grant, which only lets someone COLLECT from members: one
+  // person keeps the register, many people take the money.
+  const PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin']);
   // Which permission key a row needs, from the row itself. Stores with no key
   // are common to everyone.
   function permForRow(store, row) {

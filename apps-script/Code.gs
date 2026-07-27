@@ -340,7 +340,10 @@ var ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto'];
 // 'review' is the cashier's correction desk; 'otherdonor' is reaching donors
 // somebody ELSE wrote down, to take a later instalment. Neither is an entry
 // kind, but both ride the same field so granting stays one screen.
-var PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor']);
+// 'memberadmin' keeps the committee-member register (add a member, set the
+// post, link the app account) — separate from 'member', which only allows
+// COLLECTING from members.
+var PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin']);
 
 // Which permission key a row needs, from the row itself. null = common.
 function permForRow_(store, row) {
@@ -431,7 +434,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.7.3';
+var CODE_VERSION = 'chanda-v4.8.0';
 function doGet() { return json_({ ok: true, service: 'chanda-khata', version: CODE_VERSION }); }
 
 var ACTIONS = {
