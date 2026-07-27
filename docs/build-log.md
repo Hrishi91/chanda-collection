@@ -5134,3 +5134,37 @@ running every 300 ms the whole time, a shop entry completed all six steps and
 saved (phone 9812345678, pledge ₹1500). 677 passed, 0 failed.
 
 **Rides the pending redeploy** — Code.gs `CODE_VERSION` → `chanda-v4.8.1`.
+
+## v4.8.2 — A31: the update button that could not update (2026-07-27)
+
+Hrishi: "i am doing this but the cache reload and js reload is not happening."
+
+Three of my own faults, stacked so that each hid the one under it.
+
+The one that actually trapped the phone: a worker had already installed and
+claimed the page (its automatic reload capped by A30), so the cache held the new
+version while the tab kept running the old JS. Tapping 🔄 ran
+`registration.update()`, which correctly found nothing new to fetch — and the
+button therefore answered "✅ এটাই সর্বশেষ version". Every tap, for ever. Nothing
+to download is not the same as nothing to do: the button now asks the worker
+which version it holds and reloads when that differs from the running code.
+
+Second: the A30 sessionStorage cap swallowed the user's tap as well as the
+automatic reloads it was written for — the escape hatch its own comment promised
+was a dead button. The cap is now automatic-only, a tap clears a spent cap, and
+the manual path reloads itself instead of relying on controllerchange.
+
+Third: Settings printed a cache name as the app version. The cache flips the
+moment a worker claims the page, so A28's stale-install detector read healthy in
+precisely the state it existed to catch. js/app.js now stamps APP_VERSION — the
+code actually executing — bound by tests to sw.js VERSION and Code.gs
+CODE_VERSION, and Settings warns in orange when the worker holds something else.
+
+Also: a dying install (all-or-nothing by A28's design) was silent behind a
+"downloading" toast. A redundant worker now says ⚠️ আপডেট নামেনি.
+
+VERIFIED live across seven successive versions on a local copy: from the exact
+stuck state — worker at TEST7, page running TEST6, cap already spent — one tap
+reloaded the page to TEST7 and cleared the warning. 692 passed, 0 failed.
+
+**Rides the pending redeploy** — Code.gs CODE_VERSION → chanda-v4.8.2.

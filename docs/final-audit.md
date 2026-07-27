@@ -773,3 +773,73 @@ phone `9812345678` and pledge ₹1500.
 is looking at, not against a value read before the wait. And any code path that
 can call `location.reload()` needs a counter that survives the reload — a guard
 that resets when the page does is not a guard.
+
+## A31 — 🔄 আপডেট খুঁজি could not update, and said everything was fine
+
+**Reported:** "i am doing this but the cache reload and js reload is not
+happening." Reproduced on a local copy by driving the real button through a real
+service-worker update, which is the only way this one shows itself.
+
+**Three faults, mine, and each one hid the next.**
+
+**1. The button gave a false all-clear — this is the one that trapped the phone.**
+A worker can install and claim the page while the automatic reload is capped or
+simply missed. The cache and the controller are then the NEW version; the tab
+keeps running the OLD JS it loaded minutes ago. Tap 🔄 in that state and
+`registration.update()` correctly finds nothing new to fetch — so the code said:
+
+```js
+toast(r.installing || r.waiting ? t('upd_found') : t('upd_latest'));
+```
+
+"✅ এটাই সর্বশেষ version." Every tap. For ever. **Nothing to download is not the
+same as nothing to do:** when the held version is not the running version, the
+fix was never a download — it is a reload. The button now asks the worker which
+version it is holding, and reloads when that differs from what this page is
+running.
+
+**2. The A30 reload cap swallowed the user's own tap.** The cap's own comment
+promised "anything further needs the user's own 🔄 আপডেট খুঁজি" — and the tap went
+through the very handler the cap sat in, so the promised escape hatch was a dead
+button. The cap now applies to **automatic** reloads only; a tap is consent, and
+a reload loop cannot tap a button. The tap also clears a cap already spent, so it
+works the second time too, and the manual path reloads itself rather than
+trusting an event another guard might swallow.
+
+**3. Settings printed a CACHE name and called it the app version.** The cache
+flips to the new name the moment a worker claims the page — while the tab still
+runs the old code. So the single indicator A28 added to detect stale installs
+read *healthy* in exactly the state it was built to catch. It also took
+`keys()[0]`, and during an install two caches coexist, so it could print the
+**older** one.
+
+`js/app.js` now stamps `APP_VERSION` — the version of the code actually
+executing — and tests bind it to `sw.js` VERSION and Code.gs `CODE_VERSION`, so
+none of the three can be bumped alone. Settings prints the running version, and
+when the worker holds a different one it says so in orange, directly above the
+button that fixes it. `sw.js` answers a `{q:'version'}` message so the two can be
+compared at all.
+
+**Also surfaced:** an install that dies (one asset fails — install is
+all-or-nothing by design, A28) used to leave "⬇️ downloading" on screen with
+nothing ever contradicting it. A worker going `redundant` now says
+**⚠️ আপডেট নামেনি**.
+
+**Each guard proven by removal:** dropping the user exemption, the redundant
+branch, the reload-when-held-differs branch, or letting `APP_VERSION` drift from
+`sw.js` — each turns the suite red on its own named test.
+
+**Verified live** on a local copy across seven successive versions:
+- worker silently at TEST7, page running TEST6, cap already spent → one tap →
+  page reloads, cache TEST7, line reads `chanda-vTEST7`, warning gone. This is
+  the exact state the phone was stuck in.
+- cap spent + a genuinely new worker → tap still reloads (TEST3 → TEST4).
+- worker ahead of the page → Settings shows `chanda-vTEST4` with
+  "⚠️ নতুন version তৈরি আছে (chanda-vTEST5) — 🔄 চাপুন" above the button.
+- 692 passed, 0 failed.
+
+**Lesson:** an "are you up to date?" check must compare against the code that is
+RUNNING, not against any artefact that updates ahead of it. And the same test
+that proves a fix must be run from the user's stuck state, not from a clean one —
+fault 1 survived my first pass precisely because I only tested the path where a
+new worker arrives.

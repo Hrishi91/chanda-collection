@@ -32,6 +32,8 @@ const I18N = {
   upd_found: { bn: '⬇️ নতুন version আসছে — এক মুহূর্তে নিজে থেকেই খুলবে', en: '⬇️ A new version is downloading — it will reload itself in a moment' },
   upd_latest: { bn: '✅ এটাই সর্বশেষ version', en: '✅ You are on the latest version' },
   upd_none: { bn: 'এই ব্রাউজারে আপডেট পরীক্ষা করা যাচ্ছে না', en: 'Cannot check for updates in this browser' },
+  upd_fail: { bn: '⚠️ আপডেট নামেনি — নেট দেখে আবার চাপুন', en: '⚠️ The update did not download — check your connection and tap again' },
+  upd_stale: { bn: '⚠️ নতুন version তৈরি আছে ({v}) — 🔄 চাপুন', en: '⚠️ A newer version is ready ({v}) — tap 🔄' },
   member_admin_title: { bn: 'কমিটির সদস্য', en: 'Committee members' },
   member_admin_hint: { bn: 'কে কে কমিটির সদস্য, তাঁদের পদ আর app-অ্যাকাউন্ট — সব এখানে। টাকা তোলা হয় 🤝 সদস্যের চাঁদা থেকে। অ্যাকাউন্ট জোড়া লাগালে টাকার হিসাব বদলায় না — টাকা যে তুলেছে তারই থাকে।',
                        en: "Who is on the committee, their post and app account. Money is taken from 🤝 Member contribution. Linking an account changes no money — it stays with whoever collected it." },

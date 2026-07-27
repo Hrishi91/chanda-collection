@@ -1652,5 +1652,65 @@ try {
   console.error('FAIL scope check\n' + String(e.stdout || '') + String(e.stderr || ''));
 }
 
+
+// ---- A31: the update button that could not update -----------------------------
+// Reported as "I press 🔄 আপডেট খুঁজি and nothing happens". Two of my own faults,
+// and the second hid the first: the A30 reload cap swallowed the USER'S tap as
+// well as the automatic reloads it was written for, and the version line printed
+// a CACHE name, which flips to the new value the moment a worker claims the page
+// — while the tab keeps running the old code. So a dead update looked healthy.
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const sw = fs.readFileSync(__dirname + '/../sw.js', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+
+  // The three versions are now stamped in three files. Any two agreeing while the
+  // third drifts is exactly the silent-stale-deploy bug, so bind all three.
+  const appVer = (app.match(/APP_VERSION = '(chanda-v[\d.]+)'/) || [])[1];
+  const swV = (sw.match(/VERSION = '(chanda-v[\d.]+)'/) || [])[1];
+  const gsV = (gs.match(/CODE_VERSION = '(chanda-v[\d.]+)'/) || [])[1];
+  eq(!!appVer, true, 'A31: js/app.js stamps the version it is actually running');
+  eq(appVer, swV, 'A31: APP_VERSION matches sw.js VERSION');
+  eq(appVer, gsV, 'A31: APP_VERSION matches Code.gs CODE_VERSION');
+
+  // The settings line must report the RUNNING code, never a cache name.
+  eq(/el\.textContent = APP_VERSION/.test(app), true,
+     'A31: Settings prints the version this page is RUNNING');
+  eq(app.indexOf("(mine[0] || 'no cache')") < 0, true,
+     'A31: …and no longer prints an arbitrary cache name as if it were the app');
+  eq(/mine\.length \? mine\.join/.test(app), true,
+     'A31: with several caches present it lists them, instead of picking the oldest');
+  eq(/upd_stale/.test(app) && /upd_stale:/.test(i18n), true,
+     'A31: a worker holding a different version is SHOUTED, not left invisible');
+
+  // The tap must escape the A30 cap — that cap\'s own comment promised the manual
+  // button as the way out, and the button went through the capped handler.
+  eq(/userReload = true;/.test(app), true, 'A31: tapping 🔄 marks the reload as user-asked');
+  eq(/if \(!userReload\) \{[\s\S]{0,400}?ck_swReload/.test(app), true,
+     'A31: the sessionStorage cap applies to AUTOMATIC reloads only');
+  eq(/userReload[\s\S]{0,200}removeItem\('ck_swReload'\)/.test(app), true,
+     'A31: …and the tap clears a cap already spent, so it works the second time too');
+
+  // Do not depend on controllerchange for the one path the user can see.
+  const upd = app.slice(app.indexOf("updB.onclick"), app.indexOf("updB.onclick") + 3200);
+  eq(/w\.state === 'activated'[\s\S]{0,120}location\.reload/.test(upd), true,
+     'A31: the button reloads the page itself once the new worker activates');
+  eq(/w\.state === 'redundant'[\s\S]{0,160}upd_fail/.test(upd), true,
+     'A31: an install that DIES says so — it used to leave "downloading" on screen for ever');
+  // The trap the reported bug actually lived in: the worker had ALREADY installed
+  // and claimed the page, so update() correctly found nothing new and the button
+  // answered "you are on the latest" while the tab ran the old JS — every tap,
+  // for ever. Nothing to download does not mean nothing to do.
+  eq(/if \(!w\) \{[\s\S]{0,900}?have !== APP_VERSION\) \{ location\.reload/.test(upd), true,
+     'A31: nothing to download but a newer version already held → reload, not a false all-clear');
+  eq(/upd_fail:/.test(i18n), true, 'A31: upd_fail has a bilingual message');
+
+  // The worker has to be able to answer the question at all.
+  eq(/q === 'version'[\s\S]{0,120}postMessage\(VERSION\)/.test(sw), true,
+     'A31: sw.js answers a version query, so the app can compare running vs held');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

@@ -25,7 +25,7 @@ const globals = new Set(['if','for','while','switch','catch','return','typeof','
   'clearTimeout','setInterval','clearInterval','fetch','alert','confirm','prompt','console','document',
   'window','localStorage','indexedDB','navigator','history','location','requestAnimationFrame','URL',
   'Blob','File','FileReader','Notification','crypto','performance','CustomEvent','Event','caches',
-  'btoa','atob','Image','Uint8Array','Intl','self']);
+  'btoa','atob','Image','Uint8Array','Intl','self','sessionStorage','MessageChannel']);
 FILES.forEach(f => {
   const s = strip(fs.readFileSync(DIR + f, 'utf8'));
   let m;

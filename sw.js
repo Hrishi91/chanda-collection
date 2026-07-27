@@ -1,5 +1,5 @@
 // App-shell cache. Bump VERSION on every deploy that changes app files.
-const VERSION = 'chanda-v4.8.1';
+const VERSION = 'chanda-v4.8.2';
 // config.js is intentionally NOT precached — it carries the live backend URL
 // and is served network-first (no-store) by the fetch handler so it can never
 // be stale. Precaching it here would risk baking in a stale copy at install.
@@ -64,4 +64,11 @@ self.addEventListener('fetch', function (e) {
       return resp;
     });
   }));
+});
+
+// A31: answer "which version are you?" so the app can print the version it is
+// REALLY running and warn when the worker is holding a different one. The cache
+// name alone could not tell those apart, which made a stuck update look fine.
+self.addEventListener('message', function (e) {
+  if (e.data && e.data.q === 'version' && e.ports && e.ports[0]) e.ports[0].postMessage(VERSION);
 });

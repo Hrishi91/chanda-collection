@@ -1,9 +1,19 @@
 // UI: view router + guided chat-style entry engine + dashboards.
 (function () {
   const $view = function () { return document.getElementById('view'); };
+  // A31: the version of the JS that is ACTUALLY EXECUTING right now. The cache
+  // name is not this — a new worker can claim the page (so the cache and the
+  // controller both report the new version) while the tab keeps running the old
+  // code it loaded minutes ago. Reporting the cache made "I updated but nothing
+  // changed" look like success. Asserted equal to sw.js VERSION and Code.gs
+  // CODE_VERSION in tests/run.js, so the three can never drift apart.
+  const APP_VERSION = 'chanda-v4.8.2';
   const SIDES = ['main_malda', 'main_balurghat', 'harirampur', 'singhadaha'];
   const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
   let flowState = null;
+  // set when the user taps 🔄 আপডেট খুঁজি — a reload they asked for is never
+  // capped, only the ones that happen behind their back (A31)
+  let userReload = false;
 
   // offline fallback; the server's reportList is the authority when online
   function myReports() {
@@ -3200,6 +3210,42 @@
     });
   }
 
+  // A31: what the SERVICE WORKER has ready, which is not the same question as
+  // what this page is running. Ask the controlling worker directly — it is the
+  // one actually answering this page's fetches. Fall back to the cache names,
+  // and when several exist say so rather than picking one arbitrarily: during
+  // an install two coexist, and `keys()[0]` was returning the OLDER of them.
+  function swVersion() {
+    return new Promise(function (resolve) {
+      const sw = navigator.serviceWorker && navigator.serviceWorker.controller;
+      if (!sw || typeof MessageChannel === 'undefined') { resolve(null); return; }
+      const ch = new MessageChannel();
+      const timer = setTimeout(function () { resolve(null); }, 1500);
+      ch.port1.onmessage = function (ev) { clearTimeout(timer); resolve(ev.data || null); };
+      try { sw.postMessage({ q: 'version' }, [ch.port2]); } catch (e) { clearTimeout(timer); resolve(null); }
+    }).then(function (v) {
+      if (v || !window.caches) return v;
+      return caches.keys().then(function (ks) {
+        const mine = ks.filter(function (k) { return k.indexOf('chanda-v') === 0; });
+        return mine.length ? mine.join(' / ') : null;
+      }).catch(function () { return null; });
+    });
+  }
+  // Print the version that is RUNNING, and — separately — shout if the worker
+  // is holding a different one. That gap is exactly the state "I pressed update
+  // and nothing changed" lives in, and it used to be invisible.
+  function showVersion() {
+    const el = document.getElementById('app-ver');
+    if (!el) return;
+    el.textContent = APP_VERSION + ' • ' + location.hostname;
+    swVersion().then(function (have) {
+      if (!have || have === APP_VERSION) return;
+      const el2 = document.getElementById('app-ver');
+      if (!el2) return;
+      el2.innerHTML = esc(APP_VERSION + ' • ' + location.hostname) +
+        '<br><b class="warn">' + esc(t('upd_stale').replace('{v}', have)) + '</b>';
+    });
+  }
   function renderSettings() {
     const user = Auth.current() || { name: '?', username: '?' };
     // scriptUrl is a backend override for testing — admins only, so a
@@ -3237,25 +3283,49 @@
       // JS is really being served from, not what the server happens to have.
       '<div class="empty" id="app-ver">…</div>' +
       '<button id="upd-btn" class="ghost block">🔄 ' + esc(t('check_update')) + '</button>';
-    const verEl = document.getElementById('app-ver');
-    if (verEl && window.caches) {
-      caches.keys().then(function (ks) {
-        const mine = ks.filter(function (k) { return k.indexOf('chanda-v') === 0; });
-        verEl.textContent = (mine[0] || 'no cache') + ' • ' + location.hostname;
-      }).catch(function () { verEl.textContent = location.hostname; });
-    } else if (verEl) verEl.textContent = location.hostname;
+    showVersion();
     const updB = document.getElementById('upd-btn');
     if (updB) updB.onclick = function () {
-      // Ask the browser to re-check sw.js right now. A new one installs, claims
-      // the page and the controllerchange handler reloads — so the user does not
-      // have to know about app caches to get today's build.
       if (!navigator.serviceWorker) { toast(t('upd_none')); return; }
       updB.disabled = true;
+      // A31: the user TAPPED this. The automatic-reload cap exists to stop a
+      // worker reloading the page with nobody's consent — a tap IS consent, and
+      // a reload loop cannot tap a button. Exempting the manual path is the
+      // whole point of having a manual path: the cap's own comment promised
+      // "anything further needs the user's own 🔄", and until now that promise
+      // was false, because the tap went through the same capped handler.
+      userReload = true;
+      try { sessionStorage.removeItem('ck_swReload'); } catch (e) {}
       navigator.serviceWorker.getRegistration().then(function (r) {
         if (!r) { updB.disabled = false; toast(t('upd_none')); return; }
         return r.update().then(function () {
-          toast(r.installing || r.waiting ? t('upd_found') : t('upd_latest'));
-          updB.disabled = false;
+          const w = r.installing || r.waiting;
+          if (!w) {
+            // NOTHING to download — and this is the trap the whole bug lived in.
+            // The worker can ALREADY be holding a newer version (it installed and
+            // claimed the page while the automatic reload was capped or missed),
+            // so update() correctly finds nothing new, and the old code said
+            // "✅ you are on the latest" while the tab kept running yesterday's
+            // JS. Forever: every tap re-ran the same check and gave the same
+            // false all-clear. When the held version is not the running version
+            // the fix was never a download, it is a reload.
+            return swVersion().then(function (have) {
+              if (have && have.indexOf(' / ') < 0 && have !== APP_VERSION) { location.reload(); return; }
+              updB.disabled = false; toast(t('upd_latest')); showVersion();
+            });
+          }
+          toast(t('upd_found'));
+          // Drive the reload from here rather than trusting controllerchange:
+          // this is the one path the user can see, so it must not depend on an
+          // event that another guard might swallow.
+          if (w.state === 'activated') { location.reload(); return; }
+          w.addEventListener('statechange', function () {
+            if (w.state === 'activated') location.reload();
+            // An install that dies (one asset failed — install is all-or-nothing
+            // by design) used to be completely silent: the toast had already
+            // said "downloading", and nothing ever contradicted it. Say so.
+            else if (w.state === 'redundant') { updB.disabled = false; toast(t('upd_fail')); showVersion(); }
+          });
         });
       }).catch(function () { updB.disabled = false; toast(t('upd_none')); });
     };
@@ -4322,10 +4392,16 @@
         // automatic reload happens per tab session; anything further needs the
         // user's own 🔄 আপডেট খুঁজি. A missed reload costs one stale screen; a
         // reload loop costs the whole app.
-        let done = false;
-        try { done = sessionStorage.getItem('ck_swReload') === '1'; } catch (e) {}
-        if (done) return;
-        try { sessionStorage.setItem('ck_swReload', '1'); } catch (e) {}
+        // A31: the cap is for AUTOMATIC reloads only. When the user tapped 🔄
+        // the reload is the thing they asked for, and refusing it turned the
+        // documented escape hatch into a dead button. (The manual path also
+        // reloads itself now; this stays as the belt to that braces.)
+        if (!userReload) {
+          let done = false;
+          try { done = sessionStorage.getItem('ck_swReload') === '1'; } catch (e) {}
+          if (done) return;
+          try { sessionStorage.setItem('ck_swReload', '1'); } catch (e) {}
+        }
         location.reload();
       });
       navigator.serviceWorker.register('sw.js');
