@@ -987,3 +987,51 @@ failed.
 **Left undone on purpose:** no lock, and no "I know, carry on" override either —
 there is nothing to override, because nothing is blocked. If Hrishi later wants
 the lock, the detection it needs is now all here.
+
+## A35 — the error message hid the bug
+
+Hrishi: "permission in positions was not working, giving internet error." His
+phone had signal. The server had not gone away. The message was simply wrong.
+
+**Cause, and it is mine.** `errMsg` ended in:
+
+```js
+return I18N[key] ? t(key) : t('err_network');
+```
+
+Any server error without a translation — `not-found`, `not-a-position`, a
+TypeError's text, anything — was renamed **"Internet/সার্ভার সমস্যা"**. Two
+completely different problems with two completely different fixes, shown as one.
+So a real bug report arrived carrying none of the information needed to act on
+it, and I spent a round of reading code that turned out to be fine: 47 handlers,
+no duplicate names, ids matching, declaration order correct, client payloads
+matching every handler's fields.
+
+This is the A31 shape again: **the single indicator says the reassuring wrong
+thing.** A dead update button reported success; a stale phone reported healthy;
+now a server refusal reports a network fault.
+
+**Fix.** Only a genuine transport failure (`network`, `Failed to fetch`) says
+"Internet". Anything the server actually said is repeated verbatim behind
+"⚠️ সার্ভার বলছে:" — an untranslated word beats a translated lie.
+
+**And it has to be readable.** Admin failures went through `toast()`, which is
+gone in 2.2 seconds: long enough to notice, nowhere near long enough to read,
+remember and report. `adminAction` now uses a dismissable alert that names the
+action, so one line is a whole bug report:
+
+```
+⚠️ setPositionRules
+
+⚠️ সার্ভার বলছে: not-a-position
+```
+
+**What this does NOT do:** it does not fix the positions bug. I could not find
+that from the code, and I am not going to guess at it — the next tap will name
+it. The message also splits the diagnosis cleanly in two: if it now says
+"সার্ভার বলছে: …" the fault is in the handler; if it still says "Internet" the
+fault is transport (the POST → 302 → redirect path), which is a different hunt.
+
+**Lesson, third time of asking:** an indicator that cannot say "I don't know"
+will say something false instead. Every fallback branch in a diagnostic path
+should be checked for what it claims when it has nothing to claim.

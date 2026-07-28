@@ -297,6 +297,7 @@ const I18N = {
   err_bad_username: { bn: 'Username হবে ৩-২০টা ইংরেজি ছোট অক্ষর/সংখ্যা', en: 'Username: 3-20 lowercase letters/digits' },
   err_bad_input: { bn: 'সব ঘর ঠিক করে ভরো (পাসওয়ার্ড কমপক্ষে ৬)', en: 'Fill all fields (password min 6)' },
   err_network: { bn: 'Internet/সার্ভার সমস্যা — আবার চেষ্টা করো', en: 'Network/server problem — try again' },
+  err_server: { bn: '⚠️ সার্ভার বলছে', en: '⚠️ Server says' },
   err_not_configured: { bn: 'Sync URL সেট হয়নি (Settings)', en: 'Sync URL not set (Settings)' },
   err_cant_demote_self: { bn: 'নিজেকে admin থেকে সরানো যায় না', en: "You can't remove your own admin role" },
   err_last_admin: { bn: 'শেষ admin-কে সরানো যায় না', en: "Can't remove the last admin" },

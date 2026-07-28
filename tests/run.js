@@ -2018,5 +2018,29 @@ try {
   });
 }
 
+
+// ---- A35: an error must not lie about what went wrong -------------------------
+// "permission in positions was not working, giving internet error" — and the
+// phone had perfect signal. errMsg mapped EVERY untranslated server error to
+// "Internet/server problem", so a nameable refusal and a dead network looked
+// identical. The report arrived carrying none of the information needed to act
+// on it. Same shape as A31: the one indicator saying the reassuring wrong thing.
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const fn = app.slice(app.indexOf('function errMsg'), app.indexOf('function errMsg') + 700);
+  eq(/return t\('err_server'\) \+ ': ' \+ raw;/.test(fn), true,
+     'A35: an untranslated server error is repeated verbatim, not renamed "network"');
+  eq(/if \(code === 'network' \|\| code === 'Failed_to_fetch'\) return t\('err_network'\);/.test(fn), true,
+     'A35: …and only a real transport failure says "Internet"');
+  eq(/I18N\[key\] \? t\(key\) : t\('err_network'\)/.test(app), false,
+     'A35: the old collapse-everything-to-network fallback is gone');
+  eq(i18n.indexOf('  err_server:') >= 0, true, 'A35: err_server has a bilingual message');
+  // 2.2s is long enough to notice and far too short to read, remember and report.
+  eq(/alert\('⚠️ ' \+ action \+ '\\n\\n' \+ errMsg\(e\)\)/.test(app), true,
+     'A35: an admin failure names the action and stays on screen until dismissed');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

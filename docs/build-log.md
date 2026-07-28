@@ -5384,3 +5384,24 @@ version → silent; equal → hidden. 795 passed, 0 failed.
 
 **Rides the pending redeploy** — Code.gs gains the `appVersion` user column,
 `noteAppVersion_`, and the `codeVersion` stamp on every reply.
+
+## v4.9.5 — A35: stop the error message lying (2026-07-28)
+
+Reported: setting a position's permissions failed with "internet error", on a
+phone with signal. It was not a network fault. `errMsg` mapped every
+untranslated server error to err_network, so a nameable refusal and a dead
+connection looked identical — and the bug report arrived with no usable
+information. I read the whole path first (47 handlers, no duplicates, ids match,
+declaration order fine, every client payload matches its handler's fields) and
+found nothing wrong, which is exactly what a lying error costs.
+
+Now only `network` / `Failed to fetch` says "Internet". Anything the server said
+is repeated verbatim after "⚠️ সার্ভার বলছে:". Admin failures also moved from a
+2.2s toast to a dismissable alert naming the action, because the person on that
+screen is the person who reports bugs.
+
+This does not fix the positions bug — the next tap will name it, and the message
+now splits the diagnosis: "সার্ভার বলছে …" means the handler, "Internet" means
+the POST→302 transport path.
+
+800 passed, 0 failed.

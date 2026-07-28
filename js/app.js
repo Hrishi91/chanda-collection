@@ -3767,10 +3767,24 @@
 
   // ---------- auth views ----------
   let authView = 'login'; // login | register | forgot | regdone
+  // A35: an error we have no translation for used to be shown as
+  // "Internet/সার্ভার সমস্যা". That is a LIE with a cost: the server refusing
+  // for a nameable reason and the phone having no signal are different problems
+  // with different fixes, and collapsing them meant a real bug report
+  // ("permission in positions was not working, giving internet error") carried
+  // none of the information needed to find it. Same shape as A31 — the one
+  // indicator saying the reassuring wrong thing.
+  //
+  // Only a genuine transport failure says "Internet" now; anything the server
+  // actually said is repeated verbatim, because a word nobody translated still
+  // beats a sentence that is wrong.
   function errMsg(e) {
-    const code = String(e && e.message || e).replace(/-/g, '_');
+    const raw = String(e && e.message || e);
+    const code = raw.replace(/-/g, '_');
     const key = 'err_' + (code === 'year_not_approved' ? 'year' : code);
-    return I18N[key] ? t(key) : t('err_network');
+    if (I18N[key]) return t(key);
+    if (code === 'network' || code === 'Failed_to_fetch') return t('err_network');
+    return t('err_server') + ': ' + raw;
   }
   const USERNAME_RE = /^[a-z0-9._-]{3,20}$/;
   function authError(msg) {
@@ -3901,7 +3915,11 @@
   function adminAction(action, payload, after) {
     Auth.call(action, Object.assign({ token: Auth.token() }, payload))
       .then(function (resp) { after && after(resp); renderAdmin(); })
-      .catch(function (e) { toast(errMsg(e)); });
+      // A35: an admin failure has to be READABLE. A toast is gone in 2.2s —
+      // long enough to notice, nowhere near long enough to read, remember and
+      // report. The person using this screen is the person who reports bugs, so
+      // the message names the action too: one line is then a whole bug report.
+      .catch(function (e) { alert('⚠️ ' + action + '\n\n' + errMsg(e)); });
   }
   // human label for an audit action code (falls back to the raw code)
   function auditLabel(action) {
