@@ -1226,7 +1226,12 @@
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,
                 samePaymentsOn: samePaymentsOn,
                 mentionsMe: mentionsMe, messageFeed: messageFeed,
-                activeData: activeData, chatLoad: chatLoad, homeTiles: homeTiles };
+                activeData: activeData, chatLoad: chatLoad, homeTiles: homeTiles,
+                // A60: exported because js/app.js was rebuilding this same map
+                // by hand at five separate call sites, each with slightly
+                // different guards. "What has been cancelled?" must have ONE
+                // answer, or a screen quietly disagrees with the arithmetic.
+                voidedIds: voidedIds };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.Aggregate = api;
 })();

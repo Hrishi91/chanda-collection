@@ -1109,8 +1109,9 @@
           // Still a confirm, never a block: both cases have legitimate versions.
           const nm = String(a.name || '').trim().toLowerCase();
           const ph = cleanPhoneIN(a.phone || '');
-          const byName = (data.parties || []).filter(function (p) { return String(p.name || '').trim().toLowerCase() === nm; });
-          const byPhone = ph ? (data.parties || []).filter(function (p) { return cleanPhoneIN(p.phone || '') === ph; }) : [];
+          const alive = liveParties(data);
+          const byName = alive.filter(function (p) { return String(p.name || '').trim().toLowerCase() === nm; });
+          const byPhone = ph ? alive.filter(function (p) { return cleanPhoneIN(p.phone || '') === ph; }) : [];
           const hit = byPhone[0] || byName[0];
           if (hit) {
             const line = esc0(hit.name) + (hit.owner ? ' (' + hit.owner + ')' : '') +
@@ -1826,7 +1827,7 @@
       // stays put and only #list-body is rebuilt: totals stay honest, and the
       // input is never touched.
       const buildBody = function () {
-        let rows = data.parties.slice().sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+        let rows = liveParties(data).sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
         if (listFilter !== 'all' && !busRows) rows = rows.filter(function (p) { return p.type === listFilter; });
         if (listDueOnly) rows = rows.filter(function (p) { return (Number(p.pledged) || 0) - (paidBy[p.id] || 0) > 0; });
         if (listQuery) rows = rows.filter(function (p) { return matchParty(p, listQuery); });
@@ -1905,7 +1906,7 @@
     viewData().then(function (data) {
       const paidBy = Aggregate.computeTotals(data).paidByParty;
       const q = normText(memberQuery);
-      const list = (data.parties || []).filter(function (p) { return p.type === 'member'; })
+      const list = liveParties(data).filter(function (p) { return p.type === 'member'; })
         .filter(function (p) {
           return !q || normText([p.name, p.phone, p.position ? Lists.labelOf('position', p.position) : ''].join(' ')).indexOf(q) >= 0;
         })
@@ -1974,7 +1975,7 @@
     const el = document.getElementById('ma-list'); if (!el) return;
     viewData().then(function (data) {
       if (!el.isConnected) return;
-      const list = (data.parties || []).filter(function (p) { return p.type === 'member'; })
+      const list = liveParties(data).filter(function (p) { return p.type === 'member'; })
         .sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'bn'); });
       el.innerHTML = '<div class="section">' + esc(t('member_admin_count').replace('{n}', list.length)) + '</div>' +
         (list.length ? list.map(function (m) {
@@ -2013,10 +2014,12 @@
     // — before paint's own `if (!form) return` guard can help. The screen then
     // sat on "আসছে…" for ever, and only on the second visit, because the first
     // one takes the async path.
-    let members = [], form = null;
+    let members = [], form = null, memberLivePays = 0;
     loadMemberUsers(paint);
     viewData().then(function (data) {
-      members = (data.parties || []).filter(function (p) { return p.type === 'member'; });
+      members = liveParties(data).filter(function (p) { return p.type === 'member'; });
+      const v = Aggregate.voidedIds(data);
+      memberLivePays = !id ? 0 : (data.payments || []).filter(function (x) { return x.partyId === id && !v[x.id]; }).length;
       const m = members.filter(function (p) { return p.id === id; })[0];
       if (id && !m) { navigate('memberadmin'); return; }
       form = { name: (m && m.name) || '', position: (m && m.position) || '',
@@ -2093,12 +2096,27 @@
       document.getElementById('mf-save').onclick = function () { saveMemberForm(id, members); };
       const del = document.getElementById('mf-del');
       if (del) del.onclick = function () {
+        // A60: the same guard the donor form uses. Removing a member who has
+        // already paid does not lose the money — the payments are untouched —
+        // but it strips the donor row those payments point at, and the book
+        // then raises `payment_orphan` ("… donor row is missing — was the donor
+        // voided?") for every one of them, for the rest of the season. The old
+        // confirm promised "money already collected stays exactly as it is",
+        // which was true about the rupees and misleading about the book.
+        if (memberLivePays > 0) { alert(t('party_remove_has_pay').replace('{n}', String(memberLivePays))); return; }
         if (!window.confirm(t('member_remove_confirm').replace('{who}', form.name))) return;
-        DB.get('parties', id).then(function (row) {
-          if (!row) { navigate('memberadmin'); return; }
-          row.voided = 1; row.synced = 0;
-          return DB.put('parties', row).then(function () { toast(t('saved')); autoSync(); navigate('memberadmin'); });
-        }).catch(function (e) { toast(errMsg(e)); });
+        // A60: this used to set `row.voided = 1`. Nothing on either side reads
+        // that field and `parties` has no such column server-side, so the push
+        // dropped it — the member stayed in the register, on this device and
+        // every other, while the screen said "সেভ হলো" and navigated away. A
+        // remove button that removes nothing is the same failure as A19, A23,
+        // A31, A35 and A45, and it is the fifth time the repair is "use the
+        // mechanism that already works". `voids` is that mechanism: activeData
+        // and activeData_ both drop rows by targetId, so one record removes the
+        // member from the arithmetic, the reports and the lists at once.
+        DB.put('voids', DB.newRow({ targetStore: 'parties', targetId: id, reason: 'removed' }))
+          .then(function () { toast(t('party_removed')); updateBadge(); autoSync(); navigate('memberadmin'); })
+          .catch(function (e) { toast(errMsg(e)); });
       };
     }
   }
@@ -2176,6 +2194,128 @@
       DB.put('parties', row).then(done).catch(function (e) { toast(errMsg(e)); });
     }
   }
+  // A60 (audit 2.1): correcting a shop/person donor row.
+  //
+  // A FORM, not a chat flow, and edited IN PLACE — both deliberate.
+  //
+  // The flows are for capture: one question at a time, hands busy, a donor
+  // waiting. Correcting is the opposite situation — you already know which
+  // field is wrong and you want to change that one thing and leave. Walking
+  // seven questions to fix a spelling is how a correction feature goes unused.
+  //
+  // In place, and NOT the void-and-replace pattern every money row uses,
+  // because payments point at this row by `partyId`. Voiding a donor and
+  // writing a new one would orphan every rupee already collected against it.
+  // The audit trail for a donor is a different thing from the audit trail for
+  // money, and conflating them would cost the money one.
+  function renderPartyForm(params) {
+    const id = (params && params.id) || '';
+    $view().innerHTML = backBar('party', { id: id }) + '<div class="empty">' + esc(t('loading')) + '</div>';
+    let form = null, orig = null, livePays = 0;
+    viewData().then(function (data) {
+      const p = liveParties(data).filter(function (x) { return x.id === id; })[0];
+      if (!p || !canEditParty(p)) { navigate(p ? 'party' : 'list', { id: id }); return; }
+      const v = Aggregate.voidedIds(data);
+      livePays = (data.payments || []).filter(function (x) { return x.partyId === id && !v[x.id]; }).length;
+      orig = p;
+      form = { name: p.name || '', owner: p.owner || '', side: p.side || '',
+               location: p.location || '', phone: p.phone || '', pledged: p.pledged || 0 };
+      paint();
+    });
+    function paint() {
+      if (!form) return;
+      const isShop = orig.type === 'shop';
+      const opts = function (kind, cur) {
+        return Lists.get(kind).map(function (o) {
+          return '<option value="' + esc(o.id) + '"' + (o.id === cur ? ' selected' : '') + '>' +
+            esc(Lists.labelOf(kind, o.id)) + '</option>';
+        }).join('');
+      };
+      $view().innerHTML = backBar('party', { id: id }) +
+        '<div class="flow-title">✏️ ' + esc(t('party_edit_title')) + '</div>' +
+        '<div class="card">' +
+          '<div class="field"><label>' + esc(t(isShop ? 'party_f_shop' : 'party_f_person')) + '</label>' +
+          '<input id="pf-name" value="' + esc(form.name) + '" autocomplete="off"></div>' +
+          (isShop ? '<div class="field"><label>' + esc(t('party_f_owner')) + '</label>' +
+            '<input id="pf-owner" value="' + esc(form.owner) + '" autocomplete="off"></div>' +
+            '<div class="field"><label>' + esc(t('party_f_side')) + '</label>' +
+            '<select id="pf-side">' + opts('area', form.side) + '</select></div>'
+           : (Lists.get('location').length
+              ? '<div class="field"><label>' + esc(t('party_f_location')) + '</label>' +
+                '<select id="pf-loc"><option value="">—</option>' + opts('location', form.location) + '</select></div>'
+              : '')) +
+          '<div class="field"><label>📞 ' + esc(t('party_f_phone')) + '</label>' +
+          '<input id="pf-phone" value="' + esc(form.phone) + '" autocomplete="off" inputmode="tel"></div>' +
+          '<div class="field"><label>' + esc(t('party_f_pledged')) + '</label>' +
+          '<input id="pf-pledged" value="' + esc(String(Number(form.pledged) || 0)) + '" autocomplete="off" inputmode="numeric"></div>' +
+          '<div id="pf-err" class="perm-warn" style="display:none"></div>' +
+        '</div>' +
+        '<button id="pf-save" class="primary big block">' + esc(t('save')) + '</button>' +
+        // Removal is offered only when there is nothing to lose. With payments
+        // against it the button is still shown — but it explains why, instead
+        // of disappearing and leaving somebody hunting for it.
+        '<button id="pf-del" class="ghost block">' + esc(t('party_remove')) + '</button>';
+      wireNav();
+      admEl('pf-save').onclick = function () { savePartyForm(id, orig, livePays); };
+      admEl('pf-del').onclick = function () {
+        if (livePays > 0) { alert(t('party_remove_has_pay').replace('{n}', String(livePays))); return; }
+        if (!window.confirm(t('party_remove_confirm').replace('{who}', form.name))) return;
+        // A `voids` row, NOT a flag on the party. activeData/activeData_ already
+        // drop every store's rows by targetId on both sides, so this one record
+        // removes the donor from the arithmetic, the reports and the lists at
+        // once — and leaves the row itself in the Sheet, which is what an audit
+        // trail is. (The member 🗑️ used to set a `voided` field that no code
+        // read and no server column stored: see the A60 note in the build log.)
+        DB.put('voids', DB.newRow({ targetStore: 'parties', targetId: id, reason: 'removed' }))
+          .then(function () { toast(t('party_removed')); updateBadge(); autoSync(); navigate('list'); })
+          .catch(function (e) { toast(errMsg(e)); });
+      };
+    }
+  }
+  function savePartyForm(id, orig, livePays) {
+    const err = document.getElementById('pf-err');
+    const show = function (m) { err.textContent = m; err.style.display = ''; };
+    const val = function (elId) { const e = document.getElementById(elId); return e ? e.value : ''; };
+    const name = String(val('pf-name')).trim();
+    const phone = cleanPhoneIN(val('pf-phone'));
+    const pledged = Number(NumParse.parseAmount(val('pf-pledged'))) || 0;
+    if (!name) { show(t('party_need_name')); return; }
+    if (phone && phoneErrIN(phone)) { show(phoneErrIN(phone)); return; }
+    viewData().then(function (data) {
+      const v = Aggregate.voidedIds(data);
+      const paid = (data.payments || []).filter(function (x) { return x.partyId === id && !v[x.id]; })
+        .reduce(function (a, x) { return a + (Number(x.amount) || 0); }, 0);
+      // The whole reason a wrong pledge matters: it is what `overpaid` is
+      // measured against, and `overpaid` cannot be dismissed (audit 2.3), so a
+      // pledge typed below what is already collected parks a permanent red line
+      // on the 🩺 desk. Say that here, where it can still be undone in one tap,
+      // rather than letting it be discovered on the anomaly screen in October.
+      if (pledged > 0 && paid > pledged &&
+          !window.confirm(t('party_pledge_low').replace('{paid}', fmtMoney(paid)).replace('{pledged}', fmtMoney(pledged)))) return;
+      return DB.get('parties', id).then(function (row) {
+        if (!row) { navigate('list'); return; }
+        // A47's rule, applied to donors: two people may hold this screen at once
+        // and the second save silently wins. Compare against the central copy
+        // this device already has and name whose change would be lost. It sees
+        // only what has SYNCED — an honest limit, said as a hint, not a promise.
+        const clash = orig && (String(orig.name || '') !== String(row.name || '') ||
+                               String(orig.phone || '') !== String(row.phone || '') ||
+                               Number(orig.pledged || 0) !== Number(row.pledged || 0));
+        if (clash && !window.confirm(t('party_clash').replace('{name}', row.name || '?'))) {
+          navigate('party', { id: id }); return;
+        }
+        row.name = name;
+        row.phone = phone;
+        row.pledged = pledged;
+        if (row.type === 'shop') { row.owner = String(val('pf-owner')).trim(); row.side = val('pf-side') || row.side; }
+        else if (document.getElementById('pf-loc')) row.location = val('pf-loc');
+        row.synced = 0;
+        return DB.put('parties', row).then(function () {
+          toast(t('saved')); updateBadge(); autoSync(); navigate('party', { id: id });
+        });
+      });
+    }).catch(function (e) { toast(errMsg(e)); });
+  }
   function renderFindParty() {
     // Reaching donors somebody else wrote down is its own grant: it shows one
     // collector the whole committee's donor list, which is not every collector's
@@ -2208,7 +2348,7 @@
       // screens the same list twice and buried the ones you actually came
       // looking for.
       const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
-      findParties = data.parties.filter(function (p) {
+      findParties = liveParties(data).filter(function (p) {
         return (p.collectorId || p.collector) !== meId;
       }).map(function (p) {
         return { id: p.id, name: p.name, type: p.type, side: p.side, location: p.location, owner: p.owner,
@@ -2243,7 +2383,7 @@
 
   function renderParty(params) {
     viewData().then(function (data) {                    // central snapshot (+ own), instant
-      const p = (data.parties || []).filter(function (x) { return x.id === params.id; })[0];
+      const p = liveParties(data).filter(function (x) { return x.id === params.id; })[0];
       if (!p) { navigate('list'); return; }
       const voidedOf = {};
       // A47: who cancelled it and when, not only why. "Has somebody already
@@ -2288,6 +2428,9 @@
       '</div>' +
       '<button id="pay-btn" class="primary big block">💰 ' + esc(t('add_payment')) + '</button>' +
       (due > 0 && p.phone ? '<button id="remind-btn" class="ghost big block">📞 ' + esc(t('remind_btn')) + '</button>' : '') +
+      // A60 (audit 2.1): shown only to the person who wrote this row down, or
+      // an admin — see canEditParty for why that is the opposite rule to canVoid.
+      (central && canEditParty(p) ? '<button id="edit-party-btn" class="ghost block">' + esc(t('party_edit')) + '</button>' : '') +
       '</div>' +
       (keys.length ? '<div class="section">' + esc(t('who_collected')) + '</div><div class="card">' +
         keys.map(function (k) {
@@ -2310,6 +2453,8 @@
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
     const payBtn = document.getElementById('pay-btn');
     if (payBtn) payBtn.onclick = function () { startFlow(paymentFlow(p, 'list')); };
+    const editParty = document.getElementById('edit-party-btn');
+    if (editParty) editParty.onclick = function () { navigate('partyform', { id: p.id }); };
     const remindBtn = document.getElementById('remind-btn');
     if (remindBtn) remindBtn.onclick = function () {
       // opens WhatsApp with a pre-filled reminder — the collector still taps
@@ -2635,7 +2780,7 @@
         if (!d) { navigate('entries'); return; }
         rc = rcFromDailyBus(d); store = 'daily'; id = d.id;
       } else {
-        const p = (data.parties || []).filter(function (x) { return x.id === params.partyId; })[0];
+        const p = liveParties(data).filter(function (x) { return x.id === params.partyId; })[0];
         const pay = (data.payments || []).filter(function (x) { return x.id === params.payId; })[0];
         if (!p || !pay) { navigate('list'); return; }
         const voided = {}; (data.voids || []).forEach(function (v) { if (v.targetStore === 'payments') voided[v.targetId] = 1; });
@@ -2711,6 +2856,39 @@
   // Separation of duties: who may void an entry.
   //  admin → anything · cashier → a regular collector's entry (not own) ·
   //  collector → nothing (they flag/request instead).
+  // A60 (audit 2.1): who may correct a DONOR row.
+  //
+  // Deliberately the opposite rule to canVoid. A money row is append-only and
+  // you may never cancel your own — that is separation of duties, and it is
+  // why a collector cannot quietly unmake a payment they took. A donor row is
+  // not money; it is an identity that payments point AT. A mistyped pledge is
+  // wrong all season and raises a permanent `overpaid` anomaly nobody can
+  // clear; a misspelt name is unsearchable, so the next collector writes the
+  // shop down a second time and the book has twins. The person who typed it is
+  // the one standing in front of the shop, so the person who typed it should be
+  // able to fix it.
+  //
+  // Creator or admin, and no wider. A cashier is excluded on purpose: the push
+  // re-stamps identity from the token and only the admin branch preserves the
+  // original collector, so a cashier's edit would silently re-attribute the
+  // donor to the cashier.
+  // A60 (audit 2.1): ONE answer to "which donors are still in the book".
+  // Aggregation already drops voided rows through Aggregate.activeData, but the
+  // SCREENS read data.parties raw — so before this, a removed donor vanished
+  // from every total and stayed visible in every list. A row you can see, tap
+  // and add a payment to, but which no report counts, is worse than either
+  // showing it or hiding it consistently.
+  function liveParties(data) {
+    const v = Aggregate.voidedIds(data);
+    return (data.parties || []).filter(function (p) { return p && !v[p.id]; });
+  }
+  function canEditParty(p) {
+    const u = Auth.current();
+    if (!u || !p) return false;
+    if (u.role === 'admin') return true;
+    const myId = Settings.get('collectorUsername') || u.username;
+    return !!p.collectorId && p.collectorId === myId;
+  }
   function canVoid(entry) {
     const u = Auth.current();
     if (!u) return false;
@@ -3444,7 +3622,7 @@
       // cannot reach the master lists itself.
       const r = Aggregate.reconcile(data, { positionMax: Lists.maxMap() });
       const byId = {}; (data.payments || []).forEach(function (p) { byId[p.id] = p; });
-      const partyById = {}; (data.parties || []).forEach(function (p) { partyById[p.id] = p; });
+      const partyById = {}; liveParties(data).forEach(function (p) { partyById[p.id] = p; });
       const rows = r.anomalies.map(function (a) {
         if (a.type === 'possible_duplicate_payment') {
           const dup = byId[a.id], first = byId[a.firstId];
@@ -5205,6 +5383,7 @@
     else if (current.view === 'memberpay') renderMemberPay();
     else if (current.view === 'memberadmin') renderMemberAdmin();
     else if (current.view === 'memberform') renderMemberForm(current.params);
+    else if (current.view === 'partyform') renderPartyForm(current.params);
     else if (current.view === 'findparty') renderFindParty();
     else if (current.view === 'review') renderReviewCorrections();
     else if (current.view === 'audit') { Auth.isAdmin() ? renderAuditLog() : renderHome(); }

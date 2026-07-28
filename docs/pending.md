@@ -413,8 +413,11 @@ The real-phone smoke test is DONE.
   response, 2.7 formula injection, 2.9 owner index instead of a full sheet read
   per void). Split this way on purpose: every Code.gs change costs a redeploy,
   so they ride ONE. `CODE_SCHEMA` stays 2, so no phone is locked out waiting.
-- **Tier 2 client half — OPEN**: 2.1 no edit/void path for shop/person ·
-  2.2 no duplicate detection on `daily` · 2.3 `overpaid` cannot be dismissed ·
+- **2.1 FIXED in v4.12.3 (A60)** — donor rows can be corrected in place
+  (creator-or-admin, enforced both sides) and empty ones removed; the committee
+  register's 🗑️, which wrote a field nobody read, now actually removes. Twin
+  MERGING stays open on purpose: it moves money between donor rows.
+- **Tier 2 client half — OPEN**: 2.2 no duplicate detection on `daily` · 2.3 `overpaid` cannot be dismissed ·
   2.8 float epsilon · 2.10 offline receipt serial · 2.11 `flowState` lost on
   reload · 2.12 home missing the right-now figure · 2.13 toast `nowrap` +
   contrast · 2.14 `myReports()` duplication · 2.15 three phone-normalisation
@@ -426,7 +429,8 @@ The real-phone smoke test is DONE.
 ✅ **v4.12.1 redeploy DONE** (2026-07-29) — verified live: `codeVersion
 chanda-v4.12.1`, `schema 2`, config rebaked.
 
-⚠️ **One more redeploy needed for v4.12.2** (the five server fixes above).
+⚠️ **One more redeploy needed — of v4.12.3** (the five server fixes above plus
+A60's parties push gate).
 `CODE_SCHEMA` is unchanged at 2, so this one is not urgent — phones keep
 working, they just do not get the fixes. After it, enter one donor named
 `=টেস্ট` and check the name reads back plain: `safeCell_` rests on Sheets

@@ -128,6 +128,27 @@ const I18N = {
   type_bus: { bn: 'বাস', en: 'Bus' },
   skip: { bn: 'Skip', en: 'Skip' },
   back: { bn: 'পেছনে', en: 'Back' },
+  // A27's rule: a FORM must not borrow a flow's question text. The flow
+  // questions say "(না থাকলে Skip)" because a flow has a Skip button; this
+  // screen does not, and a label that promises a control that is not there is
+  // the same lie as a button that does nothing.
+  party_f_shop: { bn: 'দোকানের নাম', en: 'Shop name' },
+  party_f_person: { bn: 'নাম', en: 'Name' },
+  party_f_owner: { bn: 'মালিকের নাম', en: "Owner's name" },
+  party_f_side: { bn: 'কোন দিকে / রাস্তা', en: 'Side / road' },
+  party_f_location: { bn: 'এলাকা / জায়গা', en: 'Area / place' },
+  party_f_phone: { bn: 'ফোন নম্বর', en: 'Phone number' },
+  party_f_pledged: { bn: 'কত টাকা কথা হলো (pledge)', en: 'Pledged amount' },
+  // --- A60 (audit 2.1): correcting a donor row ---
+  party_edit: { bn: '✏️ তথ্য সংশোধন', en: '✏️ Correct details' },
+  party_edit_title: { bn: 'ডোনরের তথ্য সংশোধন', en: 'Correct donor details' },
+  party_remove: { bn: '🗑️ এই ডোনরটি সরাও', en: '🗑️ Remove this donor' },
+  party_remove_confirm: { bn: '{who} খাতা থেকে সরাবো? এই ডোনরের খাতায় এখনও কোনো টাকা জমা পড়েনি, তাই কিছু হারাবে না।', en: 'Remove {who} from the ledger? Nothing has been collected against this donor yet, so no money is affected.' },
+  party_remove_has_pay: { bn: 'এই ডোনরের নামে {n}টি জমা আছে — তাই সরানো যাবে না। আগে সেই জমাগুলো বাতিল করো।', en: 'This donor has {n} payment(s) recorded, so it cannot be removed. Cancel those payments first.' },
+  party_removed: { bn: '✖️ ডোনর সরানো হলো', en: '✖️ Donor removed' },
+  party_need_name: { bn: 'নাম লাগবেই', en: 'A name is required' },
+  party_pledge_low: { bn: 'সতর্ক: ইতিমধ্যে {paid} জমা পড়েছে, কিন্তু কথা লিখছ শুধু {pledged}। তাহলে খাতায় "বেশি জমা" দেখাবে।\n\n"Cancel" = আরেকবার দেখি · "OK" = ঠিকই আছে', en: 'Careful: {paid} has already been collected but you are recording a pledge of only {pledged}. The book will then show this donor as overpaid.\n\n"Cancel" = let me look again · "OK" = that is correct' },
+  party_clash: { bn: '⚠️ ইতিমধ্যে কেউ এই ডোনরের তথ্য বদলেছে (এখন আছে: {name})। তুমি সেভ করলে সেই বদল মুছে যাবে।\n\n"Cancel" = আগে দেখে নিই · "OK" = তবু আমারটাই বসাও', en: '⚠️ Somebody has already changed this donor (it now reads: {name}). Saving will overwrite that.\n\n"Cancel" = let me look first · "OK" = save mine anyway' },
   save: { bn: 'সেভ করো', en: 'Save' },
   cancel: { bn: 'বাতিল', en: 'Cancel' },
   next: { bn: 'পরের প্রশ্ন', en: 'Next' },

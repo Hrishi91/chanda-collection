@@ -576,7 +576,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.12.2';
+var CODE_VERSION = 'chanda-v4.12.3';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -707,6 +707,20 @@ var ACTIONS = {
           rejectedIds.push(r.row.id); return;
         }
         if (r.store === 'voids' && !voidAllowed_(user, r.row)) { rejectedIds.push(r.row.id); return; }
+        // A60 (audit 2.1): correcting a DONOR row is now offered in the UI
+        // (canEditParty), so the rule has to exist here too or it is decoration.
+        // Only the creator or an admin may change an EXISTING party. A new one
+        // is unaffected, and so is every other store.
+        //
+        // A cashier is excluded deliberately, and not for tidiness: the write
+        // loop below re-stamps collector/collectorId from the token, and only
+        // the admin branch carries the original attribution forward. A cashier
+        // editing a shop would silently move that donor into their own name.
+        if (r.store === 'parties') {
+          var own = ownerIndex_('parties')[String(r.row.id)];
+          if (own && user.row.role !== 'admin' && own.collectorId &&
+              own.collectorId !== user.row.username) { rejectedIds.push(r.row.id); return; }
+        }
         // the chat kill switch is enforced HERE, not only in the UI — otherwise
         // a phone with the screen still cached could keep writing after the
         // admin turned it off
@@ -1986,7 +2000,41 @@ function targetOwner_(store, id) {
 //   admin    → anything
 //   cashier  → a plain collector's entry, never their own
 //   anyone   → their own entry
+// A60 (audit 2.1): removing a DONOR is not the same act as voiding a payment,
+// and "may this person do it" is not the only question — "is this row removable
+// at all" comes first. A donor with money against it must not be removable by
+// anybody, admin included: the payments are not touched, so no rupee is lost,
+// but they end up pointing at a row that no longer exists and the book raises
+// `payment_orphan` for every one of them for the rest of the season. The client
+// says so before offering the button; this is the same rule where it is
+// actually enforced. One indexed read, cached per request, and only when a void
+// actually targets a party — which is rare.
+var PARTY_PAY_CACHE = null;
+function partyHasMoney_(partyId) {
+  if (!PARTY_PAY_CACHE) {
+    PARTY_PAY_CACHE = {};
+    var ss = SpreadsheetApp.getActive();
+    var voided = {};
+    var vsh = ss.getSheetByName(SHEET_TITLES.voids);
+    if (vsh && vsh.getLastRow() >= 2) {
+      var vv = vsh.getDataRange().getValues(), vt = vv[0].indexOf('targetId');
+      for (var k = 1; k < vv.length; k++) voided[String(vv[k][vt])] = 1;
+    }
+    var psh = ss.getSheetByName(SHEET_TITLES.payments);
+    if (psh && psh.getLastRow() >= 2) {
+      var pv = psh.getDataRange().getValues(), h = pv[0];
+      var pi = h.indexOf('partyId'), ii = h.indexOf('id');
+      for (var j = 1; j < pv.length; j++) {
+        if (voided[String(pv[j][ii])]) continue;
+        var key = String(pv[j][pi]);
+        PARTY_PAY_CACHE[key] = (PARTY_PAY_CACHE[key] || 0) + 1;
+      }
+    }
+  }
+  return (PARTY_PAY_CACHE[String(partyId)] || 0) > 0;
+}
 function voidAllowed_(u, row) {
+  if (String(row.targetStore || '') === 'parties' && partyHasMoney_(row.targetId)) return false;
   if (u.row.role === 'admin') return true;
   var owner = targetOwner_(String(row.targetStore || ''), row.targetId);
   if (!owner) return false;

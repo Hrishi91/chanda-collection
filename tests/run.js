@@ -2686,6 +2686,84 @@ try {
 }
 
 
+
+  // ---- A60 (audit 2.1): correcting and removing a donor row ----------------
+  {
+  const src = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  const appSrc = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  {
+    // The server rule must exist, or canEditParty is decoration.
+    const seg = src.slice(src.indexOf("if (r.store === 'voids' && !voidAllowed_"),
+                          src.indexOf("if (r.store === 'messages' && chatOff)"));
+    eq(/r\.store === 'parties'/.test(seg) && /own\.collectorId !== user\.row\.username/.test(seg), true,
+       'A60: only the creator or an admin may change an EXISTING donor row, server-side');
+    eq(/user\.row\.role !== 'admin'/.test(seg), true,
+       'A60: …with the admin exempt, because only the admin branch preserves attribution');
+
+    // and a donor with money against it is removable by NOBODY — the payments
+    // survive but point at a row that is gone, and every one of them then
+    // raises payment_orphan for the rest of the season.
+    let payRows = [['id', 'partyId'], ['pay1', 'shopA']];
+    const sheets = {
+      Voids: { getLastRow: () => 1, getDataRange: () => ({ getValues: () => [['targetId']] }) },
+      Payments: { getLastRow: () => payRows.length, getDataRange: () => ({ getValues: () => payRows }) },
+      Parties: { getLastRow: () => 3, getDataRange: () => ({ getValues: () =>
+        [['id', 'collectorId', 'collectorRole'], ['shopA', 'ratan', 'collector'], ['shopB', 'ratan', 'collector']] }) },
+    };
+    const out = {};
+    new Function('SpreadsheetApp', 'g', src +
+      '\n g.voidAllowed_ = voidAllowed_; g.partyHasMoney_ = partyHasMoney_;' +
+      '\n g.reset = function () { OWNER_CACHE = null; PARTY_PAY_CACHE = null; };')(
+      { getActive: () => ({ getSheetByName: (n) => sheets[n] || null }) }, out);
+
+    const admin = { row: { role: 'admin', username: 'hrishi', cashier: 1 } };
+    const ratan = { row: { role: 'user', username: 'ratan', cashier: 0 } };
+    out.reset();
+    eq(out.voidAllowed_(admin, { targetStore: 'parties', targetId: 'shopA' }), false,
+       'A60: a donor with a payment against it cannot be removed — not even by the admin');
+    out.reset();
+    eq(out.voidAllowed_(ratan, { targetStore: 'parties', targetId: 'shopB' }), true,
+       'A60: …while an empty donor row its creator wrote down can be');
+    out.reset();
+    eq(out.voidAllowed_(admin, { targetStore: 'payments', targetId: 'pay1' }), true,
+       'A60: …and the rule touches only parties — voiding money is unchanged');
+  }
+  {
+    // A60: the member 🗑️ wrote `voided = 1`, which no code reads and no server
+    // column stores. The button removed nothing and said "সেভ হলো".
+    // the semicolon matters: the A60 note quotes the old line, and an
+    // assertion that its own explanation trips is a test nobody can keep
+    eq(/row\.voided = 1;/.test(appSrc), false, 'A60: the dead `voided` flag is gone');
+    eq(/parties: \[[^\]]*'voided'/.test(src), false,
+       'A60: …and it never was a server column, which is why the push dropped it');
+    const mf = appSrc.slice(appSrc.indexOf('function renderMemberForm'), appSrc.indexOf('function saveMemberForm'));
+    eq(/DB\.put\('voids', DB\.newRow\(\{ targetStore: 'parties', targetId: id/.test(mf), true,
+       'A60: …removal now uses the mechanism that already works everywhere else');
+    eq(/if \(memberLivePays > 0\)/.test(mf), true,
+       'A60: …and refuses when money already points at that member');
+
+    // every screen that LISTS donors must agree with the arithmetic, which has
+    // dropped voided rows all along via Aggregate.activeData
+    eq((appSrc.match(/liveParties\(data\)/g) || []).length >= 9, true,
+       'A60: every donor listing goes through one filter, not nine hand-rolled maps');
+    eq(/function liveParties\(data\)/.test(appSrc), true, 'A60: …and that filter exists once');
+    eq(typeof require('../js/aggregate.js').voidedIds, 'function',
+       'A60: …built on the exported voidedIds, so screens and money cannot disagree');
+
+    // A27's rule applies to this form too: no flow question text, because the
+    // flow questions promise a Skip button this screen does not have.
+    const pf = appSrc.slice(appSrc.indexOf('function renderPartyForm'), appSrc.indexOf('function savePartyForm'));
+    eq(/q_phone|q_pledged|q_location|q_shop_name|q_person_name/.test(pf), false,
+       'A60: the donor form uses real field labels, not flow questions that say "Skip"');
+    eq(/party_f_shop|party_f_pledged/.test(pf), true, 'A60: …it has its own');
+    // and it is edited IN PLACE — void-and-replace would orphan every payment
+    // that points at this donor by partyId
+    eq(/DB\.put\('voids'[^)]*targetStore: def\.editing/.test(pf), false,
+       'A60: correcting a donor does NOT void-and-replace it');
+    eq(/row\.pledged = pledged;/.test(appSrc), true, 'A60: …the row is updated in place');
+  }
+  }
+
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------
 {
   const fs = require('fs');

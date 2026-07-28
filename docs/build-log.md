@@ -6249,3 +6249,112 @@ stub that proves the ten-voids-one-read claim.
 the leading apostrophe on the way back out. It is documented behaviour and the
 whole `safeCell_` design rests on it, so after the redeploy it is worth entering
 one donor named `=টেস্ট`, syncing, and checking the name reads back plain.
+
+## v4.12.3 — A60 (audit 2.1): a donor row can finally be corrected (2026-07-29)
+
+The audit's line was *"will be asked for in week one"*, and it is right. Until
+now a donor row was write-once. A mistyped pledge is wrong all season **and**
+raises a permanent `overpaid` anomaly that cannot be dismissed (2.3, still
+open), so it also parks a red line on the 🩺 desk. A misspelt name is
+unsearchable, so the next collector writes the shop down a second time and the
+book quietly grows twins.
+
+### Edited IN PLACE, not void-and-replace
+
+Every money row in this app is append-only: correcting one voids the original
+and writes a replacement, so "what did it say before" always has an answer. A
+donor row is the one thing that must NOT work that way. Payments point at it by
+`partyId` — voiding a donor and writing a new one would orphan every rupee
+already collected against it. The audit trail for a donor and the audit trail
+for money are different problems, and conflating them would cost the money one.
+
+### A form, not a chat flow
+
+The flows are for capture: one question at a time, hands busy, a donor waiting.
+Correcting is the opposite — you already know which field is wrong and you want
+to change it and leave. Walking seven questions to fix a spelling is how a
+correction feature goes unused.
+
+A27's rule applies here and the existing test caught me breaking it: the form
+first borrowed `q_phone` and `q_location`, which read "(না থাকলে Skip)" and
+"(Skip করা যায়)". This screen has no Skip button. A label that promises a
+control that is not there is the same failure as a button that does nothing, so
+the form got its own `party_f_*` labels.
+
+### Creator or admin — the OPPOSITE rule to canVoid
+
+`canVoid` forbids voiding your own money row: that is separation of duties, and
+it is why a collector cannot quietly unmake a payment they took. `canEditParty`
+inverts it, because the person who typed the shop's name is the person standing
+in front of the shop. A **cashier is excluded on purpose**: the push re-stamps
+identity from the token and only the admin branch carries the original
+attribution forward, so a cashier's edit would silently move the donor into the
+cashier's name.
+
+Enforced on the server too (`push`, parties branch) — a UI-only rule here would
+be decoration, since any client with the `shop` grant can address any row by id.
+
+### The pledge warning
+
+A pledge typed below what has already been collected is exactly what `overpaid`
+measures, and `overpaid` cannot be cleared. So it is said here, where it can
+still be undone in one tap, rather than discovered on the anomaly screen in
+October.
+
+### And a dead button found next door
+
+The committee register's 🗑️ set `row.voided = 1`. **Nothing on either side
+reads that field, and `parties` has no such column server-side**, so the push
+dropped it. The member stayed in the register — on that device and every other
+— while the screen said "সেভ হলো" and navigated away. Sixth time (A19, A23,
+A31, A35, A45, A48) that the bug is a control which reports success and does
+nothing, and the sixth time the repair is *use the mechanism that already
+works*: a `voids` row, which `activeData` and `activeData_` already honour on
+both sides.
+
+Two consequences followed, and both were real bugs of their own:
+
+- **The screens disagreed with the arithmetic.** Aggregation has dropped voided
+  rows all along, but every donor list read `data.parties` raw. A removed donor
+  would have stayed visible, tappable and payable while no report counted it.
+  One `liveParties()` now feeds all eleven listing sites, built on
+  `Aggregate.voidedIds` — newly exported, because `app.js` was rebuilding that
+  same map by hand at five call sites with slightly different guards.
+- **Removing a member who has paid is not free.** The money survives, but its
+  donor row does not, and the book then raises `payment_orphan` for every one
+  of those payments for the rest of the season. The old confirm promised "money
+  already collected stays exactly as it is" — true about the rupees, misleading
+  about the book. Both remove buttons now refuse and say how many payments are
+  in the way, and `voidAllowed_` enforces it server-side for everyone, **admin
+  included**, because this is not a permission question.
+
+### Verification — driven, not asserted
+
+Tests: **1007 passed, 0 failed**, including `voidAllowed_`/`partyHasMoney_` run
+against a stub. Then the whole thing exercised in a real browser on a **fresh
+port** (the service worker will happily serve a stale `app.js` on a reused one —
+my own recorded lesson, ignored once before):
+
+1. remove a donor with a payment → *"এই ডোনরের নামে 1টি জমা আছে — তাই সরানো যাবে না"*
+2. pledge 2,000 against 3,000 collected → the overpaid warning, and declining it
+   wrote **nothing** (`pledged` still 5000, `synced` still 1)
+3. correct the name and raise the pledge → same `id`, payment still attached,
+   `synced=0`
+4. another collector's shop → no button, and reaching `partyform` directly
+   bounces
+5. remove an empty donor → one `voids` row, the party row still in the book for
+   audit, gone from the ledger list
+6. `totalPledged` 8,000 = 6,000 + 2,000, the removed 1,000 excluded, `count: 2`,
+   zero anomalies — **the screen and the arithmetic now say the same thing**
+7. the register's 🗑️: refuses for a member with a payment, works for one
+   without, and the removed member is actually gone from the list
+
+Not included, deliberately: **merging twins.** The audit lists it under the same
+finding, but a merge moves money between donor rows, and §5 of the audit is
+right that the money engine is the thing not to damage before the puja. Being
+able to correct a name and remove an empty duplicate covers the case that
+produces twins; merging two donors that both hold payments stays open.
+
+⚠️ Code.gs changed again (the parties push gate and `partyHasMoney_`), so the
+outstanding redeploy should be of **this** commit, not v4.12.2. `CODE_SCHEMA`
+is still 2.
