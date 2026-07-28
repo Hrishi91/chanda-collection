@@ -5823,3 +5823,24 @@ new Auth.call.** 904 passed, 0 failed.
 Still open, deliberately: a true server-side conflict check needs an `updatedAt`
 on parties, a stamp on push and a schema bump. Worth doing after go-live if
 member edits ever become a two-person job — today they are Hrishi's alone.
+
+## config.js rebaked for the v4.11.0 deployment (2026-07-29)
+
+Backend redeployed. `doGet` now answers:
+
+```
+{"ok":true,"service":"chanda-khata","version":"chanda-v4.11.0",
+ "codeVersion":"chanda-v4.11.0","schema":1}
+```
+
+`schema: 1` is the important one — the A43 split is live on both sides for the
+first time, and both are 1. So client and server agree on the CONTRACT, the
+lock stays silent, and the admin's yellow "redeploy pending" line is gone.
+
+From here a client-only release does NOT need a redeploy: bump the release
+string, leave `CODE_SCHEMA` alone, and nothing nags. Only a commit that changes
+Code.gs behaviour bumps the schema — and then every phone must update before it
+can write, which is the point.
+
+config.js still pointed at the previous `/exec`, so any phone without a
+scriptUrl override in Settings was still talking to the old deployment. Rebaked.
