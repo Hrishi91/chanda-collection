@@ -309,7 +309,27 @@
       DB.STORES.forEach(function (s) {
         const byId = {};
         (centralData[s] || []).forEach(function (r) { if (r && r.id != null) byId[r.id] = r; });
-        (local[s] || []).forEach(function (r) { if (r && r.id != null) byId[r.id] = r; }); // local wins
+        // A49: local wins ONLY while the server has not seen the row.
+        //
+        // It used to win unconditionally, and `synced` was never consulted —
+        // PROJECT_CONTEXT says "this device's own UNSYNCED rows", which is what
+        // this now implements. sync.js sets synced=1 but never touches `status`,
+        // so a handover pushed as 'pending' stayed 'pending' in IndexedDB for
+        // ever. The cashier confirms it, the delta arrives correct, and this
+        // line then shadowed the confirmed row with the sender's stale copy —
+        // on আমার হিসাব, the one screen whose job is to say whether he still
+        // owes that cash. His hero stayed high and the parcel sat in ⏳ all
+        // season, while the admin's phone, where it is not a local row, read it
+        // right. Same shadow hid rejections and cleared correction flags.
+        //
+        // Not pruned: if the central snapshot is ever incomplete, the device's
+        // own copy is the only copy, and deleting it to tidy up would be a worse
+        // failure than the one being fixed.
+        (local[s] || []).forEach(function (r) {
+          if (!r || r.id == null) return;
+          if (r.synced && byId[r.id]) return; // the server owns what this device already shipped
+          byId[r.id] = r;
+        });
         merged[s] = Object.keys(byId).map(function (k) { return byId[k]; });
       });
       return merged;
@@ -4880,7 +4900,9 @@
         const sample = String(Settings.get('year') || '2026') + String(1).padStart(digits, '0');
         if (!window.confirm(t('golive_confirm3').replace('{sample}', sample))) return;
         const btn = this; btn.disabled = true;
-        Auth.call('goLive', { token: Auth.token(), digits: digits }).then(function () {
+        // A52: the admin already typed LIVE a few lines up; it used to be thrown
+        // away, so the server had no confirmation at all. Send it.
+        Auth.call('goLive', { token: Auth.token(), digits: digits, confirm: 'LIVE' }).then(function () {
           toast(t('golive_done'));
           pullCentral().then(function () { navigate('home'); }); // epoch bump wipes local training data
         }).catch(function (e) { btn.disabled = false; toast(errMsg(e)); });

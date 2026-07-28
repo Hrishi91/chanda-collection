@@ -2445,5 +2445,107 @@ try {
      'A48: …and 🔓 release session in particular — the only revoke a leaked token has');
 }
 
+
+// ---- A49 (audit 0.4): a shipped row belongs to the server -------------------
+// The merge let EVERY local row win, not just unsynced ones. sync.js sets
+// synced=1 but never touches `status`, so a handover pushed as 'pending' stayed
+// 'pending' on the sender's phone for ever: cashier confirms, the delta arrives
+// correct, and the merge then shadows it with the stale local copy. His hero
+// stays too high and the parcel sits in ⏳ all season — on the one screen whose
+// job is to say whether he still owes that cash.
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/if \(r\.synced && byId\[r\.id\]\) return;/.test(app), true,
+     'A49: a synced row the server also has does NOT shadow the server copy');
+  eq(/\(local\[s\] \|\| \[\]\)\.forEach\(function \(r\) \{ if \(r && r\.id != null\) byId\[r\.id\] = r; \}\)/.test(app), false,
+     'A49: the unconditional local-wins line is gone');
+
+  // and the behaviour, built the way it actually happens
+  const merge = function (central, local) {
+    const byId = {};
+    (central || []).forEach(function (r) { byId[r.id] = r; });
+    (local || []).forEach(function (r) {
+      if (!r || r.id == null) return;
+      if (r.synced && byId[r.id]) return;
+      byId[r.id] = r;
+    });
+    return Object.keys(byId).map(function (k) { return byId[k]; });
+  };
+  const central = [{ id: 'h1', status: 'confirmed', amount: 5000 }];
+  const local   = [{ id: 'h1', status: 'pending',   amount: 5000, synced: 1 }];
+  eq(merge(central, local)[0].status, 'confirmed',
+     'A49: the cashier\'s confirmation survives the sender\'s stale copy');
+  // an unsynced row is still this device's own truth — that part must not change
+  eq(merge(central, [{ id: 'h1', status: 'pending', amount: 5000, synced: 0 }])[0].status, 'pending',
+     'A49: an UNSYNCED local row still wins — that was always the intent');
+  // and a synced row the server has not sent back is the only copy there is
+  eq(merge([], [{ id: 'h2', status: 'pending', synced: 1 }]).length, 1,
+     'A49: a shipped row the snapshot lacks is still shown — never deleted to tidy up');
+}
+
+
+// ---- A50–A53 (audit Tier 0): the seams, and the paths that never ran --------
+{
+  const fs = require('fs');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const sync = fs.readFileSync(__dirname + '/../js/sync.js', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+
+  // 0.3 — pull samples the watermark BEFORE the rows, or a concurrent push is
+  // skipped past for ever. Three independent auditors found this one.
+  eq(/var stamp = dataTs_\(\);\n\s*var all = readAll_/.test(gs), true,
+     'A50: pull reads the watermark BEFORE the rows');
+  eq(/var cursor = Math\.max\(maxReceivedAt_\(all\), dataTs_\(\)\);/.test(gs), false,
+     'A50: …the old after-the-rows cursor is gone');
+  eq(/toEpoch_\(r\.receivedAt\) >= since/.test(gs), true,
+     'A50: the delta filter is >=, so a row sharing the stamp\'s millisecond is not dropped');
+
+  // 0.6 — handovers pass the push gate by design; the SERVER must own the fields
+  // that decide whose money it is.
+  eq(/if \(store === 'handovers'\) \{\n\s*row\.from = user\.row\.name; row\.fromId = user\.row\.username;/.test(gs), true,
+     'A51: a pushed handover is stamped FROM the token, never the payload');
+  eq(/row\.status = 'pending';\n\s*row\.confirmedBy = ''; row\.confirmedAt = ''; row\.rejectReason = '';/.test(gs), true,
+     'A51: …and cannot arrive pre-confirmed — reconcile still balances when money only moves between pockets, so 🩺 could never catch it');
+  eq(/if \(store === 'corrections'\) \{ row\.status = 'pending';/.test(gs), true,
+     'A51: a correction cannot arrive pre-resolved either');
+  // …but the receipt serial is NOT blanked: a correction re-sends the original
+  // on purpose, and the donor is holding that paper.
+  eq(/if \(store === 'payments' \|\| store === 'daily'\) row\.receiptNo = '';/.test(gs), false,
+     'A51: the correction serial is preserved — breaking a working feature to close a speculative hole is the worse trade');
+
+  // 0.1 — the most destructive action had a weaker gate than the less
+  // destructive one directly above it.
+  const gl = gs.slice(gs.indexOf('goLive: function'), gs.indexOf('goLive: function') + 1400);
+  eq(/live_mode \|\| ''\) === 'on'\) throw new Error\('already-live'\)/.test(gl), true,
+     'A52: goLive refuses once already live — it was a "delete the season" button');
+  eq(/String\(b\.confirm\) !== 'LIVE'\) throw new Error\('confirm-required'\)/.test(gl), true,
+     'A52: …and needs the typed word, server-side');
+  eq(/confirm: 'LIVE'/.test(app), true,
+     'A52: …which the client now actually sends — the admin typed it and it was thrown away');
+
+  // 0.2 — goLive's only undo could not restore the accounts.
+  eq(/data\.Users = usersSheet_\(\)/.test(gs), true, 'A52: the backup key matches SHEET_TITLES');
+  eq(/legacy = \{ users: 'Users' \}/.test(gs), true, 'A52: …and older lowercase backups still restore');
+  eq(/throw new Error\('unknown-sheet: ' \+ key\)/.test(gs), true,
+     'A52: every key is resolved BEFORE the first clear(), so a throw cannot leave the book half-restored');
+  eq(/if \(key === 'Audit' \|\| key === 'audit'\) return;/.test(gs), true,
+     'A52: the audit log is never overwritten — append-only means append-only');
+
+  // 0.5 — an offline phone injecting training money into the live book
+  eq(/if \(liveEpoch && String\(b\.epoch\) !== liveEpoch\) throw new Error\('stale-epoch'\)/.test(gs), true,
+     'A53: push refuses a batch minted before a system reset');
+  eq(/epoch: \(function \(\) \{ try \{ return localStorage\.getItem\('ck_epoch'\)/.test(sync), true,
+     'A53: …and the client sends the epoch its rows were written under');
+  eq(/b\.epoch !== undefined && b\.epoch !== null && String\(b\.epoch\) !== ''/.test(gs), true,
+     'A53: a client that sends no epoch is let through — silence must not block a collector');
+  eq(/err_stale_epoch:/.test(i18n), true, 'A53: and it says so in words, not a code');
+
+  // the stale paste buffer
+  eq(fs.existsSync(__dirname + '/../Code-gs-copy.txt'), false,
+     'A52: the six-release-stale Code.gs paste buffer is gone');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

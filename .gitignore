@@ -4,4 +4,11 @@ node_modules/
 # never commit real deployment secrets
 secrets.local.*
 # local paste-copy of Code.gs for the Apps Script editor (source of truth is apps-script/Code.gs)
-Code-gs-copy.txt
+# Code-gs-copy.txt — REMOVED 2026-07-29, and do not recreate it.
+# It sat here six releases stale (1,133 lines vs 2,103) with no CODE_VERSION,
+# no CODE_SCHEMA, no restoreBackup, no rejectHandover — and being gitignored is
+# exactly what made it dangerous: invisible to git status, under a name that
+# says "paste this in", with nothing to ever tell you it had drifted. Pasting it
+# would have silently switched off the whole version-drift machinery, so every
+# phone would report green while talking to a six-release-old backend.
+# If you want a paste buffer:  cp apps-script/Code.gs /tmp/

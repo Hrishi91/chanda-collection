@@ -25,7 +25,13 @@ const Sync = (function () {
     return DB.allData().then(function (data) {
       const recs = collectUnsynced(data);
       if (!recs.length) { inFlight = false; return { ok: true, sent: 0 }; }
-      return Auth.call('push', { token: Auth.token(), records: recs })
+      return Auth.call('push', { token: Auth.token(), records: recs,
+            // A53: the epoch this batch was written under. The server refuses
+            // the batch if the book has been reset since — a phone that was
+            // offline across go-live must not pour training money into the live
+            // book, where it would collect fresh serials and be indistinguishable
+            // from real receipts.
+            epoch: (function () { try { return localStorage.getItem('ck_epoch') || ''; } catch (e) { return ''; } })() })
         .then(function (resp) {
           const savedIds = {};
           (resp.savedIds || []).forEach(function (id) { savedIds[id] = 1; });

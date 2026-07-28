@@ -557,13 +557,13 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.11.1';
+var CODE_VERSION = 'chanda-v4.12.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
 // changes this file's behaviour, so a client-only release stops demanding a
 // redeploy that would change nothing. Bump it here and in js/auth.js together.
-var CODE_SCHEMA = 1;
+var CODE_SCHEMA = 2;
 function doGet() { return json_({ ok: true, service: 'chanda-khata', version: CODE_VERSION }); }
 
 var ACTIONS = {
@@ -637,6 +637,27 @@ var ACTIONS = {
   },
 
   push: function (b) {
+    // A53 (audit 0.5): refuse a batch minted before a system reset.
+    //
+    // goLive and restoreBackup bump data_epoch and the client honours it — but
+    // nothing ordered the pull before the push, and push never checked. A phone
+    // that was OFFLINE across the cutover regains signal, fires autoSync on the
+    // 'online' event with no pull on that path at all, and its pre-wipe training
+    // queue lands in the live book — collecting FRESH live serials from counters
+    // that were just reset to 000001, so they collide with genuine receipts and
+    // are indistinguishable from real money.
+    //
+    // residual-risks.md told Hrishi those rows would be "lost". They were not
+    // lost, they were injected, which is worse: lost data you notice.
+    //
+    // Client-side ordering is worth having too, but it cannot be the defence —
+    // the offline phone is by definition not participating in it. A client that
+    // sends no epoch at all (an older build) is let through: silence must not
+    // block a collector, and those builds pre-date the reset anyway.
+    if (b.epoch !== undefined && b.epoch !== null && String(b.epoch) !== '') {
+      var liveEpoch = String(readConfig_().data_epoch || '');
+      if (liveEpoch && String(b.epoch) !== liveEpoch) throw new Error('stale-epoch');
+    }
     var user = requireUser_(b.token);
     var lock = LockService.getScriptLock();
     lock.waitLock(20000); // 10 collectors may sync at once
@@ -743,6 +764,38 @@ var ACTIONS = {
           // the token only; A9 is untouched.)
           row.collectorRole = roleOf_(user.row.role, user.row.cashier);
           var isNew = !idRow[row.id];
+          // A51 (audit 0.6): fields only the SERVER may decide, blanked on
+          // INSERT whatever the client sent.
+          //
+          // `handovers` falls through every branch of the push gate —
+          // permForRow_ returns null for it and entryAllowed_(u, null) is true —
+          // by design, because handing your own money over needs no grant. But
+          // that also meant a hand-written row with status:'confirmed' was
+          // written verbatim, and aggregation keys on the PAYLOAD: the sender's
+          // in-hand drops, the named recipient's rises by money they never saw.
+          // No notification (already-confirmed rows are skipped) and no audit
+          // line. Worst of all, `reconcile`'s Σ inHand === collected − expenses
+          // still balances — the money only moved between pockets — so the 🩺
+          // desk cannot see it either.
+          //
+          // The settle path (confirmHandover/rejectHandover) writes these on an
+          // EXISTING row, so blanking on insert costs it nothing; SETTLED_ON_UPSERT
+          // then protects them from any later re-push.
+          if (isNew) {
+            if (store === 'handovers') {
+              row.from = user.row.name; row.fromId = user.row.username; // never from the payload
+              row.status = 'pending';
+              row.confirmedBy = ''; row.confirmedAt = ''; row.rejectReason = '';
+            }
+            if (store === 'corrections') { row.status = 'pending'; row.resolvedBy = ''; row.resolvedAt = ''; }
+            // receiptNo is deliberately NOT blanked, though an audit suggested
+            // it. A correction re-sends the ORIGINAL serial on purpose
+            // (js/app.js `__receipt`) — the donor is already holding that piece
+            // of paper, and minting a new number would leave two different
+            // serials for one receipt. Breaking a working, deliberate feature to
+            // close a speculative hole is the worse trade. The serial is a label,
+            // not a permission: nothing keys money on it.
+          }
           // one receipt serial, assigned once at first insert — every payment,
           // and daily BUS collections (they get a name+number receipt too).
           if (isNew && !row.receiptNo && (store === 'payments' || (store === 'daily' && row.type === 'bus'))) {
@@ -886,18 +939,36 @@ var ACTIONS = {
                  config: pub, me: publicUser_(u.row), notif: null, idle: true };
       }
     }
+    // A50 (audit 0.3): read the watermark BEFORE the rows.
+    //
+    // The old order sampled the rows first and the stamp second, and pull takes
+    // no lock — correct for a read, but it means a push can commit between the
+    // two. Then: A stamps receivedAt = T_r and setValues; A bumps data_ts = T_s;
+    // this reader, still walking the sheets, misses A's rows but returns the
+    // NEW stamp as the cursor. Every one of those rows is now < the client's
+    // `since` and is never delivered again — not tomorrow, not all season, only
+    // a full pull recovers. confirmHandover/rejectHandover bump receivedAt in
+    // place so the status change rides the delta, so the loss is a parcel that
+    // reads pending on one phone and confirmed on the other, about the same cash.
+    //
+    // Reading the stamp first inverts the risk: data_ts is written after the
+    // rows INSIDE the push lock, so everything committed at t0 has
+    // receivedAt <= stamp. Rows that land while readAll_ is still walking may be
+    // returned twice — once now, once on the next delta — and that is free,
+    // because mergeDelta upserts by id. Re-delivery is cheap; loss is not.
+    var stamp = dataTs_();
     var all = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
-    // one clock for both: the stamp is written after the rows, so it is always
-    // >= every receivedAt in them. Returning the larger of the two means the
-    // next poll's `since` lines up with the stamp and the fast path can fire.
-    var cursor = Math.max(maxReceivedAt_(all), dataTs_());
+    var cursor = stamp || maxReceivedAt_(all);
     var me = publicUser_(u.row); // fresh user → permission changes reach devices without re-login
     var notif = notifData_(u, all); // ride the notification feed in the same call (halves polling)
     if (b.since != null && b.since !== '') {
       var since = Number(b.since) || 0;
       var delta = {};
       Object.keys(all).forEach(function (store) {
-        delta[store] = (all[store] || []).filter(function (r) { return toEpoch_(r.receivedAt) > since; });
+        // >= not >: receivedAt is written just before data_ts, so a row can
+        // share the stamp's millisecond. Strict > drops exactly that row for
+        // ever; >= re-sends a handful of boundary rows the client upserts by id.
+        delta[store] = (all[store] || []).filter(function (r) { return toEpoch_(r.receivedAt) >= since; });
       });
       return { ok: true, mode: 'delta', data: delta, cursor: cursor, config: publicConfig_(), me: me, notif: notif };
     }
@@ -978,6 +1049,19 @@ var ACTIONS = {
 
   goLive: function (b) {
     var me = requireAdmin_(b.token);
+    // A52 (audit 0.1): the two guards clearTraining — the STRICTLY LESS
+    // destructive action — has had all along, and this one did not.
+    //
+    // Without the live_mode check goLive stays callable AFTER go-live, at which
+    // point it is a "delete the whole season's takings" button: one POST with a
+    // valid admin token empties eight transactional sheets, resets the receipt
+    // counters and force-wipes every phone via the data_epoch bump. The comment
+    // below used to say "the client gates it behind a typed confirmation" — the
+    // admin does type LIVE (js/app.js), and the string was simply thrown away
+    // instead of being sent. A confirmation that never leaves the phone is not
+    // a confirmation.
+    if (String(readConfig_().live_mode || '') === 'on') throw new Error('already-live');
+    if (String(b.confirm) !== 'LIVE') throw new Error('confirm-required');
     var digits = Math.min(9, Math.max(4, Number(b.digits) || 6)); // locked in at go-live
     // The safety snapshot is MANDATORY, not best-effort: goLive is one-way and
     // wipes every transactional sheet. If the backup can't be written (Drive
@@ -1049,8 +1133,23 @@ var ACTIONS = {
     var lock = LockService.getScriptLock(); lock.waitLock(30000);
     var restored = [];
     try {
+      // A52: resolve and check EVERY key before the first clear(). A throw
+      // halfway used to leave the book half old and half new, with data_epoch
+      // never bumped, so no phone was ever told. Validate first, then destroy.
+      var titles = {};
+      var known = { Users: 1, Lists: 1, Config: 1, Audit: 1 };
+      // backups written before this fix carry the lowercase key — they are the
+      // ones most likely to be needed, so they must still restore
+      var legacy = { users: 'Users' };
       Object.keys(data).forEach(function (key) {
-        var title = SHEET_TITLES[key] || key; // transactional stores + Users/Lists/Config/Audit
+        if (key === 'Audit' || key === 'audit') return; // append-only means append-only
+        var t = SHEET_TITLES[key] || legacy[key] || key;
+        if (!SHEET_TITLES[key] && !known[t]) throw new Error('unknown-sheet: ' + key);
+        titles[key] = t;
+      });
+      Object.keys(data).forEach(function (key) {
+        if (!titles[key]) return;
+        var title = titles[key];
         var rows = data[key];
         if (!rows || !rows.length) return;
         var sh = ss.getSheetByName(title) || ss.insertSheet(title);
@@ -1978,7 +2077,11 @@ function dailyBackup() {
     var sh = ss.getSheetByName(SHEET_TITLES[store]);
     data[store] = sh ? sh.getDataRange().getValues() : [];
   });
-  data.users = usersSheet_() ? usersSheet_().getDataRange().getValues() : [];
+  // A52 (audit 0.2): 'Users', matching SHEET_TITLES. Written lowercase, restore
+  // resolved SHEET_TITLES['users'] || 'users' and created a NEW sheet called
+  // 'users' — so every account, hash, salt, role and permission was silently NOT
+  // restored, on the one action that is goLive's only undo.
+  data.Users = usersSheet_() ? usersSheet_().getDataRange().getValues() : [];
   ['ExpenseSubjects', 'Lists', 'Config', 'Audit'].forEach(function (n) {
     var sh = ss.getSheetByName(n);
     data[n] = sh ? sh.getDataRange().getValues() : [];

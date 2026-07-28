@@ -7,14 +7,14 @@ const Auth = (function () {
   // here would depend on load order, which is the kind of thing that works in
   // testing and fails on somebody's phone. Bound to sw.js VERSION and Code.gs
   // CODE_VERSION by tests/run.js so the three cannot drift.
-  const APP_VERSION = 'chanda-v4.11.1';
+  const APP_VERSION = 'chanda-v4.12.0';
   // A43: the RELEASE string above is for people to read. This is the number
   // that decides anything: the server CONTRACT this client speaks — columns,
   // handlers, meanings. It moves only when Code.gs actually changes, so a
   // client-only release no longer demands a pointless redeploy, and no longer
   // leaves the admin staring at a "redeploy pending" line that means nothing.
   // Bump it in Code.gs and here TOGETHER, in the commit that changes the server.
-  const APP_SCHEMA = 1;
+  const APP_SCHEMA = 2;
   // What the SERVER last told us it is running. Kept in localStorage so the
   // warning survives a reload and stays true offline: once we know this device
   // is behind, going offline does not make it not behind.
@@ -29,7 +29,7 @@ const Auth = (function () {
       return v === null || v === '' ? -1 : Number(v);
     } catch (e) { return -1; }
   }
-  // "chanda-v4.11.1" → [4,10,2]. Anything unparseable returns null, and every
+  // "chanda-v4.12.0" → [4,10,2]. Anything unparseable returns null, and every
   // caller treats null as "say nothing" — a garbled version must never raise an
   // alarm the user cannot act on.
   function verNums(v) {

@@ -301,6 +301,7 @@ const I18N = {
   err_bad_username: { bn: 'Username হবে ৩-২০টা ইংরেজি ছোট অক্ষর/সংখ্যা', en: 'Username: 3-20 lowercase letters/digits' },
   err_bad_input: { bn: 'সব ঘর ঠিক করে ভরো (পাসওয়ার্ড কমপক্ষে ৬)', en: 'Fill all fields (password min 6)' },
   err_network: { bn: 'Internet/সার্ভার সমস্যা — আবার চেষ্টা করো', en: 'Network/server problem — try again' },
+  err_stale_epoch: { bn: '⚠️ এই ফোনের তথ্য পুরনো বইয়ের — Live শুরু হওয়ার আগেকার। অ্যাপটা একবার বন্ধ করে খোলো, নতুন বই নেমে আসবে।', en: '⚠️ This phone still holds entries from the pre-Live book. Close and reopen the app to pick up the new one.' },
   err_server: { bn: '⚠️ সার্ভার বলছে', en: '⚠️ Server says' },
   adm_filter_ph: { bn: '🔍 খুঁজি… ({n}টির মধ্যে)', en: '🔍 Search… (of {n})' },
   adm_filter_none: { bn: 'এই নামে কিছু পেলাম না', en: 'Nothing matches' },

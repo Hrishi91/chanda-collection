@@ -5875,3 +5875,97 @@ red on `no data-* attribute is rendered without a reader → got act`.
 
 VERIFIED live: cashier → setCashier, admin → setRole, reset → resetPassword,
 🔓 → releaseSession, block → setStatus. 914 passed, 0 failed.
+
+## v4.12.0 — audit Tier 0: every finding, in the order that bites (2026-07-29)
+
+An external eight-pass audit of v4.11.0. I verified each finding against the
+source myself before touching it; all six Tier-0 items were real. One of the
+audit's suggested fixes was wrong and is documented below as declined.
+
+Order chosen by what is happening RIGHT NOW rather than by severity on paper:
+**0.4 first**, because it was live on every phone, while goLive/restore had never
+been pressed and the cursor race needs a collision.
+
+### 0.4 → A49 · a shipped row belongs to the server
+
+`viewData` let **every** local row win, not just unsynced ones — PROJECT_CONTEXT
+says "this device's own UNSYNCED rows" and the code never consulted `synced`.
+`sync.js` sets `synced=1` but never touches `status`, so a handover pushed as
+`pending` stayed `pending` in IndexedDB for ever. The cashier confirms, the delta
+arrives correct, and the merge shadows it with the sender's stale copy — his hero
+stays ₹5,000 high and the parcel sits in ⏳ all season, on the one screen that is
+supposed to tell him whether he still owes it. Same shadow hid rejections and
+never cleared a correction flag.
+
+Not pruned, though the audit suggested it: if the central snapshot is ever
+incomplete, the device's own copy is the only copy.
+
+### 0.3 → A50 · pull could advance past rows it never returned
+
+`pull` takes no lock (right, for a read) but sampled the rows first and the
+watermark second. A push committing between the two means those rows are missed
+AND the new stamp is returned as the cursor — they are never delivered again, all
+season. `confirmHandover` bumps `receivedAt` in place precisely so a status change
+rides the delta, so the loss is one phone saying pending and another confirmed
+about the same cash. Watermark first now; the delta filter is `>=` so a row
+sharing the stamp's millisecond is not dropped. Re-delivery is free — mergeDelta
+upserts by id.
+
+### 0.6 → A51 · a forged handover passed the push gate
+
+`handovers` falls through every branch of the gate by design (handing your own
+money over needs no grant), so a row with `status:'confirmed'` was written
+verbatim — and aggregation keys on the payload. Push one row, your in-hand drops
+and a colleague's rises by money they never saw. No notification, no audit line,
+and **`reconcile` still balances**, because the money only moved between pockets.
+`from`/`fromId` now come from the token and status/confirmedBy/confirmedAt/
+rejectReason are blanked on insert; same for `corrections.status`.
+
+**Declined:** the audit also said to blank `receiptNo`. A correction deliberately
+re-sends the original serial — the donor is holding that paper — so blanking it
+would mint a second number for one receipt. Breaking a working, deliberate
+feature to close a speculative hole is the worse trade. The serial is a label; no
+money keys on it.
+
+### 0.1 → A52 · goLive had a weaker gate than clearTraining
+
+The strictly less destructive action directly above it had both guards this one
+lacked. Without the `live_mode` check goLive stayed callable **after** go-live —
+one POST with a valid admin token empties eight sheets, resets the receipt
+counters and wipes every phone. The admin already types `LIVE`; the string was
+thrown away instead of sent. Both guards added, and the client sends it.
+
+### 0.2 → A52 · goLive's only undo could not restore the accounts
+
+`dailyBackup` wrote lowercase `data.users`; `SHEET_TITLES` has no such key, so
+restore created a *new* sheet called `users` and every account, hash, salt, role
+and permission was silently not restored. Now `Users`, with the lowercase key
+still accepted — old backups are the ones most likely to be needed. Every key is
+resolved **before** the first `clear()`, so a throw cannot leave the book half
+old and half new; `Audit` is never overwritten.
+
+### 0.5 → A53 · an offline phone injected training money into the live book
+
+`goLive` bumps `data_epoch` and the client honours it, but nothing ordered the
+pull before the push and `push` never checked. A phone offline across the cutover
+regains signal, fires `autoSync` on the `online` event — **no pull on that path at
+all** — and its pre-wipe queue lands in the live book, taking fresh serials from
+counters just reset to 000001. residual-risks.md told Hrishi those rows would be
+"lost"; they were injected, which is worse, because lost data you notice.
+
+The client now sends the epoch its rows were written under and the server refuses
+the batch with `stale-epoch`. Server-side on purpose: the offline phone is by
+definition not participating in any client-side ordering. A client that sends no
+epoch is let through — silence must not block a collector.
+
+### `Code-gs-copy.txt` deleted
+
+1,133 lines against 2,103 — six releases stale, with no `CODE_VERSION`, no
+`CODE_SCHEMA`, no `restoreBackup`, no `rejectHandover`. Being gitignored is
+exactly what made it dangerous: invisible to `git status`, under a name that says
+"paste this in", with nothing to ever tell you it drifted. Pasting it would have
+switched off the version-drift machinery entirely. The .gitignore now carries
+that reasoning instead of the filename.
+
+**CODE_SCHEMA 1 → 2.** The contract changed, so every phone must update before it
+can write — which is what the schema is for. 938 passed, 0 failed.
