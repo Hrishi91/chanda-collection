@@ -2369,5 +2369,43 @@ try {
      'A46: email is NOT asked about — it buys neither a reminder nor a match, and a question with nothing behind it teaches people to tap through questions');
 }
 
+
+// ---- A47: concurrent edits — a hint, never a lock ---------------------------
+// Hrishi asked for a "claim" so two people cannot work on the same row. Locking
+// is the wrong shape for an offline-first book: a claim needs the server, so a
+// collector with no signal either cannot work or works unclaimed; and a claim
+// that cannot be released (dead battery, closed app) is a stuck row on the day
+// it matters. Every guard below therefore costs ZERO extra server calls and
+// cannot get stuck.
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+
+  // The maths was never at risk: voidedIds is a SET on targetId, so a second
+  // cancellation subtracts nothing twice. What was wrong is the BOOK — two rows
+  // for one act, reading as if two people acted.
+  const vf = app.slice(app.indexOf('function renderVoidReason'),
+                       app.indexOf('function renderVoidReason') + 2600);
+  eq(/v\.targetStore === targetStore && v\.targetId === targetId/.test(vf), true,
+     'A47: cancelling checks whether it is already cancelled…');
+  eq(/void_already/.test(vf) && /void_already:/.test(i18n), true,
+     'A47: …and says who did it and when, instead of silently writing a twin');
+  eq(/Auth\.call/.test(vf), false,
+     'A47: …using the snapshot already on the device — no extra call, nothing to lock');
+
+  // who cancelled it, on the row itself
+  eq(/voidedOf\[v\.targetId\] = \{ reason: v\.reason \|\| '', by: v\.collector \|\| '', at: v\.createdAt \|\| '' \};/.test(app), true,
+     'A47: a cancelled row carries who and when — both were already in the void row');
+  eq(/function agoText\(v\)/.test(app) && /ago_min:/.test(i18n), true,
+     'A47: shown as "3 minutes ago", which reads as recency');
+
+  // the one row this book edits in place
+  eq(/member_clash/.test(app) && /member_clash:/.test(i18n), true,
+     'A47: editing a member warns if somebody else already changed it');
+  eq(/Somebody editing offline right now is invisible|only what has SYNCED/.test(app), true,
+     'A47: …and the limit is written down where the code is, not just in a doc');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

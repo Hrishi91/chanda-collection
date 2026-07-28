@@ -116,6 +116,18 @@
     return /^\d{10}$/.test(cleanPhoneIN(s)) ? null : 'err_phone_in';
   }
   // IST day + time "YYYY-MM-DD HH:MM" for the audit log (when matters there)
+  // A47: "৩ মিনিট আগে" reads as recency; a timestamp reads as a fact you have
+  // to do arithmetic on. Anything past a day falls back to the date, because
+  // "৯ দিন আগে" is worse than the date itself.
+  function agoText(v) {
+    const then = new Date(v).getTime();
+    if (!then) return '';
+    const mins = Math.floor((Date.now() - then) / 60000);
+    if (mins < 1) return t('ago_now');
+    if (mins < 60) return t('ago_min').replace('{n}', mins);
+    if (mins < 1440) return t('ago_hr').replace('{n}', Math.floor(mins / 60));
+    return fmtDate(v);
+  }
   function fmtDateTime(v) {
     if (!v) return '';
     const d = new Date(v);
@@ -2072,6 +2084,24 @@
     if (id) {
       DB.get('parties', id).then(function (row) {
         if (!row) { navigate('memberadmin'); return; }
+        // A47: a member row is the ONE thing in this book edited in place —
+        // everything else is append-only, which is why concurrent edits have
+        // never mattered before. Two people with 🎖️ can still overwrite each
+        // other silently, so compare against the central copy this device
+        // already holds and say WHOSE change would be lost.
+        //
+        // Honest limit, and it is written on the screen as a hint rather than a
+        // promise: this sees only what has SYNCED. Somebody editing offline
+        // right now is invisible to everyone until their phone reaches the
+        // server — no lock could change that, it would only add a claim that
+        // gets stuck when a battery dies.
+        const mine = (members || []).filter(function (x) { return x.id === id; })[0];
+        const clash = mine && (String(mine.name || '') !== String(row.name || '') ||
+                               String(mine.phone || '') !== String(row.phone || '') ||
+                               String(mine.position || '') !== String(row.position || ''));
+        if (clash && !window.confirm(t('member_clash')
+              .replace('{who}', row.collector || '?')
+              .replace('{name}', row.name || '?'))) { navigate('memberadmin'); return; }
         row.name = name; row.position = position; row.email = email;
         row.phone = phone; row.appUser = appUser; row.synced = 0;
         return DB.put('parties', row).then(done);
@@ -2152,7 +2182,19 @@
       const p = (data.parties || []).filter(function (x) { return x.id === params.id; })[0];
       if (!p) { navigate('list'); return; }
       const voidedOf = {};
-      (data.voids || []).forEach(function (v) { if (v.targetStore === 'payments') voidedOf[v.targetId] = v.reason || '✓'; });
+      // A47: who cancelled it and when, not only why. "Has somebody already
+      // dealt with this?" is the question you actually have in front of a row,
+      // and the answer was sitting unused in the void row all along — every row
+      // carries its creator and time. No new column, no new call.
+      (data.voids || []).forEach(function (v) {
+        if (v.targetStore !== 'payments') return;
+        const prev = voidedOf[v.targetId];
+        // keep the FIRST cancellation: a second one changes nothing (the maths
+        // keys on targetId, so it is counted once either way) and the first is
+        // the one that actually happened.
+        if (prev && prev.at && String(prev.at) <= String(v.createdAt || '')) return;
+        voidedOf[v.targetId] = { reason: v.reason || '', by: v.collector || '', at: v.createdAt || '' };
+      });
       const pays = (data.payments || []).filter(function (x) { return x.partyId === p.id; });
       drawParty(p, pays, true, voidedOf);
     });
@@ -2190,11 +2232,14 @@
       '<div class="section">' + esc(t('payments_history')) +
         (central ? '' : ' <span class="row-sub">(' + esc(t('local_report')) + ')</span>') + '</div>' +
       (sorted.length ? sorted.map(function (x) {
-        const isVoid = voidedOf[x.id] !== undefined;
-        const reason = isVoid && voidedOf[x.id] !== '✓' ? ': ' + esc(voidedOf[x.id]) : '';
+        const vd = voidedOf[x.id];
+        const isVoid = vd !== undefined;
+        const who = isVoid && (vd.by || vd.at)
+          ? ' — ' + esc([vd.by, vd.at ? agoText(vd.at) : ''].filter(Boolean).join(', ')) : '';
+        const reason = isVoid && vd.reason && vd.reason !== 'undo' ? ': ' + esc(vd.reason) : '';
         return '<div class="row' + (isVoid ? ' voided' : '') + '"><div>' + esc(fmtDate(x.date || x.createdAt)) +
           '<div class="row-sub">' + esc(x.collector || '') + (x.note ? ' • ' + esc(x.note) : '') +
-          (isVoid ? ' • <span class="void-tag">' + esc(t('voided_label')) + reason + '</span>' : '') + '</div></div>' +
+          (isVoid ? ' • <span class="void-tag">' + esc(t('voided_label')) + who + reason + '</span>' : '') + '</div></div>' +
           '<b>' + fmtMoney(x.amount) + '</b>' +
           (isVoid ? '' : '<button class="chip" data-receipt="' + esc(x.id) + '">🧾</button>') +
           (isVoid || !canVoid(x) ? '' : '<button class="chip void-btn" data-void="' + esc(x.id) + '">' + esc(t('void_btn')) + '</button>') + '</div>';
@@ -2636,9 +2681,28 @@
     document.getElementById('void-ok').onclick = function () {
       const reason = document.getElementById('void-reason').value.trim();
       if (!reason) { toast(t('void_need_reason')); return; }
-      this.disabled = true;
-      DB.put('voids', DB.newRow({ targetStore: targetStore, targetId: targetId, reason: reason }))
-        .then(function () { toast(t('voided_done')); updateBadge(); autoSync(); backFn(); });
+      const btn = this;
+      btn.disabled = true;
+      // A47: somebody may have cancelled this while you were typing the reason.
+      // The MATHS was never at risk — Aggregate.voidedIds keys on targetId, so a
+      // second cancellation subtracts nothing twice — but two rows in the book
+      // for one act is a lie about what happened, and it makes the audit read
+      // as if two people acted when one did. Checked here, at the moment of
+      // writing, against the central snapshot this device already holds: no
+      // lock to get stuck, and no extra call.
+      viewData().then(function (data) {
+        const done = (data.voids || []).filter(function (v) {
+          return v.targetStore === targetStore && v.targetId === targetId;
+        })[0];
+        if (done) {
+          alert(t('void_already').replace('{who}', done.collector || '?')
+            .replace('{when}', done.createdAt ? agoText(done.createdAt) : ''));
+          backFn();
+          return;
+        }
+        return DB.put('voids', DB.newRow({ targetStore: targetStore, targetId: targetId, reason: reason }))
+          .then(function () { toast(t('voided_done')); updateBadge(); autoSync(); backFn(); });
+      }).catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
     };
   }
   // Correcting your own flagged entry. The old row is voided and a new one

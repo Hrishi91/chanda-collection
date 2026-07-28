@@ -5767,3 +5767,59 @@ questions — including the one that matters.
 VERIFIED live: saving a member with no phone asks, Cancel focuses the phone box
 and nothing is written; and the two messages captured from the form and from the
 flow are identical character for character. 897 passed, 0 failed.
+
+## v4.11.0 — A47: concurrent edits get a hint, not a lock (2026-07-29)
+
+Hrishi proposed a "claim" so two people cannot edit or void the same row at
+once, and asked me to weigh performance too.
+
+### The observation first, because it changed the answer
+
+I checked what already exists rather than assuming. Confirm / reject / resolve
+are **already** guarded server-side (`already-confirmed`, `already-rejected`,
+`already-resolved`) — every money decision was safe. And `Aggregate.voidedIds`
+builds a **set** keyed on targetId, so a second cancellation never subtracted
+twice either. **The maths was never at risk.** What was wrong was narrower and
+still worth fixing: two rows in the book for one act, and silent overwrites on
+the one row this book edits in place.
+
+### Why not a lock
+
+- **A claim needs the server.** Offline-first means a collector with no signal
+  either cannot work, or works unclaimed and the lock is decoration.
+- **A claim that cannot be released is a trap.** Dead battery, closed app, lost
+  signal → a stuck row on collection day. That is the shape this project has hit
+  five times (A19, A26, A31, A45, A46).
+- **The cost is measurable.** Today ~4,360 calls/day across twelve phones. A
+  claim adds two per edit plus heavier polling — and we spent this whole session
+  removing calls (admin panel: 350 → 11).
+
+### What shipped instead — all three at zero extra calls
+
+1. **Cancelling checks first.** If somebody already cancelled it, you are told
+   who and when, and no twin row is written.
+2. **A cancelled row says who and when** — "বাতিল — রতন সাহা, ৩ মিনিট আগে: ভুল
+   করে দুবার". Both facts were already sitting in the void row; nothing new is
+   stored or fetched.
+3. **Editing a member warns** if somebody else changed it while the form was
+   open, naming what it now says, so you decide instead of silently overwriting.
+
+`agoText()` shows minutes and hours, then falls back to the date — "৯ দিন আগে"
+is worse than the date itself.
+
+### The limit, written in the code and not only here
+
+All three see only what has **synced**. Somebody editing offline right now is
+invisible until their phone reaches the server. No lock could change that — it
+would only add a claim that gets stuck. So the wording is a hint ("৩ মিনিট আগে
+ছুঁয়েছে"), never a promise.
+
+VERIFIED live: the cancelled row reads "বাতিল — রতন সাহা, 3 মিনিট আগে: ভুল করে
+দুবার"; cancelling something cancelled mid-typing says "এটা আগেই বাতিল হয়ে গেছে
+— রতন সাহা, 1 মিনিট আগে" and leaves exactly one void row; editing a member
+someone else just changed warns and does not overwrite. **git diff shows zero
+new Auth.call.** 904 passed, 0 failed.
+
+Still open, deliberately: a true server-side conflict check needs an `updatedAt`
+on parties, a stamp on push and a schema bump. Worth doing after go-live if
+member edits ever become a two-person job — today they are Hrishi's alone.

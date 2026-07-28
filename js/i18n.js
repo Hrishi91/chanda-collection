@@ -612,6 +612,11 @@ const I18N = {
   void_confirm: { bn: '✖️ বাতিল করো', en: '✖️ Void it' },
   void_need_reason: { bn: 'কারণ লিখতে হবে', en: 'A reason is required' },
   voided_done: { bn: '✖️ বাতিল হলো', en: '✖️ Voided' },
+  member_clash: { bn: '⚠️ ইতিমধ্যে কেউ এই সদস্যের তথ্য বদলেছে (এখন আছে: {name})। তুমি সেভ করলে সেই বদল মুছে যাবে।\n\n"Cancel" = আগে দেখে নিই · "OK" = তবু আমারটাই বসাও', en: '⚠️ Somebody has already changed this member (it now reads: {name}). Saving will overwrite that.\n\n"Cancel" = let me look first · "OK" = save mine anyway' },
+  ago_now: { bn: 'এইমাত্র', en: 'just now' },
+  ago_min: { bn: '{n} মিনিট আগে', en: '{n} min ago' },
+  ago_hr: { bn: '{n} ঘণ্টা আগে', en: '{n} h ago' },
+  void_already: { bn: 'এটা আগেই বাতিল হয়ে গেছে — {who}, {when}। দুবার বাতিল করার দরকার নেই।', en: 'This was already cancelled — {who}, {when}. No need to cancel it twice.' },
   voided_label: { bn: 'বাতিল', en: 'VOID' },
   // --- my entries + flag/correction ---
   my_entries_title: { bn: '✏️ আমার entry / সংশোধন', en: '✏️ My entries / fix' },
