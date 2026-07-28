@@ -557,7 +557,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.12.0';
+var CODE_VERSION = 'chanda-v4.12.1';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -2070,6 +2070,23 @@ function backupFolder_() {
 // callers can log/report exactly which snapshot they took. Timestamped to the
 // minute so several backups in one day (e.g. a manual one right before Go
 // Live) never overwrite each other.
+// A58 (audit 1.1): a session token IS the login. It is not a hash of anything —
+// requireUser_ takes the raw string and hands back the account. Backups sat in
+// Drive with one live token per user, so any file that ever leaked (shared
+// folder, forwarded link, an old laptop) was a permanent, silent login for
+// every collector and for the admin — no password needed, nothing to notice.
+// Passwords are salted and iterated; tokens were plaintext. So the tokens come
+// out. The column stays, so USER_COLS still lines up on restore; only the value
+// goes. Consequence, and it is the right one: restoring a backup logs everybody
+// out and they sign in again. A restore is a disaster action — being asked for
+// your password once is the correct price.
+function stripTokens_(values) {
+  var ci = USER_COLS.indexOf('token');
+  if (ci < 0 || !values || values.length < 2) return values;
+  // header row untouched — restore reads it back by position
+  for (var i = 1; i < values.length; i++) values[i][ci] = '';
+  return values;
+}
 function dailyBackup() {
   var ss = SpreadsheetApp.getActive();
   var data = {};
@@ -2081,7 +2098,7 @@ function dailyBackup() {
   // resolved SHEET_TITLES['users'] || 'users' and created a NEW sheet called
   // 'users' — so every account, hash, salt, role and permission was silently NOT
   // restored, on the one action that is goLive's only undo.
-  data.Users = usersSheet_() ? usersSheet_().getDataRange().getValues() : [];
+  data.Users = stripTokens_(usersSheet_() ? usersSheet_().getDataRange().getValues() : []);
   ['ExpenseSubjects', 'Lists', 'Config', 'Audit'].forEach(function (n) {
     var sh = ss.getSheetByName(n);
     data[n] = sh ? sh.getDataRange().getValues() : [];

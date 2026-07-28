@@ -396,6 +396,31 @@ live. Remaining before go-live: the checklist in final-audit.md §G — and as o
 redeploy, token rotation, master data, clear test data, all-synced-then-GoLive).
 The real-phone smoke test is DONE.
 
+**→ External audit `AUDIT-2026-07-29.md` (Chanda_collection_analyser).** Read
+2026-07-29, worked in the audit's own order.
+
+- **Tier 0 — all six FIXED in v4.12.0.** Pull cursor (A50), push identity
+  stamping (A51), goLive guards + backup/restore of `Users` (A52), stale-epoch
+  rejection (A53), and the one that was live-broken on every device: the
+  `viewData` merge letting a stale local row shadow the server's (A49).
+- **Tier 1 — all FIXED in v4.12.1.** Duplicate-decline trap + honest catch-all
+  (A54), rejected-row badge (A54), SW shell/extras split + navigate timeout +
+  cache verification + 19% lossless icon recompression (A55), `Lists` memo +
+  debounce + refresh throttle (A56), `scope-check` lookbehind (A57), and
+  backups no longer carrying live login tokens (A58).
+- **Tier 2 (2.1–2.20) — OPEN**, in the audit's order. Largest items: no
+  edit/void path for shop/person; no duplicate detection on `daily`;
+  `overpaid` cannot be dismissed; `rolloverYear` missing `touchData_()`;
+  unlocked read-modify-write in confirm/rejectHandover; sheet formula
+  injection; float epsilon; `voidAllowed_` reading a whole sheet inside the
+  push lock; offline receipt serial; `flowState` not persisted across a reload.
+- **§7 documentation drift — OPEN** (e.g. `money-model.md` says eight anomaly
+  types where the code now has nine).
+
+⚠️ **Code.gs redeploy is outstanding and mandatory.** v4.12.0 bumped
+`CODE_SCHEMA` 1 → 2, so no phone may write until the server is redeployed;
+v4.12.1's `stripTokens_` rides the same redeploy.
+
 ## P1 — nice-to-have before puja
 
 - [x] ~~Receipt image per payment~~ — superseded by the full receipt feature

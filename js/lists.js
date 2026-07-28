@@ -25,8 +25,21 @@ window.Lists = (function () {
       { id: 'member', nameBn: 'সদস্য', nameEn: 'Member', maxCount: 0, perms: '' },
     ],
   };
+  // A56: memoised on the RAW string, so it stays correct across writes without
+  // anyone having to remember to invalidate it. cache() is reached through
+  // labelOf → get, and matchParty calls labelOf twice per donor while the row
+  // builder calls it twice more — at 500 donors that was ~1,000 JSON.parse per
+  // keystroke in 📒 খাতা's search. Measured: 7.6 ms on an Apple-silicon Mac,
+  // so roughly 90 ms per letter on the ₹5,000 Android this is actually for —
+  // on the screen a collector opens to look somebody up with a donor waiting.
+  // (A42 was verified against 8 rows; this only shows at real volume.)
+  let memo = null, memoRaw = null;
   function cache() {
-    try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; }
+    try {
+      const raw = localStorage.getItem(KEY) || 'null';
+      if (raw !== memoRaw) { memoRaw = raw; memo = JSON.parse(raw); }
+      return memo;
+    } catch (e) { return null; }
   }
   function get(kind) {
     const c = cache();
@@ -40,8 +53,18 @@ window.Lists = (function () {
     const lang = (window.Settings && Settings.get('lang')) || 'bn';
     return (lang === 'en' ? item.nameEn : item.nameBn) || item.nameBn || item.nameEn || String(id);
   }
-  function refresh() {
+  // A56: areas and locations change twice a season. This was called on every
+  // 60 s poll, every window focus and every 🏪/🙍/🤝 tap — with eleven
+  // collectors, ~1,320 needless Apps Script invocations an hour against a
+  // 90-minute daily quota, and quota exhaustion looks like a generic network
+  // failure. Once every five minutes is far more often than the data changes.
+  let lastRefresh = 0;
+  const REFRESH_MS = 5 * 60 * 1000;
+  function refresh(force) {
     if (!navigator.onLine || !Auth.loggedIn() || !Sync.configured()) return Promise.resolve();
+    const now = Date.now();
+    if (!force && lastRefresh && (now - lastRefresh) < REFRESH_MS) return Promise.resolve();
+    lastRefresh = now;
     return Auth.call('listItems', { token: Auth.token() }).then(function (resp) {
       const by = { area: [], location: [] };
       (resp.items || []).forEach(function (it) { (by[it.kind] = by[it.kind] || []).push(it); });

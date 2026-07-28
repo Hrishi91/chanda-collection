@@ -52,7 +52,12 @@ const Sync = (function () {
                   live.synced = 1; live.syncedAt = new Date().toISOString();
                   if ((s === 'payments' || s === 'daily') && receipts[live.id]) live.receiptNo = receipts[live.id]; // adopt the serial
                 } else {
-                  live.rejected = 1; // server permission gate refused it — out of the queue
+                  // A54: out of the queue, but NOT silent. This is the moment
+                  // the collector can still do something about it — later they
+                  // would have to notice a small tag inside ✏️ আমার entry, which
+                  // nobody opens unless something already looks wrong.
+                  live.rejected = 1;
+                  try { window.dispatchEvent(new CustomEvent('ck-rejected')); } catch (e) {}
                 }
                 return DB.put(s, live);
               }));

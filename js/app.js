@@ -148,10 +148,23 @@
   // ---------- header / nav ----------
   let unsyncedN = 0; // mirrored synchronously for the beforeunload guard
   function updateBadge() {
-    DB.unsyncedCount().then(function (n) {
+    // A54 (audit 1.4): a REFUSED row is not "synced". The badge used to skip
+    // them entirely and go green — "সব sync হয়ে গেছে ✅" — while a donor walked
+    // away holding a numbered receipt for money that is in nobody's book, and
+    // reconcile could not contradict it because the row is not there. Refusal
+    // gets its own red state, ahead of the pending count: nothing to retry, but
+    // very much something to do.
+    Promise.all([DB.unsyncedCount(), DB.rejectedCount()]).then(function (r) {
+      const n = r[0], bad = r[1];
       unsyncedN = n;
       const b = document.getElementById('sync-badge');
       if (!b) return;
+      if (bad) {
+        b.textContent = '🚫 ' + bad;
+        b.className = 'badge rejected';
+        b.title = t('rejected_n').replace('{n}', bad);
+        return;
+      }
       b.textContent = n ? '⏳ ' + n : '✅';
       b.className = 'badge ' + (n ? 'warn' : 'ok');
       b.title = n ? n + t('unsynced_n') : t('all_synced');
@@ -655,8 +668,28 @@
       savingFlow = false;
       const msg = String(e && e.message);
       if (msg === 'zero') { toast(t('amount_zero')); rewindToAmount() || goBack(); }
-      else if (msg === 'cancelled') { rewindToKey('name') || goBack(); }
-      else { toast(t('amount_zero')); rewindToAmount() || goBack(); }
+      else if (msg === 'cancelled') {
+        // A54 (audit 1.2): saying "no, that IS a duplicate" must END the entry.
+        // rewindToKey('name') works in newPartyFlow, which has a name step —
+        // paymentFlow does not, so it returned false and goBack() dropped the
+        // collector on "কোনো নোট?" with no message. Tapping Skip re-ran the save,
+        // re-asked the same question, for ever; the only way out was hardware
+        // Back, which also discards the entry. With a donor waiting, the second
+        // answer is OK — recording the duplicate they had just correctly
+        // refused. The whole A22 defence inverted under exactly the pressure it
+        // was built for.
+        if (!rewindToKey('name')) {
+          flowState = null;
+          toast(t('dup_cancelled'));
+          navigate(def.returnTo || 'home');
+        }
+      }
+      // A54 (audit 1.3): an IndexedDB write failure, a full phone, a Lists
+      // throw — all of them used to say "মোট টাকা ০ হতে পারে না" and drop the
+      // collector back on the amount, where retyping ₹500 produced the same
+      // sentence. That is the lie A35 was written to stop, one screen away.
+      // Say what happened, and do NOT rewind: rewinding invites infinite retry.
+      else { toast(t('save_failed') + ': ' + errMsg(e)); }
     });
   }
   // Land back on the money-amount step after a zero-total rejection.
@@ -1827,10 +1860,21 @@
       wireRows();
       const fpBtn = document.getElementById('find-party');
       if (fpBtn) fpBtn.onclick = function () { findQuery = ''; navigate('findparty'); };
+      // A56: rebuild after the typing PAUSES, not on every letter. The body is
+      // rebuilt from every party and each row asks Lists for two labels, so on a
+      // cheap phone with a real book that was ~90 ms of work per keystroke —
+      // enough to make the keyboard feel stuck. 120 ms is below noticing and
+      // collapses a burst of typing into one rebuild.
+      let searchTimer = null;
       document.getElementById('search').oninput = function (e) {
         listQuery = e.target.value;
-        document.getElementById('list-body').innerHTML = buildBody();
-        wireRows();
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function () {
+          const body = document.getElementById('list-body');
+          if (!body) return;
+          body.innerHTML = buildBody();
+          wireRows();
+        }, 120);
       };
       document.querySelectorAll('[data-f]').forEach(function (c) {
         c.onclick = function () { listFilter = c.dataset.f; renderList(); };
@@ -4312,7 +4356,7 @@
         it.maxCount = admPosDraft.max;
         it.perms = admPosDraft.perms.join(',');
         admPosDraft = null;
-        Lists.refresh();            // the entry screens read posts from here
+        Lists.refresh(true);        // just edited — the entry screens need it NOW
         toast('✅ ' + t('saved'));
         paintAdmin(admCache);
       }).catch(function (e) {
@@ -4370,14 +4414,14 @@
   }
   function admListAction(action, payload, patch) {
     Auth.call(action, Object.assign({ token: Auth.token() }, payload)).then(function () {
-      if (patch) { patch(); Lists.refresh(); admRepaint(); return; }
+      if (patch) { patch(); Lists.refresh(true); admRepaint(); return; }
       // add: fetch back just the list that grew
       const isSubject = action.indexOf('Subject') > 0;
       Auth.call(isSubject ? 'listSubjects' : 'listItems', { token: Auth.token() })
         .then(function (r) {
           if (isSubject) admCache[1] = { subjects: r.subjects || [] };
           else admCache[2] = { items: r.items || [] };
-          Lists.refresh(); admRepaint();
+          Lists.refresh(true); admRepaint();
         }).catch(function () { renderAdmin(true); });
     }).catch(function (e) { alert('⚠️ ' + action + '\n\n' + errMsg(e)); });
   }
@@ -5184,6 +5228,16 @@
   // Session invalidated (another device logged in with this account, or blocked):
   // Auth.call already cleared the local session — bounce to login with a note.
   let authKicked = false;
+  // A54: say it out loud, once, at the moment it happens — and light the dot on
+  // ✏️ আমার entry, where the row and its red tag actually are.
+  window.addEventListener('ck-rejected', function () {
+    DB.rejectedCount().then(function (n) {
+      if (!n) return;
+      toast(t('rejected_n').replace('{n}', n));
+      dotState.entries = 1;
+      if (!flowState && current.view === 'home') renderHome();
+    });
+  });
   window.addEventListener('ck-auth-invalid', function (e) {
     if (authKicked) return; authKicked = true;
     Voice.stop(); flowState = null; authView = 'login';
@@ -5240,7 +5294,18 @@
         }
         location.reload();
       });
-      navigator.serviceWorker.register('sw.js');
+      // A55: nobody ever asked whether the shell actually cached. Registration
+      // resolving means the worker script downloaded, not that install
+      // succeeded — so a collector could believe the app worked offline when it
+      // had never cached a byte. Ask, once, and say so if the answer is no.
+      navigator.serviceWorker.register('sw.js').then(function () {
+        setTimeout(function () {
+          if (!window.caches) return;
+          caches.has(Auth.APP_VERSION).then(function (ok) {
+            if (!ok) toast(t('offline_not_ready'));
+          }).catch(function () {});
+        }, 8000);
+      }).catch(function () { toast(t('offline_not_ready')); });
     }
     // The bar has to appear the moment the server's version lands, not on the
     // next navigation — the whole point is that nobody has to go looking for it.

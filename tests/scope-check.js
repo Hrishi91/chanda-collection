@@ -60,7 +60,16 @@ fns.forEach(f => {
   const arrows = /(?:\(([^)]*)\)|([A-Za-z_$][A-Za-z0-9_$]*))\s*=>/g;
   while ((d = arrows.exec(f.body))) (d[1] || d[2] || '').split(',').forEach(p => { const n = p.trim(); if (n) seen.add(n); });
 
-  const calls = /(?:^|[^A-Za-z0-9_$.])([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g;
+  // A57: a LOOKBEHIND, not a consumed character.
+  //
+  // The old guard ate the character before the identifier, so when one match
+  // ended on '(' the very next identifier was skipped — and esc(...), t(...),
+  // fmtMoney(...) wrapping is the dominant idiom in this file, so the blind spot
+  // sat exactly where the code is densest. `esc(missingFn(1))` reported only
+  // `esc`. A rename could break two live call sites and still print
+  // "904 passed + scope check clean", which is how eight admin buttons went out
+  // dead (A48).
+  const calls = /(?<![A-Za-z0-9_$.])([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g;
   let c;
   while ((c = calls.exec(f.body))) {
     if (!seen.has(c[1])) problems.push(f.name + '() calls ' + c[1] + '() — declared in no reachable scope');

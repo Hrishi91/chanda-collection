@@ -5969,3 +5969,133 @@ that reasoning instead of the filename.
 
 **CODE_SCHEMA 1 → 2.** The contract changed, so every phone must update before it
 can write — which is what the schema is for. 938 passed, 0 failed.
+
+## v4.12.1 — audit Tier 1: the six that only bite when something goes wrong (2026-07-29)
+
+Tier 0 was "wrong on a good day". Tier 1 is the opposite: every one of these
+sits quiet until a duplicate is refused, a row is rejected, an asset 404s, a
+network goes silent, or a collector types into a search box with 500 donors
+loaded. That is exactly why they survive testing — nothing here is on the happy
+path, and the happy path is all a test on eight rows ever walks.
+
+Hrishi said "no phone is being used now / we can go ahead", so all six landed
+together.
+
+### 1.2 + 1.3 (A54) — refusing a duplicate trapped you, and every other failure lied
+
+`finishFlow`'s catch had two branches and both were wrong.
+
+`'cancelled'` — the collector saw the duplicate popup, read it, decided "no,
+this is the same donor", and pressed cancel. The code called
+`rewindToKey('name')`. `paymentFlow` has no `name` step, so it returned false
+and fell through to `goBack()`, which put them on **"কোনো নোট?"** with no
+message at all. Answer it and the save re-ran and the popup came back. Skip it
+and the save re-ran and the popup came back. There is no exit in that loop, and
+there is a donor standing there. The way out most people find is to press OK —
+recording the duplicate they had just correctly refused. **A guard that traps
+you gets defeated, and it gets defeated in the wrong direction.**
+
+Now it ends the entry and says so: `flowState = null`, `toast(t('dup_cancelled'))`,
+back to where the flow came from.
+
+The catch-all was worse in a quieter way. *Every* unexpected exception —
+IndexedDB quota, a `Sync` throw, a typo in a helper — printed **"টাকা শূন্য
+হতে পারে না"** and rewound to the amount question. So the collector retyped a
+perfectly good amount, over and over, chasing an error that had nothing to do
+with the amount. Now it says `t('save_failed') + ': ' + errMsg(e)` and does not
+rewind — this is the fifth time (A19, A23, A31, A35, A45) that the fix is the
+same fix: **a message that cannot say "I don't know" says something false
+instead, and a retry loop makes people brute-force past it.**
+
+### 1.4 (A54) — a row the server refused left the queue and the badge went green
+
+`unsyncedCount()` counted pending rows. A rejected row is not pending, so the
+header showed the calm green count and the collector had no reason to look
+anywhere. The money was gone and the app said everything was fine.
+
+`DB.rejectedCount()` now counts them separately, the badge shows a red
+`🚫 n` **ahead of** the pending count, and `Sync` fires `ck-rejected` at the
+moment it happens so it arrives as a toast rather than waiting in a screen
+nobody opens.
+
+### 1.5 (A55) — one flaky icon cost the collector their whole offline app
+
+`cache.addAll()` is all-or-nothing. The precache was 1,035,914 bytes and
+**456,615 of it — 44% — was two icons**, which no offline screen needs to
+function. A single 404 or a truncated response on either one aborted the entire
+install, so the phone had no app shell and nobody was told; it surfaced days
+later, in a field, as a white screen.
+
+Split: `SHELL` stays all-or-nothing (it genuinely is), `EXTRAS` is best-effort
+with `.catch(function () {})`. Then two more holes in the same area:
+
+- the navigate handler's `.catch` never fires on a network that accepts the
+  connection and goes quiet — the request just hangs, and so does the screen.
+  It now races a 4 s timer against the fetch.
+- **nothing ever asked whether the install worked.** Registration now checks
+  `caches.has(Auth.APP_VERSION)` after 8 s and toasts `offline_not_ready`, so
+  the phone finds out on the sofa instead of at the roadside.
+
+Icons recompressed losslessly with zopflipng: 456,615 → 366,942 bytes, −89,673
+(19%), verified pixel-for-pixel identical in RGBA before committing.
+
+### 1.6 (A56) — ~1,000 `JSON.parse` per keystroke, and a refresh nobody throttled
+
+`Lists.cache()` parsed localStorage on every call. `labelOf` → `get` → `cache`,
+and 📒 খাতা's search calls `labelOf` twice per donor in `matchParty` and twice
+more in the row builder. At 500 donors that is ~1,000 parses **per letter
+typed**. Measured here: 7.6 ms per 1,000 on Apple silicon — so roughly 90 ms a
+letter on the ₹5,000 Android this is actually written for, on the one screen a
+collector opens to look somebody up while a donor waits. A42 was verified
+against 8 rows, which is why it looked fine.
+
+Memoised on the **raw string**, so it cannot go stale without anyone having to
+remember to invalidate it. Plus a 120 ms debounce on the search.
+
+`Lists.refresh()` ran on every 60 s poll, every window focus and every 🏪/🙍/🤝
+tap. Areas and locations change about twice a season. With eleven collectors
+that was ~1,320 needless Apps Script invocations an hour against a 90-minute
+daily quota — and quota exhaustion arrives disguised as a generic network
+error, which is the most expensive possible disguise. Throttled to 5 minutes,
+with `refresh(true)` at the three admin edit sites so an edit still lands at
+once.
+
+### 1.7 (A57) — the scope check was blind to the codebase's own idiom
+
+The A48 test was supposed to be the net under "it renders but does nothing".
+Its call-site regex consumed the character before the identifier, so whenever
+one match ended on `(` the **next** identifier was skipped. `esc(...)`,
+`t(...)` and `fmtMoney(...)` wrapping is the dominant idiom in `js/app.js`, so
+the blind spot sat precisely where the code is densest — `esc(missingFn(1))`
+reported only `esc`.
+
+Changed to a lookbehind. Proven, not asserted: with `esc(totallyMissingFn(1))`
+planted inside `noGrantCard`, the old regex printed **939 passed, 0 failed** and
+a clean scope check; the new one fails the run and names the function. A rename
+could have broken two live call sites and still shown all green — which is
+precisely how eight admin buttons shipped dead.
+
+### 1.1 remainder (A58) — every backup file was a permanent login for everyone
+
+Half of 1.1 (the dead buttons) landed in v4.11.1. The other half was still open:
+`dailyBackup` wrote the `token` column verbatim. A token is not a hash of
+anything — `requireUser_` takes the raw string and hands back the account. So
+any backup that ever leaked (shared folder, forwarded link, an old laptop) was a
+silent, permanent login for every collector **and for the admin**, with no
+password and nothing to notice. Passwords are salted and iterated; the tokens
+sat there in plaintext beside them.
+
+`stripTokens_` blanks the value and keeps the column, so `USER_COLS` still lines
+up on restore. The consequence is deliberate: **restoring a backup now logs
+everybody out and they sign in again.** A restore is a disaster action — being
+asked for your password once is the correct price.
+
+### Verification
+
+`node tests/run.js` → **956 passed, 0 failed**, scope check clean. 17 new
+assertions, each bound to the specific wrong behaviour rather than to the fix,
+so a revert fails them by name.
+
+`CODE_SCHEMA` stays **2** — nothing here changed the server contract. But
+Code.gs did change (`stripTokens_`), so **this rides the redeploy v4.12.0
+already required.**

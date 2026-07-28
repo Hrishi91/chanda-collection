@@ -2233,8 +2233,8 @@ try {
   const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
   eq(/function admListAction\(action, payload, patch\)/.test(app), true,
      'A40: list edits go through one path…');
-  eq(/if \(patch\) \{ patch\(\); Lists\.refresh\(\); admRepaint\(\); return; \}/.test(app), true,
-     'A40: …rename and delete patch the cache — no re-read at all');
+  eq(/if \(patch\) \{ patch\(\); Lists\.refresh\(true\); admRepaint\(\); return; \}/.test(app), true,
+     'A40: …rename and delete patch the cache — no re-read at all, and Lists is forced past its throttle');
   eq(/Auth\.call\(isSubject \? 'listSubjects' : 'listItems'/.test(app), true,
      'A40: …and ADD re-reads only the ONE list that grew, because the id is the server\'s');
   eq(/function admRepaint\(\)[\s\S]{0,160}window\.scrollTo\(0, y\);/.test(app), true,
@@ -2293,10 +2293,12 @@ try {
   // so a hidden row would still be counted. The header stays, the body redraws.
   eq(/<div id="list-body">' \+ buildBody\(\)/.test(app), true,
      'A42: the ledger list has a body that can be redrawn on its own');
-  eq(/document\.getElementById\('list-body'\)\.innerHTML = buildBody\(\);/.test(app), true,
+  eq(/body\.innerHTML = buildBody\(\);/.test(app), true,
      'A42: typing redraws only that body…');
-  eq(/oninput = function \(e\) \{\n\s*listQuery = e\.target\.value;\n\s*document\.getElementById\('list-body'\)/.test(app), true,
+  eq(/oninput = function \(e\) \{\n\s*listQuery = e\.target\.value;\n\s*clearTimeout\(searchTimer\);/.test(app), true,
      'A42: …so the input, the caret and the phone keyboard are never touched');
+  eq(/searchTimer = setTimeout\(function \(\) \{[\s\S]{0,220}\}, 120\);/.test(app), true,
+     'A56: …and the rebuild waits for a pause, so a burst of typing costs one rebuild');
   eq(/oninput = function \(e\) \{ listQuery = e\.target\.value; renderList\(\); \}/.test(app), false,
      'A42: the whole-screen repaint on every keystroke is gone');
 
@@ -2526,7 +2528,13 @@ try {
      'A52: …which the client now actually sends — the admin typed it and it was thrown away');
 
   // 0.2 — goLive's only undo could not restore the accounts.
-  eq(/data\.Users = usersSheet_\(\)/.test(gs), true, 'A52: the backup key matches SHEET_TITLES');
+  eq(/data\.Users = stripTokens_\(usersSheet_\(\)/.test(gs), true, 'A52: the backup key matches SHEET_TITLES');
+  // A58 (audit 1.1): …and the token never rides along. requireUser_ takes the
+  // raw string, so a leaked backup was a password-free login for everyone.
+  eq(/function stripTokens_\(values\)/.test(gs) && /values\[i\]\[ci\] = '';/.test(gs), true,
+     'A58: backups blank the token column…');
+  eq(/for \(var i = 1; i < values\.length; i\+\+\)/.test(gs), true,
+     'A58: …from row 1, so the header still lines up with USER_COLS on restore');
   eq(/legacy = \{ users: 'Users' \}/.test(gs), true, 'A52: …and older lowercase backups still restore');
   eq(/throw new Error\('unknown-sheet: ' \+ key\)/.test(gs), true,
      'A52: every key is resolved BEFORE the first clear(), so a throw cannot leave the book half-restored');
@@ -2545,6 +2553,68 @@ try {
   // the stale paste buffer
   eq(fs.existsSync(__dirname + '/../Code-gs-copy.txt'), false,
      'A52: the six-release-stale Code.gs paste buffer is gone');
+}
+
+
+// ---- A54–A57 (audit Tier 1) -------------------------------------------------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const db = fs.readFileSync(__dirname + '/../js/db.js', 'utf8');
+  const sync = fs.readFileSync(__dirname + '/../js/sync.js', 'utf8');
+  const sw = fs.readFileSync(__dirname + '/../sw.js', 'utf8');
+  const lists = fs.readFileSync(__dirname + '/../js/lists.js', 'utf8');
+  const sc = fs.readFileSync(__dirname + '/../tests/scope-check.js', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+
+  // 1.2 — declining a duplicate must END the entry. paymentFlow has no 'name'
+  // step, so rewindToKey('name') failed and goBack() dropped the collector on
+  // "কোনো নোট?" with no message; Skip re-ran the save and re-asked, for ever.
+  // With a donor waiting the second answer is OK — recording the duplicate they
+  // had just correctly refused.
+  eq(/if \(!rewindToKey\('name'\)\) \{\n\s*flowState = null;\n\s*toast\(t\('dup_cancelled'\)\);/.test(app), true,
+     'A54: declining a duplicate abandons the entry and says so');
+  eq(/else if \(msg === 'cancelled'\) \{ rewindToKey\('name'\) \|\| goBack\(\); \}/.test(app), false,
+     'A54: …the silent loop is gone');
+
+  // 1.3 — every unexpected failure claimed the amount was zero
+  eq(/else \{ toast\(t\('save_failed'\) \+ ': ' \+ errMsg\(e\)\); \}/.test(app), true,
+     'A54: an unexpected save failure says what happened…');
+  eq(/else \{ toast\(t\('amount_zero'\)\); rewindToAmount\(\) \|\| goBack\(\); \}/.test(app), false,
+     'A54: …and does not rewind, because rewinding invites infinite retry');
+
+  // 1.4 — a refused row left the queue and the badge went green
+  eq(/function rejectedCount\(\)/.test(db) && /rejectedCount: rejectedCount/.test(db), true,
+     'A54: refused rows are counted separately from pending ones');
+  eq(/b\.className = 'badge rejected';/.test(app), true,
+     'A54: …and get their own red header state, ahead of the pending count');
+  eq(/dispatchEvent\(new CustomEvent\('ck-rejected'\)\)/.test(sync), true,
+     'A54: …announced at the moment it happens, not left in a screen nobody opens');
+  eq(/rejected_n:/.test(i18n), true, 'A54: …in words, without machine vocabulary');
+
+  // 1.5 — one flaky asset aborted the whole precache
+  eq(/const SHELL = \[/.test(sw) && /const EXTRAS = \[/.test(sw), true,
+     'A55: the shell is separate from the 456 KB of icons no offline screen needs');
+  eq(/EXTRAS\.map\(function \(u\) \{ return get\(c, u\)\.catch\(function \(\) \{\}\); \}\)/.test(sw), true,
+     'A55: …and an extra that will not download cannot cost the collector their offline app');
+  eq(/var timer = setTimeout\(fallback, 4000\);/.test(sw), true,
+     'A55: a navigate races a 4 s timer — .catch never fires on a network that goes quiet');
+  eq(/caches\.has\(Auth\.APP_VERSION\)/.test(app) && /offline_not_ready:/.test(i18n), true,
+     'A55: and something finally ASKS whether the shell cached');
+
+  // 1.6 — ~1,000 JSON.parse per keystroke, and a refresh nobody throttled
+  eq(/if \(raw !== memoRaw\) \{ memoRaw = raw; memo = JSON\.parse\(raw\); \}/.test(lists), true,
+     'A56: the list cache is memoised on the raw string, so it cannot go stale');
+  eq(/const REFRESH_MS = 5 \* 60 \* 1000;/.test(lists), true,
+     'A56: …and refresh is throttled — it ran on every poll, focus and tile tap');
+  eq(/function refresh\(force\)/.test(lists) && /Lists\.refresh\(true\)/.test(app), true,
+     'A56: …with a force path, so an admin edit still lands immediately');
+
+  // 1.7 — the scope check could not see inside the codebase's own idiom
+  eq(/\(\?<!\[A-Za-z0-9_\$\.\]\)/.test(sc), true,
+     'A57: the scope check uses a lookbehind, so esc(missingFn()) is no longer invisible');
+  eq(/\(\?:\^\|\[\^A-Za-z0-9_\$\.\]\)/.test(sc), false,
+     'A57: …the consumed-character version, blind to 39% of call sites, is gone');
 }
 
 console.log(pass + ' passed, ' + fail + ' failed');

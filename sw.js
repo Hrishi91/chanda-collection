@@ -1,14 +1,21 @@
 // App-shell cache. Bump VERSION on every deploy that changes app files.
-const VERSION = 'chanda-v4.12.0';
+const VERSION = 'chanda-v4.12.1';
 // config.js is intentionally NOT precached — it carries the live backend URL
 // and is served network-first (no-store) by the fetch handler so it can never
 // be stale. Precaching it here would risk baking in a stale copy at install.
-const ASSETS = [
-  './', 'index.html', 'css/style.css', 'manifest.webmanifest',
-  'icons/icon-192.png', 'icons/icon-512.png',
+// A55: SHELL is what the app cannot run without. EXTRAS is everything else.
+//
+// They used to be one all-or-nothing list, and the two icons are 456 KB of it —
+// 44% of the download, needed by no offline screen. One flaky fetch on a pandal
+// network aborted the WHOLE precache, and nothing ever asked whether it had
+// worked, so a collector could walk around all evening believing the app worked
+// offline when it had never cached a byte.
+const SHELL = [
+  './', 'index.html', 'css/style.css',
   'js/i18n.js', 'js/numparse.js', 'js/aggregate.js', 'js/db.js',
   'js/auth.js', 'js/help.js', 'js/voice.js', 'js/sync.js', 'js/lists.js', 'js/app.js',
 ];
+const EXTRAS = ['manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 // A28: `cache.addAll(urls)` fetches through the browser's HTTP cache, and
 // GitHub Pages says `max-age=600` on every file. So a phone that had opened the
@@ -19,13 +26,19 @@ const ASSETS = [
 // `cache: 'reload'` bypasses the HTTP cache for these fetches, so an install
 // always stores what the server has right now.
 self.addEventListener('install', function (e) {
+  var get = function (c, u) {
+    return fetch(new Request(u, { cache: 'reload' })).then(function (r) {
+      if (!r.ok) throw new Error('asset ' + u + ' ' + r.status);
+      return c.put(u, r);
+    });
+  };
   e.waitUntil(caches.open(VERSION).then(function (c) {
-    return Promise.all(ASSETS.map(function (u) {
-      return fetch(new Request(u, { cache: 'reload' })).then(function (r) {
-        if (!r.ok) throw new Error('asset ' + u + ' ' + r.status);
-        return c.put(u, r);
-      });
-    }));
+    // the shell is still all-or-nothing on purpose: half a shell is a blank app
+    return Promise.all(SHELL.map(function (u) { return get(c, u); })).then(function () {
+      // …the extras are not. An icon that will not download must never cost the
+      // collector their offline app.
+      return Promise.all(EXTRAS.map(function (u) { return get(c, u).catch(function () {}); }));
+    });
   }).then(function () { return self.skipWaiting(); }));
 });
 self.addEventListener('activate', function (e) {
@@ -40,7 +53,19 @@ self.addEventListener('fetch', function (e) {
   if (url.origin !== location.origin) return; // Apps Script GET etc.
   // network-first for navigation (fresh app), cache-first for assets
   if (e.request.mode === 'navigate') {
-    e.respondWith(fetch(e.request).catch(function () { return caches.match('./'); }));
+    // A55: `.catch` only fires on a HARD failure. The characteristic pandal
+    // network completes TCP and TLS and then goes quiet — the browser will sit
+    // on that for 30–120 s showing a white screen, with a perfectly good cached
+    // shell one line away. Race the network against a 4 s timer and take
+    // whichever answers; the fetch is still allowed to finish and refresh.
+    e.respondWith(new Promise(function (resolve) {
+      var settled = false;
+      var done = function (r) { if (!settled && r) { settled = true; resolve(r); } };
+      var fallback = function () { caches.match('./').then(function (c) { done(c); }); };
+      var timer = setTimeout(fallback, 4000);
+      fetch(e.request).then(function (r) { clearTimeout(timer); done(r); })
+        .catch(function () { clearTimeout(timer); fallback(); });
+    }));
     return;
   }
   // config.js carries the live backend URL — never serve it stale. Network-

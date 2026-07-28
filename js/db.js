@@ -105,6 +105,19 @@ const DB = (function () {
       }, 0);
     });
   }
+  // A54 (audit 1.4): rows the SERVER REFUSED. They are not pending — retrying
+  // would only be refused again — but excluding them from the badge meant it
+  // flipped from ⏳ 3 to ✅ "সব sync হয়ে গেছে" while a donor walked away with a
+  // numbered receipt for money that is in nobody's book. reconcile cannot catch
+  // it either: the row is not there to be inconsistent with. Counted separately
+  // so the header can say so in its own colour.
+  function rejectedCount() {
+    return allData().then(function (d) {
+      return STORES.reduce(function (n, s) {
+        return n + d[s].filter(function (r) { return r.rejected; }).length;
+      }, 0);
+    });
+  }
 
   function newRow(extra) {
     return Object.assign({
@@ -119,7 +132,7 @@ const DB = (function () {
   }
 
   return { STORES: STORES, put: put, del: del, bulkPut: bulkPut, getAll: getAll, get: get,
-           allData: allData, unsyncedCount: unsyncedCount, newRow: newRow, clearAll: clearAll,
+           allData: allData, unsyncedCount: unsyncedCount, rejectedCount: rejectedCount, newRow: newRow, clearAll: clearAll,
            dataVersion: dataVersion };
 })();
 
