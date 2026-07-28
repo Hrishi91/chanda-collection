@@ -5292,3 +5292,54 @@ Form labels no longer borrow the guided-flow questions: those say "(Skip if
 none)", and there is no Skip button on a form.
 
 747 passed, 0 failed.
+
+## v4.9.3 — ② permissions resolve as post ∪ personal extras (2026-07-28)
+
+The last piece of Hrishi's design: "for every user we dont need to give
+permissions seperately / just select the positions", with one screen left for
+the remaining per-person grants.
+
+**The trick that makes this small and safe: the wire format does not change.**
+The server resolves post ∪ extras and sends the result under the names the app
+has always used — `entries`, `reports`, `cashier`. So `canEntry()` and every
+screen behind it are untouched. The personal extras ride along separately as
+`ownEntries` / `ownReports` / `ownCashier`, because that is what the admin
+screen edits.
+
+The resolver is **read-only and must stay so**: `saveUser_` persists
+`row.entries`, and folding a post's keys into somebody's personal extras would
+survive the day they leave the post. Every enforcement point — eight of them,
+found by grep rather than memory — now asks `effPerms_` / `isCashier_` instead
+of reading the raw column, or a post-granted cashier would be a cashier to the
+app and not to the server.
+
+On the user card: a 🎖️ post dropdown (with `(1/1) — পূর্ণ` and the full ones
+disabled), the permission chips repointed to the **extras**, chips the post
+grants shown on and **locked** with a 🎖️ mark — switching one off would do
+nothing, since the post hands it straight back, and a control that visibly
+ignores you is worse than no control. Under it, three lines answering "why can
+he do that?" in the order a person asks it: **from the post / granted on top /
+ends up with**.
+
+Assigning a post is capped server-side too, and the error names who already
+holds it.
+
+### 🧹 Clearing everyone's personal permissions
+
+Hrishi asked for the old per-user grants to be wiped for everyone except admin.
+Doing that **before** posts carried permissions would have locked every collector
+out of every entry, so it ships here, with the consequence shown BEFORE it runs:
+it lists who loses what, and warns **by name** about anyone whose post grants no
+entry permission at all. The audit log records each person and what they lost,
+not a count. Admins are skipped.
+
+VERIFIED live against a stand-in server mirroring Code.gs: যামিনী on সম্পাদক
+shows 🎖️ দোকান · ব্যক্তি locked, ➕ বাস as her own, ✅ all three effective;
+tapping a locked chip changes nothing; কোষাধ্যক্ষ goes `(1/1) — পূর্ণ` and
+disabled once রতন holds it; the clear button warned "রতন সাহা — পদে কোনো
+entry-র অনুমতি নেই" until he was given a post, then cleared both and left them
+running on their posts alone. Guide rewritten in both languages. 770 passed,
+0 failed.
+
+**Rides the pending redeploy** — Code.gs gains the `position` user column,
+`effPerms_`/`isCashier_`, `setUserPosition` and `clearUserGrants`.

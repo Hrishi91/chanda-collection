@@ -7,7 +7,7 @@
   // code it loaded minutes ago. Reporting the cache made "I updated but nothing
   // changed" look like success. Asserted equal to sw.js VERSION and Code.gs
   // CODE_VERSION in tests/run.js, so the three can never drift apart.
-  const APP_VERSION = 'chanda-v4.9.2';
+  const APP_VERSION = 'chanda-v4.9.3';
   const SIDES = ['main_malda', 'main_balurghat', 'harirampur', 'singhadaha'];
   const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
   let flowState = null;
@@ -4045,7 +4045,7 @@
         const open = admOpenUser === u.id;
         const body = u.status === 'approved'
           ? '<div class="chips" style="margin:8px 0 0">' + btns + '</div>' +
-            entriesChips(u) + reportChips(u) + areaChips(u)
+            postSelect(u) + entriesChips(u) + reportChips(u) + effLine(u) + areaChips(u)
           : '<div class="chips" style="margin:8px 0 0">' + btns + '</div>';
         return '<div class="adm-user' + (open ? ' open' : '') + '">' +
           '<button class="adm-user-head" data-uopen="' + u.id + '">' +
@@ -4094,17 +4094,50 @@
           '<div class="chips" style="margin:4px 0 0">' + chips + '</div>' +
           (note ? '<div class="perm-note">' + esc(note) + '</div>' : '') + '</div>';
       }
+      // Which committee post this person holds. One dropdown replaces ~16
+      // checkboxes: the post carries the set, so everybody in it moves together
+      // when the post's permissions change.
+      function postSelect(u) {
+        if (u.status !== 'approved' || u.role === 'admin') return '';
+        const held = {};
+        (resp.users || []).forEach(function (x) {
+          if (x.id === u.id || !x.position || x.role === 'admin') return;
+          held[x.position] = (held[x.position] || 0) + 1;
+        });
+        return '<div class="perm-grp"><div class="perm-head">🎖️ ' + esc(t('user_post')) + '</div>' +
+          '<div class="field" style="margin:6px 0 0"><select data-pos-user="' + esc(u.id) + '">' +
+          '<option value="">— ' + esc(t('member_no_post')) + ' —</option>' +
+          positions.map(function (p) {
+            const cap = Number(p.maxCount) || 0, n = held[p.id] || 0, full = cap > 0 && n >= cap;
+            return '<option value="' + esc(p.id) + '"' + (p.id === u.position ? ' selected' : '') +
+              (full && p.id !== u.position ? ' disabled' : '') + '>' +
+              esc(Lists.labelOf('position', p.id) + (cap > 0 ? ' (' + n + '/' + cap + ')' : '') +
+                  (full && p.id !== u.position ? ' — ' + t('pos_is_full') : '')) + '</option>';
+          }).join('') + '</select></div>' +
+          (positions.length ? '' : '<div class="perm-note">' + esc(t('pos_none_server')) + '</div>') +
+          '</div>';
+      }
+      // Permissions now arrive from two places, so the chips must say WHICH.
+      // A chip the post grants is shown on and locked: letting it be switched
+      // off would do nothing — the post hands it straight back — and a control
+      // that visibly ignores you is worse than no control.
       function entriesChips(u) {
         if (u.status !== 'approved' || u.role === 'admin') return '';
-        const set = String(u.entries || '').split(',').filter(Boolean);
+        const own = String(u.ownEntries || '').split(',').filter(Boolean);
+        const post = Lists.permsOf(u.position || '');
+        const eff = String(u.entries || '').split(',').filter(Boolean);
         const kinds = [['shop', t('new_shop')], ['person', t('new_person')], ['member', t('new_member')],
                        ['bus', t('daily_bus')], ['road', t('daily_road')], ['toto', t('daily_toto')],
-                       ['review', t('review_title')], ['otherdonor', t('perm_otherdonor')]];
+                       ['review', t('review_title')], ['otherdonor', t('perm_otherdonor')],
+                       ['memberadmin', t('perm_memberadmin')]];
         const chips = kinds.map(function (k) {
-          const on = set.indexOf(k[0]) >= 0;
-          return '<button class="chip' + (on ? ' on' : '') + '" data-ent-user="' + u.id + '" data-ent-id="' + k[0] + '">' + esc(k[1]) + '</button>';
+          const fromPost = post.indexOf(k[0]) >= 0;
+          const on = fromPost || own.indexOf(k[0]) >= 0;
+          return '<button class="chip' + (on ? ' on' : '') + '" data-ent-user="' + u.id +
+            '" data-ent-id="' + k[0] + '"' + (fromPost ? ' disabled title="' + esc(t('from_post')) + '"' : '') + '>' +
+            (fromPost ? '🎖️ ' : '') + esc(k[1]) + '</button>';
         }).join('');
-        return permGroup(u, 'entry_perms', 'ent', chips, t('perms_common'), false, !set.length);
+        return permGroup(u, 'entry_perms', 'ent', chips, t('perms_common'), false, !eff.length);
       }
       // which master areas a collector is responsible for (drives area reports)
       function areaChips(u) {
@@ -4119,16 +4152,44 @@
       }
       function reportChips(u) {
         if (u.status !== 'approved' || u.role === 'admin') return '';
-        const granted = String(u.reports || '').split(',').filter(Boolean);
+        const own = String(u.ownReports || '').split(',').filter(Boolean);
+        const post = Lists.permsOf(u.position || '');
         const chips = REPORT_IDS.map(function (rid) {
           const autoCashier = (rid === 'inhand' && u.cashier);
-          const on = autoCashier || granted.indexOf(rid) >= 0;
+          const fromPost = post.indexOf(rid) >= 0;
+          const on = autoCashier || fromPost || own.indexOf(rid) >= 0;
+          const lock = autoCashier || fromPost;
           return '<button class="chip' + (on ? ' on' : '') + '" data-rep-user="' + u.id +
-            '" data-rep-id="' + rid + '"' + (autoCashier ? ' disabled title="auto"' : '') + '>' +
-            esc(t('report_' + rid)) + '</button>';
+            '" data-rep-id="' + rid + '"' + (lock ? ' disabled title="' + esc(fromPost ? t('from_post') : 'auto') + '"' : '') + '>' +
+            (fromPost ? '🎖️ ' : '') + esc(t('report_' + rid)) + '</button>';
         }).join('');
         return permGroup(u, 'report_perms', 'rep', chips,
                          u.cashier ? t('inhand_auto_cashier') : '', false);
+      }
+      // The answer to "why can he do that?", in one line, in the order a person
+      // would ask it: what the post gives, what was added on top, what he ends
+      // up with. Without this the two sources are invisible and unarguable.
+      function effLine(u) {
+        if (u.status !== 'approved' || u.role === 'admin') return '';
+        const post = Lists.permsOf(u.position || '');
+        const own = String(u.ownEntries || '').split(',').filter(Boolean)
+          .concat(String(u.ownReports || '').split(',').filter(Boolean))
+          .concat(Number(u.ownCashier) === 1 ? ['cashier'] : []);
+        const name = function (k) {
+          return k === 'cashier' ? t('cashier')
+            : REPORT_IDS.indexOf(k) >= 0 ? t('report_' + k)
+            : t(CAT_LABEL_KEYS[k] || ('perm_' + k)) || k;
+        };
+        const line = function (icon, key, list) {
+          return '<div class="bd-line" style="display:block">' + icon + ' ' + esc(t(key)) + ': ' +
+            esc(list.length ? list.map(name).join(' · ') : t('sum_none')) + '</div>';
+        };
+        const eff = String(u.entries || '').split(',').filter(Boolean)
+          .concat(String(u.reports || '').split(',').filter(Boolean))
+          .concat(u.cashier ? ['cashier'] : []);
+        return '<div class="perm-grp">' + line('🎖️', 'eff_from_post', post) +
+          line('➕', 'eff_extra', own.filter(function (k) { return post.indexOf(k) < 0; })) +
+          line('✅', 'eff_final', eff) + '</div>';
       }
       function section(key, list) {
         return '<div class="section">' + esc(t(key)) + ' (' + list.length + ')</div>' +
@@ -4229,6 +4290,8 @@
           '<div class="row-sub" style="margin-top:6px">' + esc(t('clear_training_hint')) + '</div></div>') +
         '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
         fold('👥', 'adm_users', groups.pending.length || '',
+          '<button id="clear-grants" class="ghost block">🧹 ' + esc(t('clear_grants_btn')) + '</button>' +
+          '<div class="hint" style="margin:-4px 0 10px">' + esc(t('clear_grants_hint')) + '</div>' +
           section('pending_users', groups.pending) +
           section('approved_users', groups.approved) +
           section('blocked_users', groups.blocked), true) +
@@ -4451,7 +4514,9 @@
           if (b.disabled) return;
           const uid = b.dataset.repUser, rid = b.dataset.repId;
           const u = resp.users.find(function (x) { return x.id === uid; });
-          const set = String(u.reports || '').split(',').filter(Boolean);
+          // the EXTRAS, never the merged view — otherwise a toggle would try to
+          // remove something the post keeps handing back
+          const set = String(u.ownReports || '').split(',').filter(Boolean);
           const i = set.indexOf(rid);
           if (i >= 0) set.splice(i, 1); else set.push(rid);
           adminAction('setReports', { userId: uid, reports: set });
@@ -4467,6 +4532,46 @@
           adminAction('setAreas', { userId: uid, areas: set });
         };
       });
+      // Wipe the PERSONAL extras so access comes from the post alone. This is
+      // destructive and one-way, so it shows the consequence BEFORE it runs, by
+      // name: anyone whose post grants nothing would be left unable to make a
+      // single entry, and finding that out afterwards means ten collectors
+      // locked out on a collection day.
+      const cg = document.getElementById('clear-grants');
+      if (cg) cg.onclick = function () {
+        const victims = (resp.users || []).filter(function (u) {
+          return u.status === 'approved' && u.role !== 'admin' &&
+            (String(u.ownEntries || '') || String(u.ownReports || '') || Number(u.ownCashier) === 1);
+        });
+        if (!victims.length) { toast(t('clear_grants_none')); return; }
+        const stranded = victims.filter(function (u) {
+          return !Lists.permsOf(u.position || '').filter(function (k) {
+            return Aggregate.PERM_KEYS.indexOf(k) >= 0;
+          }).length;
+        });
+        let msg = t('clear_grants_confirm').replace('{n}', victims.length)
+          .replace('{who}', victims.map(function (u) { return u.name; }).join(', '));
+        if (stranded.length) {
+          msg += '\n\n⚠️ ' + t('clear_grants_stranded')
+            .replace('{n}', stranded.length)
+            .replace('{who}', stranded.map(function (u) { return u.name; }).join(', '));
+        }
+        if (!window.confirm(msg)) return;
+        if (String(window.prompt(t('clear_grants_type')) || '').trim().toUpperCase() !== 'CLEAR') {
+          toast(t('golive_cancelled')); return;
+        }
+        Auth.call('clearUserGrants', { token: Auth.token(), confirm: 'CLEAR' })
+          .then(function (r) {
+            alert(t('clear_grants_done').replace('{n}', (r.cleared || []).length)
+              .replace('{who}', (r.cleared || []).join(', ') || '—'));
+            renderAdmin();
+          }).catch(function (e) { toast(errMsg(e)); });
+      };
+      document.querySelectorAll('[data-pos-user]').forEach(function (sel) {
+        sel.onchange = function () {
+          adminAction('setUserPosition', { userId: sel.dataset.posUser, position: sel.value });
+        };
+      });
       document.querySelectorAll('[data-ent-user]').forEach(function (b) {
         b.onclick = function () {
           const uid = b.dataset.entUser, kind = b.dataset.entId;
@@ -4474,7 +4579,7 @@
           // An empty field grants nothing, so a chip means exactly what it
           // shows and toggling is a plain add/remove — no "materialise all"
           // step, which is where the retired key names used to leak back in.
-          const set = String(u.entries || '').split(',').filter(Boolean);
+          const set = String(u.ownEntries || '').split(',').filter(Boolean);
           const i = set.indexOf(kind);
           if (i >= 0) set.splice(i, 1); else set.push(kind);
           adminAction('setEntries', { userId: uid, entries: set });

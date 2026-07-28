@@ -42,7 +42,7 @@ window.HELP = [
     title: { bn: 'কে কী পারে (roles)', en: 'Roles — who can do what' },
     body: {
       bn: [
-        '<b>👑 Admin</b> — সব দেখে ও নিয়ন্ত্রণ করে: user approve/block, <b>অন্যকে admin করা/সরানো</b>, cashier ঠিক করা, report permission, <b>এলাকার দায়িত্ব দেওয়া</b>, খরচের বিষয় ও এলাকা/location তালিকা, পাসওয়ার্ড রিসেট, <b>📜 কার্যকলাপের হিসাব</b>।',
+        '<b>👑 Admin</b> — সব দেখে ও নিয়ন্ত্রণ করে: user approve/block, <b>অন্যকে admin করা/সরানো</b>, <b>কমিটির পদ আর কোন পদে কী করা যাবে</b>, cashier ঠিক করা, report permission, <b>এলাকার দায়িত্ব দেওয়া</b>, খরচের বিষয় ও এলাকা/location তালিকা, পাসওয়ার্ড রিসেট, <b>📜 কার্যকলাপের হিসাব</b>।',
         '<b>💰 Cashier</b> — collector-দের জমা দেওয়া টাকা "confirm" করে; পুজোর খরচ লেখে; "কার হাতে কত" report পায়; সংশোধনের আবেদন দেখে সিদ্ধান্ত নেয়।',
         '<b>Collector</b> — entry দেয় আর নিজের "আমার হিসাব" দেখে। admin আলাদা করে report permission দিলে তবেই কেন্দ্রীয় report দেখে।',
         '<b>📗 জমা-খাতা</b> — যে কেউ দেখতে পায়: কার কাছ থেকে কত পেয়েছি আর কাকে কত পাঠিয়েছি, একসঙ্গে। row-এ চাপলে ভেতরের ভাঙা হিসাব খোলে।',
@@ -53,7 +53,7 @@ window.HELP = [
         '<b>অন্যের ভুল রোড/টোটো/বাস বা খরচ?</b> ✏️ আমার entry → উপরে <b>"সবার দৈনিক/খরচ"</b> চাপো — সবার entry কে করল সহ দেখাবে, সেখান থেকেই ✖️ বাতিল বা ⚠️ flag। (payment দাতার পাতায় সবার দেখা যায়)',
       ],
       en: [
-        '<b>👑 Admin</b> — sees and controls everything: approve/block users, <b>grant/remove admin</b>, set cashiers, report permissions, <b>area duties</b>, expense subjects and area/location lists, password resets, <b>📜 activity log</b>.',
+        '<b>👑 Admin</b> — sees and controls everything: approve/block users, <b>grant/remove admin</b>, <b>committee posts and what each post may do</b>, set cashiers, report permissions, <b>area duties</b>, expense subjects and area/location lists, password resets, <b>📜 activity log</b>.',
         '<b>💰 Cashier</b> — confirms cash handed over by collectors; records puja expenses; gets the "cash in hand" report; decides on correction requests.',
         '<b>Collector</b> — makes entries and sees their own "My summary". Sees central reports only if the admin grants permission.',
         '<b>Who can undo a wrong entry:</b> admin — any; cashier — only a regular collector\'s entry (not their own, not another cashier\'s/admin\'s); a collector cannot void at all — they <b>request</b> a correction and a cashier/admin approves it.',
@@ -242,7 +242,11 @@ window.HELP = [
     body: {
       bn: [
         'নতুন user register করলে এখানে <b>"Approve-এর অপেক্ষায়"</b> সেকশনে আসে — <b>✅ Approve</b> চাপো। <b>নতুন কেউ যোগ হলে উপরে "🔄 Refresh" চাপতে হবে</b>, নিজে থেকে আপডেট হয় না।',
-        'প্রতিটা approved user-এ: <b>💰 ক্যাশিয়ার করা</b>, <b>👑 admin করা/সরানো</b>, <b>🔑 পাসওয়ার্ড রিসেট</b> (একটা সাময়িক পাসওয়ার্ড দেবে — মুখে বলে দাও), <b>🚫 Block</b>, <b>✏️ কী কী তুলতে পারবে</b> (দোকান · ব্যক্তি · সদস্য · বাস · রোড · টোটো, আর 🛠️ সংশোধন-ডেস্ক — chip চেপে দাও/নাও; কিচ্ছু না দিলে সব খোলা), <b>📊 report permission</b>, আর <b>📍 এলাকার দায়িত্ব</b>।',
+        'প্রতিটা approved user-এ: <b>🎖️ কমিটিতে পদ</b>, <b>💰 ক্যাশিয়ার করা</b>, <b>👑 admin করা/সরানো</b>, <b>🔑 পাসওয়ার্ড রিসেট</b> (একটা সাময়িক পাসওয়ার্ড দেবে — মুখে বলে দাও), <b>🚫 Block</b>, <b>✏️ কী কী তুলতে পারবে</b>, <b>📊 report permission</b>, আর <b>📍 এলাকার দায়িত্ব</b>।',
+        '<b>অনুমতি এখন দুই জায়গা থেকে আসে।</b> এক, <b>পদ</b> — Admin প্যানেল → 🧾 তালিকা → 🎖️ কমিটির পদ ও অনুমতি-তে ঠিক করো ওই পদে কে কী পারবে; তারপর প্রতি লোকে শুধু পদটা বেছে দিলেই হয়। দুই, ওই লোকের জন্য <b>আলাদা করে দেওয়া</b> chip। যেগুলো পদ থেকে আসছে সেগুলোয় 🎖️ চিহ্ন আর সেগুলো এখানে বদলানো যায় না — বদলাতে হলে পদের অনুমতি বদলাও, তাতে ওই পদের সবাই একসাথে বদলাবে।',
+        'প্রতিটা কার্ডের নিচে তিন লাইনে পরিষ্কার লেখা থাকে — <b>পদ থেকে</b> কী পাচ্ছে, <b>আলাদা</b> কী দেওয়া হয়েছে, আর <b>শেষমেশ</b> কী পারবে। “ও এটা করছে কেন?” — উত্তরটা ওখানেই।',
+        '<b>Admin কোনো পদের সঙ্গে আসে না</b>, ইচ্ছে করেই। কাউকে সম্পাদক করা মানে তার হাতে গোটা সিস্টেম তুলে দেওয়া নয় — admin বোর্ডের সিদ্ধান্তে, একজন করে দেওয়া হয়।',
+        '<b>🧹 সবার আলাদা permission মুছে দাও</b> — সবাইকে শুধু পদের উপর দাঁড় করাতে চাইলে। চাপার আগে নাম ধরে দেখাবে কার কী মুছবে, আর কারো পদে entry-র অনুমতি না থাকলে <b>নাম ধরে সতর্ক করবে</b> — নইলে collection-এর দিন দশজন আটকে যাবে। Admin-দের কিছু হয় না।',
         '<b>যা দেবে সেটুকুই পাবে।</b> নতুন user approve করলেই সে কিছু তুলতে পারে না — তুমি chip চেপে দেওয়ার পরেই পারবে। (রিপোর্টও চিরকাল এভাবেই চলে।) কার্ডে <b>⚠️ কিছুই দেওয়া হয়নি</b> লেখা থাকলে বুঝবে ওকে এখনো কিছু দাওনি।',
         '<b>সবার জন্য সবসময় খোলা</b> (permission লাগে না): নিজের তোলা দাতার চাঁদা, জমা দেওয়া, আমার entry/সংশোধন, আর বাকির তালিকা। <b>অন্য কারো দাতার</b> কাছে পৌঁছনো আলাদা permission।',
         '<b>খরচ</b> — সাধারণ পুজো-খরচে <b>কোন খাত জিজ্ঞেস করা হয় না</b>। ক্যাশিয়ারের হাতে তো বহু লোকের টাকা মেশানো, তাই খাত বাছা মানে আন্দাজ। ওটা “অন্যান্য” ঘরে বসে, দরকারে ঋণাত্মক হয় — পরে অদল-বদল করে মেলাবে। <b>রোড/টোটো/বাসের খরচ</b> আলাদা: ওটা নিজের রাউন্ড থেকেই যায়, তাই নিজে থেকেই বসে যায়।',
@@ -259,7 +263,11 @@ window.HELP = [
       ],
       en: [
         'A newly registered user appears here under <b>"Awaiting approval"</b> — tap <b>✅ Approve</b>. <b>Tap "🔄 Refresh" after someone new registers</b> — the panel does not auto-update.',
-        'For each approved user: <b>💰 Make cashier</b>, <b>👑 Make/remove admin</b>, <b>🔑 Reset password</b> (gives a temporary password — tell them verbally), <b>🚫 Block</b>, <b>✏️ Can collect</b> (shop · person · member · bus · road · toto, plus the 🛠️ correction desk — tap chips; grant nothing and everything stays open), <b>📊 report permissions</b>, and <b>📍 Area duties</b>.',
+        'For each approved user: <b>🎖️ Committee post</b>, <b>💰 Make cashier</b>, <b>👑 Make/remove admin</b>, <b>🔑 Reset password</b> (gives a temporary password — tell them verbally), <b>🚫 Block</b>, <b>✏️ Can collect</b>, <b>📊 report permissions</b>, and <b>📍 Area duties</b>.',
+        '<b>Permissions now come from two places.</b> First the <b>post</b> — set what a post may do in Admin → 🧾 Lists → 🎖️ Committee positions & permissions, then each person just needs the post picked. Second, chips <b>granted to that person on top</b>. Chips that come with the post are marked 🎖️ and cannot be changed here — change the post instead, and everyone holding it moves together.',
+        'Each card ends with three lines: what the <b>post</b> gives, what was <b>added on top</b>, and what they <b>end up with</b>. That is the answer to “why can he do that?”',
+        '<b>Admin never comes with a post</b>, deliberately. Making somebody secretary must not hand them the whole system — the board grants admin, one person at a time.',
+        '<b>🧹 Clear everyone\'s personal permissions</b> — to stand everybody on their post alone. Before it runs it names who loses what, and <b>warns by name</b> if anyone\'s post grants no entry permission, since otherwise ten collectors are locked out on a collection day. Admins are untouched.',
         '<b>Always open to everyone</b> (no permission needed): taking a later instalment from any donor, handing money over, my entries/fix, and the dues list.',
         '<b>👑 Admin:</b> you cannot remove your own admin role, and <b>the last admin cannot be removed</b> — so the committee can never be locked out.',
         '<b>🧾 Expense subjects</b> and <b>📍 Area / location lists</b> are edited here too (each needs a Bengali and an English name). Changes reach everyone\'s phone quickly.',

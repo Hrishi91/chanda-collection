@@ -1872,5 +1872,80 @@ try {
   });
 }
 
+
+// ---- A32 ②: permissions resolve as post ∪ personal extras ---------------------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const help = fs.readFileSync(__dirname + '/../js/help.js', 'utf8');
+
+  // The whole trick: the wire format does not change, so canEntry() and every
+  // screen behind it are untouched by the move to post-based granting.
+  eq(/entries: eff\.entries\.join\(','\)/.test(gs) && /reports: eff\.reports\.join\(','\)/.test(gs)
+     && /cashier: eff\.cashier/.test(gs), true,
+     'A32②: the app receives EFFECTIVE permissions under the names it always used');
+  eq(/ownEntries: String\(row\.entries/.test(gs) && /ownReports: String\(row\.reports/.test(gs)
+     && /ownCashier: Number\(row\.cashier/.test(gs), true,
+     'A32②: …and the personal extras ride along separately for the admin screen to edit');
+
+  // The single most dangerous thing here: folding a post's keys into somebody's
+  // personal extras would survive the day they leave the post.
+  eq(/NEVER be written back/.test(gs), true,
+     'A32②: the resolver is documented as read-only, never written back through saveUser_');
+  eq(/u\.row\.entries = effPerms_/.test(gs), false,
+     'A32②: …and nothing assigns a resolved set onto the row saveUser_ persists');
+
+  // Every enforcement point must ask the resolver, not the raw column, or a
+  // post-granted cashier would be a cashier to the app and not to the server.
+  eq(/Number\(u\.row\.cashier\) === 1/.test(gs), false,
+     'A32②: no enforcement point reads the raw cashier column any more');
+  eq(/function isCashier_\(row\)/.test(gs), true, 'A32②: one helper answers "is this a cashier"');
+  eq(/return effPerms_\(u\.row\)\.entries\.indexOf\(key\) >= 0;/.test(gs), true,
+     'A32②: entryAllowed_ resolves through the post too');
+
+  // Assigning a post: the cap is enforced server-side, where it cannot be argued
+  // with, and the position must actually exist.
+  eq(/if \(!found\) throw new Error\('no-such-position'\)/.test(gs), true,
+     'A32②: you cannot be put in a post that does not exist');
+  eq(/if \(held\.length >= cap\) throw new Error\('position-full:/.test(gs), true,
+     'A32②: …nor in a full one, and the error names who holds it');
+
+  // Clearing personal grants: destructive, admin-exempt, and it must say who.
+  eq(/if \(String\(b\.confirm\) !== 'CLEAR'\) throw new Error\('confirm-required'\)/.test(gs), true,
+     'A32②: clearing personal grants needs an explicit confirmation');
+  eq(/if \(String\(r\[iRole\]\) === 'admin'\) return;/.test(gs), true,
+     'A32②: …admins are skipped, as Hrishi asked');
+  eq(/logAudit_\(me\.row, 'grants:clear', '@' \+ r\[iName\] \+ ' lost \[/.test(gs), true,
+     'A32②: …and the audit names each person and what they lost, not a count');
+  // The thing that makes this safe to press: it shows the consequence first.
+  eq(/clear_grants_stranded/.test(app) && /clear_grants_stranded:/.test(i18n), true,
+     'A32②: the button warns BY NAME about anyone whose post grants no entry permission');
+  eq(/const stranded = victims\.filter/.test(app), true,
+     'A32②: …computed before the call, not discovered afterwards');
+
+  // A chip the post grants must not be editable: switching it off would do
+  // nothing, and a control that visibly ignores you is worse than none.
+  eq(/fromPost \? ' disabled title="' \+ esc\(t\('from_post'\)\)/.test(app), true,
+     'A32②: post-granted chips are locked, and say why');
+  eq(/const set = String\(u\.ownEntries \|\| ''\)/.test(app)
+     && /const set = String\(u\.ownReports \|\| ''\)/.test(app), true,
+     'A32②: toggling edits the EXTRAS, never the merged view');
+  ['eff_from_post', 'eff_extra', 'eff_final'].forEach(function (k) {
+    eq(app.indexOf(k) >= 0 && i18n.indexOf('  ' + k + ':') >= 0, true,
+       'A32②: the three-part breakdown says ' + k);
+  });
+  eq(/data-pos-user/.test(app) && /setUserPosition/.test(app), true,
+     'A32②: the post is a dropdown on the user card');
+
+  // The guide must describe the screen that now exists, in both languages.
+  ['eff_from_post'].forEach(function () {});
+  eq(/দুই জায়গা থেকে আসে/.test(help), true, 'A32②: the Bengali guide explains the two sources');
+  eq(/come from two places/.test(help), true, 'A32②: …and the English one');
+  eq(/Admin কোনো পদের সঙ্গে আসে না/.test(help) && /Admin never comes with a post/.test(help), true,
+     'A32②: …and both say admin never rides a post');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

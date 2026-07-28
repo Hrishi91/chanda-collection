@@ -68,16 +68,70 @@ var SHEET_TITLES = { parties: 'Parties', payments: 'Payments', daily: 'DailyColl
 var USER_COLS = ['id', 'username', 'name', 'phone', 'passwordHash', 'salt', 'role',
                  'cashier', 'reports', 'status', 'years', 'token', 'mustChange', 'createdAt', 'updatedAt',
                  'areas', // append-only: comma-separated area ids this collector is responsible for
-                 'entries']; // granted permission keys (see PERM_KEYS); empty = nothing granted
+                 'entries', // permission keys granted to this PERSON (see PERM_KEYS) — extras only
+                 'position']; // the committee post they hold; its permission set is added on top
 var AUDIT_COLS = ['id', 'ts', 'actor', 'actorId', 'action', 'detail'];
 
 // Per-report access: admin sees all; cashier gets 'inhand' by default;
 // anyone else sees only what the admin grants (Users.reports, comma list).
 var REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
+
+// ---------- a user's permissions come from TWO places ----------
+// The POST they hold (Lists kind='position') and the extras granted to them
+// personally. The Users sheet stores ONLY the extras; the post's set is looked
+// up live, so editing a post updates everyone holding it at once.
+//
+// These are read-only views. They must NEVER be written back into u.row —
+// saveUser_ persists row.entries/reports/cashier, and folding a post's keys
+// into somebody's personal extras would quietly make them permanent, surviving
+// the day they leave the post. Every enforcement point calls these instead.
+var posPermMemo_ = {}; // one execution, one read of the Lists sheet per post
+function positionPerms_(positionId) {
+  var id = String(positionId || '');
+  if (!id) return { entries: [], reports: [], cashier: 0 };
+  if (posPermMemo_[id]) return posPermMemo_[id];
+  var out = { entries: [], reports: [], cashier: 0 };
+  try {
+    var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
+    if (sh && sh.getLastRow() > 1) {
+      var pc = ensureCol_(sh, 'perms');
+      var rows = sh.getRange(2, 1, sh.getLastRow() - 1, Math.max(2, pc)).getValues();
+      for (var i = 0; i < rows.length; i++) {
+        if (String(rows[i][0]) !== id || String(rows[i][1]) !== 'position') continue;
+        String(rows[i][pc - 1] || '').split(',').filter(String).forEach(function (k) {
+          if (k === 'cashier') out.cashier = 1;
+          else if (PERM_KEYS.indexOf(k) >= 0) out.entries.push(k);
+          else if (REPORT_IDS.indexOf(k) >= 0) out.reports.push(k);
+        });
+        break;
+      }
+    }
+  } catch (e) { /* a post we cannot read grants nothing — never more */ }
+  posPermMemo_[id] = out;
+  return out;
+}
+function union_(a, b) {
+  var seen = {}, out = [];
+  a.concat(b).forEach(function (k) { if (k && !seen[k]) { seen[k] = 1; out.push(k); } });
+  return out;
+}
+function effPerms_(row) {
+  var p = positionPerms_(row && row.position);
+  return {
+    entries: union_(String((row && row.entries) || '').split(',').filter(String), p.entries),
+    reports: union_(String((row && row.reports) || '').split(',').filter(String), p.reports),
+    cashier: (Number(row && row.cashier) === 1 || p.cashier === 1) ? 1 : 0,
+  };
+}
+// One place decides "is this person a cashier", because the answer now has two
+// sources and eight callers. Admin is always one.
+function isCashier_(row) {
+  return !!row && (row.role === 'admin' || effPerms_(row).cashier === 1);
+}
 function allowedReports_(u) {
   if (u.row.role === 'admin') return REPORT_IDS.slice();
-  var granted = String(u.row.reports || '').split(',').filter(Boolean);
-  if (Number(u.row.cashier) === 1 && granted.indexOf('inhand') < 0) granted.push('inhand');
+  var granted = effPerms_(u.row).reports;
+  if (isCashier_(u.row) && granted.indexOf('inhand') < 0) granted = granted.concat(['inhand']);
   return granted.filter(function (r) { return REPORT_IDS.indexOf(r) >= 0; });
 }
 
@@ -189,12 +243,23 @@ function addYear_(years, y) {
 function hasYear_(years, y) {
   return String(years || '').split(',').indexOf(String(y)) >= 0;
 }
+// The app receives the EFFECTIVE permissions under the names it has always used
+// — entries / reports / cashier — so canEntry() and every screen behind it are
+// untouched by the move to post-based granting. The personal extras ride along
+// separately as own*, because that is what the admin screen edits: showing a
+// merged set in an editable chip would let you switch off a key the post keeps
+// handing back, which is the kind of control that teaches people not to trust
+// controls.
 function publicUser_(row) {
+  var eff = effPerms_(row);
   return { id: row.id, username: row.username, name: row.name, phone: row.phone,
-           role: row.role, cashier: Number(row.cashier) || 0,
-           reports: String(row.reports || ''), status: row.status,
+           role: row.role, cashier: eff.cashier,
+           reports: eff.reports.join(','), status: row.status,
            years: String(row.years || ''), mustChange: Number(row.mustChange) || 0,
-           areas: String(row.areas || ''), entries: String(row.entries || ''), createdAt: row.createdAt };
+           areas: String(row.areas || ''), entries: eff.entries.join(','), createdAt: row.createdAt,
+           position: String(row.position || ''),
+           ownCashier: Number(row.cashier) || 0,
+           ownReports: String(row.reports || ''), ownEntries: String(row.entries || '') };
 }
 // Append-only activity log for accountability (who did what, when). Logging
 // must never break the real action, so it is fully wrapped in try/catch.
@@ -297,7 +362,7 @@ function notifData_(u, d) {
                             date: h.date, reason: h.rejectReason || '' });
   });
   out.rejections = items.rejections.length;
-  var isCashier = Number(u.row.cashier) === 1 || u.row.role === 'admin';
+  var isCashier = isCashier_(u.row);
   if (isCashier) {
     (d.handovers || []).forEach(function (h) {
       if (isRecipient_(h, u) && h.status !== 'confirmed' && h.status !== 'rejected') {
@@ -389,14 +454,14 @@ function permForRow_(store, row) {
 function entryAllowed_(u, key) {
   if (u.row.role === 'admin') return true;
   if (!key) return true;
-  return String(u.row.entries || '').split(',').indexOf(key) >= 0;
+  return effPerms_(u.row).entries.indexOf(key) >= 0;
 }
 
 // The cashier's correction desk. Base requirement unchanged (cashier or admin);
 // on top of that the admin may withhold the 'review' grant.
 function canReview_(u) {
   if (u.row.role === 'admin') return true;
-  return Number(u.row.cashier) === 1 && entryAllowed_(u, 'review');
+  return isCashier_(u.row) && entryAllowed_(u, 'review');
 }
 
 // how many approved admins exist — guards the last-admin safeguard in setRole
@@ -462,7 +527,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.9.2';
+var CODE_VERSION = 'chanda-v4.9.3';
 function doGet() { return json_({ ok: true, service: 'chanda-khata', version: CODE_VERSION }); }
 
 var ACTIONS = {
@@ -549,7 +614,7 @@ var ACTIONS = {
       // not insert, but the server must not trust the client. The key comes from
       // the ROW (its type), not the store, because bus and road live in the same
       // store yet are separate permissions.
-      var isCashier = Number(user.row.cashier) === 1 || user.row.role === 'admin';
+      var isCashier = isCashier_(user.row);
       var chatOff = String(readConfig_().chat_off || '') === 'on';
       var byStore = {};
       (b.records || []).forEach(function (r) {
@@ -699,7 +764,7 @@ var ACTIONS = {
   // cashier's working list: handovers addressed to them (both statuses)
   pendingHandovers: function (b) {
     var u = requireUser_(b.token);
-    if (Number(u.row.cashier) !== 1 && u.row.role !== 'admin') throw new Error('not-cashier');
+    if (!isCashier_(u.row)) throw new Error('not-cashier');
     var d = activeData_(readAll_(b.year ? Number(b.year) : new Date().getFullYear())); // hide voided (e.g. undone) handovers
     return { ok: true, handovers: d.handovers.filter(function (h) { return isRecipient_(h, u); }) };
   },
@@ -989,7 +1054,7 @@ var ACTIONS = {
       sh.getDataRange().getValues().slice(1).forEach(function (v) {
         var row = {};
         USER_COLS.forEach(function (c, j) { row[c] = v[j]; });
-        if (row.status === 'approved' && (Number(row.cashier) === 1 || row.role === 'admin')) {
+        if (row.status === 'approved' && isCashier_(row)) {
           // role: the no-permission card needs to find the admin in this list.
           // phone: Hrishi's call — the admin's number is exactly what a locked-
           // out collector needs, and only admins' numbers are exposed.
@@ -1004,7 +1069,7 @@ var ACTIONS = {
   // cashier (or admin) confirms receiving a handover addressed to them
   confirmHandover: function (b) {
     var u = requireUser_(b.token);
-    if (Number(u.row.cashier) !== 1 && u.row.role !== 'admin') throw new Error('not-cashier');
+    if (!isCashier_(u.row)) throw new Error('not-cashier');
     var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.handovers);
     var cols = SHEETS.handovers;
     if (sh.getLastRow() < 2) throw new Error('not-found');
@@ -1061,7 +1126,7 @@ var ACTIONS = {
   // information, and they know whether to re-send or to talk.
   rejectHandover: function (b) {
     var u = requireUser_(b.token);
-    if (Number(u.row.cashier) !== 1 && u.row.role !== 'admin') throw new Error('not-cashier');
+    if (!isCashier_(u.row)) throw new Error('not-cashier');
     var reason = String(b.reason || '').trim().slice(0, 200);
     if (!reason) throw new Error('reason-required');
     var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.handovers);
@@ -1367,6 +1432,80 @@ var ACTIONS = {
     return { ok: true, user: publicUser_(u.row) };
   },
 
+  // Put a user in a committee post. The post carries the permission set, so this
+  // one dropdown replaces ~16 checkboxes per person.
+  setUserPosition: function (b) {
+    var me = requireAdmin_(b.token);
+    // Users gained a `position` column in v4.9.3. Heal it here — an admin action
+    // is rare and already serialised, unlike the login path every collector hits.
+    // Until it exists findUser_ simply reads undefined, which grants nothing.
+    var lock = LockService.getScriptLock(); lock.waitLock(20000);
+    try { ensureCols_(usersSheet_(), USER_COLS); } finally { lock.releaseLock(); }
+    var u = findUser_('id', b.userId);
+    if (!u) throw new Error('user not found');
+    var want = String(b.position || '');
+    if (want) {
+      var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
+      if (!sh) throw new Error('not-found');
+      ensureListCols_(sh);
+      var mx = ensureCol_(sh, 'maxCount');
+      var rows = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, Math.max(2, mx)).getValues() : [];
+      var found = null;
+      rows.forEach(function (r) { if (String(r[0]) === want && String(r[1]) === 'position') found = r; });
+      if (!found) throw new Error('no-such-position');
+      // The cap, enforced where it cannot be argued with. The dropdown greys a
+      // full post out, but a stale screen or a cap tightened since it was drawn
+      // would sail past that — this is the check at the moment of writing.
+      var cap = Number(found[mx - 1]) || 0;
+      if (cap > 0) {
+        var us = usersSheet_(), held = [];
+        if (us.getLastRow() > 1) {
+          var pcol = ensureCol_(us, 'position'), ucol = USER_COLS.indexOf('username') + 1;
+          us.getRange(2, 1, us.getLastRow() - 1, Math.max(pcol, ucol)).getValues().forEach(function (r, i) {
+            if (String(r[pcol - 1]) === want && (i + 2) !== u.rowIndex) held.push(String(r[ucol - 1]));
+          });
+        }
+        if (held.length >= cap) throw new Error('position-full:' + held.join(','));
+      }
+    }
+    u.row.position = want;
+    saveUser_(u);
+    logAudit_(me.row, 'position', '@' + u.row.username + ' → ' + (want || '(none)'));
+    return { ok: true, user: publicUser_(u.row) };
+  },
+
+  // Wipe the PERSONAL permission extras so everyone's access comes from their
+  // post alone. Admins are skipped — their power is a board decision, not a
+  // grant this screen hands out. Destructive and one-way, so it is its own call
+  // with its own confirmation, and it names in the audit log exactly who lost
+  // what rather than logging a count.
+  clearUserGrants: function (b) {
+    var me = requireAdmin_(b.token);
+    if (String(b.confirm) !== 'CLEAR') throw new Error('confirm-required');
+    var us = usersSheet_();
+    if (us.getLastRow() < 2) return { ok: true, cleared: [] };
+    var lock = LockService.getScriptLock(); lock.waitLock(20000);
+    try {
+      var cleared = [];
+      var vals = us.getRange(2, 1, us.getLastRow() - 1, us.getLastColumn()).getValues();
+      var head = us.getRange(1, 1, 1, us.getLastColumn()).getValues()[0].map(String);
+      var iRole = head.indexOf('role'), iName = head.indexOf('username');
+      var iEnt = head.indexOf('entries'), iRep = head.indexOf('reports'), iCash = head.indexOf('cashier');
+      vals.forEach(function (r, i) {
+        if (String(r[iRole]) === 'admin') return;
+        var had = [String(r[iEnt] || ''), String(r[iRep] || ''), Number(r[iCash]) === 1 ? 'cashier' : ''].filter(String);
+        if (!had.length) return;
+        if (iEnt >= 0) us.getRange(i + 2, iEnt + 1).setValue('');
+        if (iRep >= 0) us.getRange(i + 2, iRep + 1).setValue('');
+        if (iCash >= 0) us.getRange(i + 2, iCash + 1).setValue(0);
+        cleared.push(String(r[iName]));
+        logAudit_(me.row, 'grants:clear', '@' + r[iName] + ' lost [' + had.join(' | ') + ']');
+      });
+      touchData_();
+      return { ok: true, cleared: cleared };
+    } finally { lock.releaseLock(); }
+  },
+
   // assign the areas (from the Lists master) a collector is responsible for
   setAreas: function (b) {
     var me = requireAdmin_(b.token);
@@ -1579,7 +1718,7 @@ function voidAllowed_(u, row) {
   var owner = targetOwner_(String(row.targetStore || ''), row.targetId);
   if (!owner) return false;
   if (owner.collectorId && owner.collectorId === u.row.username) return true; // undo / self-correction
-  return Number(u.row.cashier) === 1 && owner.role === 'collector';
+  return isCashier_(u.row) && owner.role === 'collector';
 }
 function targetCollectorRole_(store, id) {
   var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES[store]);

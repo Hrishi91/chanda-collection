@@ -452,11 +452,19 @@ The real-phone smoke test is DONE.
       dropdown, and an EDIT path for an already-registered member (v4.9.2)
       — moved ahead of ② because the post-over-max anomaly lit a dot nothing
       could clear
-- [ ] ② server resolves position ∪ per-user extras; 👥 permission screen with a
-      visible three-part breakdown (from post / extra / effective)
-- [ ] ② also: wipe the existing per-user grants for everyone except admin, as
-      Hrishi asked — but ONLY after posts actually carry permissions, or every
-      collector is locked out of every entry. The button must preview who would
-      be left with nothing before it runs.
+- [x] ② server resolves position ∪ per-user extras; the user card carries the
+      post dropdown, locked post-granted chips and the three-line breakdown
+      (from post / granted on top / ends up with) (v4.9.3)
+- [x] ② 🧹 clear everyone's personal grants except admin — shipped WITH the
+      resolution, since doing it earlier would have locked every collector out.
+      Warns by name about anyone whose post grants no entry permission. (v4.9.3)
+
+### Do these in THIS order after the redeploy
+
+1. Admin → 🧾 তালিকা → 🎖️ কমিটির পদ ও অনুমতি — tick what each post may do.
+   Seeded posts grant NOTHING on purpose, so nothing works until this is done.
+2. Admin → 👥 — give each person their post.
+3. Check each card's "✅ শেষমেশ যা পারবে" line reads right.
+4. ONLY THEN 🧹 clear everyone's personal permissions.
 
 After ③ lands, the one pending Code.gs redeploy carries all of it.
