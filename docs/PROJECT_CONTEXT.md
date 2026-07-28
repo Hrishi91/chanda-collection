@@ -100,6 +100,17 @@ Bengali and an English label. Collectors are assigned areas via `Users.areas`.
 - Offline entries not yet synced die with the app if it's cleared first
   → prominent "unsynced" badge in UI.
 - Voice needs internet on most phones (server-side STT); typing always works.
+- **Sessions never expire, and that is decided, not forgotten** (2026-07-28).
+  One token per user, held in a single cell of the Users sheet; a login anywhere
+  else overwrites it, so one account = one device. Nothing else ends a session.
+  A time limit was considered and rejected: it would expire exactly when someone
+  is at a shop with no signal, which is the worst possible moment in an
+  offline-first app. The answer to a lost or stolen phone is 🔓 **সেশন ছাড়ো**
+  (`releaseSession`) or 🚫 **Block** — Hrishi's call, and he considers it
+  sufficient. Two follow-ups were offered and declined: a "release every
+  session" button, and queueing an offline logout so it reaches the server.
+  Consequence to keep in mind: a logout made while offline clears the phone but
+  leaves the sheet's token valid until the next login overwrites it.
 
 ## Current state (2026-07-25)
 

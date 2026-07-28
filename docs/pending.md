@@ -367,8 +367,12 @@ give different numbers:
 - [ ] **Clear the test data** — the v4 pass left ~35 rows tagged `V430912` in the
       training sheet (batch shops, a chain shop, a bus, handovers, chat). One
       🧹 প্র্যাকটিসের ডেটা মুছে ফেলো clears them; Go Live would too.
-- [ ] **Rotate the three session tokens** pasted in chat today — re-login on
-      each phone.
+- [ ] **Rotate the three session tokens** pasted in chat today. Fastest way:
+      Admin → 👥 → each of those users → 🔓 **সেশন ছাড়ো**, then they log in
+      again. (Re-logging in on the phone works too — a login overwrites the
+      token either way.) Sessions do not expire on their own; this button and
+      🚫 Block are the whole story, and Hrishi has confirmed that is enough
+      (see PROJECT_CONTEXT "Known limitations").
 
 ## Next decision — Go Live
 
