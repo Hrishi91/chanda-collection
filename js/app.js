@@ -550,6 +550,13 @@
     // undefined and throw. Ignore taps once past the end or mid-save.
     const step = flowState && flowState.def.steps[flowState.idx];
     if (!step || savingFlow) return;
+    // A45: leaving an optional field BLANK is a skip, whichever button you
+    // press. The double-ask sat on the Skip button only, so "পরের প্রশ্ন" with
+    // an empty box walked straight past it — two doors, one guard, the same
+    // shape as A31's update button and A34's reload cap. It belongs here,
+    // where every door arrives.
+    if (step.confirmSkipKey && (raw === null || !String(raw == null ? '' : raw).trim())
+        && !window.confirm(t(step.confirmSkipKey))) return;
     let val = raw;
     if (step.kind === 'amount') {
       if (raw === null) { val = null; } // skipped
@@ -826,15 +833,13 @@
       // no current step — reading .kind here used to throw
       const st = flowState && flowState.def.steps[flowState.idx];
       if (!st) return;
-      // `confirmSkipKey`: ask once more before letting a field go by. Hrishi's
-      // call on the donor phone — "don't make it mandatory, but ask two times
-      // before passing the field". Mandatory would only buy fake numbers
-      // (9999999999 gets typed the moment a step blocks a busy collector), and
-      // a fake number is worse than a blank one: it collides with every other
-      // fake number and poisons duplicate detection. A second ask costs the
-      // honest "no phone" case one tap and rescues the "couldn't be bothered"
-      // case, which is the common one.
-      if (st.confirmSkipKey && !window.confirm(t(st.confirmSkipKey))) return;
+      // The `confirmSkipKey` ask lives in submitAnswer now, so this button and
+      // "পরের প্রশ্ন" cannot answer the question differently. Hrishi's call on
+      // the donor phone — "don't make it mandatory, but ask two times before
+      // passing the field". Mandatory would only buy fake numbers (9999999999
+      // gets typed the moment a step blocks a busy collector), and a fake number
+      // is worse than a blank one: it collides with every other fake number and
+      // poisons duplicate detection.
       submitAnswer(st.kind === 'amount' ? null : '');
     };
     const backB = document.getElementById('back-btn');

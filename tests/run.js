@@ -1486,8 +1486,16 @@ const phoneStep = a24App.slice(a24App.indexOf("key: 'phone', qKey: 'q_phone'") -
                                a24App.indexOf("key: 'phone', qKey: 'q_phone'") + 200);
 eq(/optional: true/.test(phoneStep), true, 'A24: the phone stays OPTIONAL — never a blocking step');
 eq(phoneStep.indexOf("confirmSkipKey: 'skip_phone_confirm'") >= 0, true, 'A24: …but skipping it asks once more');
-eq(a24App.indexOf('if (st.confirmSkipKey && !window.confirm(t(st.confirmSkipKey))) return;') >= 0, true,
-   'A24: the skip button honours confirmSkipKey, and Cancel returns to the field');
+// A45 moved the ask into submitAnswer, where BOTH doors arrive: it used to sit
+// on the Skip button alone, so leaving the box empty and pressing "পরের প্রশ্ন"
+// walked straight past it.
+eq(/if \(step\.confirmSkipKey && \(raw === null \|\| !String\(raw == null \? '' : raw\)\.trim\(\)\)\n\s*&& !window\.confirm\(t\(step\.confirmSkipKey\)\)\) return;/.test(a24App), true,
+   'A45: the ask fires on a blank answer however it was submitted, and Cancel returns to the field');
+eq(a24App.indexOf('if (st.confirmSkipKey && !window.confirm(t(st.confirmSkipKey))) return;') < 0, true,
+   'A45: …and there is no second copy on the Skip button to drift from it');
+// the Skip button still routes through the same function
+eq(/submitAnswer\(st\.kind === 'amount' \? null : ''\);/.test(a24App), true,
+   'A45: Skip is just an empty answer — one path, one guard');
 eq(a24I18n.indexOf('  skip_phone_confirm:') >= 0, true, 'A24: the second ask has a real bilingual message');
 // the payoff: a phone match is a STRONGER duplicate signal than a name match
 const npf = a24App.slice(a24App.indexOf('function newPartyFlow'), a24App.indexOf('function esc0'));

@@ -5720,3 +5720,25 @@ VERIFIED live with 8 duplicate pairs (3.0 screens): scrolled to the 5th, settled
 it, **0px jump**, 7 cards left, the right one gone; settling all 8 ends with
 "✅ কোনো অসঙ্গতি নেই" and reconcile agrees — 8 rows carry dupOk. 890 passed,
 0 failed.
+
+## v4.10.4 — A45: the phone step could be skipped without being asked (2026-07-28)
+
+Hrishi: "Skip validation is not there in পরের প্রশ্ন button for mobile number."
+
+Correct, and it is the same shape for the third time today. The donor phone is
+optional but asks once more before you pass it — Hrishi's own rule: "don't make
+it mandatory, but ask two times before passing the field", because a mandatory
+step buys fake numbers and a fake number is worse than a blank one.
+
+That ask lived on the **Skip button only**. Leaving the box empty and pressing
+**পরের প্রশ্ন** went through `submitAnswer`, where an optional field with a blank
+value is simply accepted — so the guard was one tap away from being invisible.
+
+Two doors, one guard. Exactly A31 (the reload cap swallowed the user's own tap)
+and A34 (the version alert). The fix is always the same: put the guard where
+every door arrives, not on one of them. It now lives in `submitAnswer`, and the
+Skip button is just "an empty answer" — one path, one check, nothing to drift.
+
+VERIFIED live: blank + পরের প্রশ্ন now asks "📞 নম্বর ছাড়া এগোবে?" and Cancel
+leaves you in the phone field; the Skip button asks the same thing; typing a
+real number goes straight through without asking. 892 passed, 0 failed.
