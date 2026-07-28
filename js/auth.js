@@ -7,7 +7,7 @@ const Auth = (function () {
   // here would depend on load order, which is the kind of thing that works in
   // testing and fails on somebody's phone. Bound to sw.js VERSION and Code.gs
   // CODE_VERSION by tests/run.js so the three cannot drift.
-  const APP_VERSION = 'chanda-v4.10.2';
+  const APP_VERSION = 'chanda-v4.10.3';
   // A43: the RELEASE string above is for people to read. This is the number
   // that decides anything: the server CONTRACT this client speaks — columns,
   // handlers, meanings. It moves only when Code.gs actually changes, so a
@@ -29,7 +29,7 @@ const Auth = (function () {
       return v === null || v === '' ? -1 : Number(v);
     } catch (e) { return -1; }
   }
-  // "chanda-v4.10.2" → [4,10,2]. Anything unparseable returns null, and every
+  // "chanda-v4.10.3" → [4,10,2]. Anything unparseable returns null, and every
   // caller treats null as "say nothing" — a garbled version must never raise an
   // alarm the user cannot act on.
   function verNums(v) {

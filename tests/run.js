@@ -2313,5 +2313,28 @@ try {
      'A43: …and unknown says nothing, so nobody is locked out by silence');
 }
 
+
+// ---- A44: the anomaly desk threw you to the top after every fix -------------
+// Measured: six anomalies is 2.3 screens. Settling one rebuilt the whole desk,
+// so you landed back at the top of a screen whose entire purpose is working
+// DOWN a list of several — and then had to find your place again.
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const fnStart = app.indexOf("document.querySelectorAll('[data-dupok]')");
+  const fn = app.slice(fnStart, app.indexOf("document.querySelectorAll('[data-dupvoid]')"));
+  eq(/const card = b\.closest\('\.card'\);\n\s*if \(card\) card\.remove\(\);/.test(fn), true,
+     'A44: the settled card is taken out where it stands');
+  eq(/renderAnomalies\(\)/.test(fn), false,
+     'A44: …and the desk is NOT rebuilt, so the page does not move');
+  eq(/if \(!left\)/.test(fn), true,
+     'A44: clearing the last one says "nothing left" instead of leaving a blank screen');
+  // the OTHER two screens keep their full repaint on purpose
+  eq(/entriesScope = b\.dataset\.escope; renderMyEntries\(\);/.test(app), true,
+     'A44: ✏️ still repaints on a filter change — you asked for a different list, so the top is right');
+  eq(/hbFilter = b\.dataset\.hbf; renderHandoverBook\(\);/.test(app), true,
+     'A44: …and 📗 likewise');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

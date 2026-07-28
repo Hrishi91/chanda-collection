@@ -5678,3 +5678,45 @@ Verified live across all three. 885 passed, 0 failed.
 
 **This one DOES need a redeploy** — `CODE_SCHEMA` and the `schema` field on every
 reply live in Code.gs. It is the last one that will need it for a while.
+
+## v4.10.3 — A44: the anomaly desk stopped throwing you to the top (2026-07-28)
+
+Hrishi asked me to check the other screens once. Measured all of them rather
+than guessing:
+
+| screen | length | typing | after an action |
+|---|---|---|---|
+| 📒 খাতা, 40 donors | 5.2 screens | fixed in v4.10.2 | — |
+| ✏️ আমার entry, 31 rows | 3.1 | — | repaints on a filter change |
+| 🩺 অসঙ্গতি, 6 cards | 2.3 | — | **repainted after every fix** |
+| 📗 জমা-খাতা | 2.2 | — | repaints on a filter change |
+| 📊 রিপোর্ট | 1.2 | — | fine |
+
+Two things worth recording from that sweep:
+
+**The right pattern was already in the app.** 🤝 সদস্য and 🔍 অন্যের দাতা both
+split the shell from the results (`#mp-results`, `#fp-results`) and so never
+lose focus while typing. 📒 খাতা was the one that had been missed — not a spread
+disease, a single gap.
+
+**The version lock proved itself by accident.** Mid-measurement the home screen
+had no entry tiles, because an earlier test had left a server schema of 2 in
+localStorage. It was doing exactly what it was built to do.
+
+### Fixed: 🩺
+
+Settling one duplicate rebuilt the whole desk, so you landed back at the top of
+a screen whose entire purpose is working DOWN a list of several — and had to
+find your place again. The settled card is now removed where it stands.
+`reconcile` is deliberately not re-run: `dupOk` suppresses that one pair and
+touches no other row, so nothing else can have changed.
+
+### Left alone on purpose: ✏️ and 📗
+
+Both repaint when you change a filter chip. That is not the same fault — you
+asked for a *different list*, so starting at the top of it is right.
+
+VERIFIED live with 8 duplicate pairs (3.0 screens): scrolled to the 5th, settled
+it, **0px jump**, 7 cards left, the right one gone; settling all 8 ends with
+"✅ কোনো অসঙ্গতি নেই" and reconcile agrees — 8 rows carry dupOk. 890 passed,
+0 failed.

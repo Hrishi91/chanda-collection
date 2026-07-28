@@ -3347,7 +3347,24 @@
           DB.get('payments', b.dataset.dupok).then(function (row) {
             if (!row) return;
             row.dupOk = 1; row.synced = 0; // re-push so every device stops asking
-            return DB.put('payments', row).then(function () { toast(t('saved')); autoSync(); renderAnomalies(); });
+            return DB.put('payments', row).then(function () {
+              toast(t('saved')); autoSync();
+              // A44: settle one and the whole desk used to be rebuilt, throwing
+              // you back to the top — on a screen whose entire purpose is
+              // working DOWN a list of several. Take the settled card out where
+              // it stands; the page does not move, and what is left is exactly
+              // what is left. reconcile is not re-run because nothing else
+              // changed: dupOk suppresses this pair and touches no other row.
+              const card = b.closest('.card');
+              if (card) card.remove();
+              const left = $view().querySelectorAll('.card').length;
+              if (!left) {
+                const box = document.createElement('div');
+                box.className = 'empty';
+                box.textContent = t('anom_none');
+                $view().appendChild(box);
+              }
+            });
           }).catch(function (e) { b.disabled = false; toast(errMsg(e)); });
         };
       });
