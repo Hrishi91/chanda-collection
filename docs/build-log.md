@@ -6099,3 +6099,23 @@ so a revert fails them by name.
 `CODE_SCHEMA` stays **2** — nothing here changed the server contract. But
 Code.gs did change (`stripTokens_`), so **this rides the redeploy v4.12.0
 already required.**
+
+## config.js rebaked for the v4.12.1 deployment (2026-07-29)
+
+Hrishi redeployed Code.gs as a **New deployment** (this account has never
+repointed an existing one — see `docs/apps-script-deploy.md`), so the /exec id
+changed and `js/config.js` was rebaked to match.
+
+Verified against the new endpoint, not assumed:
+
+```
+codeVersion: chanda-v4.12.1
+schema     : 2
+ok         : true
+```
+
+`CODE_VERSION` lives in the same file as `stripTokens_`, `dailyBackup`'s
+`data.Users` fix and the Tier-0 push/pull changes — so the stamp coming back as
+v4.12.1 is direct evidence that the deployed script is this file and not an
+older copy. Client `APP_SCHEMA` is 2 and server `CODE_SCHEMA` is 2, so
+`schemaCmp()` is 0: no red bar, no entry lock, phones may write again.
