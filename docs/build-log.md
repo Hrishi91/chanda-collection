@@ -5405,3 +5405,57 @@ now splits the diagnosis: "সার্ভার বলছে …" means the han
 the POST→302 transport path.
 
 800 passed, 0 failed.
+
+## v4.9.6 — A36: the two assumptions that broke, and a decision I nearly deleted (2026-07-28)
+
+Hrishi: "the users are not having any permission but why the screens are visible
+to him / we already decided long back about this" — then "why are you not
+looking in old implementation and you are deleting it itself".
+
+He was right, and the log settled it. Sunday 26th, commit `7a84c76`, titled
+**"Looking is not doing"**:
+
+> "I overreached. Hrishi asked twice to hide the entry buttons … v3.96.1 went
+> further and blocked 📒 খাতা and 📗 জমা-খাতা from being read at all. That is a
+> different thing and was not asked for — **let them see**."
+
+So the ledger being readable is **his** decision, not mine, pinned by 17 tile
+tests — and an hour earlier today I told him the opposite and was about to
+reverse it. The root cause is a discipline failure: **that decision was never
+written into PROJECT_CONTEXT.md**, so neither of us could find it. It is written
+down now, with the instruction not to change it without him saying so.
+
+Nothing of Sunday's is touched. What IS fixed is a conflict **I created today**.
+
+### The assumption that broke
+
+Sunday's rule "nothing granted → only the card" carried its reason in the commit:
+*"somebody who collects nothing has no money to hand over"*. True while grants
+could only be ADDED. 🧹 clearUserGrants (v4.9.3, mine, today) takes them away —
+from somebody who may already be holding cash. `homeTiles` returns before
+`common` is filled, so that person's home would have had **no way to hand the
+money in**. I warned Hrishi about exactly this trap and then shipped it myself.
+
+`homeTiles(user, opts)` now takes `holding` and `staleVersion`:
+
+- **holding** — 🤝 জমা দিলাম and 📗 জমা-খাতা come back whatever the grants say.
+  Not `payments`: a further instalment is collecting, which they may not do.
+- **staleVersion** — no entry, daily or desk tiles for anybody, admin included;
+  a stale admin client is no safer than anyone's. Same handover exemption.
+
+With no opts, behaviour is exactly as before — an unknown version blocks nobody.
+
+### The version lock, as asked
+
+`canEntry(key)` refuses every key while the phone is behind. That one predicate
+is what every entry tile and every entry route already asks, so no screen can be
+forgotten. It is deliberately keyed: the common actions carry no key, so handing
+money over is never blocked. Two different walls get two different cards —
+"update your app" and "ask the admin" send you down different roads, and the
+blocked card carries the fix button like the bar does.
+
+VERIFIED live: a collector with grants cleared but ₹700 in hand gets the card
+plus 🤝 জমা দিলাম and 📗 জমা-খাতা, and no entry tiles; the same collector with
+full grants but on v4.9.5 against a v4.10.0 server gets the red bar, the blocked
+card with "এখনই ঠিক করো", and the same two tiles. All 17 of Sunday's tile tests
+pass untouched. 818 passed, 0 failed.

@@ -2042,5 +2042,70 @@ try {
      'A35: an admin failure names the action and stays on screen until dismissed');
 }
 
+
+// ---- A36: the two assumptions that broke under grants being REMOVABLE --------
+// Sunday's rule (7a84c76 / 0a18292) was "nothing granted → only the card", and
+// its stated reason was "somebody who collects nothing has no money to hand
+// over". That was true while grants could only be ADDED. 🧹 clearUserGrants now
+// takes them away — from somebody who may already be holding cash — and the
+// version lock can freeze somebody mid-round. The money is real either way, and
+// stranded cash cannot be undone.
+//
+// Sunday's decision itself is NOT reversed here: the ledger, reports and chat
+// stay readable ("let them see"), and every one of its 17 tile tests above still
+// passes untouched.
+{
+  const hold = { holding: true };
+  // nothing granted + holding money → the way to hand it in comes back
+  const stranded = homeTiles({ role: 'user', entries: '', cashier: 0 }, hold);
+  eq(stranded.setUp, false, 'A36: holding cash does not make an ungranted user "set up"');
+  eq(stranded.entry, [], 'A36: …they still get no entry tiles');
+  eq(stranded.common, ['handover', 'hbook'], 'A36: …but CAN hand the money in, and see their book');
+  eq(stranded.common.indexOf('payments'), -1,
+     'A36: …and NOT take a further instalment — that is collecting, which they may not do');
+  // no money in hand → Sunday's rule is exactly as it was
+  eq(homeTiles({ role: 'user', entries: '', cashier: 0 }).common, [],
+     'A36: with no money in hand, nothing granted is still a bare card (Sunday unchanged)');
+
+  // behind the server: no new entries for ANYBODY, admin included
+  const stale = { staleVersion: true };
+  const staleAdmin = homeTiles({ role: 'admin', entries: '', cashier: 1 }, stale);
+  eq(staleAdmin.blocked, true, 'A36: a stale phone is blocked…');
+  eq(staleAdmin.entry.concat(staleAdmin.daily, staleAdmin.role), [],
+     'A36: …with no entry, daily or desk tiles — an admin on a stale client is no safer');
+  eq(staleAdmin.setUp, false, 'A36: …and is not "set up", so the card shows');
+  eq(homeTiles({ role: 'user', entries: 'shop', cashier: 0 }, { staleVersion: true, holding: true }).common,
+     ['handover', 'hbook'],
+     'A36: a frozen collector holding cash can still hand it in');
+  eq(homeTiles({ role: 'user', entries: 'shop', cashier: 0 }, { staleVersion: true }).common, [],
+     'A36: …and gets nothing when there is no money to hand in');
+  // the lock must not fire when we have never heard from the server
+  eq(homeTiles({ role: 'user', entries: 'shop', cashier: 0 }).entry, ['shop'],
+     'A36: no opts at all → normal behaviour, so an unknown version blocks nobody');
+}
+
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  // ONE predicate, so no entry screen can be forgotten…
+  eq(/if \(key && Auth\.versionCmp\(\) === -1\) return false;/.test(app), true,
+     'A36: canEntry refuses every entry key while the phone is behind');
+  // …and it must be keyed, or handing money over would be blocked too
+  eq(/function canEntry\(key\) \{\n    if \(key &&/.test(app), true,
+     'A36: …only when a key is given — the common actions, handover included, stay open');
+  eq(/staleVersion: Auth\.versionCmp\(\) === -1/.test(app)
+     && /holding: \(avail\.cash \+ avail\.upi\) > 0/.test(app), true,
+     'A36: the home screen tells homeTiles both facts');
+  // two different walls need two different cards, or the fix sends you the wrong way
+  eq(/plan\.blocked \? staleVersionCard\(\) : noGrantCard\(\)/.test(app), true,
+     'A36: "update your app" and "ask the admin" are different cards');
+  eq(/vf\.onclick = function \(\) \{ runUpdate\(vf\); \}/.test(app), true,
+     'A36: …and the blocked card carries the fix, like the bar does');
+  ['ver_blocked_title', 'ver_blocked_body'].forEach(function (k) {
+    eq(i18n.indexOf('  ' + k + ':') >= 0, true, 'A36: ' + k + ' has a bilingual message');
+  });
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

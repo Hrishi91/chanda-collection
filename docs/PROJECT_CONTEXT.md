@@ -100,6 +100,30 @@ Bengali and an English label. Collectors are assigned areas via `Users.areas`.
 - Offline entries not yet synced die with the app if it's cleared first
   → prominent "unsynced" badge in UI.
 - Voice needs internet on most phones (server-side STT); typing always works.
+- **Grants decide what you may ENTER, not what you may SEE** (Hrishi,
+  2026-07-26, commit `7a84c76` "Looking is not doing"). He asked twice for the
+  entry buttons to be hidden from somebody granted nothing; I went further and
+  blocked 📒 খাতা and 📗 জমা-খাতা from being READ, and he corrected it —
+  **"let them see"**. The ledger is the committee's own book and a collector is
+  on the committee. So: nothing granted → home is one card with the admin's
+  name and number; 📒 খাতা, 📊 রিপোর্ট, 📗 জমা-খাতা and 💬 বার্তা stay readable.
+  Pinned by 17 tile tests. **This decision was never written down at the time,
+  and on 2026-07-28 that cost an hour and I nearly reversed it a second time.**
+  Do not change it without Hrishi saying so in as many words.
+- **Two exceptions to that rule, added 2026-07-28** because the assumption under
+  it broke. Its stated reason was "somebody who collects nothing has no money to
+  hand over" — true while grants could only be ADDED. 🧹 clearUserGrants now
+  removes them, possibly from somebody already holding cash, and the version
+  lock can freeze somebody mid-round. In both cases **🤝 জমা দিলাম and 📗 জমা-খাতা
+  stay** whenever there is money in hand. Not 'payments' — taking a further
+  instalment is collecting. Stranded cash cannot be undone; a permission rule is
+  not worth that.
+- **A phone behind the server may not make new entries** (Hrishi, 2026-07-28).
+  Asked for at A34, argued down to an alert, and asked for again — his call.
+  `canEntry` refuses every permission key while `Auth.versionCmp() === -1`, which
+  covers every entry tile and every entry route in one line. Admins included: a
+  stale admin client is no safer than anyone's. Handing money over is exempt.
+  Known cost, accepted: a phone we already know is behind stays blocked offline.
 - **Sessions never expire, and that is decided, not forgotten** (2026-07-28).
   One token per user, held in a single cell of the Users sheet; a login anywhere
   else overwrites it, so one account = one device. Nothing else ends a session.

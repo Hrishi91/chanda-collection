@@ -1509,7 +1509,15 @@
       // this only decides how each one is drawn. Keeping the decision out of
       // the markup is why "one permission brings the default screens back" can
       // be asserted rather than eyeballed.
-      const plan = Aggregate.homeTiles(Auth.current());
+      // A36: two things the plan cannot know by itself — whether this person is
+      // holding cash right now (so 🤝 জমা দিলাম must survive a cleared grant),
+      // and whether this phone is behind the server (no new entries until it
+      // updates, per Hrishi).
+      const avail = Aggregate.myAvailable(data, meId);
+      const plan = Aggregate.homeTiles(Auth.current(), {
+        holding: (avail.cash + avail.upi) > 0,
+        staleVersion: Auth.versionCmp() === -1,
+      });
       const ICON = { shop: ['🏪', 'new_shop'], person: ['🙍', 'new_person'], member: ['🤝', 'new_member'],
                      bus: ['🚌', 'daily_bus'], road: ['🛣️', 'daily_road'], toto: ['🛺', 'daily_toto'],
                      expense: ['🧾', 'expense'], cashier: ['💰', 'confirm_handover'],
@@ -1561,9 +1569,14 @@
             '<div id="notif-banner"></div>' +
             '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
             '<div class="hero-sub">' + esc(Settings.get('collectorName')) + '</div></div>' +
-            noGrantCard();
+            (plan.blocked ? staleVersionCard() : noGrantCard()) +
+            // …and if there is money in hand, the way to hand it in comes with it
+            (plan.common.length ? '<div class="grid" style="margin-top:10px">' +
+              plan.common.map(function (g) { return drawTile(g); }).join('') + '</div>' : '');
           renderNotifBanner();
           wireNav();
+          const vf = document.getElementById('ver-fix-card');
+          if (vf) vf.onclick = function () { runUpdate(vf); };
         };
         paintCard();
         // the card's whole point is the admin's name and number, and those come
@@ -1597,6 +1610,18 @@
   function hasAnyGrant() {
     if (Auth.isAdmin()) return true;
     return String((Auth.current() || {}).entries || '').split(',').filter(Boolean).length > 0;
+  }
+  // A36: being behind the server and being granted nothing are different walls
+  // with different fixes. Saying "ask the admin" to somebody who only needs to
+  // tap update would send them down a road that cannot help them.
+  function staleVersionCard() {
+    return '<div class="card" style="border:1.5px solid #c0392b;background:#fdecea">' +
+      '<b>🔴 ' + esc(t('ver_blocked_title')) + '</b>' +
+      '<div class="row-sub" style="margin-top:4px">' +
+        esc(t('ver_blocked_body').replace('{mine}', Auth.APP_VERSION).replace('{srv}', Auth.serverVersion())) +
+      '</div>' +
+      '<button id="ver-fix-card" class="primary big block" style="margin-top:8px">' +
+        esc(t('ver_fix_btn')) + '</button></div>';
   }
   function noGrantCard() {
     return '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
@@ -2198,7 +2223,15 @@
   // nobody is accidentally locked out). Keys are the six collection categories
   // plus 'review' — see Aggregate.PERM_KEYS for the whole story. Passing a
   // falsy key means "common to everyone" and is always allowed.
-  function canEntry(key) { return Aggregate.permAllowed(Auth.current(), key); }
+  // A36: a phone we KNOW is behind the server may not make new entries. This is
+  // the single predicate every entry tile and every entry route already asks,
+  // so one line covers all of them — no screen can be forgotten.
+  // Handing over money already in hand does NOT come through here (it carries
+  // no permission key), and that is deliberate: see Aggregate.homeTiles.
+  function canEntry(key) {
+    if (key && Auth.versionCmp() === -1) return false;
+    return Aggregate.permAllowed(Auth.current(), key);
+  }
   // The cashier's correction desk is now its own grant. Base requirement is
   // unchanged (cashier or admin); on top of that the admin may withhold it.
   function canReview() { return Auth.isCashier() && canEntry('review'); }

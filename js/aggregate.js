@@ -780,13 +780,39 @@
   //   common   — everyone who has been set up at all: taking a later
   //              instalment, handing money over, their own handover book
   //   role     — the cashier's desk and the correction desk, from role + grant
-  function homeTiles(user) {
-    const out = { entry: [], daily: [], common: [], role: [], setUp: false };
+  // `opts.holding`      this person has money in hand RIGHT NOW
+  // `opts.staleVersion`  this phone is behind the server and we know it
+  //
+  // A36: both of these break an assumption the original rule rested on. The
+  // rule "nothing granted → only the card" was written with the reason
+  // "somebody who collects nothing has no money to hand over" — true when
+  // grants could only be ADDED. 🧹 clearUserGrants can now take them away from
+  // somebody already holding cash, and the version lock can freeze somebody
+  // mid-round. In both cases the money is real and already in a pocket, so the
+  // way to hand it in must stay: unrecorded or stranded cash cannot be undone,
+  // and no permission rule is worth that.
+  //
+  // Note what is NOT restored: 'payments' — taking a further instalment is
+  // COLLECTING, which is exactly what they may no longer do.
+  function homeTiles(user, opts) {
+    opts = opts || {};
+    const out = { entry: [], daily: [], common: [], role: [], setUp: false, blocked: false };
     if (!user) return out;
     const granted = function (k) { return permAllowed(user, k); };
+    // Behind the server: no new entries by anybody, admin included — a stale
+    // client writing into a book the server has moved on from is the thing
+    // being prevented, and an admin's stale client is no safer than anyone's.
+    if (opts.staleVersion) {
+      out.blocked = true;
+      if (opts.holding) out.common = ['handover', 'hbook'];
+      return out;
+    }
     out.setUp = user.role === 'admin' ||
       String(user.entries || '').split(',').filter(Boolean).length > 0;
-    if (!out.setUp) return out; // nothing granted → only the "ask the admin" card
+    if (!out.setUp) {
+      if (opts.holding) out.common = ['handover', 'hbook'];
+      return out; // nothing granted → the "ask the admin" card (+ a way to hand in cash)
+    }
     ['shop', 'person', 'member', 'bus'].forEach(function (k) { if (granted(k)) out.entry.push(k); });
     ['road', 'toto'].forEach(function (k) { if (granted(k)) out.daily.push(k); });
     const isCashier = Number(user.cashier) === 1 || user.role === 'admin';

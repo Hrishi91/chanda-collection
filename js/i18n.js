@@ -34,6 +34,8 @@ const I18N = {
   upd_none: { bn: 'এই ব্রাউজারে আপডেট পরীক্ষা করা যাচ্ছে না', en: 'Cannot check for updates in this browser' },
   ver_behind: { bn: 'এই ফোনে পুরনো version ({mine}) — সার্ভারে {srv}', en: 'This phone is on an old version ({mine}) — the server is on {srv}' },
   ver_fix_btn: { bn: 'এখনই ঠিক করো', en: 'Fix it now' },
+  ver_blocked_title: { bn: 'পুরনো version — নতুন entry বন্ধ', en: 'Old version — new entries are off' },
+  ver_blocked_body: { bn: 'এই ফোনে {mine}, সার্ভারে {srv}। নিচের বোতামটা চেপে আপডেট করো, তারপর সব আগের মতো চলবে। হাতে টাকা থাকলে জমা দেওয়া এখনও খোলা আছে।', en: 'This phone is on {mine}, the server on {srv}. Tap below to update and everything comes back. If you are holding money, handing it over is still open.' },
   ver_server_behind: { bn: 'সার্ভার এখনো {srv} — এই অ্যাপ {mine}। Code.gs আবার deploy করা বাকি।', en: 'The server is still on {srv} — this app is {mine}. Code.gs has not been redeployed yet.' },
   ver_stale_short: { bn: 'পিছিয়ে', en: 'behind' },
   ver_unknown: { bn: 'version জানা নেই', en: 'version unknown' },
