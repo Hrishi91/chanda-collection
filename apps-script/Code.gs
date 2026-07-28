@@ -69,7 +69,8 @@ var USER_COLS = ['id', 'username', 'name', 'phone', 'passwordHash', 'salt', 'rol
                  'cashier', 'reports', 'status', 'years', 'token', 'mustChange', 'createdAt', 'updatedAt',
                  'areas', // append-only: comma-separated area ids this collector is responsible for
                  'entries', // permission keys granted to this PERSON (see PERM_KEYS) — extras only
-                 'position']; // the committee post they hold; its permission set is added on top
+                 'position', // the committee post they hold; its permission set is added on top
+                 'appVersion']; // last version this person's phone reported (A34)
 var AUDIT_COLS = ['id', 'ts', 'actor', 'actorId', 'action', 'detail'];
 
 // Per-report access: admin sees all; cashier gets 'inhand' by default;
@@ -193,8 +194,14 @@ function makeAdmin(username) {
 }
 
 // ---------- helpers ----------
+// A34: every response carries the server's version. Stamped in the ONE place
+// every reply passes through, so no handler can forget — including the error
+// replies, because a device that is behind and also getting errors still needs
+// to learn the first fact.
 function json_(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj))
+  var out = obj || {};
+  if (out.codeVersion === undefined) out.codeVersion = CODE_VERSION;
+  return ContentService.createTextOutput(JSON.stringify(out))
     .setMimeType(ContentService.MimeType.JSON);
 }
 // Password hashing. Current scheme 's2$' key-stretches SHA-256 to slow down
@@ -257,7 +264,7 @@ function publicUser_(row) {
            reports: eff.reports.join(','), status: row.status,
            years: String(row.years || ''), mustChange: Number(row.mustChange) || 0,
            areas: String(row.areas || ''), entries: eff.entries.join(','), createdAt: row.createdAt,
-           position: String(row.position || ''),
+           position: String(row.position || ''), appVersion: String(row.appVersion || ''),
            ownCashier: Number(row.cashier) || 0,
            ownReports: String(row.reports || ''), ownEntries: String(row.entries || '') };
 }
@@ -481,7 +488,23 @@ function requireUser_(token) {
   var u = findUser_('token', token);
   if (!u) throw new Error('bad-token');
   if (u.row.status !== 'approved') throw new Error(u.row.status === 'blocked' ? 'blocked' : 'pending');
+  noteAppVersion_(u, REQ_APP_VERSION);
   return u;
+}
+// Record which version a phone is running, so the admin can SEE the fleet
+// instead of ringing ten people. Written only when it CHANGES — this runs on
+// every single request, and a write per request would be both slow and a lock
+// fight. One targeted cell, not saveUser_, so nothing else on the row can be
+// clobbered by a stale copy.
+function noteAppVersion_(u, v) {
+  try {
+    var val = String(v || '');
+    if (!val || String(u.row.appVersion || '') === val) return;
+    var sh = usersSheet_();
+    var col = ensureCol_(sh, 'appVersion');
+    sh.getRange(u.rowIndex, col).setValue(val);
+    u.row.appVersion = val;
+  } catch (e) { /* telemetry must never break the real action */ }
 }
 function requireAdmin_(token) {
   var u = requireUser_(token);
@@ -508,9 +531,15 @@ var SETTLED_ON_UPSERT = {
   },
 };
 
+// The version the CURRENT request came from. A script-global is safe here and
+// nowhere else: Apps Script runs one request per execution context, so this is
+// per-request state, not shared state. It exists so requireUser_ can record the
+// device version without every one of ~40 handlers having to pass it along.
+var REQ_APP_VERSION = '';
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
+    REQ_APP_VERSION = String(body.appVersion || '');
     var fn = ACTIONS[body.action];
     if (!fn) throw new Error('unknown action');
     return json_(fn(body));
@@ -527,7 +556,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.9.3';
+var CODE_VERSION = 'chanda-v4.9.4';
 function doGet() { return json_({ ok: true, service: 'chanda-khata', version: CODE_VERSION }); }
 
 var ACTIONS = {

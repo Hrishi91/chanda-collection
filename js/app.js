@@ -1,13 +1,12 @@
 // UI: view router + guided chat-style entry engine + dashboards.
 (function () {
   const $view = function () { return document.getElementById('view'); };
-  // A31: the version of the JS that is ACTUALLY EXECUTING right now. The cache
-  // name is not this — a new worker can claim the page (so the cache and the
-  // controller both report the new version) while the tab keeps running the old
-  // code it loaded minutes ago. Reporting the cache made "I updated but nothing
-  // changed" look like success. Asserted equal to sw.js VERSION and Code.gs
-  // CODE_VERSION in tests/run.js, so the three can never drift apart.
-  const APP_VERSION = 'chanda-v4.9.3';
+  // The version of the JS actually executing — NOT the cache name, which a new
+  // worker updates while this tab keeps running the code it loaded minutes ago
+  // (A31). Defined once, in js/auth.js: that is the single door every server
+  // call passes through and it loads first, so there is no load-order question
+  // about who owns the constant.
+  const APP_VERSION = Auth.APP_VERSION;
   const SIDES = ['main_malda', 'main_balurghat', 'harirampur', 'singhadaha'];
   const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
   let flowState = null;
@@ -2210,7 +2209,43 @@
     const at = document.getElementById('app-title');
     if (at && Auth.loggedIn()) at.textContent = '🙏 ' + pujaName();
     const el = document.getElementById('training-bar'); if (!el) return;
-    if (isLive() || !Auth.loggedIn()) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    if (!Auth.loggedIn()) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    // A34: being BEHIND the server outranks the training notice. Old code
+    // writing into a book the server has moved on from is the one thing worth
+    // interrupting somebody for.
+    //
+    // Three deliberate limits, and each one exists so this bar cannot become
+    // the next bug:
+    //   · only when this device is BEHIND. A device AHEAD of the server is the
+    //     normal deploy window — Pages and Apps Script never publish in the same
+    //     second — and shouting then would paint every phone red on every
+    //     release. Hrishi is told instead, because for him it means "you have
+    //     not redeployed Code.gs yet".
+    //   · null (never talked to the server, or an unparseable version) says
+    //     nothing at all. An alarm nobody can act on is worse than silence.
+    //   · it CANNOT be dismissed, and the fix is a button inside it. "Go to
+    //     Settings and scroll down" is a three-step errand, and errands get put
+    //     off — which is exactly how a warning becomes wallpaper.
+    const cmp = Auth.versionCmp();
+    if (cmp === -1) {
+      el.style.cssText = 'display:block;background:#c0392b;color:#fff;text-align:center;' +
+        'font-weight:bold;font-size:14px;padding:8px 12px;border-bottom:2px solid #7d2418;line-height:1.4';
+      el.innerHTML = '🔴 ' + esc(t('ver_behind').replace('{mine}', Auth.APP_VERSION).replace('{srv}', Auth.serverVersion())) +
+        ' <button id="ver-fix" class="chip" style="background:#fff;color:#c0392b;border:0;font-weight:700;margin-left:6px">' +
+        esc(t('ver_fix_btn')) + '</button>';
+      const b = document.getElementById('ver-fix');
+      if (b) b.onclick = function () { runUpdate(b); };
+      return;
+    }
+    // The server is behind THIS app: only the admin can act on that, and only
+    // by redeploying Code.gs. Nobody else needs to see it.
+    if (cmp === 1 && Auth.isAdmin()) {
+      el.style.cssText = 'display:block;background:#f6b93b;color:#5a3a00;text-align:center;' +
+        'font-weight:bold;font-size:13px;padding:7px 12px;border-bottom:2px solid #d9891a;line-height:1.35';
+      el.innerHTML = '🛠️ ' + esc(t('ver_server_behind').replace('{srv}', Auth.serverVersion()).replace('{mine}', Auth.APP_VERSION));
+      return;
+    }
+    if (isLive()) { el.style.display = 'none'; el.innerHTML = ''; return; }
     el.style.cssText = 'display:block;background:#f6b93b;color:#5a3a00;text-align:center;' +
       'font-weight:bold;font-size:14px;padding:7px 12px;border-bottom:2px solid #d9891a;line-height:1.35';
     el.innerHTML = '🟡 ' + esc(t('training_mode')) + ' — ' + esc(t('training_hint'));
@@ -3328,6 +3363,56 @@
     });
   }
 
+  // ONE update path. It is reached from ⚙️ Settings and from the red version
+  // bar, and two copies of a sequence this delicate would drift — A31 was three
+  // stacked mistakes inside exactly this code. `btn` is whatever the user
+  // actually pressed; it may be null when nothing needs disabling.
+  function runUpdate(btn) {
+    btn = btn || { disabled: false };
+    if (!navigator.serviceWorker) { toast(t('upd_none')); return; }
+    btn.disabled = true;
+    // A31: the user TAPPED this. The automatic-reload cap exists to stop a
+    // worker reloading the page with nobody's consent — a tap IS consent, and
+    // a reload loop cannot tap a button. Exempting the manual path is the
+    // whole point of having a manual path: the cap's own comment promised
+    // "anything further needs the user's own 🔄", and until now that promise
+    // was false, because the tap went through the same capped handler.
+    userReload = true;
+    try { sessionStorage.removeItem('ck_swReload'); } catch (e) {}
+    navigator.serviceWorker.getRegistration().then(function (r) {
+      if (!r) { btn.disabled = false; toast(t('upd_none')); return; }
+      return r.update().then(function () {
+        const w = r.installing || r.waiting;
+        if (!w) {
+          // NOTHING to download — and this is the trap the whole bug lived in.
+          // The worker can ALREADY be holding a newer version (it installed and
+          // claimed the page while the automatic reload was capped or missed),
+          // so update() correctly finds nothing new, and the old code said
+          // "✅ you are on the latest" while the tab kept running yesterday's
+          // JS. Forever: every tap re-ran the same check and gave the same
+          // false all-clear. When the held version is not the running version
+          // the fix was never a download, it is a reload.
+          return swVersion().then(function (have) {
+            if (have && have.indexOf(' / ') < 0 && have !== APP_VERSION) { location.reload(); return; }
+            btn.disabled = false; toast(t('upd_latest')); showVersion();
+          });
+        }
+        toast(t('upd_found'));
+        // Drive the reload from here rather than trusting controllerchange:
+        // this is the one path the user can see, so it must not depend on an
+        // event that another guard might swallow.
+        if (w.state === 'activated') { location.reload(); return; }
+        w.addEventListener('statechange', function () {
+          if (w.state === 'activated') location.reload();
+          // An install that dies (one asset failed — install is all-or-nothing
+          // by design) used to be completely silent: the toast had already
+          // said "downloading", and nothing ever contradicted it. Say so.
+          else if (w.state === 'redundant') { btn.disabled = false; toast(t('upd_fail')); showVersion(); }
+        });
+      });
+    }).catch(function () { btn.disabled = false; toast(t('upd_none')); });
+  }
+
   // A31: what the SERVICE WORKER has ready, which is not the same question as
   // what this page is running. Ask the controlling worker directly — it is the
   // one actually answering this page's fetches. Fall back to the cache names,
@@ -3403,50 +3488,7 @@
       '<button id="upd-btn" class="ghost block">🔄 ' + esc(t('check_update')) + '</button>';
     showVersion();
     const updB = document.getElementById('upd-btn');
-    if (updB) updB.onclick = function () {
-      if (!navigator.serviceWorker) { toast(t('upd_none')); return; }
-      updB.disabled = true;
-      // A31: the user TAPPED this. The automatic-reload cap exists to stop a
-      // worker reloading the page with nobody's consent — a tap IS consent, and
-      // a reload loop cannot tap a button. Exempting the manual path is the
-      // whole point of having a manual path: the cap's own comment promised
-      // "anything further needs the user's own 🔄", and until now that promise
-      // was false, because the tap went through the same capped handler.
-      userReload = true;
-      try { sessionStorage.removeItem('ck_swReload'); } catch (e) {}
-      navigator.serviceWorker.getRegistration().then(function (r) {
-        if (!r) { updB.disabled = false; toast(t('upd_none')); return; }
-        return r.update().then(function () {
-          const w = r.installing || r.waiting;
-          if (!w) {
-            // NOTHING to download — and this is the trap the whole bug lived in.
-            // The worker can ALREADY be holding a newer version (it installed and
-            // claimed the page while the automatic reload was capped or missed),
-            // so update() correctly finds nothing new, and the old code said
-            // "✅ you are on the latest" while the tab kept running yesterday's
-            // JS. Forever: every tap re-ran the same check and gave the same
-            // false all-clear. When the held version is not the running version
-            // the fix was never a download, it is a reload.
-            return swVersion().then(function (have) {
-              if (have && have.indexOf(' / ') < 0 && have !== APP_VERSION) { location.reload(); return; }
-              updB.disabled = false; toast(t('upd_latest')); showVersion();
-            });
-          }
-          toast(t('upd_found'));
-          // Drive the reload from here rather than trusting controllerchange:
-          // this is the one path the user can see, so it must not depend on an
-          // event that another guard might swallow.
-          if (w.state === 'activated') { location.reload(); return; }
-          w.addEventListener('statechange', function () {
-            if (w.state === 'activated') location.reload();
-            // An install that dies (one asset failed — install is all-or-nothing
-            // by design) used to be completely silent: the toast had already
-            // said "downloading", and nothing ever contradicted it. Say so.
-            else if (w.state === 'redundant') { updB.disabled = false; toast(t('upd_fail')); showVersion(); }
-          });
-        });
-      }).catch(function () { updB.disabled = false; toast(t('upd_none')); });
-    };
+    if (updB) updB.onclick = function () { runUpdate(updB); };
     const admB = document.getElementById('adm-btn');
     if (admB) admB.onclick = function () { navigate('admin'); };
     document.getElementById('help-btn').onclick = function () { navigate('help'); };
@@ -4056,7 +4098,14 @@
           '</button>' +
           '<div class="adm-user-body"' + (open ? '' : ' hidden') + '>' +
             '<div class="row-sub" style="margin-bottom:8px">@' + esc(u.username) +
-              (u.phone ? ' • 📞 ' + esc(u.phone) : '') + ' • ' + esc(u.years || '—') + '</div>' +
+              (u.phone ? ' • 📞 ' + esc(u.phone) : '') + ' • ' + esc(u.years || '—') +
+              // A34: which version that person's phone last reported. Ten phones
+              // cannot be chased, but they can be SEEN — and this is the only
+              // way to know a warning was acted on rather than ignored.
+              ' • ' + esc(u.appVersion
+                ? (u.appVersion === Auth.APP_VERSION ? '✅ ' : '⚠️ ') + u.appVersion +
+                  (u.appVersion === Auth.APP_VERSION ? '' : ' — ' + t('ver_stale_short'))
+                : '❔ ' + t('ver_unknown')) + '</div>' +
             body + '</div></div>';
       }
       // One line that says what this person actually has, so the list can be
@@ -4601,7 +4650,7 @@
   }
   function render() {
     document.getElementById('app-title').textContent = '🙏 ' + pujaName();
-    updateTrainingBar(); // persistent training strip + header title, every screen
+    updateTrainingBar(); // version bar / training strip + header title, every screen
     document.querySelectorAll('#bottomnav button').forEach(function (b) {
       b.classList.toggle('on', b.dataset.nav === current.view);
       const k = b.dataset.nav;
@@ -4708,5 +4757,8 @@
       });
       navigator.serviceWorker.register('sw.js');
     }
+    // The bar has to appear the moment the server's version lands, not on the
+    // next navigation — the whole point is that nobody has to go looking for it.
+    window.addEventListener('ck-version', updateTrainingBar);
   });
 })();

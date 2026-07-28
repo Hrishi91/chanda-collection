@@ -1715,12 +1715,20 @@ try {
 
   // The three versions are now stamped in three files. Any two agreeing while the
   // third drifts is exactly the silent-stale-deploy bug, so bind all three.
-  const appVer = (app.match(/APP_VERSION = '(chanda-v[\d.]+)'/) || [])[1];
+  // A34 moved the constant to js/auth.js — the single door every server call
+  // goes through, and the first of the two files to load, so there is no
+  // load-order question about who owns it.
+  const auth = fs.readFileSync(__dirname + '/../js/auth.js', 'utf8');
+  const appVer = (auth.match(/APP_VERSION = '(chanda-v[\d.]+)'/) || [])[1];
   const swV = (sw.match(/VERSION = '(chanda-v[\d.]+)'/) || [])[1];
   const gsV = (gs.match(/CODE_VERSION = '(chanda-v[\d.]+)'/) || [])[1];
-  eq(!!appVer, true, 'A31: js/app.js stamps the version it is actually running');
+  eq(!!appVer, true, 'A31: the app stamps the version it is actually running');
   eq(appVer, swV, 'A31: APP_VERSION matches sw.js VERSION');
   eq(appVer, gsV, 'A31: APP_VERSION matches Code.gs CODE_VERSION');
+  eq(/const APP_VERSION = Auth\.APP_VERSION;/.test(app), true,
+     'A31: …and app.js takes it from there rather than keeping a second copy');
+  eq((app.match(/APP_VERSION = 'chanda-v/g) || []).length, 0,
+     'A31: exactly one definition of the running version');
 
   // The settings line must report the RUNNING code, never a cache name.
   eq(/el\.textContent = APP_VERSION/.test(app), true,
@@ -1741,7 +1749,7 @@ try {
      'A31: …and the tap clears a cap already spent, so it works the second time too');
 
   // Do not depend on controllerchange for the one path the user can see.
-  const upd = app.slice(app.indexOf("updB.onclick"), app.indexOf("updB.onclick") + 3200);
+  const upd = app.slice(app.indexOf('function runUpdate'), app.indexOf('function runUpdate') + 3400);
   eq(/w\.state === 'activated'[\s\S]{0,120}location\.reload/.test(upd), true,
      'A31: the button reloads the page itself once the new worker activates');
   eq(/w\.state === 'redundant'[\s\S]{0,160}upd_fail/.test(upd), true,
@@ -1945,6 +1953,69 @@ try {
   eq(/come from two places/.test(help), true, 'A32②: …and the English one');
   eq(/Admin কোনো পদের সঙ্গে আসে না/.test(help) && /Admin never comes with a post/.test(help), true,
      'A32②: …and both say admin never rides a post');
+}
+
+
+// ---- A34: nobody should have to wonder whether their phone is current --------
+// Hrishi: "if any deployment done the user will not able to do any operation".
+// The goal is right; the mechanism is a loud unmissable alert whose fix is a
+// button INSIDE it, not a lock — this app is offline-first, and a phone that
+// cannot reach the network must still be able to write down cash it is holding.
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const auth = fs.readFileSync(__dirname + '/../js/auth.js', 'utf8');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+
+  // One door up, one door down — so no handler and no caller can forget.
+  eq(/Object\.assign\(\{ action: action, appVersion: APP_VERSION \}/.test(auth), true,
+     'A34: every request carries this device version, stamped in the single call door');
+  eq(/if \(out\.codeVersion === undefined\) out\.codeVersion = CODE_VERSION;/.test(gs), true,
+     'A34: every response carries the server version, stamped in the single reply door');
+  // Including the failures: a device that is behind AND erroring still has to
+  // learn the first fact.
+  eq(/noteServerVersion\(resp && resp\.codeVersion\);[\s\S]{0,80}if \(!resp\.ok\)/.test(auth), true,
+     'A34: …and it is read BEFORE the error path throws');
+
+  // Comparison rules. Each of the three is a bug prevented, not a nicety.
+  eq(/return m \? \[Number\(m\[1\]\), Number\(m\[2\]\), Number\(m\[3\]\)\] : null;/.test(auth), true,
+     'A34: an unparseable version yields null…');
+  eq(/if \(!a \|\| !b\) return null;/.test(auth), true,
+     'A34: …and null means SAY NOTHING — an alarm nobody can act on is worse than silence');
+  eq(/const cmp = Auth\.versionCmp\(\);[\s\S]{0,80}if \(cmp === -1\)/.test(app), true,
+     'A34: the red bar fires only when this device is BEHIND');
+  eq(/if \(cmp === 1 && Auth\.isAdmin\(\)\)/.test(app), true,
+     'A34: a device AHEAD of the server is the normal deploy window — told to the admin only, or every release paints every phone red');
+
+  // The fix must be in the bar. "Settings → scroll → tap" is an errand, and
+  // errands are what turn a warning into wallpaper (A19/A23/A26).
+  eq(/id="ver-fix"/.test(app) && /b\.onclick = function \(\) \{ runUpdate\(b\); \};/.test(app), true,
+     'A34: the alert carries its own fix button');
+  eq(/function runUpdate\(btn\)/.test(app), true, 'A34: …and there is ONE update path');
+  eq((app.match(/r\.update\(\)\.then/g) || []).length, 1,
+     'A34: …exactly one, because two copies of that sequence would drift (A31 was three bugs inside it)');
+  eq(/window\.addEventListener\('ck-version', updateTrainingBar\)/.test(app), true,
+     'A34: the bar appears the moment the server version lands, not on the next navigation');
+  // Persisted, so it survives a reload and stays true offline: going offline
+  // does not make a device that is behind stop being behind.
+  eq(/localStorage\.getItem\('ck_srv_version'\)/.test(auth), true,
+     'A34: the known server version is remembered across reloads');
+
+  // The fleet list — the part that actually answers "is everyone on it?"
+  eq(/function noteAppVersion_\(u, v\)/.test(gs), true, 'A34: the server records each phone version');
+  eq(/if \(!val \|\| String\(u\.row\.appVersion \|\| ''\) === val\) return;/.test(gs), true,
+     'A34: …only when it CHANGES — this runs on every request, and a write per request is a lock fight');
+  eq(/sh\.getRange\(u\.rowIndex, col\)\.setValue\(val\);/.test(gs), true,
+     'A34: …one targeted cell, not saveUser_, so a stale copy cannot clobber the row');
+  eq(/catch \(e\) \{ \/\* telemetry must never break the real action \*\/ \}/.test(gs), true,
+     'A34: …and it can never break the request it rode in on');
+  eq(/appVersion: String\(row\.appVersion \|\| ''\)/.test(gs), true, 'A34: publicUser_ carries it back');
+  eq(/u\.appVersion === Auth\.APP_VERSION \? '✅ ' : '⚠️ '/.test(app), true,
+     'A34: the admin sees ✅ / ⚠️ per person');
+  ['ver_behind', 'ver_fix_btn', 'ver_server_behind', 'ver_stale_short', 'ver_unknown'].forEach(function (k) {
+    eq(i18n.indexOf('  ' + k + ':') >= 0, true, 'A34: ' + k + ' has a bilingual message');
+  });
 }
 
 console.log(pass + ' passed, ' + fail + ' failed');

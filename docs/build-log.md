@@ -5343,3 +5343,44 @@ running on their posts alone. Guide rewritten in both languages. 770 passed,
 
 **Rides the pending redeploy** — Code.gs gains the `position` user column,
 `effPerms_`/`isCashier_`, `setUserPosition` and `clearUserGrants`.
+
+## v4.9.4 — A34: an unmissable alert, with the fix inside it (2026-07-28)
+
+Hrishi wanted a deployment to be mandatory — block every operation until the
+phone updates. The goal is right; the lock is wrong for this app. It is
+offline-first on purpose: a collector at a shop with no signal must still be
+able to write down the cash in their hand, and unwritten cash cannot be
+recovered, while a slightly-old client writing into an append-only schema mostly
+can be. He landed on "give alert and path where to do the change" — so: an alert
+nobody can walk past, and the alert IS the path, because "Settings → scroll →
+tap" is an errand and errands get put off.
+
+Version now travels both ways through the only two doors it could: `Auth.call()`
+stamps `appVersion` on every request, `json_()` stamps `codeVersion` on every
+response — including the error replies, since a device that is behind AND
+erroring still needs to learn the first fact. `APP_VERSION` moved to
+js/auth.js, which loads first; reaching into app.js from the call door would
+have depended on load order.
+
+The red bar fires only when this device is BEHIND. A device ahead of the server
+is the normal deploy window (Pages and Apps Script never publish in the same
+second) — that one is shown to the admin only, reading "Code.gs আবার deploy করা
+বাকি". An unparseable version says nothing at all. The known server version is
+kept in localStorage, so going offline does not make a device that is behind
+stop being behind.
+
+The bar's button and Settings' 🔄 are now the same `runUpdate()` — A31 was three
+stacked mistakes inside that sequence and two copies would drift; a test asserts
+there is exactly one.
+
+And the part that actually answers "is everyone on it": the server records each
+phone's version on the user row — only when it CHANGES, one targeted cell, fully
+wrapped so telemetry can never break the request. Admin → 👥 shows ✅ / ⚠️ per
+person.
+
+VERIFIED live: phone v4.9.4 + server v4.10.0 → red bar with its own button;
+reversed → admin sees the redeploy note, a collector sees nothing; garbled
+version → silent; equal → hidden. 795 passed, 0 failed.
+
+**Rides the pending redeploy** — Code.gs gains the `appVersion` user column,
+`noteAppVersion_`, and the `codeVersion` stamp on every reply.

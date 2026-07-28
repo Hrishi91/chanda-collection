@@ -906,3 +906,84 @@ removed when ③ rewrites that flow.
 **`js/help.js` is not stale yet but will be after ②** — it still describes
 permissions as per-user, which is still true today. It gets rewritten with ②,
 not before, so the guide never describes a screen that does not exist.
+
+## A34 — a phone should never quietly be a version behind
+
+Hrishi: "if any deployment done the user will not able to do any operation / if
+not done update khuji / and every deployments that will be mandatory". Then,
+after we talked it through: "give alert and path where to do the change".
+
+**The goal is right and the lock is not.** This is an offline-first app: the
+whole reason it exists is that a collector standing at a shop with no signal can
+still write down the cash in their hand. A lock that needs the network to lift
+would block exactly that person, and unwritten cash cannot be recovered — while
+a slightly-old client writing into an append-only schema mostly can be. So: an
+alert nobody can walk past, not a lock.
+
+**The alert IS the path.** Not "go to ⚙️ Settings, scroll down, tap 🔄" — that is
+a three-step errand, and errands get put off, which is precisely how a warning
+becomes wallpaper. This project has burned itself on that three times already
+(A19 ghost toast, A23 blind counter, A26 dots). The bar carries its own button.
+
+### How it works — two doors, and nothing else to remember
+
+| Direction | One place | What |
+|---|---|---|
+| up | `Auth.call()` in js/auth.js | every request carries `appVersion` |
+| down | `json_()` in Code.gs | every response carries `codeVersion` |
+
+Both are the single door their traffic passes through, so no handler and no
+caller can forget one. The response version is read **before** the error branch
+throws, because a device that is behind *and* getting errors still needs to learn
+the first fact.
+
+`APP_VERSION` moved to `js/auth.js`. It has to be readable by the call door,
+which loads before app.js — reaching into app.js from there would have depended
+on load order, the kind of thing that works in testing and fails on a phone.
+Tests bind it to `sw.js` VERSION and Code.gs `CODE_VERSION`, and assert there is
+exactly **one** definition.
+
+### Three limits, each one a bug prevented
+
+- **Only when this device is BEHIND.** A device *ahead* of the server is the
+  normal deploy window — Pages and Apps Script never publish in the same second —
+  and shouting then would paint every phone red on every release. Hrishi is told
+  instead, in his own words: "Code.gs আবার deploy করা বাকি".
+- **An unparseable version says nothing.** `versionCmp()` returns null and every
+  caller treats null as silence. An alarm nobody can act on is worse than none.
+- **It cannot be dismissed, and it survives a reload.** The last known server
+  version is kept in localStorage: going offline does not make a device that is
+  behind stop being behind.
+
+### One update path, not two
+
+The bar's button and ⚙️ Settings' 🔄 now call the same `runUpdate()`. A31 was
+three stacked mistakes inside that exact sequence; two copies of it would have
+drifted, and a test asserts there is only one.
+
+### The part that actually answers "is everyone on it?"
+
+Every request already carries the device version, so the server records it on the
+user's row — **only when it changes**, since this runs on every request and a
+write per request is both slow and a lock fight. One targeted cell, not
+`saveUser_`, so a stale in-memory copy cannot clobber the rest of the row, and
+the whole thing is wrapped so telemetry can never break the request it rode in
+on. Admin → 👥 then shows, per person:
+
+```
+যামিনী মাহাতো   @yamini • 📞 … • 2026 • ✅ chanda-v4.9.4
+রতন সাহা        @ratan  • 📞 … • 2026 • ⚠️ chanda-v4.8.0 — পিছিয়ে
+```
+
+Ten phones cannot be chased. They can be seen — and this is the only way to know
+a warning was acted on rather than ignored.
+
+**Verified live:** with the phone on v4.9.4 and the server claiming v4.10.0 the
+red bar appears with its button inside it; flipping it round (server v4.8.0) the
+admin sees the redeploy note and a collector sees nothing; a garbled version
+leaves `cmp` null and the bar silent; equal versions hide it. 795 passed, 0
+failed.
+
+**Left undone on purpose:** no lock, and no "I know, carry on" override either —
+there is nothing to override, because nothing is blocked. If Hrishi later wants
+the lock, the detection it needs is now all here.
