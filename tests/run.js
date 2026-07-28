@@ -1937,9 +1937,15 @@ try {
   // nothing, and a control that visibly ignores you is worse than none.
   eq(/fromPost \? ' disabled title="' \+ esc\(t\('from_post'\)\)/.test(app), true,
      'A32②: post-granted chips are locked, and say why');
-  eq(/const set = String\(u\.ownEntries \|\| ''\)/.test(app)
-     && /const set = String\(u\.ownReports \|\| ''\)/.test(app), true,
-     'A32②: toggling edits the EXTRAS, never the merged view');
+  // A38 moved the chips onto a draft, so the guarantee moved with them: the
+  // draft is SEEDED from the extras and SAVED back to them, and the merged view
+  // is never what gets written.
+  eq(/entries: String\(u\.ownEntries \|\| ''\)\.split\(','\)\.filter\(Boolean\)/.test(app)
+     && /reports: String\(u\.ownReports \|\| ''\)\.split\(','\)\.filter\(Boolean\)/.test(app), true,
+     'A32②: the draft is seeded from the EXTRAS, never the merged view');
+  eq(/'setEntries', \{ userId: u\.id, entries: admDraft\.entries \}/.test(app)
+     && /'setReports', \{ userId: u\.id, reports: admDraft\.reports \}/.test(app), true,
+     'A32②: …and saved back to the extras');
   ['eff_from_post', 'eff_extra', 'eff_final'].forEach(function (k) {
     eq(app.indexOf(k) >= 0 && i18n.indexOf('  ' + k + ':') >= 0, true,
        'A32②: the three-part breakdown says ' + k);
@@ -2132,6 +2138,71 @@ try {
   const db = fs.readFileSync(__dirname + '/../js/db.js', 'utf8');
   eq(/set: function \(k, v\) \{ localStorage\.setItem\('ck_' \+ k, String\(v\)\); \}/.test(db), true,
      'A37: an empty setting is stored as "", so apiUrl() falls through to config.js');
+}
+
+
+// ---- A38: the admin panel was one page holding five jobs ---------------------
+// Measured before: 2.5 screens, 740 DOM nodes, 331 buttons, and every chip tap
+// cost 4 server calls (1 write + 3 needless re-reads), ~6s on a real connection,
+// and ended with scrollY = 0 because renderAdmin emptied #view and the page
+// collapsed under the browser. Hrishi: "i have to scroll a lot", "the page is
+// moving here there everywhere", "by selecting the user it should go to a
+// different screen and doing the operation, save also done from there".
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+
+  // list → screen, the idiom the rest of the app already uses
+  eq(/let admCache = null, admSection = '', admUserId = '', admDraft = null;/.test(app), true,
+     'A38: the panel has screens, not one page');
+  eq(/data-adm-go/.test(app) && /data-adm-user/.test(app), true,
+     'A38: a menu row and a person row navigate instead of expanding inline');
+  eq(/data-uopen/.test(app), false, 'A38: the accordion that made the page 3,100px is gone');
+
+  // the three re-reads after every action were the whole cost
+  eq(/if \(resp && resp\.user && admCache\) \{ admPut\(resp\.user\); paintAdmin\(admCache\); \}/.test(app), true,
+     'A38: an action patches the cached user from the reply instead of re-reading everything');
+  eq(/function admPut\(fresh\)/.test(app), true, 'A38: …one row replaced, not the whole book');
+  eq(/if \(admCache && !force\) \{ paintAdmin\(admCache\); return; \}/.test(app), true,
+     'A38: moving between screens costs no server call at all');
+
+  // chips edit a draft; one save
+  eq(/toggle\(admDraft\.entries, kind\); redraw\(\);/.test(app)
+     && /toggle\(admDraft\.reports, rid\); redraw\(\);/.test(app)
+     && /toggle\(admDraft\.areas, aid\); redraw\(\);/.test(app), true,
+     'A38: chips edit the draft — no network per tap');
+  eq(/admDraft\.position = sel\.value; redraw\(\);/.test(app), true, 'A38: …so does the post');
+  eq(/function admSave\(u\)/.test(app) && /if \(!jobs\.length\)/.test(app), true,
+     'A38: one 💾 sends only what changed');
+  // forgetting to save must not lose work silently
+  eq(/function admLeaveOk\(\)/.test(app) && /if \(!admLeaveOk\(\)\) return;/.test(app), true,
+     'A38: leaving with unsaved changes asks first');
+  eq(/adm_dirty_n/.test(app) && /adm_unsaved:/.test(i18n), true,
+     'A38: …and the count of unsaved changes is on screen');
+
+  // every screen shares one view id, so ← has to be told its parent — and
+  // backBar defers its own wiring, so ours must be queued behind it
+  eq(/const backTo = !admSection \? null : \(admSection === 'users' && admUserId\) \? 'users' : '';/.test(app), true,
+     'A38: each screen knows its own parent');
+  eq(/setTimeout\(function \(\) \{\n\s*const bb = document\.getElementById\('back-bar'\);/.test(app), true,
+     'A38: …wired behind backBar\'s own deferred handler, or it is overwritten a tick later');
+
+  // controls that used to share a page now live on different ones
+  eq(/function admEl\(id\) \{ return document\.getElementById\(id\) \|\| \{\}; \}/.test(app), true,
+     'A38: wiring a control that is not on THIS screen cannot throw');
+  eq(/document\.getElementById\('adm-refresh'\)\.onclick/.test(app), false,
+     'A38: …and no per-screen control is looked up unguarded');
+
+  // the destructive one moved off the daily path
+  const dataScreen = app.slice(app.indexOf("head('adm_data', 'admin')"), app.indexOf("head('adm_data', 'admin')") + 1600);
+  eq(/clear-grants/.test(dataScreen), true, 'A38: 🧹 sits with restore and rollover…');
+  const usersScreen = app.slice(app.indexOf("head('adm_users', 'admin')"), app.indexOf("head('adm_users', 'admin')") + 900);
+  eq(/clear-grants/.test(usersScreen), false, 'A38: …not on top of the daily approve job');
+  ['adm_sub_users', 'adm_sub_positions', 'adm_sub_lists', 'adm_sub_data', 'adm_danger',
+   'adm_other_actions', 'adm_saved_all', 'saving'].forEach(function (k) {
+    eq(i18n.indexOf('  ' + k + ':') >= 0, true, 'A38: ' + k + ' has a bilingual message');
+  });
 }
 
 console.log(pass + ' passed, ' + fail + ' failed');

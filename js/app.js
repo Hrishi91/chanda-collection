@@ -3541,7 +3541,7 @@
     const updB = document.getElementById('upd-btn');
     if (updB) updB.onclick = function () { runUpdate(updB); };
     const admB = document.getElementById('adm-btn');
-    if (admB) admB.onclick = function () { navigate('admin'); };
+    if (admB) admB.onclick = function () { admSection = ''; admUserId = ''; admDraft = null; navigate('admin'); };
     document.getElementById('help-btn').onclick = function () { navigate('help'); };
     const notifBtn = document.getElementById('notif-btn');
     if (notifBtn) notifBtn.onclick = function () {
@@ -3963,9 +3963,18 @@
   }
 
   // ---------- admin panel ----------
+  // A38: was `renderAdmin()` — a full rebuild plus three re-reads after EVERY
+  // action, which emptied #view, collapsed the page and dropped the scroll to 0.
+  // When the server hands back the fresh user (it does, in eight handlers) the
+  // cache is patched and only the current screen repaints; otherwise the lists
+  // really did change, so a genuine reload is right.
   function adminAction(action, payload, after) {
     Auth.call(action, Object.assign({ token: Auth.token() }, payload))
-      .then(function (resp) { after && after(resp); renderAdmin(); })
+      .then(function (resp) {
+        after && after(resp);
+        if (resp && resp.user && admCache) { admPut(resp.user); paintAdmin(admCache); }
+        else renderAdmin(true);
+      })
       // A35: an admin failure has to be READABLE. A toast is gone in 2.2s —
       // long enough to notice, nowhere near long enough to read, remember and
       // report. The person using this screen is the person who reports bugs, so
@@ -4117,14 +4126,92 @@
     }
     paint();
   }
-  let admOpenUser = '';
-  function renderAdmin() {
+  // A38: the panel was ONE page holding five jobs. Eleven users expanding inline
+  // made it 3,100px and 331 buttons, and every action rebuilt the whole thing —
+  // which emptied #view, collapsed the page and dropped the scroll to 0.
+  // Hrishi: "i have to scroll a lot", "the page is moving here there everywhere".
+  //
+  // It is now list → screen, the idiom this app already uses everywhere else
+  // (📒 খাতা → a donor, 🎖️ নথি → a member). On the one-person screen the chips
+  // edit a DRAFT and one 💾 saves the lot: before this, granting eleven people
+  // was ~88 taps × 4 server calls ≈ 350 calls.
+  let admCache = null, admSection = '', admUserId = '', admDraft = null;
+  function admDirty() {
+    if (!admDraft || !admCache) return 0;
+    const u = (admCache[0].users || []).filter(function (x) { return x.id === admUserId; })[0];
+    if (!u) return 0;
+    const same = function (a, b) { return a.slice().sort().join() === b.slice().sort().join(); };
+    let n = 0;
+    if (admDraft.position !== String(u.position || '')) n++;
+    if (!same(admDraft.entries, String(u.ownEntries || '').split(',').filter(Boolean))) n++;
+    if (!same(admDraft.reports, String(u.ownReports || '').split(',').filter(Boolean))) n++;
+    if (!same(admDraft.areas, String(u.areas || '').split(',').filter(Boolean))) n++;
+    return n;
+  }
+  function admLeaveOk() {
+    const n = admDirty();
+    return !n || window.confirm(t('adm_unsaved').replace('{n}', n));
+  }
+  // Sends only what CHANGED — usually one call, never four — and folds the
+  // server's own reply back into the cache. Eight handlers already return the
+  // fresh user; re-reading the whole book after every tap was the waste that
+  // emptied the page.
+  function admSave(u) {
+    if (!u || !admDraft) return;
+    const same = function (a, b) { return a.slice().sort().join() === b.slice().sort().join(); };
+    const jobs = [];
+    if (admDraft.position !== String(u.position || ''))
+      jobs.push(['setUserPosition', { userId: u.id, position: admDraft.position }]);
+    if (!same(admDraft.entries, String(u.ownEntries || '').split(',').filter(Boolean)))
+      jobs.push(['setEntries', { userId: u.id, entries: admDraft.entries }]);
+    if (!same(admDraft.reports, String(u.ownReports || '').split(',').filter(Boolean)))
+      jobs.push(['setReports', { userId: u.id, reports: admDraft.reports }]);
+    if (!same(admDraft.areas, String(u.areas || '').split(',').filter(Boolean)))
+      jobs.push(['setAreas', { userId: u.id, areas: admDraft.areas }]);
+    if (!jobs.length) { toast(t('adm_saved_all')); return; }
+    const btn = document.getElementById('adm-save');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ ' + t('saving'); }
+    // One after another: they all write the same sheet row, and Apps Script
+    // would serialise them on the script lock anyway.
+    jobs.reduce(function (chain, j) {
+      return chain.then(function () {
+        return Auth.call(j[0], Object.assign({ token: Auth.token() }, j[1]))
+          .then(function (r) { if (r && r.user) admPut(r.user); });
+      });
+    }, Promise.resolve()).then(function () {
+      admDraft = null; toast('✅ ' + t('saved')); paintAdmin(admCache);
+    }).catch(function (e) {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 ' + t('save'); }
+      alert('⚠️ ' + t('save') + '\n\n' + errMsg(e));
+    });
+  }
+  function admPut(fresh) {
+    if (!admCache || !fresh) return;
+    const list = admCache[0].users || [];
+    for (let i = 0; i < list.length; i++) if (list[i].id === fresh.id) { list[i] = fresh; return; }
+  }
+  function admGo(section, userId) {
+    if (!admLeaveOk()) return;
+    admSection = section || ''; admUserId = userId || ''; admDraft = null;
+    window.scrollTo(0, 0);
+    renderAdmin();
+  }
+  // These controls used to share one page, so they always existed. Each lives on
+  // its own screen now, and wiring one that is not on THIS screen throws — which
+  // is how the whole panel came back as a single error line. Guard, don't assume.
+  function admEl(id) { return document.getElementById(id) || {}; }
+  function renderAdmin(force) {
+    if (admCache && !force) { paintAdmin(admCache); return; }
     $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(t('loading')) + '</div>';
     Promise.all([
       Auth.call('listUsers', { token: Auth.token() }),
       Auth.call('listSubjects', { token: Auth.token() }).catch(function () { return { subjects: [] }; }),
       Auth.call('listItems', { token: Auth.token() }).catch(function () { return { items: [] }; }),
-    ]).then(function (res) {
+    ]).then(function (res) { admCache = res; paintAdmin(res); })
+      .catch(function (e) { $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(errMsg(e)) + '</div>'; });
+  }
+  function paintAdmin(res) {
+    {
       const resp = res[0], subjects = res[1].subjects || [], items = res[2].items || [];
       const areas = items.filter(function (i) { return i.kind === 'area'; });
       const locations = items.filter(function (i) { return i.kind === 'location'; });
@@ -4132,7 +4219,7 @@
       const year = String(Settings.get('year'));
       const groups = { pending: [], approved: [], blocked: [] };
       resp.users.forEach(function (u) { (groups[u.status] || groups.blocked).push(u); });
-      function userCard(u) {
+      function userButtons(u) {
         const hasYear = u.years.split(',').indexOf(year) >= 0;
         let btns = '';
         if (u.status === 'pending') {
@@ -4149,33 +4236,7 @@
         } else {
           btns = '<button class="chip" data-act="unblock" data-id="' + u.id + '">' + esc(t('unblock')) + '</button>';
         }
-        // ONE user open at a time. Every user fully expanded put ~280 chips on a
-        // single screen for a committee this size, which is not a list anyone
-        // can read — the summary line says what they have, and the detail is
-        // one tap away without leaving the page.
-        const open = admOpenUser === u.id;
-        const body = u.status === 'approved'
-          ? '<div class="chips" style="margin:8px 0 0">' + btns + '</div>' +
-            postSelect(u) + entriesChips(u) + reportChips(u) + effLine(u) + areaChips(u)
-          : '<div class="chips" style="margin:8px 0 0">' + btns + '</div>';
-        return '<div class="adm-user' + (open ? ' open' : '') + '">' +
-          '<button class="adm-user-head" data-uopen="' + u.id + '">' +
-            '<span class="adm-user-name"><b>' + esc(u.name) + '</b>' +
-              (u.role === 'admin' ? ' 👑' : '') + (u.cashier ? ' 💰' : '') +
-              '<span class="row-sub">' + esc(userSummary(u)) + '</span></span>' +
-            '<span class="adm-caret">' + (open ? '▾' : '›') + '</span>' +
-          '</button>' +
-          '<div class="adm-user-body"' + (open ? '' : ' hidden') + '>' +
-            '<div class="row-sub" style="margin-bottom:8px">@' + esc(u.username) +
-              (u.phone ? ' • 📞 ' + esc(u.phone) : '') + ' • ' + esc(u.years || '—') +
-              // A34: which version that person's phone last reported. Ten phones
-              // cannot be chased, but they can be SEEN — and this is the only
-              // way to know a warning was acted on rather than ignored.
-              ' • ' + esc(u.appVersion
-                ? (u.appVersion === Auth.APP_VERSION ? '✅ ' : '⚠️ ') + u.appVersion +
-                  (u.appVersion === Auth.APP_VERSION ? '' : ' — ' + t('ver_stale_short'))
-                : '❔ ' + t('ver_unknown')) + '</div>' +
-            body + '</div></div>';
+        return btns;
       }
       // One line that says what this person actually has, so the list can be
       // read without opening anybody.
@@ -4227,7 +4288,7 @@
           '<option value="">— ' + esc(t('member_no_post')) + ' —</option>' +
           positions.map(function (p) {
             const cap = Number(p.maxCount) || 0, n = held[p.id] || 0, full = cap > 0 && n >= cap;
-            return '<option value="' + esc(p.id) + '"' + (p.id === u.position ? ' selected' : '') +
+            return '<option value="' + esc(p.id) + '"' + (p.id === admDraft.position ? ' selected' : '') +
               (full && p.id !== u.position ? ' disabled' : '') + '>' +
               esc(Lists.labelOf('position', p.id) + (cap > 0 ? ' (' + n + '/' + cap + ')' : '') +
                   (full && p.id !== u.position ? ' — ' + t('pos_is_full') : '')) + '</option>';
@@ -4241,8 +4302,8 @@
       // that visibly ignores you is worse than no control.
       function entriesChips(u) {
         if (u.status !== 'approved' || u.role === 'admin') return '';
-        const own = String(u.ownEntries || '').split(',').filter(Boolean);
-        const post = Lists.permsOf(u.position || '');
+        const own = admDraft.entries;
+        const post = Lists.permsOf(admDraft.position || '');
         const eff = String(u.entries || '').split(',').filter(Boolean);
         const kinds = [['shop', t('new_shop')], ['person', t('new_person')], ['member', t('new_member')],
                        ['bus', t('daily_bus')], ['road', t('daily_road')], ['toto', t('daily_toto')],
@@ -4260,7 +4321,7 @@
       // which master areas a collector is responsible for (drives area reports)
       function areaChips(u) {
         if (u.status !== 'approved' || u.role === 'admin') return '';
-        const mine = String(u.areas || '').split(',').filter(Boolean);
+        const mine = admDraft.areas;
         const chips = areas.length ? areas.map(function (a) {
           const on = mine.indexOf(a.id) >= 0;
           return '<button class="chip' + (on ? ' on' : '') + '" data-area-user="' + u.id + '" data-area-id="' + esc(a.id) + '">' +
@@ -4270,8 +4331,8 @@
       }
       function reportChips(u) {
         if (u.status !== 'approved' || u.role === 'admin') return '';
-        const own = String(u.ownReports || '').split(',').filter(Boolean);
-        const post = Lists.permsOf(u.position || '');
+        const own = admDraft.reports;
+        const post = Lists.permsOf(admDraft.position || '');
         const chips = REPORT_IDS.map(function (rid) {
           const autoCashier = (rid === 'inhand' && u.cashier);
           const fromPost = post.indexOf(rid) >= 0;
@@ -4289,9 +4350,9 @@
       // up with. Without this the two sources are invisible and unarguable.
       function effLine(u) {
         if (u.status !== 'approved' || u.role === 'admin') return '';
-        const post = Lists.permsOf(u.position || '');
-        const own = String(u.ownEntries || '').split(',').filter(Boolean)
-          .concat(String(u.ownReports || '').split(',').filter(Boolean))
+        // previews the DRAFT, so "✅ শেষমেশ" answers what SAVE would produce
+        const post = Lists.permsOf(admDraft.position || '');
+        const own = admDraft.entries.concat(admDraft.reports)
           .concat(Number(u.ownCashier) === 1 ? ['cashier'] : []);
         const name = function (k) {
           return k === 'cashier' ? t('cashier')
@@ -4302,9 +4363,8 @@
           return '<div class="bd-line" style="display:block">' + icon + ' ' + esc(t(key)) + ': ' +
             esc(list.length ? list.map(name).join(' · ') : t('sum_none')) + '</div>';
         };
-        const eff = String(u.entries || '').split(',').filter(Boolean)
-          .concat(String(u.reports || '').split(',').filter(Boolean))
-          .concat(u.cashier ? ['cashier'] : []);
+        const uniq = {}, eff = [];
+        post.concat(own).forEach(function (k) { if (k && !uniq[k]) { uniq[k] = 1; eff.push(k); } });
         return '<div class="perm-grp">' + line('🎖️', 'eff_from_post', post) +
           line('➕', 'eff_extra', own.filter(function (k) { return post.indexOf(k) < 0; })) +
           line('✅', 'eff_final', eff) + '</div>';
@@ -4397,32 +4457,95 @@
           (badge ? ' <span class="badge warn" style="margin-left:6px">' + badge + '</span>' : '') +
           '</summary><div class="adm-fold-body">' + inner + '</div></details>';
       };
-      $view().innerHTML = backBar('settings') + '<div class="flow-title">' + esc(t('admin_panel')) + '</div>' +
-        (isLive() ? '' : '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
+      // ── five screens, one at a time ─────────────────────────────────────
+      const trainCard = isLive() ? '' :
+        '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
           '<b>🟡 ' + esc(t('training_mode')) + '</b><div class="row-sub">' + esc(t('training_admin_hint')) + '</div>' +
           '<button id="golive-btn" class="primary big block" style="margin-top:8px">🚀 ' + esc(t('golive_btn')) + '</button>' +
-          // Practice runs leave the book full of junk. This clears it and stays
-          // in training, so the next rehearsal starts from a clean sheet —
-          // unlike Go Live, which is one-way. Only ever offered while training.
           '<button id="clear-tr-btn" class="ghost block" style="margin-top:6px">🧹 ' + esc(t('clear_training_btn')) + '</button>' +
-          '<div class="row-sub" style="margin-top:6px">' + esc(t('clear_training_hint')) + '</div></div>') +
-        '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
-        fold('👥', 'adm_users', groups.pending.length || '',
-          '<button id="clear-grants" class="ghost block">🧹 ' + esc(t('clear_grants_btn')) + '</button>' +
-          '<div class="hint" style="margin:-4px 0 10px">' + esc(t('clear_grants_hint')) + '</div>' +
-          section('pending_users', groups.pending) +
-          section('approved_users', groups.approved) +
-          section('blocked_users', groups.blocked), true) +
-        fold('🧾', 'adm_lists', '',
+          '<div class="row-sub" style="margin-top:6px">' + esc(t('clear_training_hint')) + '</div></div>';
+      const menuRow = function (sec, icon, titleKey, sub, badge) {
+        return '<button class="row" data-adm-go="' + sec + '" style="width:100%;text-align:left">' +
+          '<div style="flex:1"><b>' + icon + ' ' + esc(t(titleKey)) + '</b>' +
+          (badge ? ' <span class="badge warn">' + badge + '</span>' : '') +
+          '<div class="row-sub">' + esc(sub) + '</div></div><span class="adm-caret">›</span></button>';
+      };
+      const staleN = resp.users.filter(function (u) {
+        return u.status === 'approved' && u.appVersion && u.appVersion !== Auth.APP_VERSION;
+      }).length;
+      const head = function (titleKey, back) {
+        return backBar(back || 'settings') + '<div class="flow-title">' + esc(t(titleKey)) + '</div>';
+      };
+      const verLine = function (u) {
+        return u.appVersion
+          ? (u.appVersion === Auth.APP_VERSION ? '✅ ' : '⚠️ ') + u.appVersion +
+            (u.appVersion === Auth.APP_VERSION ? '' : ' — ' + t('ver_stale_short'))
+          : '❔ ' + t('ver_unknown');
+      };
+
+      if (!admSection) {
+        $view().innerHTML = head('admin_panel') + trainCard +
+          '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
+          menuRow('users', '👥', 'adm_users',
+            t('adm_sub_users').replace('{n}', groups.approved.length)
+              .replace('{p}', groups.pending.length).replace('{s}', staleN),
+            groups.pending.length || '') +
+          menuRow('positions', '🎖️', 'list_position',
+            t('adm_sub_positions').replace('{n}', positions.length), '') +
+          menuRow('lists', '🧾', 'adm_lists', t('adm_sub_lists'), '') +
+          menuRow('data', '🗂️', 'adm_data', t('adm_sub_data'), '');
+      } else if (admSection === 'users' && !admUserId) {
+        const row = function (u) {
+          return '<button class="row" data-adm-user="' + esc(u.id) + '" style="width:100%;text-align:left">' +
+            '<div style="flex:1"><b>' + esc(u.name) + '</b>' +
+            (u.role === 'admin' ? ' 👑' : '') + (u.cashier ? ' 💰' : '') +
+            '<div class="row-sub">' + esc(userSummary(u)) + '</div>' +
+            '<div class="row-sub">' + esc(verLine(u)) + '</div>' +
+            '</div><span class="adm-caret">›</span></button>';
+        };
+        const grp = function (key, list) {
+          return '<div class="section">' + esc(t(key)) + ' (' + list.length + ')</div>' +
+            (list.length ? list.map(row).join('') : '<div class="empty">' + esc(t('none_here')) + '</div>');
+        };
+        $view().innerHTML = head('adm_users', 'admin') +
+          grp('pending_users', groups.pending) +
+          grp('approved_users', groups.approved) +
+          grp('blocked_users', groups.blocked);
+      } else if (admSection === 'users') {
+        const u = resp.users.filter(function (x) { return x.id === admUserId; })[0];
+        if (!u) { admSection = 'users'; admUserId = ''; paintAdmin(res); return; }
+        // Seeded from the EXTRAS — never the merged view, or a chip the post
+        // grants would be written into this person's own grants and outlive
+        // their time in the post.
+        if (!admDraft) admDraft = {
+          position: String(u.position || ''),
+          entries: String(u.ownEntries || '').split(',').filter(Boolean),
+          reports: String(u.ownReports || '').split(',').filter(Boolean),
+          areas: String(u.areas || '').split(',').filter(Boolean),
+        };
+        $view().innerHTML = backBar('admin') +
+          '<div class="card"><div class="card-title">' + esc(u.name) +
+            (u.role === 'admin' ? ' 👑' : '') + (u.cashier ? ' 💰' : '') + '</div>' +
+            '<div class="row-sub">@' + esc(u.username) + (u.phone ? ' • 📞 ' + esc(u.phone) : '') +
+            ' • ' + esc(u.years || '—') + '</div>' +
+            '<div class="row-sub">' + esc(verLine(u)) + '</div></div>' +
+          (u.status === 'approved'
+            ? postSelect(u) + entriesChips(u) + reportChips(u) + areaChips(u) + effLine(u) +
+              '<button id="adm-save" class="primary big block">💾 ' + esc(t('save')) + '</button>' +
+              '<div id="adm-dirty" class="hint" style="text-align:center"></div>'
+            : '') +
+          '<div class="section">' + esc(t('adm_other_actions')) + '</div>' +
+          '<div class="chips">' + userButtons(u) + '</div>';
+      } else if (admSection === 'positions') {
+        $view().innerHTML = head('list_position', 'admin') + positionCard(positions);
+      } else if (admSection === 'lists') {
+        $view().innerHTML = head('adm_lists', 'admin') +
           '<button id="receipt-btn" class="ghost big block">' + esc(t('receipt_design_btn')) + '</button>' +
           subjectsCard +
           listMgmtCard('area', 'manage_areas', areas) +
-          listMgmtCard('location', 'manage_locations', locations) +
-          positionCard(positions) +
-          '', false) +
-        fold('🗂️', 'adm_data', '',
-          // the chat switch lives with the other data controls, and always says
-          // what it is costing — so turning it back on is an informed choice
+          listMgmtCard('location', 'manage_locations', locations);
+      } else {
+        $view().innerHTML = head('adm_data', 'admin') +
           '<div class="row" style="cursor:default;flex-wrap:wrap"><div style="flex:1 1 60%"><b>💬 ' +
             esc(t('nav_messages')) + '</b><div class="row-sub" id="chat-load-line">—</div></div>' +
             '<button class="chip" id="chat-toggle">' +
@@ -4430,8 +4553,54 @@
           '<button id="audit-btn" class="ghost big block">' + esc(t('audit_btn')) + '</button>' +
           '<button id="backup-btn" class="ghost big block">' + esc(t('backup_now_btn')) + '</button>' +
           '<button id="restore-btn" class="ghost big block">' + esc(t('restore_btn')) + '</button>' +
-          '<button id="rollover-btn" class="ghost big block">' + esc(t('rollover_btn')) + '</button>', false);
-      document.getElementById('adm-refresh').onclick = renderAdmin;
+          '<button id="rollover-btn" class="ghost big block">' + esc(t('rollover_btn')) + '</button>' +
+          // A38: one-way and destructive, so it belongs down here with restore
+          // and rollover — not at the top of the users screen, one tap from the
+          // daily approve job, which is where I put it this morning.
+          '<div class="section">⚠️ ' + esc(t('adm_danger')) + '</div>' +
+          '<button id="clear-grants" class="ghost block">🧹 ' + esc(t('clear_grants_btn')) + '</button>' +
+          '<div class="hint">' + esc(t('clear_grants_hint')) + '</div>';
+      }
+      // All five screens live under one view id, so ← cannot work it out by
+      // itself: tell it which screen is the parent, and let admGo run the
+      // unsaved-changes check on the way out.
+      // ── draft edits: instant, local, no network, only this screen repaints
+      const toggle = function (list, k) {
+        const i = list.indexOf(k); if (i >= 0) list.splice(i, 1); else list.push(k); };
+      const redraw = function () { paintAdmin(res); };
+      wireNav();
+      // AFTER wireNav — it wires #back-bar generically and would overwrite this.
+      // All five screens share one view id, so ← cannot work its parent out by
+      // itself; admGo also runs the unsaved-changes check on the way out.
+      const backTo = !admSection ? null : (admSection === 'users' && admUserId) ? 'users' : '';
+      if (backTo !== null) {
+        // backBar() defers its own wiring with setTimeout(...,0), queued while
+        // the HTML string was being built — so a plain assignment here is
+        // overwritten a tick later. Queue ours behind it: timers of equal delay
+        // fire in the order they were set, and ours is set second.
+        setTimeout(function () {
+          const bb = document.getElementById('back-bar');
+          if (bb) bb.onclick = function () { admGo(backTo); };
+        }, 0);
+      }
+      document.querySelectorAll('[data-adm-go]').forEach(function (b) {
+        b.onclick = function () { admGo(b.dataset.admGo); };
+      });
+      document.querySelectorAll('[data-adm-user]').forEach(function (b) {
+        b.onclick = function () { admGo('users', b.dataset.admUser); };
+      });
+      const saveBtn = document.getElementById('adm-save');
+      if (saveBtn) {
+        const dirtyN = admDirty();
+        saveBtn.disabled = !dirtyN;
+        saveBtn.style.opacity = dirtyN ? '' : '.5';
+        const dl = document.getElementById('adm-dirty');
+        if (dl) dl.textContent = dirtyN ? t('adm_dirty_n').replace('{n}', dirtyN) : t('adm_saved_all');
+        saveBtn.onclick = function () {
+          admSave(resp.users.filter(function (x) { return x.id === admUserId; })[0]);
+        };
+      }
+      admEl('adm-refresh').onclick = renderAdmin;
       const clearBtn = document.getElementById('clear-tr-btn');
       if (clearBtn) clearBtn.onclick = function () {
         if (isLive()) { toast(t('already_live')); return; }
@@ -4488,10 +4657,10 @@
           ' KB · ' + t('chat_per_day') + ' ' + l.perDay +
           (l.level === 'ok' ? '' : (l.level === 'high' ? '  🔴' : '  🟠'));
       }).catch(function () {});
-      document.getElementById('audit-btn').onclick = function () { navigate('audit'); };
-      document.getElementById('receipt-btn').onclick = function () { navigate('receiptcfg'); };
+      admEl('audit-btn').onclick = function () { navigate('audit'); };
+      admEl('receipt-btn').onclick = function () { navigate('receiptcfg'); };
       // on-demand snapshot — the cheap insurance before anything one-way
-      document.getElementById('backup-btn').onclick = function () {
+      admEl('backup-btn').onclick = function () {
         const b = this; b.disabled = true;
         Auth.call('backupNow', { token: Auth.token() })
           .then(function (r) { b.disabled = false; alert(t('backup_done').replace('{f}', r.file)); })
@@ -4499,7 +4668,7 @@
       };
       // restore: pick a snapshot, then type RESTORE — the server takes a
       // safety backup of the CURRENT state first, so this is itself undoable
-      document.getElementById('restore-btn').onclick = function () {
+      admEl('restore-btn').onclick = function () {
         Auth.call('listBackups', { token: Auth.token() }).then(function (r) {
           const list = r.backups || [];
           if (!list.length) { alert(t('restore_none')); return; }
@@ -4516,20 +4685,20 @@
             }).catch(function (e) { toast(errMsg(e)); });
         }).catch(function (e) { toast(errMsg(e)); });
       };
-      document.getElementById('rollover-btn').onclick = function () {
+      admEl('rollover-btn').onclick = function () {
         const from = Number(Settings.get('year')), to = from + 1;
         if (!window.confirm(t('rollover_confirm').replace('{from}', from).replace('{to}', to))) return;
         Auth.call('rolloverYear', { token: Auth.token(), fromYear: from, toYear: to })
           .then(function (r) { alert(t('rollover_done').replace('{n}', r.count).replace('{to}', to)); })
           .catch(function (e) { toast(errMsg(e)); });
       };
-      document.getElementById('subj-add').onclick = function () {
-        const name = document.getElementById('subj-input').value.trim();
+      admEl('subj-add').onclick = function () {
+        const name = admEl('subj-input').value.trim();
         if (!name) return;
         adminAction('addSubject', { name: name });
       };
-      document.getElementById('subj-input').onkeydown = function (e) {
-        if (e.key === 'Enter') document.getElementById('subj-add').click();
+      admEl('subj-input').onkeydown = function (e) {
+        if (e.key === 'Enter') admEl('subj-add').click();
       };
       document.querySelectorAll('[data-subj-del]').forEach(function (b) {
         b.onclick = function () { adminAction('removeSubject', { id: b.dataset.subjDel }); };
@@ -4602,19 +4771,6 @@
           }
         };
       });
-      document.querySelectorAll('[data-uopen]').forEach(function (b) {
-        b.onclick = function () {
-          const id = b.dataset.uopen;
-          admOpenUser = (admOpenUser === id) ? '' : id;
-          document.querySelectorAll('.adm-user').forEach(function (el) {
-            const mine = el.querySelector('[data-uopen]').dataset.uopen === admOpenUser;
-            el.classList.toggle('open', mine);
-            el.querySelector('.adm-user-body').hidden = !mine;
-            el.querySelector('.adm-caret').textContent = mine ? '▾' : '›';
-          });
-          if (admOpenUser) b.scrollIntoView({ block: 'nearest' });
-        };
-      });
       // [সব দাও] / [সব নাও] — the chips still work one by one; this only saves
       // tapping seven reports for eleven people.
       document.querySelectorAll('[data-bulk]').forEach(function (b) {
@@ -4622,9 +4778,10 @@
           const uid = b.dataset.bulkUser, on = b.dataset.bulkOn === '1';
           const u = resp.users.find(function (x) { return x.id === uid; });
           if (!u) return;
-          if (b.dataset.bulk === 'ent') adminAction('setEntries', { userId: uid, entries: on ? Aggregate.PERM_KEYS.slice() : [] });
-          else if (b.dataset.bulk === 'rep') adminAction('setReports', { userId: uid, reports: on ? REPORT_IDS.slice() : [] });
-          else adminAction('setAreas', { userId: uid, areas: on ? areas.map(function (a) { return a.id; }) : [] });
+          if (b.dataset.bulk === 'ent') admDraft.entries = on ? Aggregate.PERM_KEYS.slice() : [];
+          else if (b.dataset.bulk === 'rep') admDraft.reports = on ? REPORT_IDS.slice() : [];
+          else admDraft.areas = on ? areas.map(function (a) { return a.id; }) : [];
+          redraw();
         };
       });
       document.querySelectorAll('[data-rep-user]').forEach(function (b) {
@@ -4634,20 +4791,14 @@
           const u = resp.users.find(function (x) { return x.id === uid; });
           // the EXTRAS, never the merged view — otherwise a toggle would try to
           // remove something the post keeps handing back
-          const set = String(u.ownReports || '').split(',').filter(Boolean);
-          const i = set.indexOf(rid);
-          if (i >= 0) set.splice(i, 1); else set.push(rid);
-          adminAction('setReports', { userId: uid, reports: set });
+          toggle(admDraft.reports, rid); redraw();
         };
       });
       document.querySelectorAll('[data-area-user]').forEach(function (b) {
         b.onclick = function () {
           const uid = b.dataset.areaUser, aid = b.dataset.areaId;
           const u = resp.users.find(function (x) { return x.id === uid; });
-          const set = String(u.areas || '').split(',').filter(Boolean);
-          const i = set.indexOf(aid);
-          if (i >= 0) set.splice(i, 1); else set.push(aid);
-          adminAction('setAreas', { userId: uid, areas: set });
+          toggle(admDraft.areas, aid); redraw();
         };
       });
       // Wipe the PERSONAL extras so access comes from the post alone. This is
@@ -4686,9 +4837,7 @@
           }).catch(function (e) { toast(errMsg(e)); });
       };
       document.querySelectorAll('[data-pos-user]').forEach(function (sel) {
-        sel.onchange = function () {
-          adminAction('setUserPosition', { userId: sel.dataset.posUser, position: sel.value });
-        };
+        sel.onchange = function () { admDraft.position = sel.value; redraw(); };
       });
       document.querySelectorAll('[data-ent-user]').forEach(function (b) {
         b.onclick = function () {
@@ -4697,13 +4846,10 @@
           // An empty field grants nothing, so a chip means exactly what it
           // shows and toggling is a plain add/remove — no "materialise all"
           // step, which is where the retired key names used to leak back in.
-          const set = String(u.ownEntries || '').split(',').filter(Boolean);
-          const i = set.indexOf(kind);
-          if (i >= 0) set.splice(i, 1); else set.push(kind);
-          adminAction('setEntries', { userId: uid, entries: set });
+          toggle(admDraft.entries, kind); redraw();
         };
       });
-    }).catch(function (e) { $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(errMsg(e)) + '</div>'; });
+    }
   }
 
   // ---------- router ----------

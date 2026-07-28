@@ -5499,3 +5499,54 @@ VERIFIED live: with an override set the field warns and offers the button; one
 tap stores `""` (falsy, so `apiUrl()` falls through to config.js), the line flips
 to the green one and the button disappears because there is nothing left to
 clear. 827 passed, 0 failed.
+
+## v4.9.8 — A38: the admin panel becomes screens, not one long page (2026-07-28)
+
+Hrishi: "in every click its changing the positions / refreshing … its a big
+headache", "i have to scroll a lot in this ui design", and then the design
+itself: "by selecting the user it should go to a different screen and doing the
+operation, save also done from there".
+
+### What was measured first, not guessed
+
+| | before |
+|---|---|
+| panel | 2.5 screens, 740 DOM nodes, **331 buttons** |
+| one chip tap | **4 server calls** (1 write + 3 needless re-reads), ~6s on a real connection |
+| after that tap | **scrollY = 0** — renderAdmin emptied #view, the page collapsed, the browser clamped the scroll |
+| granting 11 people | ~88 taps → **~350 calls, ~9 minutes** |
+
+The re-reads were pure waste of my own making: eight server handlers already
+return the fresh user, and I threw that away and re-fetched the whole book.
+
+### Now
+
+Menu (4 rows, one screen) → 👥 list of names → **one person, one screen, one 💾**.
+The same list → detail idiom the app already uses for 📒 খাতা and 🎖️ নথি; the
+accordion that generated the 3,100px page is gone.
+
+- moving between screens: **0 server calls** (the three reads happen once)
+- a chip tap: **0 calls**, instant, page does not move — it edits a draft
+- 💾 sends **only what changed**, usually one call
+- an action that returns a user patches that one cached row instead of reloading
+- leaving with unsaved work asks, and the count is on screen ("2টি বদল এখনো সেভ হয়নি")
+- 🧹 clear-grants moved off the top of the daily approve job to 🗂️ ডেটা, beside
+  restore and rollover where the other one-way actions live
+
+### Three things this cost me, all mine
+
+1. **I destroyed an hour of uncommitted work with `git checkout js/app.js`** while
+   trying to undo a bad regex. Rebuilt from the transcript. Commit before
+   experimenting, or do not experiment.
+2. A regex rewrite of `getElementById(x).onclick` broke every statement's
+   terminator. Replaced with a tiny `admEl()` that returns `{}` — one token, no
+   statement surgery.
+3. I chased a phantom error for four rounds because the **service worker was
+   serving a stale app.js on a reused port**. This is written in my own memory as
+   a known pitfall and I did not follow it. Fresh port, and it was fine.
+
+VERIFIED live on a fresh port: menu 1.2 screens / 8 buttons; menu → list →
+person → ← → ← walks correctly; four chips = 0 calls and scrollY unchanged; 💾
+sent exactly setEntries + setReports for two changed groups; leaving dirty asked
+"1টি বদল সেভ করোনি — ছেড়ে গেলে হারিয়ে যাবে"; 🧹 is on the data screen.
+853 passed, 0 failed.
