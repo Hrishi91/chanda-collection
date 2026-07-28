@@ -1516,7 +1516,7 @@
       const avail = Aggregate.myAvailable(data, meId);
       const plan = Aggregate.homeTiles(Auth.current(), {
         holding: (avail.cash + avail.upi) > 0,
-        staleVersion: Auth.versionCmp() === -1,
+        staleVersion: Auth.schemaCmp() === -1,
       });
       const ICON = { shop: ['🏪', 'new_shop'], person: ['🙍', 'new_person'], member: ['🤝', 'new_member'],
                      bus: ['🚌', 'daily_bus'], road: ['🛣️', 'daily_road'], toto: ['🛺', 'daily_toto'],
@@ -1746,16 +1746,22 @@
       const chips = typeChips(listFilter, true);
       listFilter = chips.valid;
       const busRows = listFilter === 'bus';
-      let rows = data.parties.slice().sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
-      if (listFilter !== 'all' && !busRows) rows = rows.filter(function (p) { return p.type === listFilter; });
-      if (listDueOnly) rows = rows.filter(function (p) { return (Number(p.pledged) || 0) - (paidBy[p.id] || 0) > 0; });
-      if (listQuery) rows = rows.filter(function (p) { return matchParty(p, listQuery); });
-      $view().innerHTML =
-        (canEntry('otherdonor') ? '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' : '') +
-        '<input id="search" class="search" enterkeyhint="search" placeholder="' + esc(t('search')) + '" value="' + esc(listQuery) + '">' +
-        chips.html + (busRows ? '' : dueChip(listDueOnly)) +
-        (busRows ? drawBusList(data) :
-        (rows.length ? rows.map(function (p) {
+      // A42: the search box lives OUTSIDE the part that gets redrawn.
+      //
+      // It used to call renderList() on every keystroke, which replaced the
+      // whole screen — input included — so the caret vanished and on a phone the
+      // keyboard closed after the first letter. Hiding rows in place (what the
+      // admin filter does) is not right here: the bus tab shows a TOTAL over the
+      // filtered rows, and a hidden row would still be counted. So the header
+      // stays put and only #list-body is rebuilt: totals stay honest, and the
+      // input is never touched.
+      const buildBody = function () {
+        let rows = data.parties.slice().sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+        if (listFilter !== 'all' && !busRows) rows = rows.filter(function (p) { return p.type === listFilter; });
+        if (listDueOnly) rows = rows.filter(function (p) { return (Number(p.pledged) || 0) - (paidBy[p.id] || 0) > 0; });
+        if (listQuery) rows = rows.filter(function (p) { return matchParty(p, listQuery); });
+        if (busRows) return drawBusList(data);
+        return rows.length ? rows.map(function (p) {
           const paid = paidBy[p.id] || 0, due = (Number(p.pledged) || 0) - paid;
           return '<div class="row" data-id="' + p.id + '">' +
             '<div><b>' + esc(p.name) + '</b><div class="row-sub">' +
@@ -1765,22 +1771,35 @@
             '<div class="row-right">' + fmtMoney(paid) + '/' + fmtMoney(p.pledged) +
             (due > 0 ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
                      : '<span class="ok-chip">✅</span>') + '</div></div>';
-        }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>'));
+        }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>';
+      };
+      $view().innerHTML =
+        (canEntry('otherdonor') ? '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' : '') +
+        '<input id="search" class="search" enterkeyhint="search" placeholder="' + esc(t('search')) + '" value="' + esc(listQuery) + '">' +
+        chips.html + (busRows ? '' : dueChip(listDueOnly)) +
+        '<div id="list-body">' + buildBody() + '</div>';
+      const wireRows = function () {
+        document.querySelectorAll('.row[data-id]').forEach(function (r) {
+          r.onclick = function () { navigate('party', { id: r.dataset.id }); };
+        });
+        // a bus row opens its receipt — the same one the collector shared at entry
+        document.querySelectorAll('.row[data-busid]').forEach(function (r) {
+          r.onclick = function () { navigate('receipt', { store: 'daily', id: r.dataset.busid, back: 'list' }); };
+        });
+      };
+      wireRows();
       const fpBtn = document.getElementById('find-party');
       if (fpBtn) fpBtn.onclick = function () { findQuery = ''; navigate('findparty'); };
-      document.getElementById('search').oninput = function (e) { listQuery = e.target.value; renderList(); };
+      document.getElementById('search').oninput = function (e) {
+        listQuery = e.target.value;
+        document.getElementById('list-body').innerHTML = buildBody();
+        wireRows();
+      };
       document.querySelectorAll('[data-f]').forEach(function (c) {
         c.onclick = function () { listFilter = c.dataset.f; renderList(); };
       });
       const dueBtn = document.querySelector('[data-duetoggle]');
       if (dueBtn) dueBtn.onclick = function () { listDueOnly = !listDueOnly; renderList(); };
-      document.querySelectorAll('.row[data-id]').forEach(function (r) {
-        r.onclick = function () { navigate('party', { id: r.dataset.id }); };
-      });
-      // a bus row opens its receipt — the same one the collector shared at entry
-      document.querySelectorAll('.row[data-busid]').forEach(function (r) {
-        r.onclick = function () { navigate('receipt', { store: 'daily', id: r.dataset.busid, back: 'list' }); };
-      });
   }
   // Find ANY party (created by any collector) and add a payment against its
   // balance — so a collector who receives a later installment can record it
@@ -2229,7 +2248,7 @@
   // Handing over money already in hand does NOT come through here (it carries
   // no permission key), and that is deliberate: see Aggregate.homeTiles.
   function canEntry(key) {
-    if (key && Auth.versionCmp() === -1) return false;
+    if (key && Auth.schemaCmp() === -1) return false;
     return Aggregate.permAllowed(Auth.current(), key);
   }
   // The cashier's correction desk is now its own grant. Base requirement is
@@ -2259,7 +2278,7 @@
     //   · it CANNOT be dismissed, and the fix is a button inside it. "Go to
     //     Settings and scroll down" is a three-step errand, and errands get put
     //     off — which is exactly how a warning becomes wallpaper.
-    const cmp = Auth.versionCmp();
+    const cmp = Auth.schemaCmp();
     if (cmp === -1) {
       el.style.cssText = 'display:block;background:#c0392b;color:#fff;text-align:center;' +
         'font-weight:bold;font-size:14px;padding:8px 12px;border-bottom:2px solid #7d2418;line-height:1.4';

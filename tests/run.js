@@ -1975,22 +1975,22 @@ try {
   const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
 
   // One door up, one door down — so no handler and no caller can forget.
-  eq(/Object\.assign\(\{ action: action, appVersion: APP_VERSION \}/.test(auth), true,
-     'A34: every request carries this device version, stamped in the single call door');
+  eq(/Object\.assign\(\{ action: action, appVersion: APP_VERSION, appSchema: APP_SCHEMA \}/.test(auth), true,
+     'A34: every request carries this device version AND its contract number');
   eq(/if \(out\.codeVersion === undefined\) out\.codeVersion = CODE_VERSION;/.test(gs), true,
      'A34: every response carries the server version, stamped in the single reply door');
   // Including the failures: a device that is behind AND erroring still has to
   // learn the first fact.
-  eq(/noteServerVersion\(resp && resp\.codeVersion\);[\s\S]{0,80}if \(!resp\.ok\)/.test(auth), true,
-     'A34: …and it is read BEFORE the error path throws');
+  eq(/noteServerVersion\(resp && resp\.codeVersion, resp && resp\.schema\);[\s\S]{0,80}if \(!resp\.ok\)/.test(auth), true,
+     'A34: …and both are read BEFORE the error path throws');
 
   // Comparison rules. Each of the three is a bug prevented, not a nicety.
   eq(/return m \? \[Number\(m\[1\]\), Number\(m\[2\]\), Number\(m\[3\]\)\] : null;/.test(auth), true,
      'A34: an unparseable version yields null…');
   eq(/if \(!a \|\| !b\) return null;/.test(auth), true,
      'A34: …and null means SAY NOTHING — an alarm nobody can act on is worse than silence');
-  eq(/const cmp = Auth\.versionCmp\(\);[\s\S]{0,80}if \(cmp === -1\)/.test(app), true,
-     'A34: the red bar fires only when this device is BEHIND');
+  eq(/const cmp = Auth\.schemaCmp\(\);[\s\S]{0,80}if \(cmp === -1\)/.test(app), true,
+     'A34: the red bar fires only when this device is BEHIND — on the CONTRACT, not the release');
   eq(/if \(cmp === 1 && Auth\.isAdmin\(\)\)/.test(app), true,
      'A34: a device AHEAD of the server is the normal deploy window — told to the admin only, or every release paints every phone red');
 
@@ -2095,12 +2095,12 @@ try {
   const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
   const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
   // ONE predicate, so no entry screen can be forgotten…
-  eq(/if \(key && Auth\.versionCmp\(\) === -1\) return false;/.test(app), true,
+  eq(/if \(key && Auth\.schemaCmp\(\) === -1\) return false;/.test(app), true,
      'A36: canEntry refuses every entry key while the phone is behind');
   // …and it must be keyed, or handing money over would be blocked too
   eq(/function canEntry\(key\) \{\n    if \(key &&/.test(app), true,
      'A36: …only when a key is given — the common actions, handover included, stay open');
-  eq(/staleVersion: Auth\.versionCmp\(\) === -1/.test(app)
+  eq(/staleVersion: Auth\.schemaCmp\(\) === -1/.test(app)
      && /holding: \(avail\.cash \+ avail\.upi\) > 0/.test(app), true,
      'A36: the home screen tells homeTiles both facts');
   // two different walls need two different cards, or the fix sends you the wrong way
@@ -2269,6 +2269,48 @@ try {
   eq(/id \+ '-none'/.test(app) && /adm_filter_none:/.test(i18n), true,
      'A41: matching nothing says so, instead of showing a blank screen');
   eq(i18n.indexOf('  adm_filter_ph:') >= 0, true, 'A41: the placeholder is bilingual');
+}
+
+
+// ---- A42/A43: two things that were written down instead of fixed ------------
+// Hrishi: "not write it down / do the change".
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const auth = fs.readFileSync(__dirname + '/../js/auth.js', 'utf8');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+
+  // A42 — 📒 খাতা's search kept the caret only by luck; it had none.
+  // Hiding rows in place is wrong HERE: the bus tab totals the filtered rows,
+  // so a hidden row would still be counted. The header stays, the body redraws.
+  eq(/<div id="list-body">' \+ buildBody\(\)/.test(app), true,
+     'A42: the ledger list has a body that can be redrawn on its own');
+  eq(/document\.getElementById\('list-body'\)\.innerHTML = buildBody\(\);/.test(app), true,
+     'A42: typing redraws only that body…');
+  eq(/oninput = function \(e\) \{\n\s*listQuery = e\.target\.value;\n\s*document\.getElementById\('list-body'\)/.test(app), true,
+     'A42: …so the input, the caret and the phone keyboard are never touched');
+  eq(/oninput = function \(e\) \{ listQuery = e\.target\.value; renderList\(\); \}/.test(app), false,
+     'A42: the whole-screen repaint on every keystroke is gone');
+
+  // A43 — a release number and a contract number are different questions.
+  eq(/const APP_SCHEMA = \d+;/.test(auth) && /var CODE_SCHEMA = \d+;/.test(gs), true,
+     'A43: client and server each carry a contract number');
+  const a = (auth.match(/const APP_SCHEMA = (\d+);/) || [])[1];
+  const b = (gs.match(/var CODE_SCHEMA = (\d+);/) || [])[1];
+  eq(a, b, 'A43: …and they agree in the repo');
+  eq(/if \(out\.schema === undefined\) out\.schema = CODE_SCHEMA;/.test(gs), true,
+     'A43: every reply carries it, in the same one place as the version');
+  // the lock must ask the CONTRACT, never the release — otherwise a client-only
+  // release locks every phone out until Code.gs is redeployed for no reason
+  eq(/Auth\.versionCmp\(\) === -1/.test(app), false,
+     'A43: nothing gates behaviour on the release string any more');
+  eq((app.match(/Auth\.schemaCmp\(\) === -1/g) || []).length >= 2, true,
+     'A43: …the lock and the home tiles both ask the contract');
+  // unknown must never lock anybody out — an old server sends no schema at all
+  eq(/return v === null \|\| v === '' \? -1 : Number\(v\);/.test(auth), true,
+     'A43: a server that has never told us its contract reads as unknown…');
+  eq(/if \(b < 0\) return null;/.test(auth), true,
+     'A43: …and unknown says nothing, so nobody is locked out by silence');
 }
 
 console.log(pass + ' passed, ' + fail + ' failed');

@@ -7,12 +7,27 @@ const Auth = (function () {
   // here would depend on load order, which is the kind of thing that works in
   // testing and fails on somebody's phone. Bound to sw.js VERSION and Code.gs
   // CODE_VERSION by tests/run.js so the three cannot drift.
-  const APP_VERSION = 'chanda-v4.10.1';
+  const APP_VERSION = 'chanda-v4.10.2';
+  // A43: the RELEASE string above is for people to read. This is the number
+  // that decides anything: the server CONTRACT this client speaks — columns,
+  // handlers, meanings. It moves only when Code.gs actually changes, so a
+  // client-only release no longer demands a pointless redeploy, and no longer
+  // leaves the admin staring at a "redeploy pending" line that means nothing.
+  // Bump it in Code.gs and here TOGETHER, in the commit that changes the server.
+  const APP_SCHEMA = 1;
   // What the SERVER last told us it is running. Kept in localStorage so the
   // warning survives a reload and stays true offline: once we know this device
   // is behind, going offline does not make it not behind.
   function serverVersion() {
     try { return localStorage.getItem('ck_srv_version') || ''; } catch (e) { return ''; }
+  }
+  // -1 unknown: either we have never heard from the server, or it is running a
+  // build from before schemas existed. Unknown must never lock anybody out.
+  function serverSchema() {
+    try {
+      const v = localStorage.getItem('ck_srv_schema');
+      return v === null || v === '' ? -1 : Number(v);
+    } catch (e) { return -1; }
   }
   // "chanda-v4.10.2" → [4,10,2]. Anything unparseable returns null, and every
   // caller treats null as "say nothing" — a garbled version must never raise an
@@ -28,10 +43,26 @@ const Auth = (function () {
     for (let i = 0; i < 3; i++) { if (a[i] < b[i]) return -1; if (a[i] > b[i]) return 1; }
     return 0;
   }
-  function noteServerVersion(v) {
-    if (!v || v === serverVersion()) return;
-    try { localStorage.setItem('ck_srv_version', String(v)); } catch (e) {}
-    try { window.dispatchEvent(new CustomEvent('ck-version')); } catch (e) {}
+  // What the lock and the warnings actually ask. Release numbers move on every
+  // commit; the contract does not, and only the contract can break anything.
+  // -1 this client is BEHIND the server's contract · 0 same · 1 the SERVER is
+  // behind (Code.gs not redeployed) · null unknown, so say nothing.
+  function schemaCmp() {
+    const b = serverSchema();
+    if (b < 0) return null;
+    return APP_SCHEMA < b ? -1 : APP_SCHEMA > b ? 1 : 0;
+  }
+  function noteServerVersion(v, sc) {
+    let changed = false;
+    if (v && v !== serverVersion()) {
+      try { localStorage.setItem('ck_srv_version', String(v)); } catch (e) {}
+      changed = true;
+    }
+    if (sc !== undefined && sc !== null && Number(sc) !== serverSchema()) {
+      try { localStorage.setItem('ck_srv_schema', String(Number(sc))); } catch (e) {}
+      changed = true;
+    }
+    if (changed) { try { window.dispatchEvent(new CustomEvent('ck-version')); } catch (e) {} }
   }
   function apiUrl() {
     return Settings.get('scriptUrl') || (window.CONFIG && CONFIG.SCRIPT_URL) || '';
@@ -43,14 +74,14 @@ const Auth = (function () {
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       // Every request carries this device's version, so the server can record
       // who is running what — one place, so no handler can forget.
-      body: JSON.stringify(Object.assign({ action: action, appVersion: APP_VERSION }, payload || {})),
+      body: JSON.stringify(Object.assign({ action: action, appVersion: APP_VERSION, appSchema: APP_SCHEMA }, payload || {})),
     }).then(function (r) { return r.json(); })
       .catch(function () { throw new Error('network'); })
       .then(function (resp) {
         // …and every response carries the server's, ok or not. Read it before
         // anything can throw, or a device that is behind AND getting errors
         // would never learn the first fact.
-        noteServerVersion(resp && resp.codeVersion);
+        noteServerVersion(resp && resp.codeVersion, resp && resp.schema);
         if (!resp.ok) {
           // This device's session is no longer valid — the token was overwritten
           // by a login on another device (one account = one active device), or
@@ -90,8 +121,11 @@ const Auth = (function () {
 
   return {
     APP_VERSION: APP_VERSION,
+    APP_SCHEMA: APP_SCHEMA,
     serverVersion: serverVersion,
+    serverSchema: serverSchema,
     versionCmp: versionCmp,
+    schemaCmp: schemaCmp,
     call: call,
     token: token,
     current: current,

@@ -201,6 +201,7 @@ function makeAdmin(username) {
 function json_(obj) {
   var out = obj || {};
   if (out.codeVersion === undefined) out.codeVersion = CODE_VERSION;
+  if (out.schema === undefined) out.schema = CODE_SCHEMA;
   return ContentService.createTextOutput(JSON.stringify(out))
     .setMimeType(ContentService.MimeType.JSON);
 }
@@ -556,7 +557,13 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.10.1';
+var CODE_VERSION = 'chanda-v4.10.2';
+// A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
+// CONTRACT — columns, handlers, meanings — and it is the only number the app's
+// version lock and warnings consult. It moves only in a commit that actually
+// changes this file's behaviour, so a client-only release stops demanding a
+// redeploy that would change nothing. Bump it here and in js/auth.js together.
+var CODE_SCHEMA = 1;
 function doGet() { return json_({ ok: true, service: 'chanda-khata', version: CODE_VERSION }); }
 
 var ACTIONS = {

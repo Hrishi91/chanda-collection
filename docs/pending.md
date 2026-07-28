@@ -473,16 +473,18 @@ The real-phone smoke test is DONE.
 
 After ③ lands, the one pending Code.gs redeploy carries all of it.
 
-## Known, small, not urgent
+## Bumping the version
 
-- **📒 খাতা's search loses focus after each letter.** `renderList()` is called on
-  every keystroke, which replaces the whole screen including the input, so the
-  caret goes. It has been like that since the search was added and nobody has
-  complained — probably because people type one or two letters and look. The
-  admin filter added in v4.10.1 does it the other way (hide rows in place, no
-  repaint) and is the model to copy when this is fixed.
-- **Two version numbers would be better than one.** Today app.js / sw.js /
-  Code.gs must all match, so a client-only fix still bumps Code.gs and either
-  needs a pointless redeploy or leaves the admin's yellow "redeploy pending"
-  line showing. Splitting into a RELEASE number and a SCHEMA number (only the
-  latter gates the lock and the warning) removes that. After go-live.
+Two numbers, and they answer different questions:
+
+- **RELEASE** (`chanda-vX.Y.Z`) — in js/auth.js, sw.js and Code.gs. Bump on every
+  shipped commit; all three must match (tests enforce it). It is what people
+  read on screen.
+- **SCHEMA** (`APP_SCHEMA` / `CODE_SCHEMA`, an integer) — bump ONLY in a commit
+  that changes the server contract: a new column, a new handler, a changed
+  meaning. Bump it in `js/auth.js` and `apps-script/Code.gs` **together**.
+
+The version lock, the red bar and the admin's "redeploy pending" line all read
+the SCHEMA. So a client-only release needs no redeploy and nags nobody; a server
+change makes every phone update before it can write. A server that sends no
+schema at all (a build from before v4.10.2) reads as unknown and locks nobody.

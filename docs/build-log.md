@@ -5638,3 +5638,43 @@ recorded in docs/pending.md rather than quietly fixed in the same commit.
 VERIFIED live with 20 people and 30 locations: "যামি" → 1 row, focus stays in
 the box; "coll1" → 11; "0007" → 1; clearing restores all 20; no match says so;
 the 1-item area list has no box at all. 874 passed, 0 failed.
+
+## v4.10.2 — A42/A43: the two things I wrote down instead of doing (2026-07-28)
+
+Hrishi: "not write it down / do the change." Fair — I had just put both in
+pending.md and moved on.
+
+### A42 — 📒 খাতা's search kept the caret only by accident
+
+`oninput` called `renderList()`, which replaces the whole screen including the
+input, so the caret vanished and on a phone the keyboard shut after the first
+letter. Nobody had reported it because people type one or two letters and look.
+
+The admin filter's trick — hide rows in place — is **wrong here**: the bus tab
+shows a TOTAL over the filtered rows, and a hidden row would still be counted.
+So the header (search box, chips, দুই toggle) stays put and only `#list-body` is
+rebuilt. Totals stay honest and the input is never touched.
+
+Verified live: typing স-া-হ-া keeps focus after every single letter, the input
+is the same DOM element throughout, the caret sits at 4, 8 rows narrow to 2, and
+clearing brings all 8 back.
+
+### A43 — a release number and a contract number are different questions
+
+One number meant a client-only fix still bumped Code.gs, so Hrishi either
+redeployed for nothing or watched a yellow "redeploy pending" line that meant
+nothing. Twice today.
+
+Now `APP_SCHEMA` / `CODE_SCHEMA` — an integer that moves **only** when the server
+contract does. The release string stays for people to read; the lock, the red bar
+and the admin note all read the schema.
+
+- release differs, contract same → **silence**, entry tiles all present
+- contract differs → red bar and the entry lock, as before
+- server sends no schema at all (any build before this one) → **unknown, and
+  unknown locks nobody out**
+
+Verified live across all three. 885 passed, 0 failed.
+
+**This one DOES need a redeploy** — `CODE_SCHEMA` and the `schema` field on every
+reply live in Code.gs. It is the last one that will need it for a while.
