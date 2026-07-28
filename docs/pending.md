@@ -444,3 +444,13 @@ The real-phone smoke test is DONE.
 ## Open questions
 
 - Apps Script URL + secret distribution to 10 phones (QR code?)
+
+## Position-based permissions (v4.9.0 →) — in progress
+
+- [x] ① posts carry a max count and a permission set (v4.9.0)
+- [ ] ② server resolves position ∪ per-user extras; 👥 permission screen with a
+      visible three-part breakdown (from post / extra / effective)
+- [ ] ③ 🎖️ register: app-account dropdown that fills the details, position
+      dropdown, and an EDIT path for an already-registered member
+
+After ③ lands, the one pending Code.gs redeploy carries all of it.

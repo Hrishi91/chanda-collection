@@ -7,7 +7,7 @@
   // code it loaded minutes ago. Reporting the cache made "I updated but nothing
   // changed" look like success. Asserted equal to sw.js VERSION and Code.gs
   // CODE_VERSION in tests/run.js, so the three can never drift apart.
-  const APP_VERSION = 'chanda-v4.8.2';
+  const APP_VERSION = 'chanda-v4.9.0';
   const SIDES = ['main_malda', 'main_balurghat', 'harirampur', 'singhadaha'];
   const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
   let flowState = null;
@@ -1469,7 +1469,7 @@
       });
       if (mineFlagged.length) d.entries = 1;
       if (Auth.isCashier()) {
-        const r = Aggregate.reconcile(data);
+        const r = Aggregate.reconcile(data, { positionMax: Lists.maxMap() });
         if (!r.balanced || r.anomalies.length) d.anomalies = 1;
       }
         dotState = d;
@@ -3064,7 +3064,7 @@
     if (!Auth.isCashier()) return; // admins are cashiers here too
     viewData().then(function (data) {
       const el = document.getElementById('reconcile-warn'); if (!el) return;
-      const r = Aggregate.reconcile(data);
+      const r = Aggregate.reconcile(data, { positionMax: Lists.maxMap() });
       const others = r.anomalies.filter(function (a) { return a.type !== 'unbalanced'; });
       if (r.balanced && !others.length) { el.innerHTML = ''; return; }
       let msg = '';
@@ -3093,7 +3093,9 @@
     if (!Auth.isCashier()) { $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
     $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('loading')) + '</div>';
     viewData().then(function (data) {
-      const r = Aggregate.reconcile(data);
+      // Lists.maxMap() carries the post caps in — reconcile is pure logic and
+      // cannot reach the master lists itself.
+      const r = Aggregate.reconcile(data, { positionMax: Lists.maxMap() });
       const byId = {}; (data.payments || []).forEach(function (p) { byId[p.id] = p; });
       const partyById = {}; (data.parties || []).forEach(function (p) { partyById[p.id] = p; });
       const rows = r.anomalies.map(function (a) {
@@ -3120,6 +3122,7 @@
           : a.type === 'duplicate_id' ? t('anom_dupid').replace('{store}', a.store || '')
           : a.type === 'split_mismatch' ? t('anom_split').replace('{store}', a.store || '').replace('{n}', fmtMoney(a.amount || 0)).replace('{s}', fmtMoney(a.split || 0))
           : a.type === 'breakdown_mismatch' ? t('anom_breakdown').replace('{n}', fmtMoney(a.amount || 0)).replace('{s}', fmtMoney(a.breakdownSum || 0))
+          : a.type === 'position_over_max' ? t('anom_position_over_max').replace('{pos}', Lists.labelOf('position', a.position)).replace('{n}', a.count).replace('{max}', a.max).replace('{names}', (a.who || []).join(', '))
           : a.type;
         return '<div class="card"><div class="card-title">⚠️ ' + esc(t('anom_' + a.type + '_t') || a.type) + '</div>' +
           '<div class="row-sub">' + esc(line) + '</div>' +
@@ -4037,6 +4040,57 @@
               '<button class="chip" data-li-del="' + esc(it.id) + '">' + esc(t('del_btn')) + '</button></div></div>';
           }).join('') : '<div class="empty">' + esc(t('no_items')) + '</div>') + '</div>';
       }
+      // Committee posts are a list PLUS two rules each: how many people may hold
+      // the post, and what the post lets them do. Granting then becomes one
+      // dropdown per person instead of ~16 checkboxes each.
+      function positionCard(list) {
+        const groups = [
+          ['entry_perms', [['shop', t('new_shop')], ['person', t('new_person')], ['member', t('new_member')],
+                            ['bus', t('daily_bus')], ['road', t('daily_road')], ['toto', t('daily_toto')],
+                            ['review', t('review_title')], ['otherdonor', t('perm_otherdonor')],
+                            ['memberadmin', t('perm_memberadmin')]]],
+          ['report_perms', Aggregate.REPORT_IDS.map(function (r) { return [r, t('report_' + r)]; })],
+          // Money power. Kept visible but marked, because a wrong tick here lets
+          // somebody confirm money they never received.
+          ['perm_money', [['cashier', '⚠️ ' + t('cashier')]]],
+        ];
+        return '<div class="card"><div class="card-title">' + esc(t('list_position')) + '</div>' +
+          '<div class="hint" style="margin-bottom:8px">' + esc(t('pos_admin_hint')) + '</div>' +
+          '<div class="input-row"><input id="li-bn-position" placeholder="' + esc(t('name_bn')) + '" autocomplete="off">' +
+          '<input id="li-en-position" placeholder="' + esc(t('name_en')) + '" autocomplete="off">' +
+          '<button class="primary" data-li-add="position">' + esc(t('add_btn')) + '</button></div>' +
+          (list.length ? list.map(function (it) {
+            const set = String(it.perms || '').split(',').filter(Boolean);
+            const cap = Number(it.maxCount) || 0;
+            return '<div class="row" style="cursor:default;flex-wrap:wrap">' +
+              '<div style="flex:1 1 60%"><b>' + esc(it.nameBn) + '</b>' +
+              '<div class="row-sub">' + esc(it.nameEn) + ' · ' +
+                esc(cap > 0 ? t('pos_max_n').replace('{n}', cap) : t('pos_max_any')) + ' · ' +
+                // "0 permissions" is a real state with real consequences, so it
+                // is spelled out rather than left to be inferred from grey chips
+                esc(set.length ? t('pos_perm_n').replace('{n}', set.length) : t('pos_perm_none')) +
+              '</div></div>' +
+              '<div class="chips" style="margin:0">' +
+                '<button class="chip" data-li-edit="' + esc(it.id) + '">' + esc(t('edit_btn')) + '</button>' +
+                '<button class="chip" data-pos-max="' + esc(it.id) + '">🔢 ' + esc(t('pos_max_btn')) + '</button>' +
+                '<button class="chip" data-li-del="' + esc(it.id) + '">' + esc(t('del_btn')) + '</button>' +
+              '</div>' +
+              '<details class="adm-fold" style="flex:1 1 100%;margin-top:6px"><summary>🔑 ' +
+                esc(t('pos_perm_btn')) + '</summary><div class="adm-fold-body">' +
+                groups.map(function (g) {
+                  return '<div class="perm-grp"><div class="perm-head">' + esc(t(g[0])) + '</div>' +
+                    '<div class="chips" style="margin:4px 0 0">' + g[1].map(function (k) {
+                      return '<button class="chip' + (set.indexOf(k[0]) >= 0 ? ' on' : '') +
+                        '" data-pp-id="' + esc(it.id) + '" data-pp-key="' + esc(k[0]) + '">' + esc(k[1]) + '</button>';
+                    }).join('') + '</div></div>';
+                }).join('') +
+                // Said on the screen, not just in the code: this is the boundary
+                // Hrishi drew himself — admin is the board's decision, one person
+                // at a time, never a side effect of a job title.
+                '<div class="perm-note">' + esc(t('pos_no_admin')) + '</div>' +
+              '</div></details></div>';
+          }).join('') : '<div class="empty">' + esc(t('no_items')) + '</div>') + '</div>';
+      }
       // Grouped into collapsible sections (native <details>) so the admin sees
       // four tidy groups instead of a wall of buttons and cards. Users opens by
       // default (approvals are the most frequent job); a pending user forces it.
@@ -4064,7 +4118,7 @@
           subjectsCard +
           listMgmtCard('area', 'manage_areas', areas) +
           listMgmtCard('location', 'manage_locations', locations) +
-          listMgmtCard('position', 'list_position', positions) +
+          positionCard(positions) +
           '', false) +
         fold('🗂️', 'adm_data', '',
           // the chat switch lives with the other data controls, and always says
@@ -4206,6 +4260,29 @@
           const bn = window.prompt(t('name_bn'), it.nameBn || ''); if (bn === null) return;
           const en = window.prompt(t('name_en'), it.nameEn || ''); if (en === null) return;
           adminAction('editItem', { id: b.dataset.liEdit, nameBn: bn.trim(), nameEn: en.trim() }, afterList);
+        };
+      });
+      // How many people may hold this post. Blank or 0 = as many as you like;
+      // only a positive number caps it.
+      document.querySelectorAll('[data-pos-max]').forEach(function (b) {
+        b.onclick = function () {
+          const it = items.find(function (x) { return x.id === b.dataset.posMax; }) || {};
+          const v = window.prompt(t('pos_max_prompt').replace('{who}', it.nameBn || ''), String(Number(it.maxCount) || 0));
+          if (v === null) return;
+          const n = Math.max(0, Math.floor(Number(v) || 0));
+          adminAction('setPositionRules', { id: b.dataset.posMax, maxCount: n }, afterList);
+        };
+      });
+      // Toggle one permission on a post. The whole set is sent every time, so a
+      // stale screen can never delete a key it never knew about — the row it
+      // sends is built from the row it drew.
+      document.querySelectorAll('[data-pp-id]').forEach(function (b) {
+        b.onclick = function () {
+          const it = items.find(function (x) { return x.id === b.dataset.ppId; }) || {};
+          const set = String(it.perms || '').split(',').filter(Boolean);
+          const k = b.dataset.ppKey, at = set.indexOf(k);
+          if (at >= 0) set.splice(at, 1); else set.push(k);
+          adminAction('setPositionRules', { id: b.dataset.ppId, perms: set }, afterList);
         };
       });
       document.querySelectorAll('[data-act]').forEach(function (b) {

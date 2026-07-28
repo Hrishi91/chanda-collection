@@ -3,7 +3,8 @@ const { parseAmount } = require('../js/numparse.js');
 const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
         roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed,
         cashierView, handoverReport, allowedReports, mySummary, handoverSlots, handoverable, samePaymentsOn,
-        mentionsMe, messageFeed, activeData, chatLoad, homeTiles } = require('../js/aggregate.js');
+        mentionsMe, messageFeed, activeData, chatLoad, homeTiles,
+        REPORT_IDS, POSITION_PERM_KEYS, splitPositionPerms } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -1710,6 +1711,110 @@ try {
   // The worker has to be able to answer the question at all.
   eq(/q === 'version'[\s\S]{0,120}postMessage\(VERSION\)/.test(sw), true,
      'A31: sw.js answers a version query, so the app can compare running vs held');
+}
+
+
+// ---- A32 ①: a committee POST carries the permissions -------------------------
+// Granting per user does not scale: 10 people x ~16 keys is ~160 decisions, each
+// one a chance to get it wrong. A post holds the set; a person just gets a post.
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const lists = fs.readFileSync(__dirname + '/../js/lists.js', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+
+  // THE boundary. Hrishi drew it himself: admin comes from the board, one person
+  // at a time — never as a side effect of a job title.
+  eq(POSITION_PERM_KEYS.indexOf('admin') < 0, true,
+     'A32: a post can never carry admin');
+  eq(/POSITION_PERM_KEYS[\s\S]{0,300}?concat\(\['cashier'\]\)/.test(gs), true,
+     'A32: the server has the same list…');
+  eq(/var keep = \(b\.perms \|\| \[\]\)\.filter\([\s\S]{0,140}POSITION_PERM_KEYS\.indexOf\(k\) >= 0/.test(gs), true,
+     'A32: …and FILTERS against it server-side — the UI hiding admin is not the boundary');
+  eq(/pos_no_admin:/.test(i18n) && /pos_no_admin/.test(app), true,
+     'A32: and the screen says so out loud, not only the code');
+
+  // A post stores ONE flat list; resolution decides the bucket by membership, so
+  // the three key spaces must not overlap or a key lands in the wrong one silently.
+  const spaces = [PERM_KEYS, REPORT_IDS, ['cashier']];
+  let clash = '';
+  spaces.forEach(function (a, i) {
+    spaces.forEach(function (b, j) {
+      if (i >= j) return;
+      a.forEach(function (k) { if (b.indexOf(k) >= 0) clash = k; });
+    });
+  });
+  eq(clash, '', 'A32: entry / report / cashier key spaces stay disjoint');
+
+  // splitPositionPerms is the ONE place that decides which bucket a key is in.
+  const sp = splitPositionPerms('shop,inhand,cashier,bogus');
+  eq(sp.entries.join(','), 'shop', 'A32: entry keys land in entries');
+  eq(sp.reports.join(','), 'inhand', 'A32: report ids land in reports');
+  eq(sp.cashier, 1, 'A32: cashier lands on its own flag');
+  eq(splitPositionPerms('admin').entries.length + splitPositionPerms('admin').reports.length
+     + splitPositionPerms('admin').cashier, 0, 'A32: admin is dropped even if somebody stores it');
+  eq(splitPositionPerms('').entries.length, 0, 'A32: an empty post grants nothing');
+
+  // Seeded posts must grant NOTHING. Seeding permissions would hand out power
+  // nobody asked for, and "why can he do that?" becomes unanswerable.
+  eq(/perms: ''/.test(lists), true, 'A32: seeded posts start with no permissions');
+  eq((lists.match(/perms: ''/g) || []).length, 4, 'A32: …all four of them');
+  // The same four ids are seeded server-side, or the client rows would show in
+  // the UI while every edit answered not-found.
+  ['president', 'secretary', 'treasurer', 'member'].forEach(function (id) {
+    eq(gs.indexOf("'" + id + "'") >= 0, true, 'A32: server seeds the ' + id + ' post');
+  });
+  eq(/function seedPositions_/.test(gs) && /seedPositions_\(sh\)/.test(gs), true,
+     'A32: …and seeds them on read too, so an old book heals without setup()');
+  eq(/ensureListCols_\(sh\)[\s\S]{0,200}seedPositions_/.test(gs), true,
+     'A32: Lists columns are appended at the END, so an old sheet keeps working');
+
+  // 0 / blank = unlimited. Only a positive number caps.
+  eq(/m > 0 && held >= m/.test(lists), true, 'A32: only a POSITIVE max caps a post');
+  eq(/const m = Math\.max\(0, Number\(p\.maxCount\) \| \| 0\)/.test(lists.replace(/\|\|/g, '| |')), true,
+     'A32: maxMap only reports capped posts');
+}
+
+// reconcile: two people in a one-person post — the case the screen cannot block,
+// because two admins can assign it while both are offline.
+{
+  const members = { parties: [
+    { id: 'm1', type: 'member', name: 'অ', position: 'president', pledged: 0 },
+    { id: 'm2', type: 'member', name: 'ব', position: 'president', pledged: 0 },
+    { id: 'm3', type: 'member', name: 'স', position: 'member', pledged: 0 }] };
+  const over = reconcile(members, { positionMax: { president: 1 } }).anomalies
+    .filter(function (a) { return a.type === 'position_over_max'; });
+  eq(over.length, 1, 'A32: two সভাপতি raises one anomaly');
+  eq(over[0].count, 2, 'A32: …naming how many hold it');
+  eq(over[0].who.join(','), 'অ,ব', 'A32: …and WHO, so it can be fixed without hunting');
+  eq(reconcile(members, { positionMax: { member: 0 } }).anomalies
+     .filter(function (a) { return a.type === 'position_over_max'; }).length, 0,
+     'A32: an uncapped post never complains');
+  // Without the rules the check is skipped entirely — every existing caller of
+  // reconcile(data) keeps working untouched.
+  eq(reconcile(members).anomalies.filter(function (a) { return a.type === 'position_over_max'; }).length, 0,
+     'A32: no rules passed → no post check, so old callers are unaffected');
+}
+
+
+// Every anomaly type the desk can print needs a TITLE string. Without one the
+// card heads itself "anom_position_over_max_t" — the raw key — which is exactly
+// what shipped for a minute today. Find the types in aggregate.js and demand a
+// heading for each, so the next new anomaly cannot arrive half-translated.
+{
+  const fs = require('fs');
+  const agg = fs.readFileSync(__dirname + '/../js/aggregate.js', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const types = {};
+  (agg.match(/type: '([a-z_]+)'/g) || []).forEach(function (m) {
+    types[m.replace(/^type: '/, '').replace(/'$/, '')] = 1;
+  });
+  const found = Object.keys(types);
+  eq(found.length >= 8, true, 'anomaly titles: found the anomaly types to check (' + found.length + ')');
+  found.forEach(function (ty) {
+    eq(i18n.indexOf('  anom_' + ty + '_t:') >= 0, true, 'anomaly titles: anom_' + ty + '_t exists');
+  });
 }
 
 console.log(pass + ' passed, ' + fail + ' failed');

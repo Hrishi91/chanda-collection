@@ -108,6 +108,7 @@ function setup() {
   // master lists (areas, person locations) — bilingual, admin-editable
   var ls = ss.getSheetByName('Lists') || ss.insertSheet('Lists');
   if (ls.getLastRow() === 0) { ls.appendRow(['id', 'kind', 'nameBn', 'nameEn', 'order', 'createdAt']); ls.setFrozenRows(1); }
+  ensureListCols_(ls); // maxCount + perms — append-only, so old sheets heal
   var hasArea = false;
   if (ls.getLastRow() > 1) {
     ls.getRange(2, 2, ls.getLastRow() - 1, 1).getValues().forEach(function (r) { if (String(r[0]) === 'area') hasArea = true; });
@@ -120,6 +121,7 @@ function setup() {
       ls.appendRow([a[0], 'area', a[1], a[2], i, new Date().toISOString()]);
     });
   }
+  seedPositions_(ls);
   // automatic daily backup — no longer a manual editor step to remember
   var trig = ensureBackupTrigger_();
   Logger.log('setup complete · daily backup trigger: ' + trig);
@@ -345,6 +347,33 @@ var ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto'];
 // COLLECTING from members.
 var PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin']);
 
+// ---------- what a committee POST may carry ----------
+// A position (সভাপতি / সম্পাদক / কোষাধ্যক্ষ / সদস্য) holds a permission set, so
+// granting is one dropdown per person instead of ~16 checkboxes each. Three
+// rules, and the first is the one that matters:
+//
+//   'admin' is NOT here and can never be. Admin is not a committee post, it is
+//   power over the whole system — if সম্পাদক carried it, making somebody
+//   secretary would silently hand them everything. Hrishi's own words: that
+//   grant "will be done by decision of board", one person at a time.
+//
+//   'cashier' IS here, because কোষাধ্যক্ষ literally means it. It is the one
+//   money-moving key a post can carry (confirm handovers, general expenses), so
+//   every change to it is written to the Audit log.
+//
+//   The three key spaces must stay DISJOINT — a position stores one flat list
+//   and resolution decides the bucket by membership, so a key appearing in two
+//   of them would land in the wrong one silently. tests/run.js asserts it.
+var POSITION_PERM_KEYS = PERM_KEYS.concat(REPORT_IDS).concat(['cashier']);
+// The committee's four posts, seeded server-side so they EXIST as rows the
+// admin can edit. js/lists.js seeds the same four ids for offline display; if
+// the sheet had none, those client-side rows would show in the UI and every
+// edit would answer 'not-found'.
+var POSITION_SEED = [['president', 'সভাপতি', 'President', 1],
+                     ['secretary', 'সম্পাদক', 'Secretary', 1],
+                     ['treasurer', 'কোষাধ্যক্ষ', 'Treasurer', 1],
+                     ['member', 'সদস্য', 'Member', 0]];
+
 // Which permission key a row needs, from the row itself. null = common.
 function permForRow_(store, row) {
   var ty = String((row && row.type) || '');
@@ -434,7 +463,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.8.2';
+var CODE_VERSION = 'chanda-v4.9.0';
 function doGet() { return json_({ ok: true, service: 'chanda-khata', version: CODE_VERSION }); }
 
 var ACTIONS = {
@@ -1123,20 +1152,56 @@ var ACTIONS = {
     return { ok: true };
   },
 
-  // ---------- master lists (areas, person locations) — bilingual ----------
+  // ---------- master lists (areas, person locations, committee posts) ----------
   listItems: function (b) {
     requireUser_(b.token);
     var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
     var out = [];
+    if (sh) {
+      // Heal + seed here, not only in setup(): a book created before posts
+      // existed would otherwise show the client's four seeded positions while
+      // the sheet held none, and every edit would answer 'not-found'.
+      ensureListCols_(sh);
+      seedPositions_(sh);
+    }
     if (sh && sh.getLastRow() > 1) {
-      sh.getRange(2, 1, sh.getLastRow() - 1, 5).getValues().forEach(function (r) {
+      var mx = ensureCol_(sh, 'maxCount'), pc = ensureCol_(sh, 'perms');
+      var wide = Math.max(5, mx, pc);
+      sh.getRange(2, 1, sh.getLastRow() - 1, wide).getValues().forEach(function (r) {
         if (!b.kind || String(r[1]) === b.kind) {
-          out.push({ id: String(r[0]), kind: String(r[1]), nameBn: String(r[2]), nameEn: String(r[3]), order: Number(r[4]) || 0 });
+          out.push({ id: String(r[0]), kind: String(r[1]), nameBn: String(r[2]), nameEn: String(r[3]),
+                     order: Number(r[4]) || 0,
+                     // 0 / blank = as many as you like. Only a positive number caps.
+                     maxCount: Number(r[mx - 1]) || 0, perms: String(r[pc - 1] || '') });
         }
       });
       out.sort(function (a, c) { return a.order - c.order; });
     }
     return { ok: true, items: out };
+  },
+  // A committee post's cap and permission set. Admin only, and the key list is
+  // filtered SERVER-side — the UI hiding 'admin' is a courtesy, this is the
+  // boundary. Every change is audited because a post can carry 'cashier'.
+  setPositionRules: function (b) {
+    var me = requireAdmin_(b.token);
+    var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
+    if (!sh || sh.getLastRow() < 2) throw new Error('not-found');
+    ensureListCols_(sh);
+    var mx = ensureCol_(sh, 'maxCount'), pc = ensureCol_(sh, 'perms');
+    var rows = sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues();
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i][0]) !== String(b.id)) continue;
+      if (String(rows[i][1]) !== 'position') throw new Error('not-a-position');
+      if (b.maxCount !== undefined) sh.getRange(i + 2, mx).setValue(Math.max(0, Number(b.maxCount) || 0));
+      if (b.perms !== undefined) {
+        var keep = (b.perms || []).filter(function (k) { return POSITION_PERM_KEYS.indexOf(k) >= 0; });
+        sh.getRange(i + 2, pc).setValue(keep.join(','));
+        logAudit_(me.row, 'position:perms', b.id + ' → [' + keep.join(',') + ']');
+      }
+      if (b.maxCount !== undefined) logAudit_(me.row, 'position:max', b.id + ' → ' + (Number(b.maxCount) || 0));
+      return { ok: true };
+    }
+    throw new Error('not-found');
   },
   addItem: function (b) {
     var me = requireAdmin_(b.token);
@@ -1351,6 +1416,30 @@ function ensureCols_(sh, cols) {
   var have = last ? sh.getRange(1, 1, 1, last).getValues()[0].map(String) : [];
   var missing = cols.filter(function (c) { return have.indexOf(c) < 0; });
   if (missing.length) sh.getRange(1, have.length + 1, 1, missing.length).setValues([missing]);
+}
+// Lists gained two columns in v4.9.0. Appended at the END like every other
+// schema change here, so a sheet written by an older deploy keeps working and
+// heals itself the first time anybody reads the lists.
+function ensureListCols_(sh) { ensureCols_(sh, ['maxCount', 'perms']); }
+// Put the four committee posts in the sheet if they are not there. Idempotent —
+// keyed on the ids, so renaming সম্পাদক in the admin panel never resurrects it.
+function seedPositions_(sh) {
+  var have = {};
+  if (sh.getLastRow() > 1) {
+    sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(function (r) {
+      if (String(r[1]) === 'position') have[String(r[0])] = true;
+    });
+  }
+  var mx = ensureCol_(sh, 'maxCount');
+  POSITION_SEED.forEach(function (p, i) {
+    if (have[p[0]]) return;
+    // perms deliberately EMPTY: seeding permissions would hand out power nobody
+    // asked for. A new post grants nothing until the admin ticks the boxes.
+    var row = [p[0], 'position', p[1], p[2], i, new Date().toISOString()];
+    while (row.length < mx - 1) row.push('');
+    row[mx - 1] = p[3];
+    sh.appendRow(row);
+  });
 }
 function ensureCol_(sh, name) {
   var last = sh.getLastColumn();

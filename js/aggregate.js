@@ -851,7 +851,12 @@
   // anomalies (that would cause disputes) are surfaced. Handovers are internal
   // transfers, so across everyone they net out — hence the invariant:
   //   Σ (cash in hand)  ===  total collected − total expenses.
-  function reconcile(data) {
+  // `rules.positionMax` = { positionId: cap } for capped committee posts, from
+  // Lists.maxMap(). Optional: without it the post check is simply skipped, so
+  // every existing caller keeps working unchanged. The screen that assigns a
+  // post already blocks going over the cap — this catches the case it cannot,
+  // two admins assigning সভাপতি while both are offline.
+  function reconcile(data, rules) {
     data = activeData(data);
     const parties = data.parties || [], payments = data.payments || [];
     const daily = data.daily || [], expenses = data.expenses || [];
@@ -951,6 +956,26 @@
     rows.forEach(function (r) {
       if (r.inHand < 0) anomalies.push({ type: 'negative_inhand', collector: r.collector, inHand: r.inHand });
     });
+    // More people in a one-person post than the post allows.
+    const posMax = (rules && rules.positionMax) || null;
+    if (posMax) {
+      const holders = {};
+      parties.forEach(function (p) {
+        if (p.type !== 'member' || !p.position) return;
+        (holders[p.position] || (holders[p.position] = [])).push(p.name || p.id);
+      });
+      Object.keys(posMax).forEach(function (pid) {
+        // 0 means "as many as you like" EVERYWHERE else in this app; a reconcile
+        // that read it as "nobody allowed" would be a trap for the next caller.
+        const cap = Number(posMax[pid]) || 0;
+        if (cap <= 0) return;
+        const who = holders[pid] || [];
+        if (who.length > cap) {
+          anomalies.push({ type: 'position_over_max', position: pid, max: cap,
+                           count: who.length, who: who });
+        }
+      });
+    }
     // same id appearing twice in a store (would double-count)
     ['parties', 'payments', 'daily', 'expenses', 'handovers'].forEach(function (store) {
       const seen = {};
@@ -1002,6 +1027,34 @@
   // 'member' entry grant, which only lets someone COLLECT from members: one
   // person keeps the register, many people take the money.
   const PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin']);
+  // What a committee POST may carry, so granting is one dropdown per person
+  // instead of ~16 checkboxes each. Mirrors Code.gs POSITION_PERM_KEYS.
+  //
+  // 'admin' is absent and must stay absent: admin is not a committee post, it is
+  // power over the whole system, and if সম্পাদক carried it then making somebody
+  // secretary would silently hand them everything. That grant stays one person
+  // at a time, by the board's decision.
+  //
+  // 'cashier' IS here — কোষাধ্যক্ষ literally means it — and it is the only
+  // money-moving key a post can hold, so the server audits every change.
+  //
+  // The three spaces are stored FLAT in one comma list and split back apart by
+  // membership, so they must stay disjoint; tests/run.js asserts that, because a
+  // key in two of them would land in the wrong bucket without a word.
+  const POSITION_PERM_KEYS = PERM_KEYS.concat(REPORT_IDS).concat(['cashier']);
+  // Split a post's flat permission list into the three fields the app actually
+  // reads. One place decides which bucket a key belongs to — the UI, the server
+  // resolver and the tests all come back here rather than each guessing.
+  function splitPositionPerms(perms) {
+    const list = (typeof perms === 'string' ? perms.split(',') : (perms || [])).filter(Boolean);
+    const out = { entries: [], reports: [], cashier: 0 };
+    list.forEach(function (k) {
+      if (k === 'cashier') out.cashier = 1;
+      else if (PERM_KEYS.indexOf(k) >= 0) out.entries.push(k);
+      else if (REPORT_IDS.indexOf(k) >= 0) out.reports.push(k);
+    });
+    return out;
+  }
   // Which permission key a row needs, from the row itself. Stores with no key
   // are common to everyone.
   function permForRow(store, row) {
@@ -1141,6 +1194,7 @@
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,
                 roleOf: roleOf, rowRole: rowRole,
                 ENTRY_KINDS: ENTRY_KINDS, PERM_KEYS: PERM_KEYS,
+                POSITION_PERM_KEYS: POSITION_PERM_KEYS, splitPositionPerms: splitPositionPerms,
                 permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,

@@ -5168,3 +5168,53 @@ stuck state — worker at TEST7, page running TEST6, cap already spent — one t
 reloaded the page to TEST7 and cleared the warning. 692 passed, 0 failed.
 
 **Rides the pending redeploy** — Code.gs CODE_VERSION → chanda-v4.8.2.
+
+## v4.9.0 — ① a committee POST carries the permissions (2026-07-28)
+
+Hrishi, on the member-permission design: "for every user we dont need to give
+permissions seperately / just select the positions". He is right, and my
+per-user design did not scale — 10 people × ~16 keys is ~160 separate decisions,
+each one a chance to get it wrong.
+
+A position (Lists kind `position`) now holds two rules: **how many people may
+hold it** and **what holding it lets them do**. The admin panel's committee-post
+card grew a max button and a 🔑 fold of permission chips, grouped entry /
+report / money.
+
+**Admin is not in that list and cannot be.** Hrishi drew this line himself —
+"it will be done by decission of board". If সম্পাদক carried admin, making
+somebody secretary would silently hand them the whole system. `cashier` IS
+there, because কোষাধ্যক্ষ literally means it; it is marked ⚠️ and every change
+to a post's permissions is written to the Audit log. The server filters against
+`POSITION_PERM_KEYS` on write — the UI hiding admin is a courtesy, not the
+boundary.
+
+A post stores one flat comma list and `splitPositionPerms()` sorts the keys back
+into entries / reports / cashier by membership, so the three key spaces must stay
+disjoint; a test asserts that, because a key in two of them would land in the
+wrong bucket without a word.
+
+Seeded posts grant **nothing**. Seeding permissions would hand out power nobody
+asked for, and the four posts are seeded server-side as well — otherwise the
+client's four rows would show in the admin panel while every edit answered
+`not-found`.
+
+`reconcile(data, rules)` gained `position_over_max` for the case the screen
+cannot block: two admins assigning সভাপতি while both are offline. It names who
+holds the post, so it can be fixed without hunting. Passing no rules skips the
+check, so every existing caller is untouched.
+
+A second test now demands a `_t` heading for every anomaly type — it immediately
+caught the new one heading its own card with the raw key
+`anom_position_over_max_t`, and an older gap besides.
+
+VERIFIED live: the post card renders all four posts with "সর্বোচ্চ 1 জন ·
+⚠️ কোনো অনুমতি নেই"; ticking দোকান + বাকি + ⚠️ ক্যাশিয়ার on কোষাধ্যক্ষ stores
+`shop,dues,cashier`, splits into {entries:[shop], reports:[dues], cashier:1} and
+writes three audit lines; pushing `['shop','admin','role','memberadmin']`
+straight past the UI stores only `shop,memberadmin`; setting সভাপতি to max 1 with
+two holders raises "⚠️ এক পদে বেশি লোক — সভাপতি পদে 2 জন, অথচ সর্বোচ্চ 1 জন —
+রতন সাহা, বিমল দাস" on the 🩺 desk. 727 passed, 0 failed.
+
+**Rides the pending redeploy** — Code.gs gains `setPositionRules`,
+`POSITION_PERM_KEYS`, `seedPositions_`, and two Lists columns.
