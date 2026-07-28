@@ -5474,3 +5474,28 @@ Reminder that is now overdue: `Settings.get('scriptUrl')` OVERRIDES config.js.
 Hrishi's own phone has the URL pasted there, so it will keep using whatever is
 in that field regardless of this rebake — clear it, or it silently pins that one
 device to an old backend on the next deploy.
+
+## v4.9.7 — A37: the Sync URL could be set but not un-set (2026-07-28)
+
+Hrishi: "there is no option to remove."
+
+`Settings.scriptUrl` OVERRIDES `config.js`, and silently. A phone with an old
+`/exec` pasted there keeps talking to a dead backend through every redeploy —
+which is exactly what had happened: config.js was rebaked for the v4.9.6
+deployment and his own phone would have ignored it. Nothing on screen said which
+of the two addresses was winning, and the only way out was to select a
+114-character URL on a phone and delete it by hand. That is a chore, and chores
+do not get finished.
+
+The field now says which address is actually in use — "⚠️ এই ফোনের নিজস্ব URL
+চলছে" or "✅ অ্যাপের সঙ্গে আসা ঠিকানাই চলছে — deploy করলে নিজে থেকেই বদলাবে" —
+and carries a one-tap **↺ ফাঁকা করো**, shown only when there is something to
+clear.
+
+Same shape as A31/A35 once more: a state you cannot see is a state you cannot
+fix, and a fix that is a chore is a fix that does not happen.
+
+VERIFIED live: with an override set the field warns and offers the button; one
+tap stores `""` (falsy, so `apiUrl()` falls through to config.js), the line flips
+to the green one and the button disappears because there is nothing left to
+clear. 827 passed, 0 failed.

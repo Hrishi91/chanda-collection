@@ -3502,7 +3502,19 @@
       '<button class="chip' + (Settings.get('lang') === 'en' ? ' on' : '') + '" data-l="en">English</button></div></div>' +
       fields.map(function (f) {
         return '<div class="field"><label>' + esc(t(f[1])) + '</label>' +
-          '<input type="' + f[2] + '" data-k="' + f[0] + '" value="' + esc(Settings.get(f[0])) + '"></div>';
+          '<input type="' + f[2] + '" data-k="' + f[0] + '" value="' + esc(Settings.get(f[0])) + '">' +
+          // A37: this field OVERRIDES config.js, and silently. A phone with an
+          // old URL pasted here keeps talking to a dead backend through every
+          // redeploy, and nothing on screen says so — you cannot see which of
+          // the two is winning. Emptying it is the fix, and emptying a long URL
+          // on a phone by hand is exactly the kind of chore nobody finishes.
+          (f[0] === 'scriptUrl'
+            ? '<div class="row-sub" style="margin-top:6px">' +
+                esc(Settings.get('scriptUrl') ? t('surl_own') : t('surl_default')) + '</div>' +
+              (Settings.get('scriptUrl')
+                ? '<button id="surl-clear" class="chip" style="margin-top:6px">↺ ' +
+                    esc(t('surl_clear')) + '</button>' : '')
+            : '') + '</div>';
       }).join('') + '</div>' +
       '<button id="sync-btn" class="primary big block">☁️ ' + esc(t('sync_now')) + '</button>' +
       '<button id="export-btn" class="ghost big block">' + esc(t('export_backup')) + '</button>' +
@@ -3520,6 +3532,12 @@
       '<div class="empty" id="app-ver">…</div>' +
       '<button id="upd-btn" class="ghost block">🔄 ' + esc(t('check_update')) + '</button>';
     showVersion();
+    const sc = document.getElementById('surl-clear');
+    if (sc) sc.onclick = function () {
+      Settings.set('scriptUrl', '');
+      toast(t('surl_cleared'));
+      renderSettings();
+    };
     const updB = document.getElementById('upd-btn');
     if (updB) updB.onclick = function () { runUpdate(updB); };
     const admB = document.getElementById('adm-btn');

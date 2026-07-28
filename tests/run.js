@@ -2107,5 +2107,32 @@ try {
   });
 }
 
+
+// ---- A37: the Sync URL field could be set but not un-set ---------------------
+// "there is no option to remove". Settings.scriptUrl OVERRIDES config.js, and
+// silently: a phone with an old /exec pasted there keeps talking to a dead
+// backend through every redeploy, with nothing on screen saying which of the
+// two is winning. The only way out was to select a 114-character URL on a phone
+// and delete it by hand — a chore, and chores do not get finished.
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  eq(/id="surl-clear"/.test(app), true, 'A37: the Sync URL field has a one-tap clear');
+  eq(/Settings\.set\('scriptUrl', ''\);/.test(app), true, 'A37: …which empties it outright');
+  eq(/Settings\.get\('scriptUrl'\) \? t\('surl_own'\) : t\('surl_default'\)/.test(app), true,
+     'A37: …and the screen says WHICH of the two addresses is actually in use');
+  // the button only exists when there is something to clear
+  eq(/\(Settings\.get\('scriptUrl'\)\n\s*\? '<button id="surl-clear"/.test(app), true,
+     'A37: …shown only when the field is actually overriding something');
+  ['surl_own', 'surl_default', 'surl_clear', 'surl_cleared'].forEach(function (k) {
+    eq(i18n.indexOf('  ' + k + ':') >= 0, true, 'A37: ' + k + ' has a bilingual message');
+  });
+  // the override itself must stay falsy-empty, or clearing would not fall through
+  const db = fs.readFileSync(__dirname + '/../js/db.js', 'utf8');
+  eq(/set: function \(k, v\) \{ localStorage\.setItem\('ck_' \+ k, String\(v\)\); \}/.test(db), true,
+     'A37: an empty setting is stored as "", so apiUrl() falls through to config.js');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
