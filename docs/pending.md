@@ -448,9 +448,15 @@ The real-phone smoke test is DONE.
 ## Position-based permissions (v4.9.0 →) — in progress
 
 - [x] ① posts carry a max count and a permission set (v4.9.0)
+- [x] ③ 🎖️ register: app-account dropdown that fills the details, position
+      dropdown, and an EDIT path for an already-registered member (v4.9.2)
+      — moved ahead of ② because the post-over-max anomaly lit a dot nothing
+      could clear
 - [ ] ② server resolves position ∪ per-user extras; 👥 permission screen with a
       visible three-part breakdown (from post / extra / effective)
-- [ ] ③ 🎖️ register: app-account dropdown that fills the details, position
-      dropdown, and an EDIT path for an already-registered member
+- [ ] ② also: wipe the existing per-user grants for everyone except admin, as
+      Hrishi asked — but ONLY after posts actually carry permissions, or every
+      collector is locked out of every entry. The button must preview who would
+      be left with nothing before it runs.
 
 After ③ lands, the one pending Code.gs redeploy carries all of it.

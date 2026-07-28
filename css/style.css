@@ -136,6 +136,14 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
 .empty { text-align: center; color: var(--sub); padding: 26px 10px; font-size: 14px; }
 .field { margin-bottom: 14px; text-align: left; }
 .field label { display: block; font-size: 13px; font-weight: 700; color: var(--sub); margin-bottom: 6px; }
+/* Dropdowns match the text inputs beside them — the member form puts a select
+   and an input in the same column, and two different shapes read as two
+   different kinds of field. */
+.field select {
+  width: 100%; padding: 12px 14px; font-size: 16px; border: 1.5px solid var(--line);
+  border-radius: 12px; background: var(--card); color: var(--ink); appearance: none;
+}
+.field select:disabled, .field select option:disabled { color: var(--sub); }
 .field input {
   width: 100%; padding: 12px 14px; font-size: 16px; border: 1.5px solid var(--line);
   border-radius: 12px; background: var(--card); color: var(--ink);

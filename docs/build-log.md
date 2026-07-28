@@ -5247,3 +5247,48 @@ help.js gets rewritten with ② rather than now, so the guide never describes a
 screen that does not exist yet.
 
 730 passed, 0 failed.
+
+## v4.9.2 — ③ the member register is a form with dropdowns, and can be edited
+
+Hrishi: "in one dropdown the user list will be there, if selected it will show
+the details of the user / another dropdown with the position". He was right that
+my `window.prompt` — type a number from a printed list of users — was bad. It is
+gone.
+
+🎖️ ➕/✏️ is now one form serving both registering and editing:
+
+- **app-অ্যাকাউন্ট** dropdown of approved users. Picking one shows who they are
+  (`@ratan · 📞 9876500000 · সংগ্রাহক · 💰 ক্যাশিয়ার`) and fills in the name and
+  phone — but only the fields still BLANK, because overwriting something already
+  typed is how a form loses work. The note that linking moves no money is shown
+  every time, since the obvious reading is the wrong one.
+- **পদ** dropdown showing `সভাপতি (1/1) — পূর্ণ` and disabling a post that is
+  full, counting holders EXCLUDING the member being edited — otherwise editing
+  সভাপতি's phone would report the post full against himself. The cap is checked
+  again on SAVE, because the check that matters is the one at the moment of
+  writing.
+
+**Editing did not exist before**, and that is why this went ahead of ②: the
+`position_over_max` anomaly from v4.9.0 lit a 🩺 dot that nothing could clear.
+Verified end to end — two সভাপতি with a cap of 1 raise the anomaly, ✏️ moves one
+to সদস্য, the desk goes green and the dot goes out.
+
+### Three bugs of mine, found by running it rather than reading it
+
+1. A failed `listUsers` cached `[]`, so one bad moment of signal left the account
+   dropdown saying "cannot load" for the whole session with nothing able to retry
+   it — the A31 shape exactly. It now leaves the cache null and retries next visit.
+2. My first fix introduced a fresh race: a caller arriving while the fetch was in
+   flight returned early instead of joining it, so opening the register and
+   tapping ➕ within the same second painted "cannot load" on the form while the
+   arriving users repainted the screen you had just left. Callers now join.
+3. Which made the callback SYNCHRONOUS once cached — and `paint()` then read a
+   `let` declared below it, throwing on the temporal dead zone before its own
+   `if (!form) return` guard could help. The form sat on "আসছে…" for ever, and
+   only on the SECOND visit. The declaration order is now load-bearing and a test
+   asserts it.
+
+Form labels no longer borrow the guided-flow questions: those say "(Skip if
+none)", and there is no Skip button on a form.
+
+747 passed, 0 failed.

@@ -1539,22 +1539,42 @@ eq((a27Pos.match(/\{ id:/g) || []).length, 4, 'A27: four committee posts seeded'
 ['সভাপতি', 'সম্পাদক', 'কোষাধ্যক্ষ', 'সদস্য'].forEach(function (bn) {
   eq(a27Pos.indexOf(bn) >= 0, true, 'A27: bilingual — ' + bn);
 });
-eq(a25App.indexOf("Lists.get('position').length > 0") >= 0, true,
-   'A27: the post is ASKED for every member, from the list');
+eq(/id="mf-pos"[\s\S]{0,400}Lists\.labelOf\('position'/.test(a25App), true,
+   'A27: the post is a DROPDOWN off the master list, on every member');
 // the membership-type list was never wanted — it must be gone everywhere
 ['js/app.js', 'js/lists.js', 'js/i18n.js', 'apps-script/Code.gs'].forEach(function (f) {
   eq(require('fs').readFileSync(__dirname + '/../' + f, 'utf8').indexOf('memberType') < 0, true,
      'A27: no memberType left in ' + f);
 });
 // registration REGISTERS; money comes later through the collection screen
-const a29Reg = a25App.slice(a25App.indexOf('function memberRegisterFlow'),
+// The register is a FORM now, not a guided flow — Hrishi asked for dropdowns
+// and for the picked user's details on screen. Same guarantees, new shape.
+const a29Reg = a25App.slice(a25App.indexOf('function renderMemberForm'),
                             a25App.indexOf('function renderFindParty'));
 eq(a29Reg.indexOf("key: 'pledged'") < 0, true, 'A27: a member is registered without a pledge');
 eq(a29Reg.indexOf('moneySteps(') < 0, true, 'A27: …and takes no money at registration');
 eq(a29Reg.indexOf("pledged: 0") >= 0, true, 'A27: …the row is stored with a zero pledge, explicitly');
-['q_person_name', 'q_position', 'q_email', 'q_phone'].forEach(function (k) {
-  eq(a29Reg.indexOf(k) >= 0, true, 'A27: the register asks ' + k);
+// A form asks by LABEL, not by flow question — and the flow wording said
+// "(Skip if none)", which is a lie on a screen with no Skip button.
+['member_f_name', 'member_f_post', 'member_f_email', 'member_f_phone'].forEach(function (k) {
+  eq(a29Reg.indexOf(k) >= 0, true, 'A27: the register asks for ' + k);
 });
+['mf-name', 'mf-pos', 'mf-email', 'mf-phone', 'mf-user'].forEach(function (f) {
+  eq(a29Reg.indexOf('"' + f + '"') >= 0, true, 'A27: …and has a real field for it: ' + f);
+});
+eq(/q_email|q_phone|q_person_name/.test(a29Reg), false,
+   'A27: no flow question text on the form — those say "Skip", which is not on this screen');
+// ③: editing was impossible before, which left the post-over-max anomaly with a
+// 🩺 dot nothing could clear.
+eq(/function renderMemberForm\(params\)[\s\S]{0,600}const id = \(params && params\.id\)/.test(a25App), true,
+   'A32: one form serves both registering and EDITING a member');
+eq(a25App.indexOf('data-ma-edit') >= 0, true, 'A32: every registered member has an edit button');
+eq(/others\.length >= cap/.test(a29Reg), true,
+   'A32: the cap is re-checked at SAVE, not only in the dropdown');
+eq(/p\.id === id \|\| !p\.position/.test(a25App), true,
+   'A32: …counting holders EXCLUDING the member being edited, or he blocks himself');
+eq(/window\.prompt/.test(a29Reg), false,
+   'A32: no typing a number from a printed list — that was the complaint');
 // a pledge of zero means no pledge was agreed — not an overpayment
 const a27Open = { parties: [{ id: 'mm', type: 'member', name: 'সদস্য এক', pledged: 0 }],
   voids: [], corrections: [], daily: [], expenses: [], handovers: [],
@@ -1574,7 +1594,33 @@ eq(a25Pay.indexOf("qKey: 'q_note_member', kind: 'text' }") >= 0, true,
    'A25: …and a member note carries NO `optional`, so there is no Skip button');
 eq(a25I18n.indexOf('  q_note_member:') >= 0, true, 'A25: with its own wording');
 // linking a member to an app account must never move money
-eq(a25App.indexOf('data-ma-user') >= 0, true, 'A25: the register screen can link an app account');
+eq(/id="mf-user"[\s\S]{0,300}u\.username/.test(a25App), true,
+   'A25: the register screen links an app account, from a dropdown of real users');
+eq(/member_link_note/.test(a25App), true,
+   'A25: …and says on screen that linking moves no money');
+// One failed fetch used to cache [] and the dropdown said "cannot load" for the
+// rest of the session, with nothing able to retry it — the A31 shape again.
+eq(/catch\(function \(\) \{ \/\* leave null — retry on the next visit \*\/ \}\)/.test(a25App), true,
+   'A32: a failed user-list fetch leaves the cache empty so the next visit RETRIES');
+eq(/memberAdminUsers = \[\];/.test(a25App), false,
+   'A32: …and no code path caches the failure as an empty list');
+// Arriving mid-flight must JOIN the fetch, not give up on it: opening the
+// register and tapping ➕ within the same second used to paint "cannot load"
+// on the form while the users repainted the screen you had just left.
+eq(/if \(memberUsersWaiting\) \{ memberUsersWaiting\.push\(then\); return; \}/.test(a25App), true,
+   'A32: a second caller JOINS the in-flight user fetch instead of dropping its callback');
+eq(/waiting\.forEach\(function \(fn\) \{ fn\(\); \}\)/.test(a25App), true,
+   'A32: …and everyone who asked is told when it lands');
+// …which makes the callback SYNCHRONOUS once the list is cached, and a sync
+// callback reading a `let` declared below it throws on the temporal dead zone,
+// before paint's own guard can help. The form then sat on "loading" for ever —
+// and only on the SECOND visit, because the first takes the async path.
+{
+  const mf = a25App.slice(a25App.indexOf('function renderMemberForm'),
+                          a25App.indexOf('function saveMemberForm'));
+  eq(mf.indexOf('let members = [], form = null;') < mf.indexOf('loadMemberUsers(paint);'), true,
+     'A32: the form state is declared BEFORE the loader that can call back synchronously');
+}
 eq(a25App.indexOf('function renderMemberPay') >= 0, true, 'A29: the collection screen exists');
 eq(a25App.indexOf('function renderMemberAdmin') >= 0, true, 'A29: …and the register is a separate screen');
 const a29Pay = a25App.slice(a25App.indexOf('function renderMemberPay'), a25App.indexOf('function renderMemberAdmin'));

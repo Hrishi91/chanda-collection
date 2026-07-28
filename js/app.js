@@ -7,7 +7,7 @@
   // code it loaded minutes ago. Reporting the cache made "I updated but nothing
   // changed" look like success. Asserted equal to sw.js VERSION and Code.gs
   // CODE_VERSION in tests/run.js, so the three can never drift apart.
-  const APP_VERSION = 'chanda-v4.9.1';
+  const APP_VERSION = 'chanda-v4.9.2';
   const SIDES = ['main_malda', 'main_balurghat', 'harirampur', 'singhadaha'];
   const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
   let flowState = null;
@@ -1021,7 +1021,7 @@
           confirmSkipKey: 'skip_phone_confirm',
           validate: phoneErrIN, clean: cleanPhoneIN },
         // newPartyFlow is shops and persons only now — a committee member is
-        // registered on its own screen (memberRegisterFlow), with no pledge and
+        // registered on its own screen (renderMemberForm), with no pledge and
         // no money, because their contributions arrive many times a season.
         { key: 'pledged', qKey: 'q_pledged', kind: 'amount' },
       ].concat(moneySteps(true)),
@@ -1809,19 +1809,41 @@
   // full user list, which is an admin-only call, so it degrades gracefully for a
   // non-admin holding `memberadmin`: everything else still works, the link does
   // not offer names.
-  let memberAdminUsers = null;
+  let memberAdminUsers = null, memberUsersWaiting = null;
+  // The approved-user list, for the account dropdown.
+  //
+  // On FAILURE the cache stays null so the next visit tries again: caching the
+  // failure meant one bad moment of signal left the dropdown saying "cannot load
+  // the user list" for the rest of the session, with nothing on screen able to
+  // retry it — the same shape as the update button that could never update (A31).
+  //
+  // Callers that arrive while a fetch is in flight JOIN it. My first cut had
+  // them return early instead, and that quietly broke the very thing it was
+  // meant to fix: open the register (fetch starts) then tap ➕ within the same
+  // second, and the form gave up waiting, painted "cannot load", and the arriving
+  // users repainted the screen you had already left.
+  function loadMemberUsers(then) {
+    if (memberAdminUsers !== null) { then(); return; }
+    if (!Auth.isAdmin() || !navigator.onLine || !Sync.configured()) { then(); return; }
+    if (memberUsersWaiting) { memberUsersWaiting.push(then); return; }
+    memberUsersWaiting = [then];
+    Auth.call('listUsers', { token: Auth.token() }).then(function (r) {
+      memberAdminUsers = (r.users || []).filter(function (u) { return u.status === 'approved'; });
+    }).catch(function () { /* leave null — retry on the next visit */ })
+      .then(function () {
+        const waiting = memberUsersWaiting || [];
+        memberUsersWaiting = null;
+        waiting.forEach(function (fn) { fn(); });
+      });
+  }
   function renderMemberAdmin() {
     if (!canEntry('memberadmin')) { navigate('home'); return; }
     $view().innerHTML = backBar('home') + '<div class="flow-title">🎖️ ' + esc(t('member_admin_title')) + '</div>' +
       '<div class="hint" style="margin-bottom:8px">' + esc(t('member_admin_hint')) + '</div>' +
       '<button id="ma-add" class="tile wide" style="margin-bottom:10px">➕ ' + esc(t('member_add')) + '</button>' +
       '<div id="ma-list"><div class="empty">' + esc(t('loading')) + '</div></div>';
-    document.getElementById('ma-add').onclick = function () { startFlow(memberRegisterFlow()); };
-    if (memberAdminUsers === null && Auth.isAdmin() && navigator.onLine && Sync.configured()) {
-      Auth.call('listUsers', { token: Auth.token() })
-        .then(function (r) { memberAdminUsers = (r.users || []).filter(function (u) { return u.status === 'approved'; }); paintMemberAdmin(); })
-        .catch(function () { memberAdminUsers = []; paintMemberAdmin(); });
-    }
+    document.getElementById('ma-add').onclick = function () { navigate('memberform', { id: '' }); };
+    loadMemberUsers(paintMemberAdmin);
     paintMemberAdmin();
   }
   function paintMemberAdmin() {
@@ -1840,72 +1862,165 @@
           return '<div class="row" style="cursor:default;flex-wrap:wrap"><div style="flex:1 1 60%"><b>' +
             esc(m.name) + '</b><div class="row-sub">' + esc(bits.join(' · ')) + '</div></div>' +
             '<div class="chips" style="margin:0">' +
-              '<button class="chip" data-ma-user="' + esc(m.id) + '">👤 ' + esc(t('adm_link_user')) + '</button>' +
+              '<button class="chip" data-ma-edit="' + esc(m.id) + '">✏️ ' + esc(t('edit_btn')) + '</button>' +
             '</div></div>';
         }).join('') : '<div class="empty">' + esc(t('member_none_admin')) + '</div>');
-      el.querySelectorAll('[data-ma-user]').forEach(function (b) {
-        b.onclick = function () { linkMemberUser(list, b.dataset.maUser); };
+      el.querySelectorAll('[data-ma-edit]').forEach(function (b) {
+        b.onclick = function () { navigate('memberform', { id: b.dataset.maEdit }); };
       });
     });
   }
-  // Linking a member to their app account. INFORMATIONAL ONLY — money always
-  // belongs to whoever COLLECTED it (docs/money-model.md), never to whoever the
-  // payment is "about".
-  function linkMemberUser(list, id) {
-    const m = list.filter(function (x) { return x.id === id; })[0];
-    if (!m) return;
-    const users = memberAdminUsers || [];
-    if (!users.length) { toast(t('member_users_na')); return; }
-    const menu = users.map(function (u, i) { return (i + 1) + '. ' + u.name + ' (@' + u.username + ')'; }).join('\n');
-    const pick = window.prompt(t('adm_link_prompt').replace('{who}', m.name) + '\n\n' + menu + '\n\n' + t('adm_link_clear'), m.appUser || '');
-    if (pick === null) return;
-    const v = String(pick).trim();
-    let uname = '';
-    if (v) {
-      const n = Number(v);
-      const u = (n >= 1 && n <= users.length) ? users[n - 1]
-        : users.filter(function (x) { return x.username === v.replace(/^@/, ''); })[0];
-      if (!u) { toast(t('adm_link_bad')); return; }
-      uname = u.username;
+  // One form for BOTH registering and editing a committee member. It replaced a
+  // guided flow plus a window.prompt that asked you to TYPE a number from a list
+  // of users — Hrishi's own words: use a dropdown, and show me who I picked.
+  //
+  // Editing had no path at all before this: a post typed in wrong, or a member
+  // who becomes সম্পাদক next year, was permanent. That mattered more once
+  // reconcile started flagging over-full posts, because the 🩺 dot it lights had
+  // nothing that could clear it — and a marker that cannot be cleared teaches
+  // people to ignore markers.
+  function renderMemberForm(params) {
+    if (!canEntry('memberadmin')) { navigate('home'); return; }
+    const id = (params && params.id) || '';
+    $view().innerHTML = backBar('memberadmin') + '<div class="empty">' + esc(t('loading')) + '</div>';
+    // Declared BEFORE loadMemberUsers, and that order is load-bearing: when the
+    // user list is already cached, loadMemberUsers calls back SYNCHRONOUSLY, and
+    // paint() reading a `let` declared below it throws on the temporal dead zone
+    // — before paint's own `if (!form) return` guard can help. The screen then
+    // sat on "আসছে…" for ever, and only on the second visit, because the first
+    // one takes the async path.
+    let members = [], form = null;
+    loadMemberUsers(paint);
+    viewData().then(function (data) {
+      members = (data.parties || []).filter(function (p) { return p.type === 'member'; });
+      const m = members.filter(function (p) { return p.id === id; })[0];
+      if (id && !m) { navigate('memberadmin'); return; }
+      form = { name: (m && m.name) || '', position: (m && m.position) || '',
+               email: (m && m.email) || '', phone: (m && m.phone) || '', appUser: (m && m.appUser) || '' };
+      paint();
+    });
+    function paint() {
+      if (!form) return;
+      const users = memberAdminUsers || [];
+      const picked = users.filter(function (u) { return u.username === form.appUser; })[0];
+      // How many people already hold each post, NOT counting the one being
+      // edited — otherwise editing সভাপতি's phone would report the post full
+      // against himself.
+      const held = {};
+      members.forEach(function (p) {
+        if (p.id === id || !p.position) return;
+        held[p.position] = (held[p.position] || 0) + 1;
+      });
+      const posts = Lists.get('position');
+      $view().innerHTML = backBar('memberadmin') +
+        '<div class="flow-title">' + (id ? '✏️ ' + esc(t('member_edit')) : '➕ ' + esc(t('member_add'))) + '</div>' +
+        '<div class="card">' +
+          // The app account first: picking it fills the rest in, which is the
+          // whole point of having the list.
+          // The app account first: picking it fills the rest in, which is the
+          // whole point of having the list at all.
+          '<div class="field"><label>👤 ' + esc(t('member_app_user')) + '</label>' +
+          (users.length
+            ? '<select id="mf-user"><option value="">— ' + esc(t('member_no_user')) + ' —</option>' +
+                users.map(function (u) {
+                  return '<option value="' + esc(u.username) + '"' + (u.username === form.appUser ? ' selected' : '') + '>' +
+                    esc(u.name + ' (@' + u.username + ')') + '</option>';
+                }).join('') + '</select>' +
+              (picked ? '<div class="bd-line" style="display:block;margin-top:6px">' +
+                esc('@' + picked.username + (picked.phone ? ' \u00b7 \ud83d\udcde ' + picked.phone : '') +
+                    ' \u00b7 ' + (picked.role === 'admin' ? t('role_admin') : t('role_collector')) +
+                    (picked.cashier ? ' \u00b7 \ud83d\udcb0 ' + t('cashier') : '')) + '</div>' : '') +
+              // Said every time, because the obvious reading is the wrong one.
+              '<div class="perm-note">' + esc(t('member_link_note')) + '</div>'
+            : '<div class="empty">' + esc(t('member_users_na')) + '</div>') + '</div>' +
+          '<div class="field"><label>' + esc(t('member_f_name')) + '</label>' +
+          '<input id="mf-name" value="' + esc(form.name) + '" autocomplete="off"></div>' +
+          '<div class="field"><label>🎖️ ' + esc(t('member_f_post')) + '</label>' +
+          '<select id="mf-pos"><option value="">— ' + esc(t('member_no_post')) + ' —</option>' +
+            posts.map(function (p) {
+              const cap = Lists.maxOf(p.id), n = held[p.id] || 0, full = cap > 0 && n >= cap;
+              return '<option value="' + esc(p.id) + '"' + (p.id === form.position ? ' selected' : '') +
+                (full && p.id !== form.position ? ' disabled' : '') + '>' +
+                esc(Lists.labelOf('position', p.id) + (cap > 0 ? ' (' + n + '/' + cap + ')' : '') +
+                    (full && p.id !== form.position ? ' — ' + t('pos_is_full') : '')) + '</option>';
+            }).join('') + '</select></div>' +
+          '<div class="field"><label>✉️ ' + esc(t('member_f_email')) + '</label>' +
+          '<input id="mf-email" value="' + esc(form.email) + '" autocomplete="off" inputmode="email"></div>' +
+          '<div class="field"><label>📞 ' + esc(t('member_f_phone')) + '</label>' +
+          '<input id="mf-phone" value="' + esc(form.phone) + '" autocomplete="off" inputmode="tel"></div>' +
+          '<div id="mf-err" class="perm-warn" style="display:none"></div>' +
+        '</div>' +
+        '<button id="mf-save" class="primary big block">' + esc(t('save')) + '</button>' +
+        (id ? '<button id="mf-del" class="ghost block">🗑️ ' + esc(t('member_remove')) + '</button>' : '');
+      wireNav();
+      const uSel = document.getElementById('mf-user');
+      if (uSel) uSel.onchange = function () {
+        form.name = document.getElementById('mf-name').value;
+        form.email = document.getElementById('mf-email').value;
+        form.phone = document.getElementById('mf-phone').value;
+        form.position = document.getElementById('mf-pos').value;
+        form.appUser = uSel.value;
+        // Fill only what is still BLANK. Overwriting a name somebody typed
+        // because they later picked an account is how a form loses work.
+        const u = (memberAdminUsers || []).filter(function (x) { return x.username === form.appUser; })[0];
+        if (u) { if (!form.name.trim()) form.name = u.name || ''; if (!form.phone.trim()) form.phone = u.phone || ''; }
+        paint();
+      };
+      document.getElementById('mf-save').onclick = function () { saveMemberForm(id, members); };
+      const del = document.getElementById('mf-del');
+      if (del) del.onclick = function () {
+        if (!window.confirm(t('member_remove_confirm').replace('{who}', form.name))) return;
+        DB.get('parties', id).then(function (row) {
+          if (!row) { navigate('memberadmin'); return; }
+          row.voided = 1; row.synced = 0;
+          return DB.put('parties', row).then(function () { toast(t('saved')); autoSync(); navigate('memberadmin'); });
+        }).catch(function (e) { toast(errMsg(e)); });
+      };
     }
-    m.appUser = uname; m.synced = 0;
-    DB.put('parties', m).then(function () { toast(t('saved')); autoSync(); renderMemberAdmin(); })
-      .catch(function (e) { toast(errMsg(e)); });
   }
-  // Registering a member: name, post, email, phone. No pledge and no money —
-  // contributions are the collection screen's job.
-  function memberRegisterFlow() {
-    return {
-      title: t('member_add'),
-      steps: [
-        { key: 'name', qKey: 'q_person_name', kind: 'text' },
-        { key: 'position', qKey: 'q_position', kind: 'choice', optionsFn: positionOptions, optional: true,
-          showIf: function () { return Lists.get('position').length > 0; } },
-        { key: 'email', qKey: 'q_email', kind: 'text', optional: true,
-          validate: emailErr, clean: function (v) { return String(v || '').trim(); } },
-        { key: 'phone', qKey: 'q_phone', kind: 'text', optional: true,
-          confirmSkipKey: 'skip_phone_confirm', validate: phoneErrIN, clean: cleanPhoneIN },
-      ],
-      returnTo: 'memberadmin',
-      save: function (a) {
-        return viewData().then(function (data) {
-          const ph = cleanPhoneIN(a.phone || '');
-          const nm = String(a.name || '').trim().toLowerCase();
-          const hit = (data.parties || []).filter(function (p) {
-            return (ph && cleanPhoneIN(p.phone || '') === ph) || String(p.name || '').trim().toLowerCase() === nm;
-          })[0];
-          if (hit && !window.confirm(t('dup_party_warn').replace('{row}',
-              esc0(hit.name) + (hit.phone ? ' · 📞 ' + hit.phone : '') +
-              (hit.type ? ' · ' + t('type_' + hit.type) : '')))) throw new Error('cancelled');
-          const row = DB.newRow({ type: 'member', name: a.name, owner: '', side: '', location: '',
-            phone: a.phone || '', pledged: 0,
-            position: a.position || '', email: a.email || '', appUser: '' });
-          return DB.put('parties', row).then(function () {
-            return { undo: [{ store: 'parties', id: row.id }], after: { navigateTo: 'memberadmin' } };
-          });
-        });
-      },
-    };
+  function saveMemberForm(id, members) {
+    const err = document.getElementById('mf-err');
+    const show = function (msg) { err.textContent = msg; err.style.display = ''; };
+    const name = document.getElementById('mf-name').value.trim();
+    const position = document.getElementById('mf-pos').value;
+    const email = document.getElementById('mf-email').value.trim();
+    const phone = cleanPhoneIN(document.getElementById('mf-phone').value);
+    const uSel = document.getElementById('mf-user');
+    const appUser = uSel ? uSel.value : '';
+    if (!name) { show(t('member_need_name')); return; }
+    if (email && emailErr(email)) { show(emailErr(email)); return; }
+    if (phone && phoneErrIN(phone)) { show(phoneErrIN(phone)); return; }
+    // The cap again, on SAVE. The dropdown disables a full post, but a stale
+    // screen or a post whose cap was tightened after this page was drawn would
+    // slip through — the check that matters is the one at the moment of writing.
+    if (position) {
+      const others = members.filter(function (p) { return p.id !== id && p.position === position; });
+      const cap = Lists.maxOf(position);
+      if (cap > 0 && others.length >= cap) {
+        show(t('pos_full').replace('{who}', Lists.labelOf('position', position))
+          .replace('{n}', others.length).replace('{names}', others.map(function (p) { return p.name; }).join(', ')));
+        return;
+      }
+    }
+    const dup = members.filter(function (p) {
+      return p.id !== id && ((phone && cleanPhoneIN(p.phone || '') === phone) ||
+                             String(p.name || '').trim().toLowerCase() === name.toLowerCase());
+    })[0];
+    if (dup && !window.confirm(t('dup_party_warn').replace('{row}',
+        esc0(dup.name) + (dup.phone ? ' · 📞 ' + dup.phone : '')))) return;
+    const done = function () { toast(t('saved')); autoSync(); navigate('memberadmin'); };
+    if (id) {
+      DB.get('parties', id).then(function (row) {
+        if (!row) { navigate('memberadmin'); return; }
+        row.name = name; row.position = position; row.email = email;
+        row.phone = phone; row.appUser = appUser; row.synced = 0;
+        return DB.put('parties', row).then(done);
+      }).catch(function (e) { toast(errMsg(e)); });
+    } else {
+      const row = DB.newRow({ type: 'member', name: name, owner: '', side: '', location: '',
+        phone: phone, pledged: 0, position: position, email: email, appUser: appUser });
+      DB.put('parties', row).then(done).catch(function (e) { toast(errMsg(e)); });
+    }
   }
   function renderFindParty() {
     // Reaching donors somebody else wrote down is its own grant: it shows one
@@ -4406,6 +4521,7 @@
     else if (current.view === 'anomalies') renderAnomalies();
     else if (current.view === 'memberpay') renderMemberPay();
     else if (current.view === 'memberadmin') renderMemberAdmin();
+    else if (current.view === 'memberform') renderMemberForm(current.params);
     else if (current.view === 'findparty') renderFindParty();
     else if (current.view === 'review') renderReviewCorrections();
     else if (current.view === 'audit') { Auth.isAdmin() ? renderAuditLog() : renderHome(); }
