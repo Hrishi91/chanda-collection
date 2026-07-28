@@ -2038,6 +2038,18 @@
     if (!name) { show(t('member_need_name')); return; }
     if (email && emailErr(email)) { show(emailErr(email)); return; }
     if (phone && phoneErrIN(phone)) { show(phoneErrIN(phone)); return; }
+    // A46: the same second ask as the entry flows, word for word — the SAME
+    // i18n key, not a copy, so the two can never drift apart. A committee
+    // member without a number is the case that costs later: no WhatsApp
+    // reminder, and nothing to match on when the same person is written down
+    // twice. Email gets no ask on purpose: it buys neither of those, and a
+    // question with nothing behind it is what teaches people to tap through
+    // questions.
+    if (!phone && !window.confirm(t('skip_phone_confirm'))) {
+      const box = document.getElementById('mf-phone');
+      if (box) box.focus();
+      return;
+    }
     // The cap again, on SAVE. The dropdown disables a full post, but a stale
     // screen or a post whose cap was tightened after this page was drawn would
     // slip through — the check that matters is the one at the moment of writing.

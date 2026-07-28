@@ -2344,5 +2344,30 @@ try {
      'A44: …and 📗 likewise');
 }
 
+
+// ---- A46: the same second ask on the member register form -------------------
+// The entry flows ask once more before a donor's phone goes by. The 🎖️ register
+// is a FORM, not a flow, so it had no such moment — you just left the box empty
+// and saved. Same consequence though: no WhatsApp reminder, and nothing to
+// match on when the same person is written down twice.
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const fn = app.slice(app.indexOf('function saveMemberForm'),
+                       app.indexOf('function saveMemberForm') + 2400);
+  eq(/if \(!phone && !window\.confirm\(t\('skip_phone_confirm'\)\)\)/.test(fn), true,
+     'A46: saving a member with no phone asks once more');
+  // the SAME key as the flows — not a copy that could drift
+  eq(/confirmSkipKey: 'skip_phone_confirm'/.test(app), true,
+     'A46: …and the flows use that identical key, so the wording cannot diverge');
+  eq((app.match(/skip_phone_confirm/g) || []).length, 2,
+     'A46: exactly two users of the string, no third copy of the text anywhere');
+  eq(/if \(box\) box\.focus\(\);/.test(fn), true,
+     'A46: Cancel puts the cursor in the phone box, so the answer is one tap away');
+  // email deliberately gets NO ask
+  eq(/!email && !window\.confirm/.test(fn), false,
+     'A46: email is NOT asked about — it buys neither a reminder nor a match, and a question with nothing behind it teaches people to tap through questions');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

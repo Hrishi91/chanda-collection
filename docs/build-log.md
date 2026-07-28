@@ -5742,3 +5742,28 @@ Skip button is just "an empty answer" — one path, one check, nothing to drift.
 VERIFIED live: blank + পরের প্রশ্ন now asks "📞 নম্বর ছাড়া এগোবে?" and Cancel
 leaves you in the phone field; the Skip button asks the same thing; typing a
 real number goes straight through without asking. 892 passed, 0 failed.
+
+## v4.10.5 — A46: the same second ask on the member register form (2026-07-29)
+
+Hrishi: "ok give this in both place."
+
+The entry flows ask once more before a donor's phone goes by. 🎖️ কমিটির সদস্য is
+a FORM, not a guided flow, so it had no such moment — you left the box empty,
+pressed 💾, and it saved. The consequence is the same either way: no WhatsApp
+reminder for what is still owed, and nothing to match on when the same person is
+written down twice.
+
+It now asks, and Cancel puts the cursor in the phone box so answering is one tap
+rather than a hunt.
+
+**The same i18n key, not a copy.** `skip_phone_confirm` has exactly two users in
+the whole codebase — the flow step and this form — and a test asserts that count,
+so nobody can paste the sentence a third time and let the wordings drift.
+
+**Email deliberately gets no ask.** It buys neither a reminder nor a match, and a
+question with nothing behind it is precisely what teaches people to tap through
+questions — including the one that matters.
+
+VERIFIED live: saving a member with no phone asks, Cancel focuses the phone box
+and nothing is written; and the two messages captured from the form and from the
+flow are identical character for character. 897 passed, 0 failed.
