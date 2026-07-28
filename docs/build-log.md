@@ -5610,3 +5610,31 @@ itself occupied. 864 passed, 0 failed.
 
 That is the last of the five admin screens. Menu · 👥 people · 🎖️ posts ·
 🧾 lists · 🗂️ data — none of them rebuilds the page under your finger any more.
+
+## v4.10.1 — A41: long lists get search, not an inner scroll box (2026-07-28)
+
+Hrishi: "do you think we need to have scroll for the list data, because list
+data is long".
+
+Measured first: a person row is 86px, a master-list row 72px. So 20 collectors
+is ~2.3 screens and 30 locations ~3.8. Long enough to be worth solving, and the
+people list is not the one that will grow — the locations are.
+
+**An inner scroll box is the wrong tool on a phone**, and that is the whole
+answer: you drag the page instead of the list, the inner scrollbar is invisible
+so you cannot tell how much is left, it breaks the browser's own momentum and
+address-bar behaviour — and it does not answer the actual question, which is
+"where is this one row". A smaller window onto the same haystack.
+
+So: a search box, on the people list and on each master list, appearing only
+when there are 8 or more rows (below that it is clutter). A person is matched on
+name, username OR phone — 0007 finds the right collector.
+
+**It filters by hiding rows in place and never repaints.** That is deliberate:
+repainting on each keystroke destroys the input and takes the focus with it, so
+the second letter goes nowhere. 📒 খাতা's own search has exactly that fault —
+recorded in docs/pending.md rather than quietly fixed in the same commit.
+
+VERIFIED live with 20 people and 30 locations: "যামি" → 1 row, focus stays in
+the box; "coll1" → 11; "0007" → 1; clearing restores all 20; no match says so;
+the 1-item area list has no box at all. 874 passed, 0 failed.

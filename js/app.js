@@ -4262,6 +4262,37 @@
   // its own screen now, and wiring one that is not on THIS screen throws — which
   // is how the whole panel came back as a single error line. Guard, don't assume.
   function admEl(id) { return document.getElementById(id) || {}; }
+  // A41: a long list wants SEARCH, not an inner scroll box. Nested scrolling on
+  // a phone is a fight — you drag the page instead of the list, the inner
+  // scrollbar is invisible so you cannot tell how much is left, and it breaks
+  // the browser's own momentum and address-bar behaviour. And it does not
+  // answer the actual question, which is "where is this one row".
+  //
+  // Filtering hides rows in place. It does NOT repaint, deliberately: repainting
+  // on every keystroke destroys the input and takes the focus with it, so the
+  // second letter goes nowhere. (📒 খাতা's search has exactly that fault; it is
+  // written down in docs/pending.md rather than fixed in the same breath.)
+  const ADM_FILTER_MIN = 8;   // below this a box is just clutter
+  function admFilterBox(id, n) {
+    return n < ADM_FILTER_MIN ? '' :
+      '<input id="' + id + '" class="search" enterkeyhint="search" autocomplete="off" placeholder="' +
+      esc(t('adm_filter_ph').replace('{n}', n)) + '">';
+  }
+  function admWireFilter(id, rowSel) {
+    const box = document.getElementById(id);
+    if (!box) return;
+    box.oninput = function () {
+      const q = normText(box.value);
+      let shown = 0;
+      document.querySelectorAll(rowSel).forEach(function (r) {
+        const hit = !q || normText(r.dataset.q || r.textContent).indexOf(q) >= 0;
+        r.style.display = hit ? '' : 'none';
+        if (hit) shown++;
+      });
+      const none = document.getElementById(id + '-none');
+      if (none) none.style.display = shown ? 'none' : '';
+    };
+  }
   function renderAdmin(force) {
     if (admCache && !force) { paintAdmin(admCache); return; }
     $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(t('loading')) + '</div>';
@@ -4449,8 +4480,10 @@
           '<div class="input-row"><input id="li-bn-' + kind + '" placeholder="' + esc(t('name_bn')) + '" autocomplete="off">' +
           '<input id="li-en-' + kind + '" placeholder="' + esc(t('name_en')) + '" autocomplete="off">' +
           '<button class="primary" data-li-add="' + kind + '">' + esc(t('add_btn')) + '</button></div>' +
+          admFilterBox('adm-f-' + kind, list.length) +
           (list.length ? list.map(function (it) {
-            return '<div class="row" style="cursor:default"><div><b>' + esc(it.nameBn) + '</b>' +
+            return '<div class="row li-row-' + kind + '" data-q="' + esc(it.nameBn + ' ' + it.nameEn) +
+              '" style="cursor:default"><div><b>' + esc(it.nameBn) + '</b>' +
               '<div class="row-sub">' + esc(it.nameEn) + '</div></div><div class="chips" style="margin:0">' +
               '<button class="chip" data-li-edit="' + esc(it.id) + '">' + esc(t('edit_btn')) + '</button>' +
               '<button class="chip" data-li-del="' + esc(it.id) + '">' + esc(t('del_btn')) + '</button></div></div>';
@@ -4503,7 +4536,8 @@
           menuRow('data', '🗂️', 'adm_data', t('adm_sub_data'), '');
       } else if (admSection === 'users' && !admUserId) {
         const row = function (u) {
-          return '<button class="row" data-adm-user="' + esc(u.id) + '" style="width:100%;text-align:left">' +
+          return '<button class="row" data-adm-user="' + esc(u.id) + '" data-q="' +
+            esc([u.name, u.username, u.phone].filter(Boolean).join(' ')) + '" style="width:100%;text-align:left">' +
             '<div style="flex:1"><b>' + esc(u.name) + '</b>' +
             (u.role === 'admin' ? ' 👑' : '') + (u.cashier ? ' 💰' : '') +
             '<div class="row-sub">' + esc(userSummary(u)) + '</div>' +
@@ -4515,6 +4549,8 @@
             (list.length ? list.map(row).join('') : '<div class="empty">' + esc(t('none_here')) + '</div>');
         };
         $view().innerHTML = head('adm_users', 'admin') +
+          admFilterBox('adm-fu', resp.users.length) +
+          '<div id="adm-fu-none" class="empty" style="display:none">' + esc(t('adm_filter_none')) + '</div>' +
           grp('pending_users', groups.pending) +
           grp('approved_users', groups.approved) +
           grp('blocked_users', groups.blocked);
@@ -4552,7 +4588,8 @@
           (positions.length ? positions.map(function (it) {
             const set = String(it.perms || '').split(',').filter(Boolean);
             const cap = Number(it.maxCount) || 0;
-            return '<button class="row" data-adm-pos="' + esc(it.id) + '" style="width:100%;text-align:left">' +
+            return '<button class="row" data-adm-pos="' + esc(it.id) + '" data-q="' +
+              esc(it.nameBn + ' ' + it.nameEn) + '" style="width:100%;text-align:left">' +
               '<div style="flex:1"><b>' + esc(it.nameBn) + '</b>' +
               '<div class="row-sub">' + esc(it.nameEn) + ' · ' +
                 esc(cap > 0 ? t('pos_max_n').replace('{n}', cap) : t('pos_max_any')) + ' · ' +
@@ -4648,6 +4685,10 @@
       });
       document.querySelectorAll('[data-adm-user]').forEach(function (b) {
         b.onclick = function () { admGo('users', b.dataset.admUser); };
+      });
+      admWireFilter('adm-fu', '[data-adm-user]');
+      ['area', 'location', 'position'].forEach(function (k) {
+        admWireFilter('adm-f-' + k, '.li-row-' + k);
       });
       document.querySelectorAll('[data-adm-pos]').forEach(function (b) {
         b.onclick = function () {

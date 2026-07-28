@@ -2236,5 +2236,40 @@ try {
   eq(/const afterList = function/.test(app), false, 'A40: its dead helper is gone');
 }
 
+
+// ---- A41: a long list wants SEARCH, not an inner scroll box ------------------
+// Measured: a user row is 86px and a list row 72px, so 20 people is ~2.3 screens
+// and 30 locations ~3.8. Hrishi asked whether the list should scroll inside its
+// own box. On a phone that is a fight — you drag the page instead of the list,
+// the inner scrollbar is invisible so you cannot tell how much is left, it
+// breaks the browser's own momentum and address-bar behaviour, and it does not
+// answer the real question, which is "where is this one row".
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  eq(/const ADM_FILTER_MIN = 8;/.test(app), true,
+     'A41: the box appears only when the list is long enough to need it');
+  eq(/return n < ADM_FILTER_MIN \? '' :/.test(app), true,
+     'A41: …below that it would be clutter');
+  // filtering must NOT repaint: a repaint destroys the input and takes the
+  // focus with it, so the second letter goes nowhere.
+  const fs0 = app.indexOf('function admWireFilter');
+  const fn = app.slice(fs0, app.indexOf('\n  function ', fs0 + 10));
+  eq(/r\.style\.display = hit \? '' : 'none';/.test(fn), true,
+     'A41: it hides rows in place…');
+  eq(/paintAdmin|renderAdmin/.test(fn), false,
+     'A41: …and never repaints, or typing would lose the focus after one letter');
+  eq(/normText\(r\.dataset\.q \|\| r\.textContent\)/.test(fn), true,
+     'A41: rows carry what they are searchable by');
+  eq(/data-q="' \+\s*esc\(\[u\.name, u\.username, u\.phone\]/.test(app), true,
+     'A41: a person is found by name, username or phone');
+  eq(/admWireFilter\('adm-fu', '\[data-adm-user\]'\)/.test(app), true, 'A41: wired on the people list');
+  eq(/\['area', 'location', 'position'\]\.forEach/.test(app), true, 'A41: …and on all three master lists');
+  eq(/id \+ '-none'/.test(app) && /adm_filter_none:/.test(i18n), true,
+     'A41: matching nothing says so, instead of showing a blank screen');
+  eq(i18n.indexOf('  adm_filter_ph:') >= 0, true, 'A41: the placeholder is bilingual');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

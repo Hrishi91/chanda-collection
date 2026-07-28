@@ -302,6 +302,8 @@ const I18N = {
   err_bad_input: { bn: 'সব ঘর ঠিক করে ভরো (পাসওয়ার্ড কমপক্ষে ৬)', en: 'Fill all fields (password min 6)' },
   err_network: { bn: 'Internet/সার্ভার সমস্যা — আবার চেষ্টা করো', en: 'Network/server problem — try again' },
   err_server: { bn: '⚠️ সার্ভার বলছে', en: '⚠️ Server says' },
+  adm_filter_ph: { bn: '🔍 খুঁজি… ({n}টির মধ্যে)', en: '🔍 Search… (of {n})' },
+  adm_filter_none: { bn: 'এই নামে কিছু পেলাম না', en: 'Nothing matches' },
   adm_sub_users: { bn: '{n} জন approved · {p} জন অপেক্ষায় · {s} জনের ফোন পিছিয়ে', en: '{n} approved · {p} waiting · {s} phones behind' },
   adm_sub_positions: { bn: '{n}টি পদ — কোন পদে কী করা যাবে', en: '{n} posts — what each one may do' },
   adm_sub_lists: { bn: 'রসিদের নকশা · খরচের বিষয় · এলাকা · location', en: 'Receipt design · expense subjects · areas · locations' },

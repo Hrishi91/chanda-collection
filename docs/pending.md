@@ -472,3 +472,17 @@ The real-phone smoke test is DONE.
 4. ONLY THEN 🧹 clear everyone's personal permissions.
 
 After ③ lands, the one pending Code.gs redeploy carries all of it.
+
+## Known, small, not urgent
+
+- **📒 খাতা's search loses focus after each letter.** `renderList()` is called on
+  every keystroke, which replaces the whole screen including the input, so the
+  caret goes. It has been like that since the search was added and nobody has
+  complained — probably because people type one or two letters and look. The
+  admin filter added in v4.10.1 does it the other way (hide rows in place, no
+  repaint) and is the model to copy when this is fixed.
+- **Two version numbers would be better than one.** Today app.js / sw.js /
+  Code.gs must all match, so a client-only fix still bumps Code.gs and either
+  needs a pointless redeploy or leaves the admin's yellow "redeploy pending"
+  line showing. Splitting into a RELEASE number and a SCHEMA number (only the
+  latter gates the lock and the warning) removes that. After go-live.
