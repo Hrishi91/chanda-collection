@@ -408,18 +408,29 @@ The real-phone smoke test is DONE.
   cache verification + 19% lossless icon recompression (A55), `Lists` memo +
   debounce + refresh throttle (A56), `scope-check` lookbehind (A57), and
   backups no longer carrying live login tokens (A58).
-- **Tier 2 (2.1–2.20) — OPEN**, in the audit's order. Largest items: no
-  edit/void path for shop/person; no duplicate detection on `daily`;
-  `overpaid` cannot be dismissed; `rolloverYear` missing `touchData_()`;
-  unlocked read-modify-write in confirm/rejectHandover; sheet formula
-  injection; float epsilon; `voidAllowed_` reading a whole sheet inside the
-  push lock; offline receipt serial; `flowState` not persisted across a reload.
+- **Tier 2 — server half FIXED in v4.12.2** (2.4 rollover `touchData_`,
+  2.5 confirm/reject lock + single write, 2.6 receipt serial survives a lost
+  response, 2.7 formula injection, 2.9 owner index instead of a full sheet read
+  per void). Split this way on purpose: every Code.gs change costs a redeploy,
+  so they ride ONE. `CODE_SCHEMA` stays 2, so no phone is locked out waiting.
+- **Tier 2 client half — OPEN**: 2.1 no edit/void path for shop/person ·
+  2.2 no duplicate detection on `daily` · 2.3 `overpaid` cannot be dismissed ·
+  2.8 float epsilon · 2.10 offline receipt serial · 2.11 `flowState` lost on
+  reload · 2.12 home missing the right-now figure · 2.13 toast `nowrap` +
+  contrast · 2.14 `myReports()` duplication · 2.15 three phone-normalisation
+  copies · 2.16 iOS meta gaps · 2.17 no backend behavioural tests · 2.18 no CI ·
+  2.19 `js/app.js` size · 2.20 dead code.
 - **§7 documentation drift — OPEN** (e.g. `money-model.md` says eight anomaly
   types where the code now has nine).
 
-⚠️ **Code.gs redeploy is outstanding and mandatory.** v4.12.0 bumped
-`CODE_SCHEMA` 1 → 2, so no phone may write until the server is redeployed;
-v4.12.1's `stripTokens_` rides the same redeploy.
+✅ **v4.12.1 redeploy DONE** (2026-07-29) — verified live: `codeVersion
+chanda-v4.12.1`, `schema 2`, config rebaked.
+
+⚠️ **One more redeploy needed for v4.12.2** (the five server fixes above).
+`CODE_SCHEMA` is unchanged at 2, so this one is not urgent — phones keep
+working, they just do not get the fixes. After it, enter one donor named
+`=টেস্ট` and check the name reads back plain: `safeCell_` rests on Sheets
+stripping the leading apostrophe, which cannot be verified off-platform.
 
 ## P1 — nice-to-have before puja
 

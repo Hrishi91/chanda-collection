@@ -241,7 +241,7 @@ function findUser_(col, val) {
 function saveUser_(u) {
   u.row.updatedAt = new Date().toISOString();
   usersSheet_().getRange(u.rowIndex, 1, 1, USER_COLS.length)
-    .setValues([USER_COLS.map(function (c) { return u.row[c] !== undefined ? u.row[c] : ''; })]);
+    .setValues([safeRow_(USER_COLS, u.row)]);
 }
 function addYear_(years, y) {
   var list = String(years || '').split(',').filter(Boolean);
@@ -278,7 +278,8 @@ function logAudit_(actor, action, detail) {
     var sh = ss.getSheetByName('Audit');
     if (!sh) { sh = ss.insertSheet('Audit'); sh.appendRow(AUDIT_COLS); sh.setFrozenRows(1); }
     sh.appendRow([Utilities.getUuid(), new Date().toISOString(),
-      (actor && actor.name) || '', (actor && actor.username) || '', action, String(detail == null ? '' : detail)]);
+      safeCell_((actor && actor.name) || ''), safeCell_((actor && actor.username) || ''),
+      action, safeCell_(String(detail == null ? '' : detail))]);
   } catch (e) { /* audit is best-effort — never fail the caller */ }
 }
 
@@ -530,6 +531,24 @@ var SETTLED_ON_UPSERT = {
     when: function (ex) { var st = String(ex.status || ''); return st !== '' && st !== 'pending'; },
     keep: ['status', 'resolvedBy', 'resolvedAt'],
   },
+  // A59 (audit 2.6): the serial is minted ONLY on insert. So when a push
+  // succeeded but its response was lost — the ordinary case at a pandal gate —
+  // the phone still holds the row unsynced with receiptNo '' and retries. The
+  // retry is an upsert, the mint is skipped, and the empty payload value was
+  // written straight over the serial. **The donor is holding paper নং
+  // 2026-0143 and the book now says nothing.** That is the one number a donor
+  // can quote back, and the only way to find their payment by hand.
+  // `when` asks the EXISTING row, not the payload: only a row that already has
+  // a serial defends it, so this can never invent one.
+  payments: {
+    when: function (ex) { return String(ex.receiptNo || '') !== ''; },
+    keep: ['receiptNo'],
+  },
+  // bus collections get a name+number receipt too
+  daily: {
+    when: function (ex) { return String(ex.receiptNo || '') !== ''; },
+    keep: ['receiptNo'],
+  },
 };
 
 // The version the CURRENT request came from. A script-global is safe here and
@@ -557,7 +576,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.12.1';
+var CODE_VERSION = 'chanda-v4.12.2';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -591,7 +610,7 @@ var ACTIONS = {
           years: first ? String(new Date().getFullYear()) : '', token: '',
           mustChange: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         };
-        return row[c];
+        return safeCell_(row[c]);
       }));
     } finally { lock.releaseLock(); }
     return { ok: true, first: first };
@@ -674,6 +693,11 @@ var ACTIONS = {
       var isCashier = isCashier_(user.row);
       var chatOff = String(readConfig_().chat_off || '') === 'on';
       var byStore = {};
+      // A59: every row in this batch is known to the owner index BEFORE the
+      // gate runs, so a void can find a target that is arriving alongside it.
+      (b.records || []).forEach(function (r) {
+        if (r && SHEETS[r.store] && r.row && r.row.id) noteIncomingOwner_(r.store, r.row.id, user);
+      });
       (b.records || []).forEach(function (r) {
         if (!SHEETS[r.store] || !r.row || !r.row.id) return;
         // general puja expenses are cashier/admin only; a COLLECTION expense is
@@ -705,12 +729,21 @@ var ACTIONS = {
         // read per upsert — upserts only happen on retry/restore, never in the
         // normal append-only flow, so the cost is where the danger is.
         var settle = SETTLED_ON_UPSERT[store];
+        // A59 (audit 2.6): remember what was carried forward, because saving the
+        // serial on the SHEET is only half the repair. The phone that lost the
+        // first response has no serial either, and `receipts` is only filled at
+        // mint time — so its receipt would read "নং —" for ever while the book
+        // knew the number all along. Handing back what we preserved closes that.
+        var carried = {};
         var preserve = function (rowId, values) {
           if (!settle || !idRow[rowId]) return values;
           var have = sh.getRange(idRow[rowId], 1, 1, cols.length).getValues()[0];
           var ex = {}; cols.forEach(function (c, ci) { ex[c] = have[ci]; });
           if (!settle.when(ex)) return values;
-          settle.keep.forEach(function (c) { values[cols.indexOf(c)] = ex[c]; });
+          settle.keep.forEach(function (c) {
+            values[cols.indexOf(c)] = ex[c];
+            (carried[rowId] = carried[rowId] || {})[c] = ex[c];
+          });
           return values;
         };
         // Two Sheet writes per store instead of one per row. appendRow costs a
@@ -747,7 +780,7 @@ var ACTIONS = {
             row.collectorId = reassign.row.username;
             row.collectorRole = roleOf_(reassign.row.role, reassign.row.cashier);
             reassigned[claimed] = (reassigned[claimed] || 0) + 1;
-            var values0 = cols.map(function (c) { return row[c] !== undefined ? row[c] : ''; });
+            var values0 = safeRow_(cols, row);
             if (idRow[row.id]) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([preserve(row.id, values0)]);
             else pending.push(values0);
             savedIds.push(row.id);
@@ -802,8 +835,12 @@ var ACTIONS = {
             row.receiptNo = serials[serialAt++];
             receipts[row.id] = row.receiptNo;
           }
-          var values = cols.map(function (c) { return row[c] !== undefined ? row[c] : ''; });
-          if (!isNew) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([preserve(row.id, values)]);
+          var values = safeRow_(cols, row);
+          if (!isNew) {
+            sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([preserve(row.id, values)]);
+            // tell the retrying phone the serial its lost response carried
+            if (carried[row.id] && carried[row.id].receiptNo) receipts[row.id] = carried[row.id].receiptNo;
+          }
           else {
             pending.push(values);
             if (store === 'voids') logAudit_(user.row, 'void', row.targetStore + '/' + row.targetId + (row.reason ? ' — ' + row.reason : ''));
@@ -900,7 +937,7 @@ var ACTIONS = {
             var v = { id: Utilities.getUuid(), year: corr.year, targetStore: corr.targetStore, targetId: corr.targetId,
                       reason: corr.reason, collector: u.row.name, collectorId: u.row.username,
                       createdAt: new Date().toISOString(), receivedAt: new Date().toISOString() };
-            vsh.appendRow(vcols.map(function (c) { return v[c] !== undefined ? v[c] : ''; }));
+            vsh.appendRow(safeRow_(vcols, v));
           }
           logAudit_(u.row, b.decision === 'approve' ? 'correction:approve' : 'correction:reject',
             corr.targetStore + '/' + corr.targetId + (corr.reason ? ' — ' + corr.reason : ''));
@@ -1208,6 +1245,21 @@ var ACTIONS = {
     var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.handovers);
     var cols = SHEETS.handovers;
     if (sh.getLastRow() < 2) throw new Error('not-found');
+    // A59 (audit 2.5): this whole block was an unlocked read-check-write, and
+    // the write was four separate setValue calls. Two failures, both about
+    // money already handed over:
+    //   • confirm and reject racing — each reads status 'pending', each passes
+    //     its own guard, and the four writes interleave into a row that says
+    //     confirmed WITH a rejectReason. Nothing downstream can read that.
+    //   • a timeout between write 1 and write 4 — status flipped, receivedAt
+    //     still old, so the delta pull never carries it and NO phone ever
+    //     learns. The money is settled on the sheet and outstanding everywhere
+    //     else, and the collector's ceiling stays wrong until someone notices.
+    // The lock closes the race; writing the row in ONE setValues closes the
+    // torn-write window, because now there is no window.
+    var lock = LockService.getScriptLock(); lock.waitLock(20000);
+    try {
+    ensureCols_(sh, cols); // write-by-position needs the header to match cols
     var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
     for (var i = 0; i < ids.length; i++) {
       if (String(ids[i][0]) === String(b.id)) {
@@ -1227,11 +1279,13 @@ var ACTIONS = {
         // Already settled: re-confirming would restamp confirmedBy/confirmedAt
         // and hide who really acknowledged it.
         if (String(rowObj.status) === 'confirmed') throw new Error('already-confirmed');
-        sh.getRange(r, cols.indexOf('status') + 1).setValue('confirmed');
-        sh.getRange(r, cols.indexOf('confirmedBy') + 1).setValue(u.row.name);
-        sh.getRange(r, cols.indexOf('confirmedAt') + 1).setValue(new Date().toISOString());
+        var nowIso = new Date().toISOString();
+        rowObj.status = 'confirmed';
+        rowObj.confirmedBy = u.row.name;
+        rowObj.confirmedAt = nowIso;
         // bump receivedAt so the delta pull carries this in-place status change
-        sh.getRange(r, cols.indexOf('receivedAt') + 1).setValue(new Date().toISOString());
+        rowObj.receivedAt = nowIso;
+        sh.getRange(r, 1, 1, cols.length).setValues([safeRow_(cols, rowObj)]);
         touchData_(); // confirming moves money between two people's books
         var bdCol = cols.indexOf('breakdown');
         // An admin acknowledging on someone else's behalf is a deliberate escape
@@ -1246,6 +1300,7 @@ var ACTIONS = {
       }
     }
     throw new Error('not-found');
+    } finally { lock.releaseLock(); }
   },
 
   // "পাইনি" — the other half of confirmHandover, and the reason the ❌ slot in
@@ -1267,6 +1322,15 @@ var ACTIONS = {
     var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.handovers);
     var cols = SHEETS.handovers;
     if (sh.getLastRow() < 2) throw new Error('not-found');
+    // A59 (audit 2.5): same lock and same single-write as confirmHandover — the
+    // race that matters is precisely confirm-vs-reject on one row.
+    var lock = LockService.getScriptLock(); lock.waitLock(20000);
+    try {
+    // Heal the header BEFORE reading the row, so rejectReason has a real column
+    // to land in. Written into an unlabelled column it would be invisible to
+    // readAll_, which maps by the header — the status would flip and the
+    // explanation would silently disappear.
+    ensureCols_(sh, cols);
     var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
     for (var i = 0; i < ids.length; i++) {
       if (String(ids[i][0]) !== String(b.id)) continue;
@@ -1280,18 +1344,16 @@ var ACTIONS = {
       if (!mine && u.row.role !== 'admin') throw new Error('not-recipient');
       if (String(rowObj.status) === 'confirmed') throw new Error('already-confirmed');
       if (String(rowObj.status) === 'rejected') throw new Error('already-rejected');
-      sh.getRange(r, cols.indexOf('status') + 1).setValue('rejected');
+      var nowIso = new Date().toISOString();
+      rowObj.status = 'rejected';
       // confirmedBy/At double as "who answered, and when" — the status says what
       // the answer was, so a rejection needs no extra pair of columns.
-      sh.getRange(r, cols.indexOf('confirmedBy') + 1).setValue(u.row.name);
-      sh.getRange(r, cols.indexOf('confirmedAt') + 1).setValue(new Date().toISOString());
-      // Heal the header if setup() has not run since this column was added —
-      // otherwise the reason is written into an unlabelled column and readAll_,
-      // which maps by the real header, never returns it. The status would flip
-      // and the explanation would silently disappear.
-      sh.getRange(r, ensureCol_(sh, 'rejectReason')).setValue(reason);
+      rowObj.confirmedBy = u.row.name;
+      rowObj.confirmedAt = nowIso;
+      rowObj.rejectReason = reason;
       // bump receivedAt so the delta pull carries this in-place status change
-      sh.getRange(r, cols.indexOf('receivedAt') + 1).setValue(new Date().toISOString());
+      rowObj.receivedAt = nowIso;
+      sh.getRange(r, 1, 1, cols.length).setValues([safeRow_(cols, rowObj)]);
       touchData_(); // the sender's handover ceiling changes the moment this lands
       logAudit_(u.row, mine ? 'handover:reject' : 'handover:reject-on-behalf',
         '₹' + hv[cols.indexOf('amount')] + ' from ' + hv[cols.indexOf('from')] +
@@ -1299,6 +1361,7 @@ var ACTIONS = {
       return { ok: true };
     }
     throw new Error('not-found');
+    } finally { lock.releaseLock(); }
   },
 
   // ---------- expense subjects ----------
@@ -1324,7 +1387,7 @@ var ACTIONS = {
       });
       if (exists) throw new Error('subject-exists');
     }
-    sh.appendRow([Utilities.getUuid(), name, new Date().toISOString()]);
+    sh.appendRow([Utilities.getUuid(), safeCell_(name), new Date().toISOString()]);
     logAudit_(me.row, 'subject:add', name);
     return { ok: true };
   },
@@ -1406,7 +1469,7 @@ var ACTIONS = {
     var kind = String(b.kind || '').trim(), bn = String(b.nameBn || '').trim(), en = String(b.nameEn || '').trim();
     if (LIST_KINDS.indexOf(kind) < 0 || (!bn && !en)) throw new Error('bad-input');
     var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
-    sh.appendRow([Utilities.getUuid(), kind, bn || en, en || bn, sh.getLastRow(), new Date().toISOString()]);
+    sh.appendRow([Utilities.getUuid(), kind, safeCell_(bn || en), safeCell_(en || bn), sh.getLastRow(), new Date().toISOString()]);
     logAudit_(me.row, kind + ':add', bn || en);
     return { ok: true };
   },
@@ -1495,9 +1558,21 @@ var ACTIONS = {
         if (Number(vals[j][yi]) !== from) continue;
         var o = {}; cols.forEach(function (c, k) { o[c] = vals[j][k]; });
         o.id = Utilities.getUuid(); o.year = to; o.createdAt = now; o.receivedAt = now;
-        out.push(cols.map(function (c) { return o[c] !== undefined ? o[c] : ''; }));
+        out.push(safeRow_(cols, o));
       }
-      if (out.length) sh.getRange(sh.getLastRow() + 1, 1, out.length, cols.length).setValues(out);
+      // A59 (audit 2.4): the ONLY writer to a ledger sheet that never stamped
+      // data_ts. Swept every handler to be sure — the other twenty write Users,
+      // Config or Lists, which delta-pull does not carry, so they are right to
+      // skip it. This one writes parties, and without the stamp `pull` takes
+      // the fast path and answers idle:true. Next January: 800 donors copied
+      // into the new year, every phone says "কিছু নতুন নেই", and the year-has-data
+      // guard then correctly refuses to run it again — so the admin is left with
+      // rows that exist, are invisible, and cannot be re-created. AFTER the
+      // write, so the stamp is never ahead of the data it announces.
+      if (out.length) {
+        sh.getRange(sh.getLastRow() + 1, 1, out.length, cols.length).setValues(out);
+        touchData_();
+      }
       logAudit_(me.row, 'rollover', from + '→' + to + ' (' + out.length + ')');
       return { ok: true, count: out.length };
     } finally { lock.releaseLock(); }
@@ -1742,6 +1817,34 @@ function seedPositions_(sh) {
     sh.appendRow(row);
   });
 }
+// A59 (audit 2.7): setValues/appendRow PARSE a leading '=' as a formula. So a
+// donor named "=সুমন" — or, far likelier, a note somebody typed starting with
+// "-" — stops being text and becomes a calculation. The realistic damage is not
+// an attack, it is a book that quietly stops adding up: one #REF! or #NAME? in
+// a name column and every report that reads it shows an error instead of a
+// figure, and nobody can tell which donor it was. The unfriendly version is
+// real too — =IMPORTRANGE / =HYPERLINK execute with the SHEET OWNER's
+// authority, which is Hrishi's Google account, not the collector's.
+//
+// A leading apostrophe is Sheets' own "this is text" marker: it is a display
+// flag, not part of the value, so getValues() hands back the original string
+// and readAll_ → the phones see exactly what was typed. Nothing round-trips
+// differently, which is why this is safe to apply to every write.
+// `=` ONLY, deliberately narrower than the usual +-@ CSV-injection list. In
+// Google Sheets those three are not formula starts: "-500" is the number -500,
+// "+500" is 500, "@" is nothing. They matter when a CSV is opened in Excel, and
+// this app has no CSV export — reports are HTML. Quoting them would put a
+// visible apostrophe on ordinary notes like "-৫০০ বাকি" and buy nothing.
+// Guard the real hole, not the checklist.
+var RISKY_CELL = /^=/;
+function safeCell_(v) {
+  return (typeof v === 'string' && RISKY_CELL.test(v)) ? "'" + v : v;
+}
+// map a row object onto `cols` AND neutralise it, in one place — the two were
+// separate at six call sites, which is exactly how one gets missed
+function safeRow_(cols, row) {
+  return cols.map(function (c) { return safeCell_(row[c] !== undefined && row[c] !== null ? row[c] : ''); });
+}
 function ensureCol_(sh, name) {
   var last = sh.getLastColumn();
   var have = last ? sh.getRange(1, 1, 1, last).getValues()[0].map(String) : [];
@@ -1829,18 +1932,53 @@ function rowRole_(stored) {
 function isRecipient_(h, u) {
   return String(h.toId || h.to) === String(u.row.username) || String(h.to) === String(u.row.name);
 }
-function targetOwner_(store, id) {
+// A59 (audit 2.9): this used to read the ENTIRE target sheet, per void row,
+// INSIDE the push lock — and then scan it linearly. At 5,000 payments that is
+// about a second each; ten queued voids after an offline evening held the lock
+// ten extra seconds, and every other phone pushing at that moment timed out.
+// The failure compounds: those phones retry, arrive together, and queue behind
+// the same lock.
+//
+// One read per store per request, indexed by id. A script-global is safe here
+// for the same reason REQ_APP_VERSION is: Apps Script runs one request per
+// execution context, so this is per-request state, not shared state.
+var OWNER_CACHE = null;
+function ownerIndex_(store) {
+  OWNER_CACHE = OWNER_CACHE || {};
+  if (OWNER_CACHE[store]) return OWNER_CACHE[store];
+  var idx = {};
   var sh = SHEET_TITLES[store] ? SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES[store]) : null;
-  if (!sh || sh.getLastRow() < 2) return null;
-  var values = sh.getDataRange().getValues(), header = values[0];
-  var idCol = header.indexOf('id'), whoCol = header.indexOf('collectorId'), roleCol = header.indexOf('collectorRole');
-  for (var i = 1; i < values.length; i++) {
-    if (String(values[i][idCol]) === String(id)) {
-      return { collectorId: String(whoCol >= 0 ? values[i][whoCol] : ''),
-               role: rowRole_(roleCol >= 0 ? values[i][roleCol] : '') };
+  if (sh && sh.getLastRow() >= 2) {
+    var values = sh.getDataRange().getValues(), header = values[0];
+    var idCol = header.indexOf('id'), whoCol = header.indexOf('collectorId'), roleCol = header.indexOf('collectorRole');
+    for (var i = 1; i < values.length; i++) {
+      idx[String(values[i][idCol])] = {
+        collectorId: String(whoCol >= 0 ? values[i][whoCol] : ''),
+        role: rowRole_(roleCol >= 0 ? values[i][roleCol] : ''),
+      };
     }
   }
-  return null;
+  OWNER_CACHE[store] = idx;
+  return idx;
+}
+// A59: rows arriving in THIS push count as owned too. The push gate runs
+// entirely before any write, so a void whose target is in the same batch used
+// to find nothing and be rejected — and that batch is reachable: undo while a
+// push is in flight makes a void (correctly, a local delete would resurrect on
+// the next pull), and if that push then fails, payment and void travel together
+// on the retry. The collector's undo silently did not happen.
+// Identity comes from the TOKEN, never the payload, so this grants nothing the
+// "void your own row" rule did not already grant. Sheet rows win: an existing
+// row is never re-attributed by an incoming one.
+function noteIncomingOwner_(store, id, u) {
+  if (!SHEET_TITLES[store] || !id) return;
+  var idx = ownerIndex_(store);
+  if (!idx[String(id)]) {
+    idx[String(id)] = { collectorId: String(u.row.username || ''), role: roleOf_(u.row.role, u.row.cashier) };
+  }
+}
+function targetOwner_(store, id) {
+  return ownerIndex_(store)[String(id)] || null;
 }
 // May this user void that row? Mirrors js/app.js canVoid, plus the two paths
 // that void one's OWN row: Undo right after saving, and correcting a flagged
@@ -1855,17 +1993,12 @@ function voidAllowed_(u, row) {
   if (owner.collectorId && owner.collectorId === u.row.username) return true; // undo / self-correction
   return isCashier_(u.row) && owner.role === 'collector';
 }
+// A59: same one-read index. rowRole_ is applied on the way IN now, so rows
+// written before that fix (they say 'user') are still read as the plain
+// collectors they are.
 function targetCollectorRole_(store, id) {
-  var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES[store]);
-  if (!sh || sh.getLastRow() < 2) return 'collector';
-  var values = sh.getDataRange().getValues(), header = values[0];
-  var idCol = header.indexOf('id'), roleCol = header.indexOf('collectorRole');
-  for (var i = 1; i < values.length; i++) {
-    // rowRole_ on the way out, so rows written before this fix (they say
-    // 'user') are read as the plain collectors they are
-    if (String(values[i][idCol]) === String(id)) return rowRole_(roleCol >= 0 ? values[i][roleCol] : '');
-  }
-  return 'collector';
+  var o = ownerIndex_(store)[String(id)];
+  return o ? o.role : 'collector';
 }
 function num_(x) { return Number(x) || 0; }
 function sumBy_(rows, f) {

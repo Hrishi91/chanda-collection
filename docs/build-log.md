@@ -6119,3 +6119,133 @@ ok         : true
 v4.12.1 is direct evidence that the deployed script is this file and not an
 older copy. Client `APP_SCHEMA` is 2 and server `CODE_SCHEMA` is 2, so
 `schemaCmp()` is 0: no red bar, no entry lock, phones may write again.
+
+## v4.12.2 — audit Tier 2, server half: one redeploy for all five (2026-07-29)
+
+Tier 2 is split by where it lives, not by the audit's numbering, for one
+practical reason: **every Code.gs change costs Hrishi a redeploy**, and on this
+account a redeploy means a New deployment plus a config rebake. Five server
+findings in one deployment; the client half then goes live through Pages with
+no involvement from him at all.
+
+`CODE_SCHEMA` stays **2** — nothing here changes the contract. So a phone that
+has not seen the redeploy keeps working; it just does not get these fixes. That
+is the correct signal strength: a release-number mismatch shows the admin a
+note, and only a schema mismatch locks entry. Nothing here breaks without it.
+
+### 2.4 (A59) — `rolloverYear` never stamped `data_ts`
+
+Swept every one of the ~40 handlers rather than trusting the single line-number
+in the finding. Twenty write without stamping and are **right** to — they write
+Users, Config or Lists, which delta-pull does not carry. Exactly one writes a
+ledger sheet: this one.
+
+Without the stamp `pull` takes the fast path and answers `idle:true`. Next
+January: 800 donors copied into the new year, every phone says "কিছু নতুন নেই",
+and the `year-has-data` guard then correctly refuses to run it again. Rows that
+exist, are invisible, and cannot be re-created. The stamp goes AFTER the write,
+so it is never ahead of the data it announces.
+
+### 2.5 (A59) — confirm and reject were an unlocked read-check-write
+
+No lock, and the settle was four separate `setValue` calls. Two failures, both
+about money that has already changed hands:
+
+- **confirm and reject racing.** Each reads `status: 'pending'`, each passes its
+  own guard, and the writes interleave into a row that says `confirmed` *and*
+  carries a `rejectReason`. Nothing downstream can read that row honestly.
+- **a timeout between write 1 and write 4.** Status flipped, `receivedAt` still
+  old — so the delta pull never carries it and **no phone ever learns.** The
+  parcel is settled on the sheet and outstanding everywhere else, and the
+  sender's handover ceiling stays wrong until a human notices.
+
+Script lock around the whole block, and the row written in **one** `setValues`.
+The torn-write window is not narrowed, it is removed. `ensureCols_` moved to
+*before* the row read, because writing the whole row by position needs the
+header right before anything is read, not just before the reason cell.
+
+Two existing tests pinned the old *mechanism* (`setValue('rejected')`,
+`ensureCol_(sh,'rejectReason')`) and failed on a correct fix. Rewritten to pin
+the result — an assertion that names the implementation is a trap for the next
+person, and this is the second time it has caught me.
+
+### 2.6 (A59) — a lost response blanked a serial the donor is holding
+
+The serial is minted **only on insert**. A push that succeeds but whose response
+is lost is the ordinary case at a pandal gate: the phone still holds the row
+unsynced with `receiptNo` empty, and retries. The retry is an upsert, the mint
+is skipped, and the empty payload value was written straight over the serial.
+The donor is holding paper নং 2026-0143 and the book now says nothing — and
+that number is the only way to find their payment by hand.
+
+`SETTLED_ON_UPSERT` gains `payments` and `daily`, keeping `receiptNo`. The
+predicate asks the **existing** row, not the payload, so it can never invent a
+serial — a row without one stays fully writable.
+
+That is only half the repair, and the finding stopped there. The phone that
+lost the first response has no serial either, and `receipts` is filled at mint
+time only — so its receipt would read "নং —" for ever while the book knew the
+number all along. `preserve()` now records what it carried and the push hands
+the serial back. `js/sync.js` already adopts it for `payments` and `daily`, so
+the loop closes with no client change.
+
+### 2.7 (A59) — a name starting with `=` stops being a name
+
+`setValues` PARSES a leading `=` as a formula. The realistic damage is not an
+attack, it is a book that quietly stops adding up: one `#NAME?` in a name column
+and every report reading it shows an error instead of a figure, with no way to
+tell which donor it was. The unfriendly version is real too — `=IMPORTRANGE`
+executes with the **sheet owner's** authority, which is Hrishi's Google account,
+not the collector's.
+
+One `safeCell_`, plus a `safeRow_` that maps onto `cols` **and** neutralises in
+the same call — the two were separate at six write sites, which is precisely how
+one gets missed. Every path that carries typed text now goes through it: both
+push write-sites, the void mirror, both handover settles, the rollover copy, the
+Users sheet, the audit log (it carries void and reject reasons), and the two
+admin master-data lists.
+
+**Deliberately narrower than the finding suggested.** The usual CSV-injection
+list is `= + - @`; in Google Sheets those last three are not formula starts —
+`-500` is the number −500, `+500` is 500, `@` is nothing. They matter when a CSV
+is opened in Excel, and this app has no CSV export. Quoting them would put a
+visible apostrophe on ordinary notes like "-৫০০ বাকি" and buy nothing. The
+apostrophe is Sheets' own text marker: a display flag, not part of the value, so
+`getValues()` hands back the original string and the phones see what was typed.
+
+### 2.9 (A59) — the whole sheet, per void row, inside the lock
+
+`voidAllowed_` → `targetOwner_` read the ENTIRE target sheet and scanned it
+linearly, once per void row, **inside the push lock**. At 5,000 payments that is
+about a second each; ten queued voids after an offline evening held the lock ten
+extra seconds and timed out every other phone pushing at that moment. The
+failure compounds — those phones retry, arrive together, and queue behind the
+same lock.
+
+One read per store per request, indexed by id, shared with
+`targetCollectorRole_` which was doing its own full read. Proven rather than
+asserted: ten `voidAllowed_` calls against a counting stub now cost **one**
+read, and the four permission answers are unchanged.
+
+**And a second bug found while in there, not in the finding.** The push gate
+runs entirely before any write, so a void whose target arrives in the *same*
+batch found nothing and was silently rejected. That batch is reachable: undo
+while a push is in flight correctly makes a void rather than a local delete (a
+delete would resurrect on the next pull), and if that push then fails, payment
+and void travel together on the retry. The collector's undo simply did not
+happen. Rows in the batch are now registered before the gate runs, with identity
+from the **token** — so it grants nothing "void your own row" did not already
+grant, and a row already on the sheet always wins, meaning nobody can claim
+someone else's row by re-sending its id.
+
+### Verification
+
+`node tests/run.js` → **991 passed, 0 failed**. The new coverage runs the real
+code, not regexes over it: `SETTLED_ON_UPSERT`'s predicates, `safeCell_` and
+`safeRow_`, and `voidAllowed_`/`targetOwner_` against a counting SpreadsheetApp
+stub that proves the ten-voids-one-read claim.
+
+⚠️ **One thing here cannot be verified from this machine**: that Sheets strips
+the leading apostrophe on the way back out. It is documented behaviour and the
+whole `safeCell_` design rests on it, so after the redeploy it is worth entering
+one donor named `=টেস্ট`, syncing, and checking the name reads back plain.

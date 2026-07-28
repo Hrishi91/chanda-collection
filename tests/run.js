@@ -990,15 +990,23 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
      'reject: refuses to record a refusal with no reason');
   eq(rejSrc.indexOf("throw new Error('already-confirmed')") >= 0, true, 'reject: cannot un-confirm a settled parcel');
   eq(rejSrc.indexOf("throw new Error('already-rejected')") >= 0, true, 'reject: cannot re-refuse');
-  eq(rejSrc.indexOf("setValue('rejected')") >= 0, true, "reject: writes status='rejected', not a void");
+  // A59 (audit 2.5): pins the RESULT, not the mechanism — the four separate
+  // setValue calls became one whole-row setValues under a lock, and an
+  // assertion that names the old mechanism would have failed a correct fix.
+  eq(rejSrc.indexOf("rowObj.status = 'rejected'") >= 0, true, "reject: writes status='rejected', not a void");
   eq(rejSrc.indexOf('touchData_()') >= 0, true, "reject: stamps the change so the sender's delta pull sees it");
   eq(rejSrc.indexOf('handover:reject') >= 0, true, 'reject: audited');
   // readAll_ maps rows by the REAL header row, so a value written into an
   // unlabelled column is written and never read — the status would flip and the
   // reason would silently vanish. Writing a brand-new column must heal the header
   // rather than trust that a human remembered to run setup().
-  eq(rejSrc.indexOf("ensureCol_(sh, 'rejectReason')") >= 0, true,
+  // A59: the healing moved BEFORE the row read — the whole row is written by
+  // position now, so the header has to be right before anything is read, not
+  // just before the reason cell is written.
+  eq(rejSrc.indexOf('ensureCols_(sh, cols);') >= 0, true,
      'reject: heals its own header instead of depending on setup() having been run');
+  eq(rejSrc.indexOf('ensureCols_(sh, cols);') < rejSrc.indexOf('getValues()[0]'), true,
+     'reject: …and heals it BEFORE reading the row it is about to write back');
   eq(src.indexOf('function ensureCol_') >= 0, true, 'reject: ensureCol_ exists');
   // A deployment must be identifiable from outside, with no token and no writes:
   // twice a redeploy has been assumed instead of proven. doGet carries the version,
@@ -1074,6 +1082,128 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
   // admin-restore reassign branch — the exact path the finding was about
   eq((src.match(/preserve\(row\.id, values/g) || []).length, 2,
      'R1: both push write-sites route through preserve()');
+
+  // A59 (audit 2.6): a lost push response is the ORDINARY case at a pandal
+  // gate. The retry is an upsert, the serial is minted only on insert, so the
+  // empty payload value was written over a number the donor is holding on
+  // paper. These run the real predicates, not a regex over them.
+  eq(SU.payments.when({ receiptNo: '2026-0143' }), true,
+     'A59: a payment that already has a serial defends it against a retry');
+  eq(SU.payments.when({ receiptNo: '' }), false,
+     'A59: …and a row without one stays writable, so this can never invent a serial');
+  eq(SU.payments.keep, ['receiptNo'], 'A59: only the serial — a retry must still be able to fix a typo');
+  eq(SU.daily.when({ receiptNo: '2026-0007' }), true, 'A59: bus collections carry a printed serial too');
+  eq(SU.daily.when({ receiptNo: '' }), false, 'A59: …road and toto have none, and none is invented');
+  // and the phone that never saw the first response must LEARN the serial —
+  // the sheet being right is only half the repair; `receipts` is filled at mint
+  // time only, so without this the receipt reads "নং —" for ever.
+  eq(/if \(carried\[row\.id\] && carried\[row\.id\]\.receiptNo\) receipts\[row\.id\] = carried\[row\.id\]\.receiptNo;/.test(src), true,
+     'A59: …and the preserved serial is handed back to the retrying phone');
+  eq(/\(s === 'payments' \|\| s === 'daily'\) && receipts\[live\.id\]/.test(
+       require('fs').readFileSync(__dirname + '/../js/sync.js', 'utf8')), true,
+     'A59: …which the client already adopts, so the loop actually closes');
+
+  // A59 (audit 2.5): confirm/reject were unlocked read-check-write with four
+  // separate setValue calls — confirm and reject racing could produce a row
+  // that says confirmed AND carries a rejectReason.
+  ['confirmHandover', 'rejectHandover'].forEach(function (fn) {
+    // slice to the handler's own closing brace, not a fixed byte count — a
+    // short window is how an assertion silently stops covering what it names
+    const at = src.indexOf(fn + ': function');
+    const seg = src.slice(at, src.indexOf('\n  },', at));
+    eq(/LockService\.getScriptLock\(\); lock\.waitLock\(20000\);/.test(seg), true,
+       'A59: ' + fn + ' takes the script lock');
+    eq(/finally \{ lock\.releaseLock\(\); \}/.test(seg), true, 'A59: …and always releases it');
+    eq(/sh\.getRange\(r, 1, 1, cols\.length\)\.setValues\(/.test(seg), true,
+       'A59: …and settles the row in ONE write, so there is no torn-write window');
+    eq(/setValue\(new Date\(\)\.toISOString\(\)\)/.test(seg), false,
+       'A59: …the four separate cell writes are gone');
+  });
+
+  // A59 (audit 2.4): the only ledger-sheet writer that never stamped data_ts.
+  {
+    const seg = src.slice(src.indexOf('rolloverYear: function'), src.indexOf('releaseSession: function'));
+    eq(/setValues\(out\);\n\s*touchData_\(\);/.test(seg), true,
+       'A59: rolloverYear stamps data_ts AFTER the rows…');
+    eq(seg.indexOf('year-has-data') >= 0, true,
+       'A59: …which matters because the re-run guard would then refuse to fix it');
+  }
+
+
+  // A59 (audit 2.7): setValues PARSES a leading '=' as a formula, so a donor
+  // named "=সুমন" stops being text. Real damage is a book that quietly stops
+  // adding up — one #NAME? in a name column and every report reading it shows
+  // an error instead of a figure, with no way to tell which donor. The
+  // unfriendly version executes with the SHEET OWNER's authority.
+  var gsSafe = {};
+  new Function('g', src + '\n g.safeCell_ = safeCell_; g.safeRow_ = safeRow_;')(gsSafe);
+  eq(gsSafe.safeCell_('=IMPORTRANGE("x","y")'), "'" + '=IMPORTRANGE("x","y")',
+     'A59: a formula-looking name is neutralised with the text marker');
+  eq(gsSafe.safeCell_('সুমন দাস'), 'সুমন দাস', 'A59: ordinary text is untouched');
+  eq(gsSafe.safeCell_('-৫০০ বাকি'), '-৫০০ বাকি',
+     "A59: …and so is a leading '-', which is not a formula in Sheets — quoting it would only add a visible apostrophe");
+  eq(gsSafe.safeCell_(1500), 1500, 'A59: numbers pass through as numbers, not strings');
+  eq(gsSafe.safeCell_(''), '', 'A59: empty stays empty');
+  eq(gsSafe.safeRow_(['a', 'b'], { a: '=1+1' }), ["'=1+1", ''],
+     'A59: safeRow_ maps onto cols AND neutralises, so the two cannot drift apart');
+  // and every write that carries client text goes through it
+  eq(/cols\.map\(function \(c\) \{ return row\[c\] !== undefined \? row\[c\] : ''; \}\)/.test(src), false,
+     'A59: no push write-site builds a raw row any more');
+
+
+  // A59 (audit 2.9): voidAllowed_ read the WHOLE target sheet, per void row,
+  // inside the push lock. Run the real thing against a counting stub — a claim
+  // about "one read per store" is worth nothing asserted by regex.
+  {
+    let reads = 0;
+    const rows = [['id', 'collectorId', 'collectorRole'],
+                  ['p1', 'ratan', 'collector'],
+                  ['p2', 'bimal', 'cashier']];
+    const sheet = {
+      getLastRow: () => rows.length,
+      getDataRange: () => ({ getValues: () => { reads++; return rows; } }),
+    };
+    const env = {
+      SpreadsheetApp: { getActive: () => ({ getSheetByName: () => sheet }) },
+      out: {},
+    };
+    new Function('SpreadsheetApp', 'g', src +
+      '\n g.targetOwner_ = targetOwner_; g.voidAllowed_ = voidAllowed_;' +
+      '\n g.noteIncomingOwner_ = noteIncomingOwner_; g.targetCollectorRole_ = targetCollectorRole_;' +
+      '\n g.reset = function () { OWNER_CACHE = null; };')(env.SpreadsheetApp, env.out);
+    const G = env.out;
+
+    G.reset(); reads = 0;
+    const ratan = { row: { role: 'user', username: 'ratan', cashier: 0 } };
+    for (let i = 0; i < 10; i++) G.voidAllowed_(ratan, { targetStore: 'payments', targetId: 'p1' });
+    eq(reads, 1, 'A59: ten queued voids cost ONE sheet read, not ten');
+
+    G.reset();
+    eq(G.voidAllowed_(ratan, { targetStore: 'payments', targetId: 'p1' }), true,
+       'A59: …and the answer is unchanged — a collector may still void their own row');
+    eq(G.voidAllowed_(ratan, { targetStore: 'payments', targetId: 'p2' }), false,
+       "A59: …and still may not void the cashier's");
+    eq(G.voidAllowed_(ratan, { targetStore: 'payments', targetId: 'nope' }), false,
+       'A59: …and an unknown target is still refused');
+    eq(G.targetCollectorRole_('payments', 'p2'), 'cashier',
+       'A59: targetCollectorRole_ shares the same index instead of re-reading');
+
+    // the batch case: undo while a push is in flight makes a void; if that push
+    // fails, payment and void travel together on the retry. The gate runs before
+    // any write, so the void used to find nothing and be silently rejected.
+    G.reset();
+    eq(G.voidAllowed_(ratan, { targetStore: 'payments', targetId: 'p9' }), false,
+       'A59: a target nobody has ever seen is refused…');
+    G.reset();
+    G.noteIncomingOwner_('payments', 'p9', ratan);
+    eq(G.voidAllowed_(ratan, { targetStore: 'payments', targetId: 'p9' }), true,
+       'A59: …but one arriving in the SAME batch is found, so the undo happens');
+    // and an incoming row can never re-attribute one already on the sheet
+    G.reset();
+    G.noteIncomingOwner_('payments', 'p2', ratan);
+    eq(G.voidAllowed_(ratan, { targetStore: 'payments', targetId: 'p2' }), false,
+       "A59: …while the sheet still wins, so nobody can claim someone else's row by re-sending its id");
+  }
 
   // the daily report split must match on both sides too
   var gsRep = new Function('g', src + '\n g.computeReport_ = computeReport_;');
