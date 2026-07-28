@@ -4994,6 +4994,31 @@
           });
         };
       });
+      // A48: RESTORED. This block was carried off by a blind index-to-index cut
+      // in v4.9.9 while removing the dead positionCard — it sat between the two
+      // markers. Approve · year · cashier · admin · reset · release · block ·
+      // unblock all rendered and none of them did anything for two releases,
+      // including 🔓 release session and 🚫 Block, which PROJECT_CONTEXT names
+      // as the ONLY answer to a lost or stolen phone (sessions never expire by
+      // design). Found by an external audit, not by me: I verified these buttons
+      // on v4.9.7 and never re-verified them after restructuring the panel.
+      document.querySelectorAll('[data-act]').forEach(function (b) {
+        const id = b.dataset.id;
+        b.onclick = function () {
+          if (b.dataset.act === 'approve') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') });
+          else if (b.dataset.act === 'year') adminAction('approveYear', { userId: id, year: Settings.get('year') });
+          else if (b.dataset.act === 'cashier') adminAction('setCashier', { userId: id, cashier: Number(b.dataset.v) });
+          else if (b.dataset.act === 'role') adminAction('setRole', { userId: id, role: b.dataset.v });
+          else if (b.dataset.act === 'block') adminAction('setStatus', { userId: id, status: 'blocked' });
+          else if (b.dataset.act === 'unblock') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') });
+          else if (b.dataset.act === 'reset') adminAction('resetPassword', { userId: id }, function (r) {
+            alert(t('temp_pw_is') + ':\n\n' + r.tempPassword);
+          });
+          else if (b.dataset.act === 'release') {
+            if (window.confirm(t('release_confirm'))) adminAction('releaseSession', { userId: id }, function () { toast(t('release_done')); });
+          }
+        };
+      });
       // [সব দাও] / [সব নাও] — the chips still work one by one; this only saves
       // tapping seven reports for eleven people.
       document.querySelectorAll('[data-bulk]').forEach(function (b) {

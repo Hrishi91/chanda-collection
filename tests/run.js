@@ -2407,5 +2407,43 @@ try {
      'A47: …and the limit is written down where the code is, not just in a doc');
 }
 
+
+// ---- A48: every data-* the app RENDERS must have something that READS it -----
+// An external audit found eight admin buttons — approve, year access, cashier,
+// admin, password reset, 🔓 release session, block, unblock — rendered and
+// completely inert for two releases. A blind index-to-index cut in v4.9.9,
+// removing dead code, took the whole `[data-act]` handler with it because it sat
+// between the two markers. I had verified those buttons on v4.9.7 and never
+// re-verified them after restructuring the panel around them.
+//
+// 🔓 release session and 🚫 Block are what PROJECT_CONTEXT names as the ONLY
+// answer to a lost phone, since sessions never expire by design. They did
+// nothing, silently, and no test noticed. This one would have.
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const rendered = {};
+  // attributes written into markup: data-foo=" inside a string
+  (app.match(/data-[a-z-]+="/g) || []).forEach(function (m) {
+    rendered[m.slice(5, -2)] = 1;                       // strip 'data-' and '="'
+  });
+  // a reader is either a querySelectorAll('[data-foo]') or a dataset.fooBar use
+  const camel = function (k) {
+    return k.replace(/-([a-z])/g, function (_, c) { return c.toUpperCase(); });
+  };
+  const dead = Object.keys(rendered).filter(function (k) {
+    if (k === 'q') return false;                        // filter payload, read via dataset.q
+    return app.indexOf("[data-" + k + "]") < 0 && app.indexOf('dataset.' + camel(k)) < 0;
+  });
+  eq(dead.join(', '), '', 'A48: no data-* attribute is rendered without a reader');
+  // and the eight in particular, by name, because these are the ones that bit
+  ['approve', 'year', 'cashier', 'role', 'block', 'unblock', 'reset', 'release'].forEach(function (a) {
+    eq(new RegExp("b\\.dataset\\.act === '" + a + "'").test(app), true,
+       'A48: the ' + a + ' button is wired');
+  });
+  eq(/adminAction\('releaseSession'/.test(app), true,
+     'A48: …and 🔓 release session in particular — the only revoke a leaked token has');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

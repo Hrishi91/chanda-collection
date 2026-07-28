@@ -5844,3 +5844,34 @@ can write, which is the point.
 
 config.js still pointed at the previous `/exec`, so any phone without a
 scriptUrl override in Settings was still talking to the old deployment. Rebaked.
+
+## v4.11.1 — A48: eight admin buttons had been dead for two releases (2026-07-29)
+
+An external audit of `chanda-v4.11.0` found that Approve · year access · make
+cashier · make admin · reset password · 🔓 সেশন ছাড়ো · Block · Unblock all
+rendered and **did nothing**. `grep dataset.act` returned zero, and
+`adminAction()` — the function that drives all eight — was defined and never
+called.
+
+**I broke it, in v4.9.9.** Removing the dead `positionCard` I used a blind
+index-to-index cut between two comment markers, and the `[data-act]` handler sat
+between them. Two releases shipped that way.
+
+**Why I did not catch it:** I verified those buttons by hand on v4.9.7 — I have
+the captured `setRole` / `setStatus` / `setCashier` calls in the transcript —
+and then restructured the entire 588-line panel around them without re-verifying
+them once. Testing a thing before you rewrite its surroundings is not testing it.
+
+**Why it matters more than most:** `docs/PROJECT_CONTEXT.md` records that
+sessions never expire by design, and that 🔓 সেশন ছাড়ো or 🚫 Block is *the*
+answer to a lost or stolen phone. Both were inert. `docs/pending.md` lists
+"release the session for these three users" as a pre-go-live step — it could not
+have been done.
+
+Restored, and now guarded by the test that would have caught it: **every
+`data-*` attribute the app renders must have something that reads it**, plus the
+eight by name. Proven by removing the handler again and watching the suite go
+red on `no data-* attribute is rendered without a reader → got act`.
+
+VERIFIED live: cashier → setCashier, admin → setRole, reset → resetPassword,
+🔓 → releaseSession, block → setStatus. 914 passed, 0 failed.
