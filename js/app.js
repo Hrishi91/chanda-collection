@@ -4220,6 +4220,32 @@
       alert('⚠️ ' + t('save') + '\n\n' + errMsg(e));
     });
   }
+  // A40: 🧾 রসিদ ও তালিকা is add / rename / delete — each one a COMPLETE action,
+  // so a 💾 would be wrong there: you would add a row and then have to save it,
+  // which is one more step, not one fewer. What was wrong is the same thing as
+  // everywhere else — the full reload afterwards. Rename and delete are patched
+  // straight into the cache (we know the id and the new text); only ADD needs
+  // the server's generated id, and then only ONE list is re-read, not all three.
+  function admRepaint() {
+    const y = window.scrollY;
+    paintAdmin(admCache);
+    window.scrollTo(0, y);
+  }
+  function admListAction(action, payload, patch) {
+    Auth.call(action, Object.assign({ token: Auth.token() }, payload)).then(function () {
+      if (patch) { patch(); Lists.refresh(); admRepaint(); return; }
+      // add: fetch back just the list that grew
+      const isSubject = action.indexOf('Subject') > 0;
+      Auth.call(isSubject ? 'listSubjects' : 'listItems', { token: Auth.token() })
+        .then(function (r) {
+          if (isSubject) admCache[1] = { subjects: r.subjects || [] };
+          else admCache[2] = { items: r.items || [] };
+          Lists.refresh(); admRepaint();
+        }).catch(function () { renderAdmin(true); });
+    }).catch(function (e) { alert('⚠️ ' + action + '\n\n' + errMsg(e)); });
+  }
+  function admItems() { return (admCache[2] || {}).items || []; }
+  function admSubjects() { return (admCache[1] || {}).subjects || []; }
   function admPut(fresh) {
     if (!admCache || !fresh) return;
     const list = admCache[0].users || [];
@@ -4757,40 +4783,57 @@
       admEl('subj-add').onclick = function () {
         const name = admEl('subj-input').value.trim();
         if (!name) return;
-        adminAction('addSubject', { name: name });
+        admListAction('addSubject', { name: name });
       };
       admEl('subj-input').onkeydown = function (e) {
         if (e.key === 'Enter') admEl('subj-add').click();
       };
       document.querySelectorAll('[data-subj-del]').forEach(function (b) {
-        b.onclick = function () { adminAction('removeSubject', { id: b.dataset.subjDel }); };
+        b.onclick = function () {
+          const id = b.dataset.subjDel;
+          admListAction('removeSubject', { id: id }, function () {
+            admCache[1] = { subjects: admSubjects().filter(function (x) { return x.id !== id; }) };
+          });
+        };
       });
       document.querySelectorAll('[data-subj-edit]').forEach(function (b) {
         b.onclick = function () {
           const s = subjects.find(function (x) { return x.id === b.dataset.subjEdit; }) || {};
           const nm = window.prompt(t('edit_item_title'), s.name || ''); if (nm === null) return;
-          if (nm.trim()) adminAction('editSubject', { id: b.dataset.subjEdit, name: nm.trim() });
+          if (!nm.trim()) return;
+          const id = b.dataset.subjEdit, nn = nm.trim();
+          admListAction('editSubject', { id: id, name: nn }, function () {
+            admSubjects().forEach(function (x) { if (x.id === id) x.name = nn; });
+          });
         };
       });
-      const afterList = function () { Lists.refresh(); }; // refresh the client cache too
       document.querySelectorAll('[data-li-add]').forEach(function (b) {
         b.onclick = function () {
           const kind = b.dataset.liAdd;
           const bn = document.getElementById('li-bn-' + kind).value.trim();
           const en = document.getElementById('li-en-' + kind).value.trim();
           if (!bn && !en) return;
-          adminAction('addItem', { kind: kind, nameBn: bn, nameEn: en }, afterList);
+          admListAction('addItem', { kind: kind, nameBn: bn, nameEn: en });
         };
       });
       document.querySelectorAll('[data-li-del]').forEach(function (b) {
-        b.onclick = function () { adminAction('removeItem', { id: b.dataset.liDel }, afterList); };
+        b.onclick = function () {
+          const id = b.dataset.liDel;
+          admListAction('removeItem', { id: id }, function () {
+            admCache[2] = { items: admItems().filter(function (x) { return x.id !== id; }) };
+            if (admPosId === id) { admPosId = ''; admPosDraft = null; }
+          });
+        };
       });
       document.querySelectorAll('[data-li-edit]').forEach(function (b) {
         b.onclick = function () {
           const it = items.find(function (x) { return x.id === b.dataset.liEdit; }) || {};
           const bn = window.prompt(t('name_bn'), it.nameBn || ''); if (bn === null) return;
           const en = window.prompt(t('name_en'), it.nameEn || ''); if (en === null) return;
-          adminAction('editItem', { id: b.dataset.liEdit, nameBn: bn.trim(), nameEn: en.trim() }, afterList);
+          const id = b.dataset.liEdit, nb = bn.trim(), ne = en.trim();
+          admListAction('editItem', { id: id, nameBn: nb, nameEn: ne }, function () {
+            admItems().forEach(function (x) { if (x.id === id) { x.nameBn = nb || ne; x.nameEn = ne || nb; } });
+          });
         };
       });
       // [সব দাও] / [সব নাও] — the chips still work one by one; this only saves

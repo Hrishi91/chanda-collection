@@ -5580,3 +5580,33 @@ VERIFIED live on a fresh port: post list → post screen costs 0 calls; three
 chips plus a cap change = 0 calls, scroll unchanged, "2টি বদল এখনো সেভ হয়নি";
 💾 sent one setPositionRules and stored maxCount 2 with shop,person,dues,cashier;
 leaving dirty asked; ← returned to the post list. 858 passed, 0 failed.
+
+## v4.10.0 — A40: the lists screen stops reloading (2026-07-28)
+
+Hrishi: "রসিদ ও তালিকা!" — the last screen still doing it.
+
+**A 💾 would have been the wrong answer here**, and that is worth writing down.
+On a person or a post you make several changes and commit them together, so a
+draft plus one save removes work. On 🧾 the actions are add / rename / delete —
+each already complete on its own. A save button would mean adding a row and then
+saving it: one step MORE, not one fewer.
+
+What was wrong was the same thing as everywhere else — the full reload. Every
+add, rename and delete went through `adminAction`, and since these handlers
+return no user, that fell through to a fresh fetch of all three lists plus a
+repaint from the top.
+
+Now `admListAction`:
+
+- **rename / delete** — patched straight into the cache. We know the id and the
+  new text, so there is nothing to ask the server for. 1 write call.
+- **add** — only the server can mint the id, so exactly ONE list is re-read, not
+  all three.
+- `admRepaint()` restores the scroll after the repaint, so the screen stays put.
+
+Measured live: delete 2 calls (write + Lists.refresh, which the entry screens
+need) against 4 before; rename 2; add 3; scroll jump 0px, or the 7px the row
+itself occupied. 864 passed, 0 failed.
+
+That is the last of the five admin screens. Menu · 👥 people · 🎖️ posts ·
+🧾 lists · 🗂️ data — none of them rebuilds the page under your finger any more.

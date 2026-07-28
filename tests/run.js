@@ -2215,5 +2215,26 @@ try {
   });
 }
 
+
+// ---- A40: 🧾 রসিদ ও তালিকা — the same reload, a different right answer -------
+// Add / rename / delete are each a COMPLETE action, so a 💾 would be wrong here:
+// you would add a row and then have to save it, which is one more step, not one
+// fewer. What was wrong is what was wrong everywhere else — the full reload.
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/function admListAction\(action, payload, patch\)/.test(app), true,
+     'A40: list edits go through one path…');
+  eq(/if \(patch\) \{ patch\(\); Lists\.refresh\(\); admRepaint\(\); return; \}/.test(app), true,
+     'A40: …rename and delete patch the cache — no re-read at all');
+  eq(/Auth\.call\(isSubject \? 'listSubjects' : 'listItems'/.test(app), true,
+     'A40: …and ADD re-reads only the ONE list that grew, because the id is the server\'s');
+  eq(/function admRepaint\(\)[\s\S]{0,160}window\.scrollTo\(0, y\);/.test(app), true,
+     'A40: the repaint puts the scroll back where it was');
+  eq(/adminAction\('addItem'|adminAction\('removeItem'|adminAction\('editItem'/.test(app), false,
+     'A40: no list edit goes through the full-reload path any more');
+  eq(/const afterList = function/.test(app), false, 'A40: its dead helper is gone');
+}
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
