@@ -5459,3 +5459,18 @@ plus 🤝 জমা দিলাম and 📗 জমা-খাতা, and no entr
 full grants but on v4.9.5 against a v4.10.0 server gets the red bar, the blocked
 card with "এখনই ঠিক করো", and the same two tiles. All 17 of Sunday's tile tests
 pass untouched. 818 passed, 0 failed.
+
+## config.js rebaked for the v4.9.6 deployment (2026-07-28)
+
+Backend redeployed and reporting `chanda-v4.9.6`, matching what Pages serves.
+Client and server agree for the first time since v4.9.4, so the "this phone is
+behind" lock can finally be exercised at all — until now every phone was AHEAD
+of the server, which is deliberately never blocked.
+
+config.js still carried the previous `/exec`, so every phone WITHOUT a scriptUrl
+override in Settings was still talking to the v4.9.4 deployment. Rebaked.
+
+Reminder that is now overdue: `Settings.get('scriptUrl')` OVERRIDES config.js.
+Hrishi's own phone has the URL pasted there, so it will keep using whatever is
+in that field regardless of this rebake — clear it, or it silently pins that one
+device to an old backend on the next deploy.
