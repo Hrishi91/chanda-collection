@@ -77,6 +77,8 @@ const I18N = {
   list_position: { bn: '🎖️ কমিটির পদ ও অনুমতি', en: '🎖️ Committee positions & permissions' },
   pos_admin_hint: { bn: 'প্রতিটি পদে ঠিক করো — সর্বোচ্চ কতজন থাকতে পারে, আর ওই পদে থাকলে অ্যাপে কী কী করা যাবে। তারপর প্রতি লোকে শুধু পদটা বেছে দিলেই হবে।', en: 'For each post set how many people may hold it, and what holding it lets them do in the app. After that, each person just needs the post picked.' },
   pos_none_server: { bn: 'সার্ভারে এখনো পদ নেই — Code.gs আবার deploy করলে চারটে পদ নিজে থেকেই বসে যাবে। ততক্ষণ entry-র পর্দায় পদগুলো দেখা যাবে (অ্যাপের নিজের তালিকা থেকে), কিন্তু এখান থেকে বদলানো যাবে না।', en: 'No posts on the server yet — redeploy Code.gs and the four posts appear by themselves. Until then the entry screens still show them (from the app\'s own seed), but they cannot be edited here.' },
+  pos_max_label: { bn: 'সর্বোচ্চ কতজন এই পদে থাকতে পারবে', en: 'How many people may hold this post' },
+  pos_max_zero: { bn: '0 লিখলে যত খুশি', en: 'Type 0 for no limit' },
   pos_max_btn: { bn: 'সর্বোচ্চ', en: 'Max' },
   pos_max_n: { bn: 'সর্বোচ্চ {n} জন', en: 'max {n}' },
   pos_max_any: { bn: 'যত খুশি', en: 'no limit' },

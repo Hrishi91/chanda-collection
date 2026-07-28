@@ -5550,3 +5550,33 @@ person → ← → ← walks correctly; four chips = 0 calls and scrollY unchang
 sent exactly setEntries + setReports for two changed groups; leaving dirty asked
 "1টি বদল সেভ করোনি — ছেড়ে গেলে হারিয়ে যাবে"; 🧹 is on the data screen.
 853 passed, 0 failed.
+
+## v4.9.9 — A39: the committee posts get the same treatment (2026-07-28)
+
+Hrishi, on 🎖️ কমিটির পদ ও অনুমতি: "not able to see save button / it refreshing
+as the same."
+
+Correct — v4.9.8 gave the draft-and-save shape to the PERSON screen only. The
+posts were still all on one page, with a `<details>` fold inside each card (a
+fold inside a fold), and every chip tap called `setPositionRules`, which returns
+no user — so `adminAction` fell through to a full reload. Exactly the behaviour
+he had just asked me to remove, left standing one screen away.
+
+Posts are now list → screen too:
+
+- the list is one short row per post — name, cap, how many permissions
+- a post's own screen has the cap as a plain number field, the permission chips
+  in their three groups, and one 💾
+- chips and the cap edit a draft: **0 server calls per tap**, page does not move
+- 💾 writes once, folds the reply into the cached item and refreshes `Lists` so
+  the entry screens see the new post immediately
+- leaving dirty asks, through the SAME guard as the person screen
+  (`admDirty() + admPosDirty()`) rather than a second one that could drift
+
+The old `positionCard` — all posts on one page, fold inside fold — is gone, and
+so are its two handlers.
+
+VERIFIED live on a fresh port: post list → post screen costs 0 calls; three
+chips plus a cap change = 0 calls, scroll unchanged, "2টি বদল এখনো সেভ হয়নি";
+💾 sent one setPositionRules and stored maxCount 2 with shop,person,dues,cashier;
+leaving dirty asked; ← returned to the post list. 858 passed, 0 failed.

@@ -7,7 +7,7 @@ const Auth = (function () {
   // here would depend on load order, which is the kind of thing that works in
   // testing and fails on somebody's phone. Bound to sw.js VERSION and Code.gs
   // CODE_VERSION by tests/run.js so the three cannot drift.
-  const APP_VERSION = 'chanda-v4.9.8';
+  const APP_VERSION = 'chanda-v4.9.9';
   // What the SERVER last told us it is running. Kept in localStorage so the
   // warning survives a reload and stays true offline: once we know this device
   // is behind, going offline does not make it not behind.

@@ -4136,6 +4136,7 @@
   // edit a DRAFT and one 💾 saves the lot: before this, granting eleven people
   // was ~88 taps × 4 server calls ≈ 350 calls.
   let admCache = null, admSection = '', admUserId = '', admDraft = null;
+  let admPosId = '', admPosDraft = null;
   function admDirty() {
     if (!admDraft || !admCache) return 0;
     const u = (admCache[0].users || []).filter(function (x) { return x.id === admUserId; })[0];
@@ -4148,8 +4149,42 @@
     if (!same(admDraft.areas, String(u.areas || '').split(',').filter(Boolean))) n++;
     return n;
   }
+  function admPosItem() {
+    if (!admCache) return null;
+    return ((admCache[2] || {}).items || []).filter(function (x) { return x.id === admPosId; })[0] || null;
+  }
+  function admPosDirty() {
+    const it = admPosItem();
+    if (!it || !admPosDraft) return 0;
+    let n = 0;
+    if (admPosDraft.max !== (Number(it.maxCount) || 0)) n++;
+    if (admPosDraft.perms.slice().sort().join() !==
+        String(it.perms || '').split(',').filter(Boolean).sort().join()) n++;
+    return n;
+  }
+  // Same shape as a person: chips edit a draft, one 💾 writes it, and the reply
+  // is folded into the cached item so nothing is re-read.
+  function admPosSave() {
+    const it = admPosItem();
+    if (!it || !admPosDraft) return;
+    const btn = document.getElementById('adm-pos-save');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ ' + t('saving'); }
+    Auth.call('setPositionRules', { token: Auth.token(), id: it.id,
+                                    maxCount: admPosDraft.max, perms: admPosDraft.perms })
+      .then(function () {
+        it.maxCount = admPosDraft.max;
+        it.perms = admPosDraft.perms.join(',');
+        admPosDraft = null;
+        Lists.refresh();            // the entry screens read posts from here
+        toast('✅ ' + t('saved'));
+        paintAdmin(admCache);
+      }).catch(function (e) {
+        if (btn) { btn.disabled = false; btn.textContent = '💾 ' + t('save'); }
+        alert('⚠️ setPositionRules\n\n' + errMsg(e));
+      });
+  }
   function admLeaveOk() {
-    const n = admDirty();
+    const n = admDirty() + admPosDirty();
     return !n || window.confirm(t('adm_unsaved').replace('{n}', n));
   }
   // Sends only what CHANGED — usually one call, never four — and folds the
@@ -4193,6 +4228,7 @@
   function admGo(section, userId) {
     if (!admLeaveOk()) return;
     admSection = section || ''; admUserId = userId || ''; admDraft = null;
+    admPosId = ''; admPosDraft = null;
     window.scrollTo(0, 0);
     renderAdmin();
   }
@@ -4394,61 +4430,6 @@
               '<button class="chip" data-li-del="' + esc(it.id) + '">' + esc(t('del_btn')) + '</button></div></div>';
           }).join('') : '<div class="empty">' + esc(t('no_items')) + '</div>') + '</div>';
       }
-      // Committee posts are a list PLUS two rules each: how many people may hold
-      // the post, and what the post lets them do. Granting then becomes one
-      // dropdown per person instead of ~16 checkboxes each.
-      function positionCard(list) {
-        const groups = [
-          ['entry_perms', [['shop', t('new_shop')], ['person', t('new_person')], ['member', t('new_member')],
-                            ['bus', t('daily_bus')], ['road', t('daily_road')], ['toto', t('daily_toto')],
-                            ['review', t('review_title')], ['otherdonor', t('perm_otherdonor')],
-                            ['memberadmin', t('perm_memberadmin')]]],
-          ['report_perms', Aggregate.REPORT_IDS.map(function (r) { return [r, t('report_' + r)]; })],
-          // Money power. Kept visible but marked, because a wrong tick here lets
-          // somebody confirm money they never received.
-          ['perm_money', [['cashier', '⚠️ ' + t('cashier')]]],
-        ];
-        return '<div class="card"><div class="card-title">' + esc(t('list_position')) + '</div>' +
-          '<div class="hint" style="margin-bottom:8px">' + esc(t('pos_admin_hint')) + '</div>' +
-          '<div class="input-row"><input id="li-bn-position" placeholder="' + esc(t('name_bn')) + '" autocomplete="off">' +
-          '<input id="li-en-position" placeholder="' + esc(t('name_en')) + '" autocomplete="off">' +
-          '<button class="primary" data-li-add="position">' + esc(t('add_btn')) + '</button></div>' +
-          (list.length ? list.map(function (it) {
-            const set = String(it.perms || '').split(',').filter(Boolean);
-            const cap = Number(it.maxCount) || 0;
-            return '<div class="row" style="cursor:default;flex-wrap:wrap">' +
-              '<div style="flex:1 1 60%"><b>' + esc(it.nameBn) + '</b>' +
-              '<div class="row-sub">' + esc(it.nameEn) + ' · ' +
-                esc(cap > 0 ? t('pos_max_n').replace('{n}', cap) : t('pos_max_any')) + ' · ' +
-                // "0 permissions" is a real state with real consequences, so it
-                // is spelled out rather than left to be inferred from grey chips
-                esc(set.length ? t('pos_perm_n').replace('{n}', set.length) : t('pos_perm_none')) +
-              '</div></div>' +
-              '<div class="chips" style="margin:0">' +
-                '<button class="chip" data-li-edit="' + esc(it.id) + '">' + esc(t('edit_btn')) + '</button>' +
-                '<button class="chip" data-pos-max="' + esc(it.id) + '">🔢 ' + esc(t('pos_max_btn')) + '</button>' +
-                '<button class="chip" data-li-del="' + esc(it.id) + '">' + esc(t('del_btn')) + '</button>' +
-              '</div>' +
-              '<details class="adm-fold" style="flex:1 1 100%;margin-top:6px"><summary>🔑 ' +
-                esc(t('pos_perm_btn')) + '</summary><div class="adm-fold-body">' +
-                groups.map(function (g) {
-                  return '<div class="perm-grp"><div class="perm-head">' + esc(t(g[0])) + '</div>' +
-                    '<div class="chips" style="margin:4px 0 0">' + g[1].map(function (k) {
-                      return '<button class="chip' + (set.indexOf(k[0]) >= 0 ? ' on' : '') +
-                        '" data-pp-id="' + esc(it.id) + '" data-pp-key="' + esc(k[0]) + '">' + esc(k[1]) + '</button>';
-                    }).join('') + '</div></div>';
-                }).join('') +
-                // Said on the screen, not just in the code: this is the boundary
-                // Hrishi drew himself — admin is the board's decision, one person
-                // at a time, never a side effect of a job title.
-                '<div class="perm-note">' + esc(t('pos_no_admin')) + '</div>' +
-              '</div></details></div>';
-          }).join('')
-            // The posts live in the SHEET. Until Code.gs is redeployed this card
-            // is empty while the entry flows still offer four posts from the
-            // client's own seed — which reads as a bug unless it says why.
-            : '<div class="empty">' + esc(t('pos_none_server')) + '</div>') + '</div>';
-      }
       // Grouped into collapsible sections (native <details>) so the admin sees
       // four tidy groups instead of a wall of buttons and cards. Users opens by
       // default (approvals are the most frequent job); a pending user forces it.
@@ -4536,8 +4517,59 @@
             : '') +
           '<div class="section">' + esc(t('adm_other_actions')) + '</div>' +
           '<div class="chips">' + userButtons(u) + '</div>';
+      } else if (admSection === 'positions' && !admPosId) {
+        $view().innerHTML = head('list_position', 'admin') +
+          '<div class="hint" style="margin-bottom:8px">' + esc(t('pos_admin_hint')) + '</div>' +
+          '<div class="input-row"><input id="li-bn-position" placeholder="' + esc(t('name_bn')) + '" autocomplete="off">' +
+          '<input id="li-en-position" placeholder="' + esc(t('name_en')) + '" autocomplete="off">' +
+          '<button class="primary" data-li-add="position">' + esc(t('add_btn')) + '</button></div>' +
+          (positions.length ? positions.map(function (it) {
+            const set = String(it.perms || '').split(',').filter(Boolean);
+            const cap = Number(it.maxCount) || 0;
+            return '<button class="row" data-adm-pos="' + esc(it.id) + '" style="width:100%;text-align:left">' +
+              '<div style="flex:1"><b>' + esc(it.nameBn) + '</b>' +
+              '<div class="row-sub">' + esc(it.nameEn) + ' · ' +
+                esc(cap > 0 ? t('pos_max_n').replace('{n}', cap) : t('pos_max_any')) + ' · ' +
+                esc(set.length ? t('pos_perm_n').replace('{n}', set.length) : t('pos_perm_none')) +
+              '</div></div><span class="adm-caret">›</span></button>';
+          }).join('') : '<div class="empty">' + esc(t('pos_none_server')) + '</div>');
       } else if (admSection === 'positions') {
-        $view().innerHTML = head('list_position', 'admin') + positionCard(positions);
+        const it = positions.filter(function (x) { return x.id === admPosId; })[0];
+        if (!it) { admPosId = ''; paintAdmin(res); return; }
+        if (!admPosDraft) admPosDraft = {
+          max: Number(it.maxCount) || 0,
+          perms: String(it.perms || '').split(',').filter(Boolean),
+        };
+        const groups = [
+          ['entry_perms', [['shop', t('new_shop')], ['person', t('new_person')], ['member', t('new_member')],
+                           ['bus', t('daily_bus')], ['road', t('daily_road')], ['toto', t('daily_toto')],
+                           ['review', t('review_title')], ['otherdonor', t('perm_otherdonor')],
+                           ['memberadmin', t('perm_memberadmin')]]],
+          ['report_perms', Aggregate.REPORT_IDS.map(function (r) { return [r, t('report_' + r)]; })],
+          // Money power, kept visible but marked: a wrong tick here lets somebody
+          // confirm money they never received.
+          ['perm_money', [['cashier', '⚠️ ' + t('cashier')]]],
+        ];
+        $view().innerHTML = backBar('admin') +
+          '<div class="card"><div class="card-title">🎖️ ' + esc(it.nameBn) + '</div>' +
+            '<div class="row-sub">' + esc(it.nameEn) + '</div>' +
+            '<div class="chips" style="margin-top:8px">' +
+              '<button class="chip" data-li-edit="' + esc(it.id) + '">' + esc(t('edit_btn')) + '</button>' +
+              '<button class="chip" data-li-del="' + esc(it.id) + '">' + esc(t('del_btn')) + '</button>' +
+            '</div></div>' +
+          '<div class="field"><label>🔢 ' + esc(t('pos_max_label')) + '</label>' +
+            '<input id="pos-max" type="number" min="0" inputmode="numeric" value="' + admPosDraft.max + '">' +
+            '<div class="row-sub" style="margin-top:4px">' + esc(t('pos_max_zero')) + '</div></div>' +
+          groups.map(function (g) {
+            return '<div class="perm-grp"><div class="perm-head">' + esc(t(g[0])) + '</div>' +
+              '<div class="chips" style="margin:4px 0 0">' + g[1].map(function (k) {
+                return '<button class="chip' + (admPosDraft.perms.indexOf(k[0]) >= 0 ? ' on' : '') +
+                  '" data-pp-key="' + esc(k[0]) + '">' + esc(k[1]) + '</button>';
+              }).join('') + '</div></div>';
+          }).join('') +
+          '<div class="perm-note">' + esc(t('pos_no_admin')) + '</div>' +
+          '<button id="adm-pos-save" class="primary big block">💾 ' + esc(t('save')) + '</button>' +
+          '<div id="adm-pos-dirty" class="hint" style="text-align:center"></div>';
       } else if (admSection === 'lists') {
         $view().innerHTML = head('adm_lists', 'admin') +
           '<button id="receipt-btn" class="ghost big block">' + esc(t('receipt_design_btn')) + '</button>' +
@@ -4572,7 +4604,9 @@
       // AFTER wireNav — it wires #back-bar generically and would overwrite this.
       // All five screens share one view id, so ← cannot work its parent out by
       // itself; admGo also runs the unsaved-changes check on the way out.
-      const backTo = !admSection ? null : (admSection === 'users' && admUserId) ? 'users' : '';
+      const backTo = !admSection ? null
+        : (admSection === 'users' && admUserId) ? 'users'
+        : (admSection === 'positions' && admPosId) ? 'positions' : '';
       if (backTo !== null) {
         // backBar() defers its own wiring with setTimeout(...,0), queued while
         // the HTML string was being built — so a plain assignment here is
@@ -4589,6 +4623,34 @@
       document.querySelectorAll('[data-adm-user]').forEach(function (b) {
         b.onclick = function () { admGo('users', b.dataset.admUser); };
       });
+      document.querySelectorAll('[data-adm-pos]').forEach(function (b) {
+        b.onclick = function () {
+          if (!admLeaveOk()) return;
+          admPosId = b.dataset.admPos; admPosDraft = null;
+          window.scrollTo(0, 0); paintAdmin(res);
+        };
+      });
+      // the post's own chips, max box and save — all draft, no network per tap
+      document.querySelectorAll('[data-pp-key]').forEach(function (b) {
+        b.onclick = function () { toggle(admPosDraft.perms, b.dataset.ppKey); redraw(); };
+      });
+      const pmax = document.getElementById('pos-max');
+      if (pmax) pmax.oninput = function () {
+        admPosDraft.max = Math.max(0, Math.floor(Number(pmax.value) || 0));
+        const pd = document.getElementById('adm-pos-dirty');
+        const pb = document.getElementById('adm-pos-save');
+        const n = admPosDirty();
+        if (pd) pd.textContent = n ? t('adm_dirty_n').replace('{n}', n) : t('adm_saved_all');
+        if (pb) { pb.disabled = !n; pb.style.opacity = n ? '' : '.5'; }
+      };
+      const psave = document.getElementById('adm-pos-save');
+      if (psave) {
+        const pn = admPosDirty();
+        psave.disabled = !pn; psave.style.opacity = pn ? '' : '.5';
+        const pd = document.getElementById('adm-pos-dirty');
+        if (pd) pd.textContent = pn ? t('adm_dirty_n').replace('{n}', pn) : t('adm_saved_all');
+        psave.onclick = admPosSave;
+      }
       const saveBtn = document.getElementById('adm-save');
       if (saveBtn) {
         const dirtyN = admDirty();
@@ -4729,46 +4791,6 @@
           const bn = window.prompt(t('name_bn'), it.nameBn || ''); if (bn === null) return;
           const en = window.prompt(t('name_en'), it.nameEn || ''); if (en === null) return;
           adminAction('editItem', { id: b.dataset.liEdit, nameBn: bn.trim(), nameEn: en.trim() }, afterList);
-        };
-      });
-      // How many people may hold this post. Blank or 0 = as many as you like;
-      // only a positive number caps it.
-      document.querySelectorAll('[data-pos-max]').forEach(function (b) {
-        b.onclick = function () {
-          const it = items.find(function (x) { return x.id === b.dataset.posMax; }) || {};
-          const v = window.prompt(t('pos_max_prompt').replace('{who}', it.nameBn || ''), String(Number(it.maxCount) || 0));
-          if (v === null) return;
-          const n = Math.max(0, Math.floor(Number(v) || 0));
-          adminAction('setPositionRules', { id: b.dataset.posMax, maxCount: n }, afterList);
-        };
-      });
-      // Toggle one permission on a post. The whole set is sent every time, so a
-      // stale screen can never delete a key it never knew about — the row it
-      // sends is built from the row it drew.
-      document.querySelectorAll('[data-pp-id]').forEach(function (b) {
-        b.onclick = function () {
-          const it = items.find(function (x) { return x.id === b.dataset.ppId; }) || {};
-          const set = String(it.perms || '').split(',').filter(Boolean);
-          const k = b.dataset.ppKey, at = set.indexOf(k);
-          if (at >= 0) set.splice(at, 1); else set.push(k);
-          adminAction('setPositionRules', { id: b.dataset.ppId, perms: set }, afterList);
-        };
-      });
-      document.querySelectorAll('[data-act]').forEach(function (b) {
-        const id = b.dataset.id;
-        b.onclick = function () {
-          if (b.dataset.act === 'approve') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') });
-          else if (b.dataset.act === 'year') adminAction('approveYear', { userId: id, year: Settings.get('year') });
-          else if (b.dataset.act === 'cashier') adminAction('setCashier', { userId: id, cashier: Number(b.dataset.v) });
-          else if (b.dataset.act === 'role') adminAction('setRole', { userId: id, role: b.dataset.v });
-          else if (b.dataset.act === 'block') adminAction('setStatus', { userId: id, status: 'blocked' });
-          else if (b.dataset.act === 'unblock') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') });
-          else if (b.dataset.act === 'reset') adminAction('resetPassword', { userId: id }, function (r) {
-            alert(t('temp_pw_is') + ':\n\n' + r.tempPassword);
-          });
-          else if (b.dataset.act === 'release') {
-            if (window.confirm(t('release_confirm'))) adminAction('releaseSession', { userId: id }, function () { toast(t('release_done')); });
-          }
         };
       });
       // [সব দাও] / [সব নাও] — the chips still work one by one; this only saves

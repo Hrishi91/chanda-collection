@@ -2183,8 +2183,18 @@ try {
 
   // every screen shares one view id, so ← has to be told its parent — and
   // backBar defers its own wiring, so ours must be queued behind it
-  eq(/const backTo = !admSection \? null : \(admSection === 'users' && admUserId\) \? 'users' : '';/.test(app), true,
-     'A38: each screen knows its own parent');
+  eq(/const backTo = !admSection \? null[\s\S]{0,180}admUserId\) \? 'users'[\s\S]{0,120}admPosId\) \? 'positions' : '';/.test(app), true,
+     'A38: each screen knows its own parent — a person, and a post');
+  // A39: the post screen is a screen too, with its own draft and its own save
+  eq(/function admPosSave\(\)/.test(app) && /id="adm-pos-save"/.test(app), true,
+     'A39: a committee post has one 💾, like a person does');
+  eq(/toggle\(admPosDraft\.perms, b\.dataset\.ppKey\); redraw\(\);/.test(app), true,
+     'A39: …and its chips edit a draft, not the server');
+  eq(/function positionCard/.test(app), false,
+     'A39: the old all-posts-on-one-page card, with a fold inside a fold, is gone');
+  eq(/data-adm-pos/.test(app), true, 'A39: the post list navigates like the user list');
+  eq(/const n = admDirty\(\) \+ admPosDirty\(\);/.test(app), true,
+     'A39: leaving a dirty POST asks too — the same guard, not a second one');
   eq(/setTimeout\(function \(\) \{\n\s*const bb = document\.getElementById\('back-bar'\);/.test(app), true,
      'A38: …wired behind backBar\'s own deferred handler, or it is overwritten a tick later');
 
