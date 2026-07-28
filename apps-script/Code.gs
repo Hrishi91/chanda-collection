@@ -108,7 +108,7 @@ function setup() {
   // master lists (areas, person locations) — bilingual, admin-editable
   var ls = ss.getSheetByName('Lists') || ss.insertSheet('Lists');
   if (ls.getLastRow() === 0) { ls.appendRow(['id', 'kind', 'nameBn', 'nameEn', 'order', 'createdAt']); ls.setFrozenRows(1); }
-  ensureListCols_(ls); // maxCount + perms — append-only, so old sheets heal
+  ensureListCols_(ls); // maxCount + perms + the four posts — append-only, old sheets heal
   var hasArea = false;
   if (ls.getLastRow() > 1) {
     ls.getRange(2, 2, ls.getLastRow() - 1, 1).getValues().forEach(function (r) { if (String(r[0]) === 'area') hasArea = true; });
@@ -121,7 +121,6 @@ function setup() {
       ls.appendRow([a[0], 'area', a[1], a[2], i, new Date().toISOString()]);
     });
   }
-  seedPositions_(ls);
   // automatic daily backup — no longer a manual editor step to remember
   var trig = ensureBackupTrigger_();
   Logger.log('setup complete · daily backup trigger: ' + trig);
@@ -463,7 +462,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.9.0';
+var CODE_VERSION = 'chanda-v4.9.1';
 function doGet() { return json_({ ok: true, service: 'chanda-khata', version: CODE_VERSION }); }
 
 var ACTIONS = {
@@ -1161,8 +1160,7 @@ var ACTIONS = {
       // Heal + seed here, not only in setup(): a book created before posts
       // existed would otherwise show the client's four seeded positions while
       // the sheet held none, and every edit would answer 'not-found'.
-      ensureListCols_(sh);
-      seedPositions_(sh);
+      ensureListCols_(sh); // cheap no-op once healed; locks only when it writes
     }
     if (sh && sh.getLastRow() > 1) {
       var mx = ensureCol_(sh, 'maxCount'), pc = ensureCol_(sh, 'perms');
@@ -1420,7 +1418,36 @@ function ensureCols_(sh, cols) {
 // Lists gained two columns in v4.9.0. Appended at the END like every other
 // schema change here, so a sheet written by an older deploy keeps working and
 // heals itself the first time anybody reads the lists.
-function ensureListCols_(sh) { ensureCols_(sh, ['maxCount', 'perms']); }
+//
+// The healing is a WRITE living inside a READ endpoint that every collector
+// calls on every app open and every focus. Two things follow, and I got both
+// wrong on the first pass:
+//   · check first, cheaply, and return without touching the lock when nothing
+//     is missing — otherwise ten phones queue behind a 20s script lock to
+//     discover there was nothing to do;
+//   · when something IS missing, take the lock and check AGAIN inside it. Ten
+//     phones can reach that line in the same second, and each would otherwise
+//     append its own copy of the four posts. Duplicate posts in a dropdown are
+//     nasty to undo.
+function ensureListCols_(sh) {
+  var last = sh.getLastColumn();
+  var have = last ? sh.getRange(1, 1, 1, last).getValues()[0].map(String) : [];
+  var needCols = ['maxCount', 'perms'].filter(function (c) { return have.indexOf(c) < 0; }).length > 0;
+  var seen = {};
+  if (sh.getLastRow() > 1) {
+    sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(function (r) {
+      if (String(r[1]) === 'position') seen[String(r[0])] = true;
+    });
+  }
+  var needSeed = POSITION_SEED.filter(function (p) { return !seen[p[0]]; }).length > 0;
+  if (!needCols && !needSeed) return; // the normal case: read-only, no lock
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    ensureCols_(sh, ['maxCount', 'perms']);
+    seedPositions_(sh); // re-reads the ids itself, so the second check is real
+  } finally { lock.releaseLock(); }
+}
 // Put the four committee posts in the sheet if they are not there. Idempotent —
 // keyed on the ids, so renaming সম্পাদক in the admin panel never resurrects it.
 function seedPositions_(sh) {

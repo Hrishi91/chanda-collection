@@ -843,3 +843,66 @@ RUNNING, not against any artefact that updates ahead of it. And the same test
 that proves a fix must be run from the user's stuck state, not from a clean one —
 fault 1 survived my first pass precisely because I only tested the path where a
 new worker arrives.
+
+## A33 — the dependency sweep after v4.9.0 (asked for, and it found things)
+
+Hrishi: "have you check the dependable areas in application". The same question
+that exposed A18 — where I claimed six sites read handover status and there were
+eight. So this time I traced instead of asserting.
+
+### Fixed here
+
+**`listItems` became a READ endpoint that WRITES, with no lock.** The schema
+healing (`ensureListCols_` + `seedPositions_`) sat inside `listItems`, which
+`requireUser_` allows to *every* collector and which `Lists.refresh()` calls on
+every app open and every window focus. Two faults in one:
+- ten phones opening the app in the same minute would each read "no positions"
+  and each append their own copy of the four posts — and every other writer in
+  Code.gs takes a script lock (seven of them do);
+- taking that lock unconditionally would serialise ten phones behind a 20-second
+  lock on the hot read path, to discover there was nothing to do.
+
+Now: a cheap read-only check first, return without touching the lock in the
+normal case; only when something IS missing take the lock and re-check inside
+it. Proven by removing each half and watching the matching test go red.
+
+**The post card looked broken before the redeploy.** Posts live in the sheet, so
+until Code.gs is redeployed the admin card is empty — while the entry screens
+still offer four posts from the client's own seed. That reads as a bug. The empty
+state now says exactly what is happening and what fixes it.
+
+### Found, verified clean
+
+| Checked | Result |
+|---|---|
+| Every `reconcile(` caller | 3 in app.js — all pass `positionMax`; the 30 in tests pass none, which skips the check by design |
+| Every `Lists.get('position')` / `labelOf('position')` reader | 8 sites, all read only id/nameBn/nameEn — the two new fields disturb none of them |
+| `i18n` key `list_position` | one user, the card I rewrote |
+| `Lists.refresh()` writing the cache | carries `maxCount`/`perms` through untouched (it pushes whole items) |
+| Scope check over app.js | clean |
+
+### Known, NOT fixed here — stated so it is a decision, not an oversight
+
+**A `position_over_max` anomaly can light the 🩺 dot with no way to clear it.**
+Nothing in the app can change a member's post after registration — the register
+has only 👤 link-account. So if two members share a capped post, the dot burns
+until ③ ships the edit path. This is the exact failure mode this project keeps
+re-learning: a marker that cannot be cleared teaches people to ignore markers
+(A19 ghost toast, A23 blind counter, A26 dots, A31 dead update button).
+
+**Therefore ③ moves ahead of ②.** The edit path is small and it closes this;
+② can wait a commit.
+
+**Restoring a backup taken before v4.9.0 silently empties every post's
+permission set.** `restoreBackup` clears the sheet and writes the snapshot
+verbatim, so the two columns vanish; the next read heals them back with blank
+perms. That is what restoring old data means, but it is worth knowing before
+doing it: re-tick the post permissions after any pre-v4.9.0 restore.
+
+**`memberRegisterFlow`'s `showIf: Lists.get('position').length > 0` is dead
+code** — the client seed always returns four, so it is never false. Harmless,
+removed when ③ rewrites that flow.
+
+**`js/help.js` is not stale yet but will be after ②** — it still describes
+permissions as per-user, which is still true today. It gets rewritten with ②,
+not before, so the guide never describes a screen that does not exist.

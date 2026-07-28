@@ -1767,8 +1767,17 @@ try {
   });
   eq(/function seedPositions_/.test(gs) && /seedPositions_\(sh\)/.test(gs), true,
      'A32: …and seeds them on read too, so an old book heals without setup()');
-  eq(/ensureListCols_\(sh\)[\s\S]{0,200}seedPositions_/.test(gs), true,
+  eq(/ensureCols_\(sh, \['maxCount', 'perms'\]\)/.test(gs), true,
      'A32: Lists columns are appended at the END, so an old sheet keeps working');
+  // The healing is a WRITE inside listItems — a READ endpoint every collector
+  // hits on every app open. It must not lock when there is nothing to do, and
+  // it MUST lock when there is, or ten phones each append their own four posts.
+  eq(/if \(!needCols && !needSeed\) return;/.test(gs), true,
+     'A32: healing returns without a lock when nothing is missing');
+  eq(/if \(!needCols && !needSeed\) return;[\s\S]{0,240}getScriptLock\(\)[\s\S]{0,200}seedPositions_/.test(gs), true,
+     'A32: …and takes the script lock before it writes, like every other writer here');
+  eq(/pos_none_server/.test(app) && /pos_none_server:/.test(i18n), true,
+     'A32: an empty post card explains itself instead of looking broken before the redeploy');
 
   // 0 / blank = unlimited. Only a positive number caps.
   eq(/m > 0 && held >= m/.test(lists), true, 'A32: only a POSITIVE max caps a post');

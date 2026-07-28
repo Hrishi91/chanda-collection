@@ -5218,3 +5218,32 @@ two holders raises "⚠️ এক পদে বেশি লোক — সভা
 
 **Rides the pending redeploy** — Code.gs gains `setPositionRules`,
 `POSITION_PERM_KEYS`, `seedPositions_`, and two Lists columns.
+
+## v4.9.1 — A33: the dependency sweep Hrishi asked for (2026-07-28)
+
+"have you check the dependable areas in application" — the same question that
+found A18. Tracing instead of asserting turned up two faults of mine.
+
+`listItems` had become a read endpoint that WRITES: the schema healing sat
+inside it, and `listItems` is open to every collector and called on every app
+open and focus. Ten phones would each append their own copy of the four posts,
+while every other writer in Code.gs takes a script lock. Locking it
+unconditionally was the wrong fix too — that puts a 20-second lock on the hot
+read path. It now checks cheaply and read-only first, and only takes the lock
+when there is genuinely something to write, re-checking inside it.
+
+The post card also looked broken before the redeploy: the posts live in the
+sheet, so the card is empty while the entry screens still show four posts from
+the client seed. The empty state now says why and what fixes it.
+
+Reordering ③ ahead of ②, and this is the reason: `position_over_max` can light
+the 🩺 dot, and nothing in the app can change a member's post after registration
+— so the dot cannot be cleared. That is the failure mode this project keeps
+re-learning (A19, A23, A26, A31). ③ closes it and is small.
+
+Also written down rather than quietly left: restoring a pre-v4.9.0 backup empties
+every post's permission set (the columns are not in that snapshot), and
+help.js gets rewritten with ② rather than now, so the guide never describes a
+screen that does not exist yet.
+
+730 passed, 0 failed.

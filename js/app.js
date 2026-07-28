@@ -7,7 +7,7 @@
   // code it loaded minutes ago. Reporting the cache made "I updated but nothing
   // changed" look like success. Asserted equal to sw.js VERSION and Code.gs
   // CODE_VERSION in tests/run.js, so the three can never drift apart.
-  const APP_VERSION = 'chanda-v4.9.0';
+  const APP_VERSION = 'chanda-v4.9.1';
   const SIDES = ['main_malda', 'main_balurghat', 'harirampur', 'singhadaha'];
   const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
   let flowState = null;
@@ -4089,7 +4089,11 @@
                 // at a time, never a side effect of a job title.
                 '<div class="perm-note">' + esc(t('pos_no_admin')) + '</div>' +
               '</div></details></div>';
-          }).join('') : '<div class="empty">' + esc(t('no_items')) + '</div>') + '</div>';
+          }).join('')
+            // The posts live in the SHEET. Until Code.gs is redeployed this card
+            // is empty while the entry flows still offer four posts from the
+            // client's own seed — which reads as a bug unless it says why.
+            : '<div class="empty">' + esc(t('pos_none_server')) + '</div>') + '</div>';
       }
       // Grouped into collapsible sections (native <details>) so the admin sees
       // four tidy groups instead of a wall of buttons and cards. Users opens by
