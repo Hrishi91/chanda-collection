@@ -207,7 +207,7 @@
     clearTimeout(syncTimer);
     syncTimer = setTimeout(function () {
       Sync.syncNow().then(function (r) {
-        if (r.ok && r.sent) { toast('☁️ Sync: ' + r.sent); pullCentral(); } // refresh the snapshot after a push
+        if (r.ok && r.sent) { toast('☁️ Sync: ' + r.sent); pullCentral({ force: true }); } // refresh the snapshot after a push
         updateBadge();
         if (r.reason === 'busy') autoSync(); // a sync was in flight — retry the tail
       });
@@ -247,8 +247,30 @@
     if (changed) centralVersion++; // in-place merge still invalidates the memo
     return { changed: changed, chatOnly: changed && chatOnly };
   }
-  function pullCentral() {
+  // A69 (audit #2 P3): pullCentral had no in-flight guard, unlike Sync.syncNow
+  // which has always had one. FOUR things call it — the 60 s timer, window
+  // focus, the notification poll, and autoSync after a push.
+  //
+  // The field case: the link degrades to 70 s latency but navigator.onLine
+  // still says true (it reports link state, not reachability). Every 60 s a new
+  // pull starts on top of the last one that has not returned. Ten minutes in
+  // there are ten open requests, each holding the radio awake, all racing to
+  // write centralData, and nothing backs off for the rest of the evening.
+  //
+  // The backoff is counted in POLLS, not milliseconds, so it cannot outlive the
+  // situation: it is reset the moment the phone reports 'online', on focus, and
+  // on a manual pull-to-refresh — all three are a human or the OS saying
+  // "conditions changed", which is better evidence than a timer.
+  let pullBusy = false, pullSkip = 0, pullFails = 0;
+  function resetPullBackoff() { pullSkip = 0; pullFails = 0; }
+  function pullCentral(opts) {
     if (!navigator.onLine || !Sync.configured() || !Auth.loggedIn()) return Promise.resolve();
+    const forced = !!(opts && opts.force);
+    if (pullBusy) return Promise.resolve();
+    // a forced pull (focus, manual refresh, post-push) always runs; only the
+    // background timer is allowed to be skipped
+    if (!forced && pullSkip > 0) { pullSkip--; return Promise.resolve(); }
+    pullBusy = true;
     const year = String(Settings.get('year'));
     // switching year invalidates the snapshot — force a full pull, never merge
     // one year's delta into another year's cache.
@@ -267,8 +289,21 @@
         if (resp.config) { centralConfig = resp.config; try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {} }
         setCentral(null); centralCursor = '';
         try { localStorage.removeItem('ck_central'); localStorage.removeItem('ck_central_cursor'); } catch (e) {}
-        return DB.clearAll().then(function () { return pullCentral(); }); // clean full pull
+        // A69: the flag is cleared BEFORE the recursive call, or the clean
+        // re-pull is swallowed by the guard this very call set — and the device
+        // would sit on an empty book until the next tick.
+        //
+        // This branch is also where the in-flight guard earns its keep as a
+        // CORRECTNESS fix, not a performance one: before it, a second pull
+        // already in flight held a PRE-clear response, resolved after the wipe,
+        // and wrote pre-epoch training rows straight back into the live book —
+        // the exact thing the epoch bump exists to prevent.
+        return DB.clearAll().then(function () {
+          pullBusy = false;
+          return pullCentral({ force: true }); // clean full pull
+        });
       }
+      resetPullBackoff(); // it got through: forget any earlier failures
       let changed, chatOnly = false;
       if (resp.mode === 'delta' && centralData) {
         const m = mergeDelta(resp.data || {});
@@ -320,7 +355,22 @@
       const el = document.activeElement;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
       if (['list', 'party', 'report'].indexOf(current.view) >= 0) render();
-    }).catch(function () { /* offline — keep the cached snapshot */ });
+    }).catch(function () {
+      // A69: a failed pull earns a growing skip. Doubling, capped at 8 polls
+      // (~8 minutes) — long enough to stop hammering a dead tower, short enough
+      // that a link coming back on its own is picked up the same evening. The
+      // snapshot is kept: offline shows the last good book, which is the whole
+      // point of holding one.
+      pullFails = Math.min(pullFails + 1, 4);
+      pullSkip = Math.pow(2, pullFails - 1); // 1, 2, 4, 8 polls
+    }).then(function () {
+      // ALWAYS — success, failure, or an abort. A flag that a single stuck
+      // request can leave set for ever would silently stop every future pull on
+      // that phone, and nothing would say so. `.then` after `.catch` runs on
+      // both paths; a `.finally` would too, but this file targets phones whose
+      // browser may predate it.
+      pullBusy = false;
+    });
   }
   // central snapshot overlaid with this device's own rows (so a just-saved
   // entry shows before it syncs back). Falls back to local-only if no pull yet.
@@ -484,7 +534,7 @@
           : Auth.call('confirmHandover', { token: tok, id: id });
         call.then(function () {
           toast(t('saved'));
-          if (notifViaPull) pullCentral(); else checkNotifications(); // refresh the feed
+          if (notifViaPull) pullCentral({ force: true }); else checkNotifications(); // refresh the feed
           if (!flowState && REFRESHABLE.indexOf(current.view) >= 0) render();
         }).catch(function (e) { b.disabled = false; toast(errMsg(e)); });
       };
@@ -533,7 +583,10 @@
     if (!notifViaPull) checkNotifications(); // old backend only — pull carries it otherwise
     autoSync(); // push anything still pending when the user returns
     Lists.refresh(); // pick up admin edits to areas/locations
-    pullCentral(); // refresh the central snapshot (incl. notifications + me)
+    // A69: coming back to the app is the user saying "try now" — clear any
+    // backoff and force past the in-flight skip
+    resetPullBackoff();
+    pullCentral({ force: true }); // refresh the central snapshot (incl. notifications + me)
     if (Auth.loggedIn() && !flowState && REFRESHABLE.indexOf(current.view) >= 0) render();
   }
   function startNotifPolling() {
@@ -548,7 +601,7 @@
     }, 60000);
     if (!notifViaPull) checkNotifications();
     Lists.refresh(); // populate the areas/locations cache
-    pullCentral(); // pull the central snapshot on login
+    pullCentral({ force: true }); // pull the central snapshot on login
   }
   // Minimal pull-to-refresh: pull down > ~80px from the very top → refresh.
   function wirePullToRefresh() {
@@ -3034,7 +3087,7 @@
       paint();
       // if no serial yet, sync + pull to obtain one, then redraw
       if (!rc.receiptNo && navigator.onLine && Sync.configured()) {
-        Sync.syncNow().then(function () { return pullCentral(); }).then(function () {
+        Sync.syncNow().then(function () { resetPullBackoff(); return pullCentral({ force: true }); }).then(function () {
           return viewData().then(function (d2) {
             const e2 = (d2[store] || []).filter(function (x) { return x.id === id; })[0];
             if (e2 && e2.receiptNo && current.view === 'receipt') { rc.receiptNo = e2.receiptNo; paint(); }
@@ -3960,7 +4013,7 @@
             settleCard(b);
             // pull so this device's own snapshot stops raising it too; the card
             // is already gone, so this is repair, not the user's feedback
-            pullCentral().catch(function () {});
+            pullCentral({ force: true }).catch(function () {});
           })
           .catch(function (e) { b.disabled = false; toast(errMsg(e)); });
       };
@@ -5415,7 +5468,7 @@
             // copy too — otherwise the phone keeps showing rows the sheet lost
             return DB.clearAll().then(function () {
               toast(t('clear_training_done') + (r && r.backup ? ' · ' + r.backup : ''));
-              return pullCentral();
+              return pullCentral({ force: true });
             });
           })
           .then(function () { updateBadge(); navigate('home'); })
@@ -5439,7 +5492,7 @@
         // away, so the server had no confirmation at all. Send it.
         Auth.call('goLive', { token: Auth.token(), digits: digits, confirm: 'LIVE' }).then(function () {
           toast(t('golive_done'));
-          pullCentral().then(function () { navigate('home'); }); // epoch bump wipes local training data
+          pullCentral({ force: true }).then(function () { navigate('home'); }); // epoch bump wipes local training data
         }).catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
       };
       const chatTog = document.getElementById('chat-toggle');
@@ -5711,7 +5764,10 @@
     updateBadge();
   }
 
-  window.addEventListener('online', autoSync);
+  // A69: 'online', focus and a manual refresh are a human or the OS saying
+  // "conditions changed" — better evidence than any timer, so each resets the
+  // backoff instead of waiting it out.
+  window.addEventListener('online', function () { resetPullBackoff(); autoSync(); });
   // phone/browser Back button → step back in the app (in a flow, cancel it)
   window.addEventListener('popstate', function (e) {
     // A63 (audit 2.11): this used to throw away a half-finished entry with no

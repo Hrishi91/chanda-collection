@@ -7,7 +7,7 @@ const Auth = (function () {
   // here would depend on load order, which is the kind of thing that works in
   // testing and fails on somebody's phone. Bound to sw.js VERSION and Code.gs
   // CODE_VERSION by tests/run.js so the three cannot drift.
-  const APP_VERSION = 'chanda-v4.17.0';
+  const APP_VERSION = 'chanda-v4.17.1';
   // A43: the RELEASE string above is for people to read. This is the number
   // that decides anything: the server CONTRACT this client speaks — columns,
   // handlers, meanings. It moves only when Code.gs actually changes, so a
@@ -67,16 +67,38 @@ const Auth = (function () {
   function apiUrl() {
     return Settings.get('scriptUrl') || (window.CONFIG && CONFIG.SCRIPT_URL) || '';
   }
+  // A69 (audit #2 P3): fetch() has no timeout of its own — none, ever. A phone
+  // attached to a saturated tower keeps a request open indefinitely, and
+  // `navigator.onLine` still says true because it reports LINK state, not
+  // reachability. So the app sat there looking busy with nothing coming back,
+  // while the 60 s poll started another one on top, and another.
+  //
+  // 25 s, not 10: one Apps Script round trip measured 2.81 s from a WIRED
+  // connection, because script.google.com redirects to
+  // script.googleusercontent.com — two hosts, two DNS lookups, two TLS
+  // handshakes per logical call. On a village 3G that legitimately reaches
+  // 15–20 s, and a timeout that fires on a request which WOULD have succeeded
+  // is worse than no timeout: the collector retries, and the retry is slower
+  // than the wait would have been.
+  const CALL_TIMEOUT_MS = 25000;
   function call(action, payload) {
     if (!apiUrl()) return Promise.reject(new Error('not-configured'));
+    const ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    let timer = null;
+    if (ac) timer = setTimeout(function () { ac.abort(); }, CALL_TIMEOUT_MS);
+    const done = function () { if (timer) { clearTimeout(timer); timer = null; } };
     return fetch(apiUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      signal: ac ? ac.signal : undefined,
       // Every request carries this device's version, so the server can record
       // who is running what — one place, so no handler can forget.
       body: JSON.stringify(Object.assign({ action: action, appVersion: APP_VERSION, appSchema: APP_SCHEMA }, payload || {})),
-    }).then(function (r) { return r.json(); })
-      .catch(function () { throw new Error('network'); })
+    }).then(function (r) { done(); return r.json(); })
+      // an abort and a dead link are the same thing to the user — "it did not
+      // get through" — and errMsg already turns 'network' into a sentence about
+      // the internet rather than about the server
+      .catch(function () { done(); throw new Error('network'); })
       .then(function (resp) {
         // …and every response carries the server's, ok or not. Read it before
         // anything can throw, or a device that is behind AND getting errors

@@ -3219,6 +3219,75 @@ try {
      'A67: the collector still gets their own note — the two say different things to different people');
 }
 
+
+// ---- A69 (audit #2 P3): timeout, in-flight guard, backoff ---------------------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const auth = fs.readFileSync(__dirname + '/../js/auth.js', 'utf8');
+
+  // fetch() has NO timeout of its own. A phone on a saturated tower keeps a
+  // request open indefinitely while navigator.onLine still says true, because
+  // it reports link state, not reachability.
+  eq(/const CALL_TIMEOUT_MS = 25000;/.test(auth), true, 'A69: every request has a deadline');
+  eq(/signal: ac \? ac\.signal : undefined/.test(auth), true, 'A69: …carried by an AbortController…');
+  eq(/if \(ac\) timer = setTimeout\(function \(\) \{ ac\.abort\(\); \}, CALL_TIMEOUT_MS\);/.test(auth), true,
+     'A69: …which actually fires');
+  eq(/\.then\(function \(r\) \{ done\(\); return r\.json\(\); \}\)/.test(auth) &&
+     /\.catch\(function \(\) \{ done\(\); throw new Error\('network'\); \}\)/.test(auth), true,
+     'A69: …and the timer is cleared on BOTH paths, so a finished call leaves nothing pending');
+  // 25 s and not 10: one Apps Script round trip measured 2.81 s from a WIRED
+  // connection (two hosts, two DNS lookups, two TLS handshakes per logical
+  // call). A timeout that kills a request which would have succeeded is worse
+  // than none — the retry is slower than the wait.
+  eq(Number((auth.match(/CALL_TIMEOUT_MS = (\d+)/) || [])[1]) >= 20000, true,
+     'A69: …with real headroom over a measured 2.81 s round trip');
+
+  // pullCentral had no in-flight guard, unlike Sync.syncNow which always had
+  // one. Four things call it: the 60 s timer, focus, the notification poll and
+  // autoSync after a push.
+  eq(/let pullBusy = false, pullSkip = 0, pullFails = 0;/.test(app), true, 'A69: pullCentral has an in-flight guard');
+  eq(/if \(pullBusy\) return Promise\.resolve\(\);/.test(app), true,
+     'A69: …checked BEFORE the force branch, so even a forced pull cannot stack');
+  eq(app.indexOf('if (pullBusy) return Promise.resolve();') < app.indexOf('if (!forced && pullSkip > 0)'), true,
+     'A69: …in that order');
+  eq(/\}\)\.then\(function \(\) \{[\s\S]{0,600}?pullBusy = false;\n\s*\}\);/.test(app), true,
+     'A69: …and released on success, failure AND abort — a flag a stuck request can leave set for ever would silently stop every future pull');
+
+  // the epoch branch: this is where the guard is a CORRECTNESS fix. Before it,
+  // a second pull holding a PRE-clear response resolved after the wipe and
+  // wrote pre-epoch training rows back into the live book.
+  eq(/pullBusy = false;\n\s*return pullCentral\(\{ force: true \}\); \/\/ clean full pull/.test(app), true,
+     'A69: the epoch re-pull clears the flag first, or it would be swallowed by the guard it just set');
+
+  // backoff counted in POLLS, so it cannot outlive the situation
+  eq(/pullFails = Math\.min\(pullFails \+ 1, 4\);/.test(app) && /pullSkip = Math\.pow\(2, pullFails - 1\);/.test(app), true,
+     'A69: a failed pull earns a doubling skip, capped');
+  {
+    let f = 0, skip = 0; const seq = [];
+    for (let i = 0; i < 6; i++) { f = Math.min(f + 1, 4); skip = Math.pow(2, f - 1); seq.push(skip); }
+    eq(seq, [1, 2, 4, 8, 8, 8], 'A69: …1, 2, 4, 8 polls and no further — ~9 minutes at worst, not the whole evening');
+  }
+  eq(/resetPullBackoff\(\); \/\/ it got through/.test(app), true, 'A69: one success forgets every earlier failure');
+
+  // 'online', focus and a manual refresh are a human or the OS saying
+  // "conditions changed" — better evidence than any timer.
+  eq(/window\.addEventListener\('online', function \(\) \{ resetPullBackoff\(\); autoSync\(\); \}\);/.test(app), true,
+     'A69: coming back online resets the backoff');
+  eq(/resetPullBackoff\(\);\n\s*pullCentral\(\{ force: true \}\); \/\/ refresh the central snapshot/.test(app), true,
+     'A69: …so does returning to the app');
+  eq(/Sync\.syncNow\(\)\.then\(function \(\) \{ resetPullBackoff\(\); return pullCentral\(\{ force: true \}\); \}\)/.test(app), true,
+     'A69: …and so does a manual pull-to-refresh');
+
+  // exactly ONE caller may be skipped: the background timer. Everything a
+  // human or the app itself initiates is forced.
+  {
+    const calls = app.match(/pullCentral\((\{ force: true \})?\)/g) || [];
+    const unforced = calls.filter(function (c) { return c === 'pullCentral()'; });
+    eq(unforced.length, 1, 'A69: the 60 s background tick is the only skippable pull (' + unforced.length + ')');
+  }
+}
+
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------
 {
   const fs = require('fs');

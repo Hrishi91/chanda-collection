@@ -7026,3 +7026,76 @@ not prove the action behaves, only that it is there. That behaviour is covered
 by `tests/backend.js` against the shim (14 assertions), and the one thing
 neither can prove remains the same as before: that Sheets strips `safeCell_`'s
 leading apostrophe on read-back.
+
+## v4.17.1 — A69 (audit #2, P3): a request that never comes back, ten times over (2026-07-29)
+
+Three absences, one failure mode. Verified missing at HEAD before starting:
+`grep -n "pullBusy\|AbortController\|pullSkip" js/app.js js/auth.js` → nothing.
+
+### The field case
+
+The link degrades — not drops, degrades — to 70 s latency. `navigator.onLine`
+still says `true`, because it reports **link state, not reachability**: a phone
+attached to a saturated tower is "online". `fetch()` has no timeout of its own,
+so the request just sits there. Sixty seconds later the timer fires another
+`pullCentral` on top of it. Ten minutes in there are ten open requests, each
+holding the radio awake, all racing to write `centralData`, and **nothing backs
+off for the rest of the evening**.
+
+`Sync.syncNow` has had an `inFlight` guard since the beginning. `pullCentral`
+never had one — and **four** things call it: the 60 s timer, window focus, the
+notification poll, and `autoSync` after a push.
+
+### And it is a correctness bug, not only a performance one
+
+The epoch branch does `setCentral(null)` → `DB.clearAll()` → `pullCentral()`. A
+second pull already in flight holds a **pre-clear** response, resolves *after*
+the wipe, and writes pre-epoch training rows straight back into the live book —
+the exact thing the epoch bump exists to prevent. Narrow (it needs `goLive` or
+`clearTraining` inside a few seconds), but real, and the in-flight guard closes
+it as a side effect.
+
+### What landed
+
+**A 25 s deadline** on the one `fetch()` in the client, via `AbortController`.
+**Not 10 s**: one Apps Script round trip measures **2.81 s from a wired
+connection**, because `script.google.com` redirects to
+`script.googleusercontent.com` — two hosts, two DNS lookups, two TLS handshakes
+per logical call. On a village 3G that legitimately reaches 15–20 s, and a
+timeout that kills a request which *would* have succeeded is worse than no
+timeout: the collector retries, and the retry is slower than the wait would have
+been. The timer is cleared on **both** paths, and an abort surfaces as
+`'network'` — the message `errMsg` already turns into a sentence about the
+internet rather than about the server.
+
+**An in-flight guard**, checked *before* the force branch so even a forced pull
+cannot stack. Released in a `.then` after the `.catch`, so success, failure and
+abort all clear it — a flag that one stuck request could leave set for ever
+would silently stop every future pull on that phone, and nothing would say so.
+In the epoch branch it is cleared explicitly before the recursive call, or the
+clean re-pull would be swallowed by the guard it had just set.
+
+**A backoff counted in POLLS, not milliseconds** — 1, 2, 4, 8 and no further, so
+the worst gap is about nine minutes rather than the whole evening. It is reset
+by three things, each of which is a human or the OS saying *conditions changed*:
+the `online` event, returning to the app, and pull-to-refresh. That is better
+evidence than any timer.
+
+**Exactly one caller may be skipped** — the 60 s background tick. Everything a
+person initiates is `{force: true}`, and a test pins that count at one, because
+the failure mode of this change is a collector tapping refresh and being told to
+wait for a backoff they did not cause.
+
+### Verification
+
+Tests **1,205 → 1,222**, including the backoff arithmetic run rather than
+asserted. Then driven in a browser on a fresh port, with `fetch` replaced by a
+promise that never resolves — the actual field case:
+
+- one hung request plus five more triggers → **1** pull opened (was one per trigger)
+- six background ticks against a dead server → **0** attempted (1, 2, 4, 8 skipped)
+- `online` then focus → the pull runs **immediately**, no waiting out the backoff
+- the `AbortController` signal reaches `fetch`, and an aborted request reports
+  `network`
+
+Client-only. No schema change, `Code.gs` untouched — **no redeploy needed.**

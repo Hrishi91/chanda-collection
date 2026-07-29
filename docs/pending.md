@@ -454,9 +454,13 @@ against HEAD `16f390e`). Spot-checked every headline claim; all accurate.
   IndexedDB, so on other collectors' rows they did nothing at all. New
   `setAnomalyFlag` server action. The audit's own suggested fix was tested first
   and **would have moved the money into the cashier's name**.
+- **P3 FIXED in v4.17.1 (A69)** — 25 s AbortController deadline (sized against
+  a measured 2.81 s wired round trip), an in-flight guard on `pullCentral`
+  (which also closes the epoch-reset window where a pre-clear response wrote
+  training rows back), and a poll-counted backoff reset by `online`/focus/manual
+  refresh. Only the 60 s background tick is skippable.
 - **OPEN, recommended order** (mine, by what bites during the puja, not the
-  audit's batching): **P3** request timeout + in-flight guard + backoff (also
-  closes a data-correctness window on epoch reset) · **P1** stop re-writing the
+  audit's batching): **P1** stop re-writing the
   whole snapshot to localStorage on every idle poll · **U5** a denied microphone
   reported as "this phone can't do voice" · **U6** the 22 px Undo button ·
   **U4** the sync badge explains itself only through a `title` tooltip ·
