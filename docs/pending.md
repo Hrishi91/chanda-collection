@@ -447,7 +447,26 @@ The real-phone smoke test is DONE.
   Extract order when the season is over: `fmt.js` → `reports-html.js` →
   `receipt.js` → `admin.js`. **Not doing before the puja:** merging twin donors (moves money between
   rows — audit §5 says do not touch the money engine now).
-- **§7 documentation drift — OPEN**. Note the count moved again: A61 added
+**→ Second audit: `AUDIT-2-UX-PERF-2026-07-29.md`** (UX + performance, verified
+against HEAD `16f390e`). Spot-checked every headline claim; all accurate.
+
+- **U1 FIXED in v4.17.0 (A68)** — the 🩺 desk's ✓ buttons read this device's
+  IndexedDB, so on other collectors' rows they did nothing at all. New
+  `setAnomalyFlag` server action. The audit's own suggested fix was tested first
+  and **would have moved the money into the cashier's name**.
+- **OPEN, recommended order** (mine, by what bites during the puja, not the
+  audit's batching): **P3** request timeout + in-flight guard + backoff (also
+  closes a data-correctness window on epoch reset) · **P1** stop re-writing the
+  whole snapshot to localStorage on every idle poll · **U5** a denied microphone
+  reported as "this phone can't do voice" · **U6** the 22 px Undo button ·
+  **U4** the sync badge explains itself only through a `title` tooltip ·
+  **U7** untranslated `Skip`/`flag`/`confirm বাকি` · **P2** the 45 KB logo on
+  every poll (server, one redeploy) · **P4/P5/U2/U3/U8** the rest.
+- **Declined for now**: **U9** (merge mode+amount) touches the flow engine —
+  same reason as 2.19. **U11** (auto-focus the খাতা search) would put a keyboard
+  over the list on Android. **তুমি vs আপনি** is Hrishi's call, not a finding.
+
+**→ §7 documentation drift — OPEN**. Note the count moved again: A61 added
   `possible_duplicate_daily`, so `money-model.md:163` now says eight where the
   code raises **ten**.
 

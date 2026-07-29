@@ -336,6 +336,75 @@ module.exports = function runBackendTests(eq) {
        'backend session: …and stops the moment the admin releases it');
   }
 
+
+  // ---- A68 (audit #2 U1): answering an anomaly on somebody else's row -----
+  // The client used to do this through the local queue. That failed silently
+  // (the row is not in this device's IndexedDB) — and the obvious repair,
+  // pushing the central row back, was WORSE. Both are proven here.
+  {
+    const { b, tok } = book();
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('payments', { id: 'p1', year: 2026, partyId: 's1', partyName: 'মা তারা', amount: 500,
+                        cashAmount: 500, upiAmount: 0, date: '2026-08-01' }),
+    ] });
+    // what the audit suggested: take the central row, stamp it, push it back
+    const central = b.call('pull', { token: tok.bimal, year: 2026 }).data.payments[0];
+    central.dupOk = 1;
+    b.call('push', { token: tok.bimal, epoch: '', records: [rec('payments', central)] });
+    eq(b.rows('Payments')[0].collectorId, 'bimal',
+       'backend U1: pushing a central row back DOES steal the attribution — which is why the desk must not do it');
+  }
+  {
+    const { b, tok } = book();
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('payments', { id: 'p1', year: 2026, partyId: 's1', partyName: 'মা তারা', amount: 500,
+                        cashAmount: 500, upiAmount: 0, date: '2026-08-01' }),
+      rec('daily', { id: 'd1', year: 2026, type: 'bus', busName: 'শিবম', busNumber: 'WB651234',
+                     amount: 300, cashAmount: 300, upiAmount: 0, date: '2026-08-01' }),
+      rec('parties', { id: 's1', year: 2026, type: 'shop', name: 'মা তারা', pledged: 100 }),
+    ] });
+    const before = b.rows('Payments')[0];
+    const ts = b.api.readConfig_().data_ts;
+    b.env._setNow(b.env._now() + 60000);
+    eq(b.call('setAnomalyFlag', { token: tok.bimal, store: 'payments', id: 'p1', field: 'dupOk' }).ok, true,
+       'backend U1: the cashier can answer a duplicate on a row they did not write…');
+    const after = b.rows('Payments')[0];
+    eq(Number(after.dupOk), 1, 'backend U1: …the flag lands…');
+    eq(after.collectorId, before.collectorId,
+       'backend U1: …and the money stays with whoever collected it — one cell, nothing else');
+    eq(after.amount, before.amount, 'backend U1: …amount untouched');
+    eq(after.receivedAt !== before.receivedAt, true,
+       'backend U1: …receivedAt bumped, or the delta pull never carries the answer');
+    eq(b.api.readConfig_().data_ts !== ts, true, 'backend U1: …and data_ts moves, so no phone fast-paths past it');
+    // all three stores
+    eq(b.call('setAnomalyFlag', { token: tok.bimal, store: 'daily', id: 'd1', field: 'dupOk' }).ok, true,
+       'backend U1: daily too');
+    eq(b.call('setAnomalyFlag', { token: tok.admin, store: 'parties', id: 's1', field: 'pledgeOk' }).ok, true,
+       'backend U1: …and parties');
+    // the table is fixed: this must never become "set any cell on any row"
+    let threw = '';
+    try { b.call('setAnomalyFlag', { token: tok.admin, store: 'payments', id: 'p1', field: 'amount' }); }
+    catch (e) { threw = String(e.message || e); }
+    eq(threw, 'bad-input', 'backend U1: an arbitrary column name is refused');
+    threw = '';
+    try { b.call('setAnomalyFlag', { token: tok.admin, store: 'users', id: 'p1', field: 'role' }); }
+    catch (e) { threw = String(e.message || e); }
+    eq(threw, 'bad-input', 'backend U1: …and so is an arbitrary store');
+    // and a plain collector cannot answer the desk at all
+    threw = '';
+    try { b.call('setAnomalyFlag', { token: tok.ratan, store: 'payments', id: 'p1', field: 'dupOk' }); }
+    catch (e) { threw = String(e.message || e); }
+    eq(threw, 'not-cashier', 'backend U1: the desk stays cashier/admin only');
+    // …and the gate is isCashier_, matching the screen. canReview_ would also
+    // demand the 'review' grant, which belongs to the CORRECTION desk — a
+    // cashier without it would see every button on 🩺 and have every one fail.
+    const noReview = b.rows('Users').filter(function (u) { return u.username === 'bimal'; })[0];
+    b.call('setEntries', { token: tok.admin, userId: noReview.id, entries: ['shop'] });
+    const t2 = b.call('login', { username: 'bimal', password: 'secret1', year: 2026 }).token;
+    eq(b.call('setAnomalyFlag', { token: t2, store: 'daily', id: 'd1', field: 'dupOk' }).ok, true,
+       'backend U1: a cashier WITHOUT the review grant can still answer the anomaly desk they can see');
+  }
+
   // ---- 2.4 / A59: rolloverYear announces itself ---------------------------
   {
     const { b, tok } = book();

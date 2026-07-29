@@ -140,6 +140,7 @@ const I18N = {
   party_f_location: { bn: 'এলাকা / জায়গা', en: 'Area / place' },
   party_f_phone: { bn: 'ফোন নম্বর', en: 'Phone number' },
   party_f_pledged: { bn: 'কত টাকা কথা হলো (pledge)', en: 'Pledged amount' },
+  anom_needs_net: { bn: 'এই উত্তরটা কেন্দ্রীয় খাতায় লিখতে হয়, তাই নেট লাগবে — নেট এলে আবার চাপো।', en: 'This answer is written to the central book, so it needs a connection — try again once you are online.' },
   anom_needs_deploy: { bn: '⏳ এই উত্তরটা সার্ভারে রাখার জায়গা এখনো নেই — Code.gs redeploy বাকি। তখন বোতামটা কাজ করবে।', en: '⏳ The server has nowhere to keep this answer yet — Code.gs has not been redeployed. The button will work once it is.' },
   // A67 (audit 2.10): printed on the receipt ITSELF, not only on the
   // collector's screen — the picture is what the donor keeps.

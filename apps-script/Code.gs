@@ -86,6 +86,8 @@ var AUDIT_COLS = ['id', 'ts', 'actor', 'actorId', 'action', 'detail'];
 
 // Per-report access: admin sees all; cashier gets 'inhand' by default;
 // anyone else sees only what the admin grants (Users.reports, comma list).
+// A68: which flag may be stamped on which store, and nothing else.
+var ANOMALY_FLAGS = { payments: 'dupOk', daily: 'dupOk', parties: 'pledgeOk' };
 var REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
 
 // ---------- a user's permissions come from TWO places ----------
@@ -585,13 +587,13 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.16.1';
+var CODE_VERSION = 'chanda-v4.17.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
 // changes this file's behaviour, so a client-only release stops demanding a
 // redeploy that would change nothing. Bump it here and in js/auth.js together.
-var CODE_SCHEMA = 3;
+var CODE_SCHEMA = 4;
 function doGet() { return json_({ ok: true, service: 'chanda-khata', version: CODE_VERSION }); }
 
 var ACTIONS = {
@@ -1223,6 +1225,58 @@ var ACTIONS = {
       touchData_();
       logAudit_(me.row, 'restore', file.getName() + ' → [' + restored.join(', ') + '] (safety: ' + safety + ')');
       return { ok: true, restored: restored, safetyBackup: safety };
+    } finally { lock.releaseLock(); }
+  },
+
+  // A68 (audit #2 U1): stamp a "this is fine" answer on a row THIS DEVICE DOES
+  // NOT OWN.
+  //
+  // The 🩺 desk is cashier/admin-only, so the rows on it are overwhelmingly
+  // other collectors'. The client used to answer them through the local queue —
+  // DB.get, set the flag, push — and that is wrong twice over:
+  //   · DB is this device's IndexedDB, so the row simply was not there and the
+  //     tap did nothing at all, silently (the bug this fixes)
+  //   · and if it HAD been there, push re-stamps collector/collectorId from the
+  //     token and only the admin branch carries the original forward. A cashier
+  //     answering Ratan's duplicate would have moved Ratan's ₹500 into their own
+  //     in-hand. Proven against the shim before writing this — the "obvious"
+  //     client-side fix was a money bug.
+  //
+  // So: a narrow action that writes ONE cell and nothing else. Identity, amount
+  // and every other column are untouched by construction.
+  setAnomalyFlag: function (b) {
+    var u = requireUser_(b.token);
+    // isCashier_, NOT canReview_. The 🩺 screen and its home tile are gated on
+    // isCashier alone (js/aggregate.js homeTiles, js/app.js renderAnomalies);
+    // canReview_ additionally demands the 'review' grant, which belongs to the
+    // correction desk. Using it here would hand a cashier a screenful of
+    // buttons that every one of them answers with 'not-cashier' — the exact
+    // failure this whole change is about. The guard has to agree with the door
+    // the user came through.
+    if (!isCashier_(u.row)) throw new Error('not-cashier');
+    var store = String(b.store || ''), field = String(b.field || '');
+    // a fixed table, not a caller-supplied column name: this action must never
+    // become a way to set an arbitrary cell on an arbitrary row
+    if (ANOMALY_FLAGS[store] !== field) throw new Error('bad-input');
+    var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES[store]);
+    var cols = SHEETS[store];
+    if (!sh || sh.getLastRow() < 2) throw new Error('not-found');
+    var lock = LockService.getScriptLock(); lock.waitLock(20000);
+    try {
+      ensureCols_(sh, cols);
+      var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+      for (var i = 0; i < ids.length; i++) {
+        if (String(ids[i][0]) !== String(b.id)) continue;
+        var r = i + 2;
+        sh.getRange(r, cols.indexOf(field) + 1).setValue(1);
+        // bump receivedAt or the delta pull never carries the answer and every
+        // other phone keeps raising it — the A59 lesson, one release on
+        sh.getRange(r, cols.indexOf('receivedAt') + 1).setValue(new Date().toISOString());
+        touchData_();
+        logAudit_(u.row, 'anomaly:' + field, store + '/' + b.id);
+        return { ok: true };
+      }
+      throw new Error('not-found');
     } finally { lock.releaseLock(); }
   },
 

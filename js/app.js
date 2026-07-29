@@ -3913,36 +3913,6 @@
       document.querySelectorAll('[data-goparty]').forEach(function (b) {
         b.onclick = function () { navigate('party', { id: b.dataset.goparty }); };
       });
-      // "a separate instalment" — the same answer a collector gives at entry
-      // time, stamped on the same field, so the pair stops being raised for
-      // everyone. Append-only: the row is updated in place and re-queued.
-      document.querySelectorAll('[data-dupok]').forEach(function (b) {
-        b.onclick = function () {
-          b.disabled = true;
-          DB.get('payments', b.dataset.dupok).then(function (row) {
-            if (!row) return;
-            row.dupOk = 1; row.synced = 0; // re-push so every device stops asking
-            return DB.put('payments', row).then(function () {
-              toast(t('saved')); autoSync();
-              // A44: settle one and the whole desk used to be rebuilt, throwing
-              // you back to the top — on a screen whose entire purpose is
-              // working DOWN a list of several. Take the settled card out where
-              // it stands; the page does not move, and what is left is exactly
-              // what is left. reconcile is not re-run because nothing else
-              // changed: dupOk suppresses this pair and touches no other row.
-              const card = b.closest('.card');
-              if (card) card.remove();
-              const left = $view().querySelectorAll('.card').length;
-              if (!left) {
-                const box = document.createElement('div');
-                box.className = 'empty';
-                box.textContent = t('anom_none');
-                $view().appendChild(box);
-              }
-            });
-          }).catch(function (e) { b.disabled = false; toast(errMsg(e)); });
-        };
-      });
       document.querySelectorAll('[data-dupvoid]').forEach(function (b) {
         b.onclick = function () { renderVoidReason('payments', b.dataset.dupvoid, function () { navigate('anomalies'); }); };
       });
@@ -3961,16 +3931,42 @@
           $view().appendChild(box);
         }
       };
+      // A68 (audit #2 U1): answered through the SERVER, not the local queue.
+      //
+      // This was DB.get(store, id) — this device's IndexedDB. The 🩺 desk is
+      // cashier/admin-only, so the rows on it are overwhelmingly other people's
+      // and simply were not there: `if (!row) return`, no write, no message,
+      // and the duplicate came back tomorrow. That was the normal case for this
+      // screen, not the edge case.
+      //
+      // And the obvious repair — take the row from viewData() and push it —
+      // is WORSE, which is why it was tried against the backend shim first:
+      // push re-stamps collector/collectorId from the token and only the admin
+      // branch carries the original forward, so a cashier answering Ratan's
+      // duplicate would have moved Ratan's ₹500 into their own in-hand. A
+      // silent no-op is bad; silently moving money is unforgivable.
+      //
+      // setAnomalyFlag writes one cell, from a fixed store→field table, and
+      // touches nothing else. It also lands in the audit log, which the local
+      // queue never would have.
       const stampOk = function (b, store, id, field) {
         b.disabled = true;
-        return DB.get(store, id).then(function (row) {
-          if (!row) { b.disabled = false; return; }
-          row[field] = 1; row.synced = 0; // re-push so every device stops asking
-          return DB.put(store, row).then(function () {
-            toast(t('saved')); updateBadge(); autoSync(); settleCard(b);
-          });
-        }).catch(function (e) { b.disabled = false; toast(errMsg(e)); });
+        if (!navigator.onLine || !Sync.configured()) {
+          b.disabled = false; toast(t('anom_needs_net')); return Promise.resolve();
+        }
+        return Auth.call('setAnomalyFlag', { token: Auth.token(), store: store, id: id, field: field })
+          .then(function () {
+            toast(t('saved'));
+            settleCard(b);
+            // pull so this device's own snapshot stops raising it too; the card
+            // is already gone, so this is repair, not the user's feedback
+            pullCentral().catch(function () {});
+          })
+          .catch(function (e) { b.disabled = false; toast(errMsg(e)); });
       };
+      document.querySelectorAll('[data-dupok]').forEach(function (b) {
+        b.onclick = function () { stampOk(b, 'payments', b.dataset.dupok, 'dupOk'); };
+      });
       document.querySelectorAll('[data-ddupok]').forEach(function (b) {
         b.onclick = function () { stampOk(b, 'daily', b.dataset.ddupok, 'dupOk'); };
       });

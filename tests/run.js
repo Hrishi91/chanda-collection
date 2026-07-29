@@ -1564,8 +1564,13 @@ const deskSrc = a22App.slice(a22App.indexOf('function renderAnomalies'), a22App.
 eq(deskSrc.indexOf('Auth.isCashier()') >= 0, true, 'A23: the desk is cashier/admin only');
 eq(deskSrc.indexOf('data-dupok') >= 0 && deskSrc.indexOf('data-dupvoid') >= 0, true,
    'A23: a duplicate offers both answers — settle it, or void the extra');
-eq(deskSrc.indexOf('row.dupOk = 1') >= 0 && deskSrc.indexOf('row.synced = 0') >= 0, true,
-   "A23: settling stamps the SAME field the collector's answer uses, and re-pushes it");
+// A68: pins the FIELD, not the write path. The stamp moved from the local
+// queue to a server action (the desk's rows belong to other devices), and an
+// assertion naming `row.dupOk = 1` failed a fix that was strictly better.
+eq(deskSrc.indexOf("'dupOk'") >= 0, true,
+   "A23: settling stamps the SAME field the collector's answer uses");
+eq(deskSrc.indexOf("Auth.call('setAnomalyFlag'") >= 0, true,
+   'A23: …through the server, because the row is almost never this device\'s');
 eq(deskSrc.indexOf('renderVoidReason') >= 0, true, 'A23: voiding reuses the existing audited path, not a new delete');
 eq(a22App.indexOf("current.view === 'anomalies') renderAnomalies()") >= 0, true, 'A23: routed');
 eq(/REFRESHABLE = \[[^\]]*'anomalies'/.test(a22App), true, 'A23: …and refreshes with the rest');
@@ -2477,13 +2482,15 @@ try {
 {
   const fs = require('fs');
   const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
-  const fnStart = app.indexOf("document.querySelectorAll('[data-dupok]')");
-  const fn = app.slice(fnStart, app.indexOf("document.querySelectorAll('[data-dupvoid]')"));
+  // A68: the three handlers now share one settleCard(), so the behaviour is
+  // asserted where it lives instead of inside one of them.
+  const fn = app.slice(app.indexOf('const settleCard = function'),
+                       app.indexOf('const stampOk = function'));
   eq(/const card = b\.closest\('\.card'\);\n\s*if \(card\) card\.remove\(\);/.test(fn), true,
      'A44: the settled card is taken out where it stands');
   eq(/renderAnomalies\(\)/.test(fn), false,
      'A44: …and the desk is NOT rebuilt, so the page does not move');
-  eq(/if \(!left\)/.test(fn), true,
+  eq(/if \(!\$view\(\)\.querySelectorAll\('\.card'\)\.length\)/.test(fn), true,
      'A44: clearing the last one says "nothing left" instead of leaving a blank screen');
   // the OTHER two screens keep their full repaint on purpose
   eq(/entriesScope = b\.dataset\.escope; renderMyEntries\(\);/.test(app), true,
@@ -2855,8 +2862,14 @@ try {
     const dailyCols = gs.slice(gs.indexOf('  daily:    ['), gs.indexOf('],', gs.indexOf('  daily:    [')))
       .replace(/\/\/[^\n]*/g, '').match(/'([a-zA-Z]+)'/g).map(q => q.slice(1, -1));
     eq(dailyCols[dailyCols.length - 1], 'dupOk', 'A61: daily.dupOk exists and is appended LAST');
-    eq(/var CODE_SCHEMA = 3;/.test(gs), true, 'A61: two new columns is a contract change — CODE_SCHEMA moved');
-    eq(/const APP_SCHEMA = 3;/.test(require('fs').readFileSync(__dirname + '/../js/auth.js', 'utf8')), true,
+    // A68: assert the RULE, not a frozen number. A61 moved it 2→3, A68 moved
+    // it 3→4; a hard-coded 3 made a correct bump look like a regression. What
+    // must never drift is that the two agree — CI checks the same thing.
+    const schemaC = Number((gs.match(/var CODE_SCHEMA = (\d+);/) || [])[1]);
+    const schemaA = Number((require('fs').readFileSync(__dirname + '/../js/auth.js', 'utf8')
+      .match(/const APP_SCHEMA = (\d+);/) || [])[1]);
+    eq(schemaC >= 3, true, 'A61: two new columns was a contract change — CODE_SCHEMA moved past 2');
+    eq(schemaA, schemaC,
        'A61: …and the client says the same number, or every phone locks itself out');
   }
   // and both are actionable on the desk

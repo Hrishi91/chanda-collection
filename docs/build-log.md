@@ -6920,3 +6920,92 @@ sequence — a real cost against a problem that one honest sentence solves.
 ⚠️ This is the last open item I intend to take before the puja. **2.19**
 (`js/app.js` at 5,798 lines) stays open on the audit's own advice: *"Do not
 touch the flow engine before the puja."*
+
+## v4.17.0 — A68 (audit #2, U1): the 🩺 desk's ✓ buttons were answering nothing (2026-07-29)
+
+A second audit arrived (`AUDIT-2-UX-PERF-2026-07-29.md`, UX + performance,
+verified against HEAD `16f390e`). Its most serious finding is **mine**, from
+A61, one release old.
+
+### The bug
+
+`DB.get(store, id)` — **this device's IndexedDB**. The 🩺 desk is cashier/admin
+only, so the rows on it are overwhelmingly *other collectors'*, which live in
+`centralData`, not in `DB`. The cashier taps ✓ আলাদা কিস্তি, `b.disabled = true`
+fires, `DB.get` resolves `undefined`, `if (!row) return` — **no write, no toast,
+no error**. The duplicate is raised again tomorrow.
+
+That is the normal case for this screen, not an edge case. And it is the sixth
+time in this audit run that the bug is *a control which reports success and does
+nothing* — except this time I wrote it, in the release whose whole subject was
+that failure. I copied the shape of the older `data-dupok` handler without
+checking whether the shape was right.
+
+### The fix the audit suggested would have been worse
+
+Its recommendation was to resolve the row from `viewData()` and push it. Run
+against the backend shim before writing a line of it:
+
+```
+before: [{"id":"p1","collector":"RATAN","collectorId":"ratan"}]
+after : [{"id":"p1","collector":"BIMAL","collectorId":"bimal","dupOk":1}]
+```
+
+`push` re-stamps `collector`/`collectorId` from the **token**, and only the
+admin branch carries the original forward. A cashier answering Ratan's duplicate
+would have moved **Ratan's ₹500 into their own in-hand** — silently, and
+balanced, so `reconcile` would never see it. A silent no-op is bad; silently
+moving money is unforgivable. This is exactly what A65's shim was built for, one
+release ago.
+
+### What landed instead
+
+`setAnomalyFlag` — a server action that writes **one cell** and nothing else.
+The store→field table is fixed (`{payments: 'dupOk', daily: 'dupOk', parties:
+'pledgeOk'}`), so it can never become "set any column on any row". Identity,
+amount and every other field are untouched by construction. It bumps
+`receivedAt` and `data_ts`, so every other phone learns; and it writes an audit
+line, which the local-queue route never would have.
+
+**One gate detail that mattered.** The obvious choice was `canReview_`, and it
+was wrong: that additionally demands the `review` grant, which belongs to the
+*correction* desk. The 🩺 screen and its home tile are gated on `isCashier`
+alone — so `canReview_` would have handed a cashier a screenful of buttons that
+every one of them answered with `not-cashier`. The guard has to agree with the
+door the user came through. Caught by the suite, which is why the test now pins
+that a cashier *without* the review grant can still answer.
+
+All three handlers now share one path. Offline, the button says so and stays
+usable rather than disabling itself into silence.
+
+### `CODE_SCHEMA` 3 → 4
+
+The client now depends on an action the deployed server does not have. That is a
+contract change, so the number moves — and A61's `serverCanStoreAnswers()`
+already withholds the buttons with the reason until the redeploy. Entry is **not**
+locked (that is `schemaCmp() === -1`); this is the "server is behind" case.
+
+### Verification
+
+Tests **1,191 → 1,205**, including one that proves the audit's suggested fix
+steals the attribution — the failure is now pinned so nobody re-introduces it as
+a simplification.
+
+Five of my own older assertions failed on a correct fix because they pinned the
+*mechanism* (`row.dupOk = 1`, `var CODE_SCHEMA = 3`). Rewritten to pin the
+property: the field, and that the two schema numbers **agree** rather than equal
+a frozen 3.
+
+Driven in a browser on a fresh port, with the central snapshot holding another
+collector's rows and this device's IndexedDB empty — the exact shape of the bug:
+
+- `DB.get('daily','b2')` → `undefined` (where the old code returned, silently)
+- server on schema 3 → both stamps withheld, the redeploy note shown
+- server on schema 4 → the tap sends
+  `{action: 'setAnomalyFlag', store: 'parties', id: 's1', field: 'pledgeOk'}`
+  then a `pull`, and the card is removed in place
+- offline → **no request made**, button still usable, card still there, and it
+  says *"এই উত্তরটা কেন্দ্রীয় খাতায় লিখতে হয়, তাই নেট লাগবে"*
+
+⚠️ **Redeploy required** — `CODE_SCHEMA` 4. Until then the ✓ answers are
+withheld with an explanation; nothing else changes and no phone is locked out.
