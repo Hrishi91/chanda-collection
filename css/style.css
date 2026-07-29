@@ -189,10 +189,19 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
 .toast-undo {
   display: flex; align-items: center; gap: 12px; white-space: normal;
 }
+/* A70 (audit #2 U6): `padding: 2px 0` — no horizontal padding at all, and a
+   computed height of ~22 px against a 44 px minimum. This is the ONLY escape
+   hatch after an instant save, it lives inside a toast, and it disappears after
+   5 seconds. A 22 px zero-side-padding target with a 5-second deadline, on a
+   phone held one-handed in a crowd at night, will lose money entries.
+   The negative margin keeps the toast visually the same size while roughly
+   tripling the hit area — the button grows, the bubble does not. */
 .toast-undo-btn {
   background: none; border: 0; color: var(--gold); font-size: 15px; font-weight: 700;
-  padding: 2px 0; cursor: pointer; text-transform: uppercase; letter-spacing: .3px;
+  padding: 11px 14px; margin: -9px -6px -9px 0;
+  cursor: pointer; text-transform: uppercase; letter-spacing: .3px;
 }
+
 
 /* ---- flow step transition: a light slide-in so rapid taps feel responsive
    instead of a jarring instant redraw (no JS, pure CSS on the newest bubble) ---- */
@@ -320,9 +329,12 @@ b.msg-at { color: var(--saffron); }
 .sh-giver + .sh-row { border-top: 0; }
 .sh-giver ~ .sh-row .cat-name { padding-left: 14px; font-weight: 500; }
 .sh-picks { display: flex; gap: 6px; flex: 0 0 auto; }
+/* A70: these chips decide how much money changes hands, and were ~36 px tall.
+   Corrected HERE rather than with a later override — the first attempt added a
+   rule ABOVE this one, where the cascade quietly threw it away. */
 .sh-pick {
   border: 1.5px solid var(--line); background: var(--card); color: var(--sub);
-  border-radius: 99px; padding: 8px 12px; font-size: 14px; font-weight: 700;
+  border-radius: 99px; padding: 12px 14px; font-size: 14px; font-weight: 700;
   cursor: pointer; white-space: nowrap;
 }
 .sh-pick.on { background: var(--saffron); border-color: var(--saffron); color: #fff; }

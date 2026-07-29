@@ -459,13 +459,15 @@ against HEAD `16f390e`). Spot-checked every headline claim; all accurate.
   (which also closes the epoch-reset window where a pre-clear response wrote
   training rows back), and a poll-counted backoff reset by `online`/focus/manual
   refresh. Only the 60 s background tick is skippable.
-- **OPEN, recommended order** (mine, by what bites during the puja, not the
-  audit's batching): **P1** stop re-writing the
-  whole snapshot to localStorage on every idle poll · **U5** a denied microphone
-  reported as "this phone can't do voice" · **U6** the 22 px Undo button ·
-  **U4** the sync badge explains itself only through a `title` tooltip ·
-  **U7** untranslated `Skip`/`flag`/`confirm বাকি` · **P2** the 45 KB logo on
-  every poll (server, one redeploy) · **P4/P5/U2/U3/U8** the rest.
+- **P1 + U4 + U5 + U6 + U7 FIXED in v4.18.0 (A70)** — the idle poll stops
+  rewriting 2.9 MiB (and a full disk now says so), a refused microphone is told
+  apart from an unsupported phone, the Undo target went 27→45 px with the bubble
+  unchanged, and every collector-facing string stopped naming things they cannot
+  do. A test sweeps for machine vocabulary from here on.
+- **OPEN, remaining** (none urgent):  **P2** the 45 KB logo on every
+  poll (server, needs a redeploy + a careful client merge) · **P6** reconcile
+  gating · **P4** list cap · **P5** boot skeleton · **U2** collector on the
+  receipt · **U3** registration message · **U8** drop the note step.
 - **Declined for now**: **U9** (merge mode+amount) touches the flow engine —
   same reason as 2.19. **U11** (auto-focus the খাতা search) would put a keyboard
   over the list on Android. **তুমি vs আপনি** is Hrishi's call, not a finding.

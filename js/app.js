@@ -329,11 +329,34 @@
           changed = true; // re-render below so hidden/shown tiles update
         }
       }
-      try {
-        localStorage.setItem('ck_central', JSON.stringify(centralData));
-        localStorage.setItem('ck_central_cursor', centralCursor);
-        localStorage.setItem('ck_central_year', centralYear);
-      } catch (e) { /* quota */ }
+      // A70 (audit #2 P1): this sat ABOVE the `changed` guard, so an idle poll
+      // that returned zero rows still re-serialised and re-wrote the entire
+      // book. Measured on a modelled mid-season book (5,020 rows, real Bengali
+      // names): 1.52M characters = 2.9 MiB of a ~5 MiB origin quota, and
+      // JSON.stringify alone is 4.0 ms here — call it ~48 ms on a Unisoc T606.
+      // The bigger cost is localStorage.setItem itself: synchronous,
+      // LevelDB-backed, on eMMC. Every 60 s, on every focus, and after every
+      // push — a collector mid-tap in that window loses the tap.
+      //
+      // The cursor still has to move on an idle poll, or the next delta asks
+      // for everything since the last CHANGE instead of since the last check.
+      if (changed) {
+        try {
+          localStorage.setItem('ck_central', JSON.stringify(centralData));
+          localStorage.setItem('ck_central_cursor', centralCursor);
+          localStorage.setItem('ck_central_year', centralYear);
+        } catch (e) {
+          // …and it used to fail SILENTLY. Past the quota the snapshot never
+          // persists again: every cold start replays an ever-growing delta from
+          // a frozen cursor, gets slower every day, and nobody is told why.
+          toast(t('storage_full'));
+        }
+      } else {
+        try {
+          localStorage.setItem('ck_central_cursor', centralCursor);
+          localStorage.setItem('ck_central_year', centralYear);
+        } catch (e) { /* a cursor is 13 bytes; if THIS fails the toast above already fired */ }
+      }
       // a mention has to reach the phone, and messages land here — so this is
       // the one place it can be checked without a poll of its own
       viewData().then(function (d2) {
@@ -1089,7 +1112,21 @@
         }, function () { mic.classList.remove('rec'); },
         function (err) {
           mic.classList.remove('rec');
-          hint.textContent = (err === 'network') ? t('need_net_voice') : t('no_mic');
+          // A70 (audit #2 U5): every SpeechRecognition error other than
+          // 'network' used to say "এই ফোনে voice চলছে না — টাইপ করো". That
+          // includes not-allowed / service-not-allowed, i.e. the permission
+          // prompt was dismissed — which is exactly what a first-time
+          // smartphone user does with a dialog they do not understand.
+          //
+          // So guided voice, one of this app's best ideas, was being switched
+          // off PERMANENTLY for the people who need it most, by a message
+          // telling them their phone cannot do it. It can; they just have to
+          // tap Allow, and nothing said so.
+          const denied = (err === 'not-allowed' || err === 'service-not-allowed');
+          hint.textContent = (err === 'network') ? t('need_net_voice')
+                           : denied ? t('mic_denied') : t('no_mic');
+          // red, not the 13px grey hint colour — this one has an action in it
+          hint.className = denied ? 'hint err-hint' : 'hint';
         });
       };
     }

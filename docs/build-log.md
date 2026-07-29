@@ -7099,3 +7099,91 @@ promise that never resolves — the actual field case:
   `network`
 
 Client-only. No schema change, `Code.gs` untouched — **no redeploy needed.**
+
+## v4.18.0 — A70 (audit #2, P1/U4/U5/U6/U7): the batch a collector feels on the first evening (2026-07-29)
+
+Five findings, one commit, all client-only. Chosen by what actually bites during
+a puja rather than by the audit's own batching.
+
+### P1 — the whole book rewritten every 60 seconds, unchanged
+
+The `localStorage` write sat **above** the `changed` guard, so an idle delta poll
+that returned zero rows still re-serialised and re-wrote the entire snapshot.
+
+Measured here on a modelled mid-season book (5,020 rows, real Bengali names):
+**1.52 M characters = 2.9 MiB** of a ~5 MiB origin quota, and `JSON.stringify`
+alone is **4.0 ms** on this Mac — call it ~48 ms on a Unisoc T606. The larger
+cost is `localStorage.setItem` itself: synchronous, LevelDB-backed, on eMMC.
+Every 60 s, on every focus, and after every push. **A collector mid-tap in that
+window loses the tap.**
+
+The cursor still has to move on an idle poll, or the next delta asks for
+everything since the last *change* instead of since the last *check* — so the
+else-branch writes 13 bytes and nothing else.
+
+And `catch (e) { /* quota */ }` was **silent**. Past the quota the snapshot never
+persists again: every cold start replays an ever-growing delta from a frozen
+cursor, the app gets slower every day, and nobody is told why. Now it says so.
+
+### U5 — a refused microphone reported as a broken phone
+
+Every `SpeechRecognition` error other than `network` mapped to *"এই ফোনে voice
+চলছে না — টাইপ করো"*. That includes `not-allowed` — the permission prompt was
+dismissed, **which is exactly what a first-time smartphone user does with a
+dialog they do not understand.**
+
+So guided voice, one of this app's best ideas, was being switched off
+*permanently* for the people who need it most, by a message telling them their
+phone cannot do it. It can. They have to tap one button, and nothing said so.
+Now three causes say three different things, and the refusal is red rather than
+13 px grey — it names the exact word to look for, because the dialog is in
+English on these phones.
+
+### U6 — the highest-stakes button in the app was the smallest
+
+`.toast-undo-btn` had `padding: 2px 0` — **no horizontal padding at all**. It is
+the only escape hatch after an instant save, it lives inside a toast, and it
+disappears after five seconds. Measured at a real 375 px viewport: **27 × 40 px
+before, 45 × 68 px after, with the bubble unchanged at 49 px** — the negative
+margin grows the button, not the toast.
+
+The handover sheet's `.sh-pick` chips, which decide how much money changes
+hands, went 36 → 48 px.
+
+**A mistake worth recording**: my first attempt added a `.sh-pick` override
+*above* the real rule, where the cascade silently discarded it. Fixed in place
+instead, and the suite now asserts the selector is defined exactly once.
+
+### U4 + U7 — messages that named things a collector cannot do
+
+The sync badge explains itself only through a `title` tooltip, **which a phone
+never shows**. So the badge was `⏳ 3` and nothing more — and both failure
+strings pointed at dead ends: *"network/setup দেখো"* (untranslated, and the
+Sync-URL field is **admin-only**, so it told a collector to check a field that
+does not exist on their phone). All three now say the one true and useful thing:
+the entries are safe on the phone and will go on their own.
+
+Then the language sweep. `skip` — the second-most-tapped button in the app —
+was `{ bn: 'Skip' }`, never translated. `flag`, `confirm বাকি`, `server নেয়নি`,
+and the same person called *collector* on one screen and *সংগ্রাহক* on the next.
+A test now sweeps every Bengali string for machine vocabulary, with the three
+genuinely technical admin-only fields (`script_url`, `secret`,
+`err_not_configured`) named as exceptions rather than silently skipped.
+
+### Verification
+
+Tests **1,222 → 1,242**. Driven in a browser:
+
+- **P1**: an idle poll writes `["ck_central_cursor:3","ck_central_year:4"]` — 7
+  bytes; a poll carrying one real row writes `ck_central:463` as well
+- **U5**: `not-allowed` → the Allow message in `hint err-hint`; `network` → the
+  internet message; `audio-capture` → the unsupported message. Three causes,
+  three sentences
+- **U6**: 45 px and 48 px at a 375 px viewport, bubble unchanged
+
+**A note on my own method**: the first tap-target measurement read 40 × 103 px
+and looked like a regression. It was a **zero-width viewport** in a fresh browser
+tab — my harness, not the CSS. Measuring in a tab whose size was never set is
+worth exactly nothing, and I nearly "fixed" a problem that did not exist.
+
+No schema change, `Code.gs` untouched — **no redeploy needed.**

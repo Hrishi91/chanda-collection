@@ -3288,6 +3288,71 @@ try {
   }
 }
 
+
+// ---- A70 (audit #2 P1/U4/U5/U6/U7): the felt batch ---------------------------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const css = fs.readFileSync(__dirname + '/../css/style.css', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const bn = (k) => { const m = i18n.match(new RegExp("^  " + k + ": \\{ bn: '([^']*)'", 'm')); return m ? m[1] : ''; };
+
+  // P1 — the write sat ABOVE the `changed` guard, so an idle poll that returned
+  // zero rows still re-serialised 2.9 MiB and wrote it synchronously to eMMC.
+  eq(/if \(changed\) \{\n\s*try \{\n\s*localStorage\.setItem\('ck_central', JSON\.stringify\(centralData\)\);/.test(app), true,
+     'A70: the snapshot is written only when it actually changed');
+  eq(/\} else \{\n\s*try \{\n\s*localStorage\.setItem\('ck_central_cursor', centralCursor\);/.test(app), true,
+     'A70: …but the CURSOR still moves on an idle poll, or the next delta asks for everything since the last CHANGE');
+  eq(/catch \(e\) \{ \/\* quota \*\/ \}/.test(app), false, 'A70: …and a full disk no longer fails silently…');
+  eq(/toast\(t\('storage_full'\)\)/.test(app) && bn('storage_full').length > 0, true,
+     'A70: …it says so, because past the quota every cold start replays a growing delta from a frozen cursor');
+
+  // U5 — a refused permission is not "this phone cannot do voice"
+  eq(/const denied = \(err === 'not-allowed' \|\| err === 'service-not-allowed'\);/.test(app), true,
+     'A70: a dismissed microphone prompt is told apart from an unsupported phone');
+  eq(/hint\.className = denied \? 'hint err-hint' : 'hint';/.test(app), true,
+     'A70: …and shown in red, because this one has an action in it');
+  eq(bn('mic_denied').indexOf('Allow') >= 0, true,
+     'A70: …naming the exact word to look for, since the dialog is in English on these phones');
+  eq(bn('no_mic') !== bn('mic_denied'), true, 'A70: …two causes, two sentences');
+
+  // U6 — the only escape hatch after an instant save, on a 5-second deadline
+  eq(/\.toast-undo-btn \{[\s\S]*?padding: 11px 14px; margin: -9px -6px -9px 0;/.test(css), true,
+     'A70: the Undo target is ~45px, not ~22 — and the negative margin keeps the bubble the same size');
+  eq(/padding: 2px 0; cursor: pointer/.test(css), false, 'A70: …the old 2px padding is gone');
+  // fixed in place, not with a later override: the first attempt added a rule
+  // ABOVE the real one, where the cascade silently threw it away
+  eq((css.match(/\.sh-pick \{/g) || []).length, 1, 'A70: .sh-pick is defined once…');
+  eq(/\.sh-pick \{[\s\S]*?padding: 12px 14px;/.test(css), true,
+     'A70: …and corrected in place — these chips decide how much money changes hands');
+
+  // U4 — every string the badge showed named something a collector cannot do:
+  // "network", "setup", and a Sync-URL field that is admin-only.
+  ['unsynced_n', 'sync_fail', 'sync_not_configured'].forEach(function (k) {
+    eq(/\b(Sync|network|setup)\b/.test(bn(k)), false, 'A70: ' + k + ' no longer names a thing a collector cannot do');
+  });
+  eq(bn('sync_fail').indexOf('হারায়নি') >= 0, true,
+     'A70: …and says the one thing that matters — the entries are not lost');
+
+  // U7 — collector-facing machine vocabulary
+  eq(bn('skip'), 'বাদ দাও', 'A70: the second-most-tapped button is finally in Bengali');
+  eq(/\bflag\b/.test(bn('flag_btn')) || /\bflag\b/.test(bn('flag_confirm')), false, 'A70: "flag" is gone');
+  eq(/\bconfirm\b/.test(bn('my_pending')), false, 'A70: …so is "confirm বাকি"');
+  // one word per role in the Bengali voice — the same person was 'collector' on
+  // one screen and 'সংগ্রাহক' on the next
+  {
+    const ADMIN_FIELDS = ['script_url', 'secret', 'err_not_configured']; // genuinely technical, admin-only
+    const leaks = [];
+    const re = /^  ([a-z_0-9]+): \{ bn: '([^']*)'/gm;
+    let m;
+    while ((m = re.exec(i18n))) {
+      if (ADMIN_FIELDS.indexOf(m[1]) >= 0) continue;
+      if (/\b(collector|cashier|server|flag|Sync)\b/.test(m[2])) leaks.push(m[1]);
+    }
+    eq(leaks, [], 'A70: no collector-facing Bengali string leaks machine vocabulary (' + leaks.join(', ') + ')');
+  }
+}
+
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------
 {
   const fs = require('fs');

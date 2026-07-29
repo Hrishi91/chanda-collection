@@ -127,7 +127,9 @@ const I18N = {
   type_road: { bn: 'রোড', en: 'Road' },
   type_toto: { bn: 'টোটো', en: 'Toto' },
   type_bus: { bn: 'বাস', en: 'Bus' },
-  skip: { bn: 'Skip', en: 'Skip' },
+  // A70 (audit #2 U7): the second-most-tapped button in the app, and it was
+  // never translated.
+  skip: { bn: 'বাদ দাও', en: 'Skip' },
   back: { bn: 'পেছনে', en: 'Back' },
   // A27's rule: a FORM must not borrow a flow's question text. The flow
   // questions say "(না থাকলে Skip)" because a flow has a Skip button; this
@@ -142,6 +144,7 @@ const I18N = {
   party_f_pledged: { bn: 'কত টাকা কথা হলো (pledge)', en: 'Pledged amount' },
   anom_needs_net: { bn: 'এই উত্তরটা কেন্দ্রীয় খাতায় লিখতে হয়, তাই নেট লাগবে — নেট এলে আবার চাপো।', en: 'This answer is written to the central book, so it needs a connection — try again once you are online.' },
   anom_needs_deploy: { bn: '⏳ এই উত্তরটা সার্ভারে রাখার জায়গা এখনো নেই — Code.gs redeploy বাকি। তখন বোতামটা কাজ করবে।', en: '⏳ The server has nowhere to keep this answer yet — Code.gs has not been redeployed. The button will work once it is.' },
+  storage_full: { bn: '⚠️ ফোনের জায়গা ভরে গেছে — খাতার copy আর রাখা যাচ্ছে না। অ্যাপ চলবে, কিন্তু খুলতে দেরি হবে। admin-কে বলো।', en: '⚠️ This phone is out of storage — the book\'s local copy can no longer be saved. The app still works but will open slowly. Tell the admin.' },
   // A67 (audit 2.10): printed on the receipt ITSELF, not only on the
   // collector's screen — the picture is what the donor keeps.
   rcp_no_pending_stamp: { bn: 'নম্বর নেট এলে বসবে', en: 'Number follows once online' },
@@ -181,7 +184,7 @@ const I18N = {
   undo: { bn: 'ফিরিয়ে নাও', en: 'Undo' },
   undo_done: { bn: '↩️ বাতিল হলো', en: '↩️ Undone' },
   undo_voided: { bn: '↩️ বাতিল record হলো (sync হয়ে গিয়েছিল)', en: '↩️ Voided (it had already synced)' },
-  rejected_label: { bn: '🚫 server নেয়নি (অনুমতি নেই) — cashier-কে বলো', en: '🚫 Server refused (no permission) — tell a cashier' },
+  rejected_label: { bn: '🚫 কেন্দ্রীয় খাতা নেয়নি (অনুমতি নেই) — ক্যাশিয়ারকে বলো', en: '🚫 The central book refused it (no permission) — tell a cashier' },
   done_for_now: { bn: 'শেষ, হোমে ফিরি', en: 'Done, go home' },
   one_more: { bn: '➕ আরেকটা', en: '➕ One more' },
   back_to_search: { bn: '🔍 তালিকায় ফিরি', en: '🔍 Back to list' },
@@ -189,13 +192,20 @@ const I18N = {
   listening: { bn: '🎤 শুনছি… বলো', en: '🎤 Listening…' },
   mic_hint: { bn: '🎤 চেপে বলো, বা টাইপ করো', en: '🎤 tap to speak, or type' },
   no_mic: { bn: 'এই ফোনে voice চলছে না — টাইপ করো', en: 'Voice unavailable — please type' },
+  // A70: the permission was REFUSED, which is a different thing from the phone
+  // not being able to — and the difference is one tap the user does not know
+  // about. Says exactly which word to look for, because the dialog is in
+  // English on most of these phones.
+  mic_denied: { bn: '🎤 মাইকের অনুমতি দেওয়া হয়নি। আবার 🎤 চাপো — ফোন জিজ্ঞেস করলে "Allow" চাপো। ততক্ষণ টাইপ করেই চলবে।', en: '🎤 Microphone permission was refused. Tap 🎤 again and choose "Allow" when the phone asks. Typing works meanwhile.' },
   need_net_voice: { bn: 'Voice-এর জন্য internet লাগে; টাইপ চলবে', en: 'Voice needs internet; typing works' },
   search: { bn: 'খোঁজো…', en: 'Search…' },
   all: { bn: 'সবাই', en: 'All' },
   dues_only: { bn: 'বাকি আছে', en: 'Dues only' },
   find_party_btn: { bn: 'অন্য কারো দাতা — বাকি জমা নাও', en: "Anyone's donor — take a payment" },
   find_party_title: { bn: '🔍 যেকোনো দাতা খুঁজে জমা নাও', en: '🔍 Find any donor & take payment' },
-  find_party_hint: { bn: 'এখানে শুধু অন্য collector-দের তোলা দাতা — নিজেরগুলো 📒 খাতায়। নাম খুঁজে চাপো, তারপর টাকা জমা দাও (টাকা তোমার হাতে গণ্য হবে)।', en: "Only donors added by other collectors — your own are in the 📒 ledger. Search a name, tap, then record the payment (counts as cash in your hand)." },
+  // A70 (audit #2 U7): সংগ্রাহক here too — the same person was called
+  // 'collector' on this screen and 'সংগ্রাহক' on the next one.
+  find_party_hint: { bn: 'এখানে শুধু অন্য সংগ্রাহকদের তোলা দাতা — নিজেরগুলো 📒 খাতায়। নাম খুঁজে চাপো, তারপর টাকা জমা দাও (টাকা তোমার হাতে গণ্য হবে)।', en: "Only donors added by other collectors — your own are in the 📒 ledger. Search a name, tap, then record the payment (counts as cash in your hand)." },
   fp_none: { bn: 'অন্য কারো তোলা এমন দাতা নেই। নিজের তোলা দাতা 📒 খাতায় দেখো।', en: "No donors from other collectors here. Your own are in the 📒 ledger." },
   pledged: { bn: 'কথা', en: 'Pledged' },
   paid: { bn: 'জমা', en: 'Paid' },
@@ -209,12 +219,18 @@ const I18N = {
   total_due: { bn: 'মোট বাকি', en: 'Total due' },
   my_today: { bn: 'আজ আমার তোলা', en: 'My collection today' },
   by_collector: { bn: 'কে কত তুলল', en: 'By collector' },
-  unsynced_n: { bn: 'টা এন্ট্রি sync বাকি', en: ' entries not synced' },
+  // A70 (audit #2 U4): these three are what a collector is told when the
+  // sync badge is tapped, and every one of them used to name a thing they
+  // cannot do. "network" and "setup" are untranslated, and the Sync-URL field
+  // is ADMIN-ONLY — so the app was telling a collector to check a field that
+  // does not exist on their phone. The true and useful fact is the same in all
+  // three cases: the entries are safe on the phone and will go on their own.
+  unsynced_n: { bn: 'টা এন্ট্রি এখনো পাঠানো হয়নি — ফোনেই নিরাপদে আছে', en: ' entries not sent yet — safe on this phone' },
   all_synced: { bn: 'সব sync হয়ে গেছে ✅', en: 'All synced ✅' },
-  sync_now: { bn: 'এখনই Sync করো', en: 'Sync now' },
-  sync_fail: { bn: 'Sync হলো না — network/setup দেখো', en: 'Sync failed — check network/setup' },
-  sync_not_configured: { bn: 'Sync setup হয়নি (Settings-এ URL দাও)', en: 'Sync not configured (set URL in Settings)' },
-  collector_name: { bn: 'তোমার নাম (collector)', en: 'Your name (collector)' },
+  sync_now: { bn: 'এখনই পাঠাও', en: 'Sync now' },
+  sync_fail: { bn: 'এখন পাঠানো গেল না — নেট এলে নিজে থেকেই চলে যাবে। এন্ট্রিগুলো ফোনেই আছে, হারায়নি। ⚠️ শুধু app মুছো না।', en: 'Could not send just now — it will go on its own once you have a signal. The entries are on this phone and are not lost. ⚠️ Just do not delete the app.' },
+  sync_not_configured: { bn: 'এই ফোন এখনো কেন্দ্রীয় খাতার সঙ্গে জোড়া হয়নি — admin-কে বলো। যা লিখবে ফোনেই থাকবে।', en: 'This phone is not connected to the central book yet — tell the admin. Anything you record stays safely on the phone.' },
+  collector_name: { bn: 'তোমার নাম (সংগ্রাহক)', en: 'Your name (collector)' },
   language: { bn: 'ভাষা / Language', en: 'Language / ভাষা' },
   script_url: { bn: 'Sync URL (Apps Script)', en: 'Sync URL (Apps Script)' },
   secret: { bn: 'Sync secret', en: 'Sync secret' },
@@ -584,7 +600,7 @@ const I18N = {
   my_collected: { bn: 'আমি তুলেছি', en: 'I collected' },
   my_handed: { bn: 'জমা দিয়েছি', en: 'Handed over' },
   my_received: { bn: 'আমার কাছে জমা', en: 'Handed to me' },
-  my_pending: { bn: 'confirm বাকি', en: 'Awaiting confirm' },
+  my_pending: { bn: 'পাওয়ার কথা জানায়নি', en: 'Not acknowledged yet' },
   my_expenses: { bn: '🧾 আমার খরচ', en: '🧾 My expenses' },
   my_device_note: { bn: 'এই ফোনের হিসাব (online হলে পুরো, সব ফোন মিলিয়ে)', en: "This device only (full cross-device total when online)" },
   // --- my summary, progressive disclosure (v4.4.0) ---
@@ -671,16 +687,16 @@ const I18N = {
   voided_label: { bn: 'বাতিল', en: 'VOID' },
   // --- my entries + flag/correction ---
   my_entries_title: { bn: '✏️ আমার entry / সংশোধন', en: '✏️ My entries / fix' },
-  my_entries_hint: { bn: 'ভুল entry? cashier/admin হলে ✖️ বাতিল; নিজেরটা হলে ⚠️ flag করো — cashier দেখে ঠিক করবে।', en: 'Wrong entry? cashier/admin can ✖️ void; for your own, ⚠️ flag it — a cashier will fix it.' },
+  my_entries_hint: { bn: 'ভুল এন্ট্রি? ক্যাশিয়ার/admin হলে ✖️ বাতিল করো; নিজেরটা হলে ⚠️ ভুল বলে জানাও — ক্যাশিয়ার দেখে ঠিক করবে।', en: 'Wrong entry? cashier/admin can ✖️ void; for your own, ⚠️ flag it — a cashier will fix it.' },
   entries_mine: { bn: 'আমার', en: 'Mine' },
   entries_all: { bn: 'সবার দৈনিক/খরচ', en: "Everyone's daily/expense" },
-  entries_all_hint: { bn: 'সবার রোড/টোটো/বাস ও খরচের entry। ভুল দেখলে cashier/admin হলে ✖️ বাতিল, নাহলে ⚠️ flag। (payment দাতার পাতায় দেখো)', en: "Everyone's road/toto/bus & expense entries. Spot a wrong one — cashier/admin ✖️ void, else ⚠️ flag. (payments are on the donor's page)" },
-  flag_btn: { bn: '⚠️ ভুল, flag', en: '⚠️ Flag' },
-  flag_pending: { bn: 'flag করা — অপেক্ষায়', en: 'flagged — pending' },
+  entries_all_hint: { bn: 'সবার রোড/টোটো/বাস ও খরচের এন্ট্রি। ভুল দেখলে ক্যাশিয়ার/admin হলে ✖️ বাতিল, নাহলে ⚠️ ভুল বলে জানাও। (জমা দেখতে দাতার পাতায় যাও)', en: "Everyone's road/toto/bus & expense entries. Spot a wrong one — cashier/admin ✖️ void, else ⚠️ flag. (payments are on the donor's page)" },
+  flag_btn: { bn: '⚠️ ভুল বলে জানাও', en: '⚠️ Report a mistake' },
+  flag_pending: { bn: 'জানানো হয়েছে — অপেক্ষায়', en: 'flagged — pending' },
   flag_title: { bn: 'এটা ভুল বলে জানাও', en: 'Flag as wrong' },
-  flag_hint: { bn: 'তুমি নিজে মুছতে পারবে না — cashier/admin দেখে বাতিল করবে বা ফেরত দেবে।', en: 'You can\'t remove it yourself — a cashier/admin will void it or send it back.' },
-  flag_confirm: { bn: '⚠️ flag পাঠাও', en: '⚠️ Send flag' },
-  flagged_done: { bn: '⚠️ flag পাঠানো হলো', en: '⚠️ Flag sent' },
+  flag_hint: { bn: 'তুমি নিজে মুছতে পারবে না — ক্যাশিয়ার/admin দেখে বাতিল করবে বা ফেরত দেবে।', en: 'You can\'t remove it yourself — a cashier/admin will void it or send it back.' },
+  flag_confirm: { bn: '⚠️ জানিয়ে দাও', en: '⚠️ Send flag' },
+  flagged_done: { bn: '⚠️ জানানো হলো', en: '⚠️ Flag sent' },
   review_title: { bn: '🛠️ সংশোধন review', en: '🛠️ Review fixes' },
   corr_approve: { bn: '✅ বাতিল করো', en: '✅ Void it' },
   corr_reject: { bn: '🚫 ঠিক আছে (reject)', en: '🚫 It\'s fine (reject)' },
