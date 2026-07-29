@@ -6700,3 +6700,97 @@ page background, and toasts at 7 / 17 / 76 characters all render unclipped at
 2.5 / 3.0 / 5.6 seconds.
 
 No schema change, Code.gs untouched — **no redeploy needed.**
+
+## v4.15.0 — A65 (audit 2.17 / 2.18): the backend is finally tested, and something finally runs the tests (2026-07-29)
+
+The two findings that make every other finding in this audit safer.
+
+### 2.17 — 47 request actions, 0 of them ever executed
+
+Every server assertion in this suite was a **regex over `Code.gs`**. That can
+say "this text is present". It can never say "this request does the right
+thing". A9 — identity taken from the payload instead of the token, the most
+expensive bug this project has had — could be reintroduced tomorrow with the
+matched string still in place, and all 1,093 assertions would stay green.
+
+Two releases of this audit found server bugs by reading the source. Reading is
+not a test.
+
+**`tests/gas-shim.js`** is a ~200-line Apps Script stand-in — deliberately not a
+Sheets emulator. It implements exactly the surface `Code.gs` uses, and that
+surface was **measured, not guessed**: `getSheetByName`, `insertSheet`,
+`getRange`, `getDataRange`, `getValues`/`setValues`/`setValue`, `appendRow`,
+`getLastRow`, `getLastColumn`, `setFrozenRows`, `deleteRow`, `clear`, plus
+`LockService`, `Utilities`, `Session`, `DriveApp`, `ScriptApp`, `Logger` and
+`ContentService`. Anything `Code.gs` starts using that is missing throws by name
+rather than passing quietly. The clock and uuids are fixed, and each request
+resets the per-execution caches the real runtime gets for free — forgetting that
+is how a shim starts reporting things the server would never do.
+
+One thing it deliberately does **not** do: strip the leading apostrophe
+`safeCell_` writes. That is real Sheets behaviour it cannot reproduce, so
+nothing here can be mistaken for proof of it.
+
+**`tests/backend.js`** then sends real requests through the real handlers and
+reads the real sheet: A9 identity stamping · a forged `status:'confirmed'`
+handover · stale-epoch rejection · the delta cursor · the lost-response receipt
+serial · formula injection · confirm-vs-reject · who may edit a donor row · a
+donor with money being unremovable · a void travelling with its target ·
+`dupOk`/`pledgeOk` surviving a round trip · backups carrying `Users` **without**
+tokens · `goLive`'s two guards · entry permissions · bad/blocked/pending auth ·
+`releaseSession` · `rolloverYear`'s stamp · the version handshake.
+
+**Two of my own expectations were wrong, and the real behaviour was better:**
+
+- the delta cursor is deliberately **inclusive** (`>=`), because `receivedAt` is
+  written just before `data_ts` and a row can share the stamp's millisecond —
+  strict `>` would drop exactly that row for ever. Pinning an exact id list
+  would have turned a correct cursor into a failing test. The assertion now
+  guards what matters: nothing new is lost, and the re-send is bounded.
+- blocking an account **clears its token**, so the next request is `bad-token`,
+  not `blocked`. That is the stronger behaviour — the device is kicked at once
+  rather than politely told why while still holding a working session.
+
+**Proven by sabotage, three times.** Reintroduce A9 → `backend A9` fails by
+name. Make the `receiptNo` guard always return false → three assertions fail,
+including the sheet reading empty where the donor holds paper. Disable the donor
+edit gate → `backend 2.1` fails and the row reads `HIJACKED`.
+
+And a lesson about my own verification: my first attempt at that middle sabotage
+**deleted a block and produced a syntax error**, so `loadBackend` threw — and my
+`grep "^FAIL|passed,"` showed nothing from the crashed run and then picked up
+the *restored* run's green line. A sabotage that stops the file parsing proves
+nothing about coverage. The surgical version (flip one predicate to `false`,
+file still valid) is the one that means something.
+
+### 2.18 — nothing ever ran the tests except a person remembering to
+
+`scripts/pre-commit-docs.sh` enforces docs-with-code and has never run a single
+assertion. Every green line in this build log was a human typing
+`node tests/run.js` and reading the last line. That works while one person does
+all the work, and stops working the first time it is skipped in a hurry — which
+is exactly when it matters.
+
+`.github/workflows/ci.yml`, with **no build step and no dependencies**, because
+this project is served as static files and the suite needs nothing but node. A
+CI that needs installing is a CI that eventually breaks on its own.
+
+Five gates: the suite (now including the backend) · `node --check` on every
+shipped file plus the manifest — the crude failure the scope check cannot see,
+and on a no-build-step PWA a file that does not parse is a blank screen for
+every collector · the three release strings and the two schema numbers agreeing,
+because the red bar, the entry lock and the redeploy note all read them · every
+asset `sw.js` promises to precache existing, since one 404 in `SHELL` aborts the
+whole install (A55) · every i18n key having both languages, because a missing
+English string renders as the raw key and a missing Bengali one is worse,
+Bengali being the default.
+
+Each gate was run here and then **deliberately broken** to check it blocks: a
+`js/ghost.js` added to the precache list, an i18n key with no `en:`, and
+`APP_SCHEMA` pushed to 4 against `CODE_SCHEMA` 3. All three refused.
+
+### Verification
+
+**1,093 → 1,151.** 637 i18n keys bilingual, 16 precached assets all present,
+release strings and schemas aligned. `CODE_SCHEMA` unchanged at 3 and `Code.gs`
+untouched — **no redeploy needed.**

@@ -3142,5 +3142,9 @@ try {
      'A57: …the consumed-character version, blind to 39% of call sites, is gone');
 }
 
+// A65 (audit 2.17): the backend, executed rather than grepped. Loaded last so
+// a shim problem cannot hide a failure in the pure-logic suite above.
+require('./backend.js')(eq);
+
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

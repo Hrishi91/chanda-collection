@@ -1,0 +1,93 @@
+# A65 (audit 2.18): nothing ever ran the tests except a person remembering to.
+#
+# `scripts/pre-commit-docs.sh` enforces docs-with-code and is the only automatic
+# gate this repo has had — it has never run a single assertion. Every green run
+# in the build log was a human typing `node tests/run.js` and reading the last
+# line. That worked because one person did all the work; it stops working the
+# first time it is skipped in a hurry, which is exactly when it matters.
+#
+# Deliberately no build step and no dependencies: this project is served as
+# static files and `tests/run.js` needs nothing but node. A CI that needs
+# installing is a CI that eventually breaks on its own.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # the suite itself: pure-logic modules, the scope check over js/app.js,
+      # and (since A65) the backend's real request handlers against a shim
+      - name: Test suite
+        run: node tests/run.js
+
+      # `node --check` on every shipped file. The scope check catches a handler
+      # calling an out-of-scope helper; this catches the cruder thing — a file
+      # that does not parse at all, which on a no-build-step PWA means a blank
+      # screen for every collector.
+      - name: Syntax check every shipped file
+        run: |
+          set -e
+          for f in js/*.js sw.js; do node --check "$f"; done
+          cp apps-script/Code.gs /tmp/Code.gs.js && node --check /tmp/Code.gs.js
+          node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8'))"
+
+      # The three version strings must agree or the update machinery lies: the
+      # red bar, the entry lock and the admin's redeploy note all read them.
+      # tests/run.js asserts this too; repeated here so a broken suite cannot
+      # take the check down with it.
+      - name: Version and schema agree across auth.js, sw.js and Code.gs
+        run: |
+          set -e
+          A=$(grep -o "APP_VERSION = 'chanda-v[0-9.]*'" js/auth.js | grep -o 'chanda-v[0-9.]*')
+          S=$(grep -o "VERSION = 'chanda-v[0-9.]*'" sw.js | grep -o 'chanda-v[0-9.]*')
+          C=$(grep -o "CODE_VERSION = 'chanda-v[0-9.]*'" apps-script/Code.gs | grep -o 'chanda-v[0-9.]*')
+          echo "auth=$A sw=$S code=$C"
+          [ "$A" = "$S" ] && [ "$S" = "$C" ] || { echo "::error::release strings disagree"; exit 1; }
+          AS=$(grep -o 'APP_SCHEMA = [0-9]*' js/auth.js | grep -o '[0-9]*')
+          CS=$(grep -o 'CODE_SCHEMA = [0-9]*' apps-script/Code.gs | grep -o '[0-9]*')
+          echo "appSchema=$AS codeSchema=$CS"
+          [ "$AS" = "$CS" ] || { echo "::error::APP_SCHEMA and CODE_SCHEMA disagree — every phone would lock itself out"; exit 1; }
+
+      # Every asset the service worker promises to precache must exist. A 404
+      # in SHELL aborts the whole install (A55) and the phone silently has no
+      # offline app at all.
+      - name: Service worker precaches only files that exist
+        run: |
+          node -e "
+            const fs = require('fs');
+            const sw = fs.readFileSync('sw.js', 'utf8');
+            const list = (name) => {
+              const m = sw.match(new RegExp('const ' + name + ' = \\\\[([^\\\\]]*)\\\\]'));
+              return m ? (m[1].match(/'[^']+'/g) || []).map(s => s.slice(1, -1)) : [];
+            };
+            const missing = [...list('SHELL'), ...list('EXTRAS')]
+              .filter(p => p !== './' && !fs.existsSync(p));
+            if (missing.length) { console.error('::error::sw.js precaches missing files: ' + missing.join(', ')); process.exit(1); }
+            console.log('sw.js: every precached asset exists');
+          "
+
+      # Bilingual is a promise, not a nice-to-have: a missing English string
+      # renders as the raw key, and a missing Bengali one is worse because
+      # Bengali is the default.
+      - name: Every i18n key has both languages
+        run: |
+          node -e "
+            const I = require('./js/i18n.js');
+            const dict = I.DICT || I.dict || (global.window && window.I18N);
+            const src = require('fs').readFileSync('js/i18n.js', 'utf8');
+            const keys = [...src.matchAll(/^  ([a-z_0-9]+): \{ bn:/gm)].map(m => m[1]);
+            const noEn = [...src.matchAll(/^  ([a-z_0-9]+): \{ bn: (?:(?!en:).)*\},?\$/gm)].map(m => m[1]);
+            if (noEn.length) { console.error('::error::i18n keys missing en: ' + noEn.join(', ')); process.exit(1); }
+            console.log('i18n: ' + keys.length + ' keys, all bilingual');
+          "

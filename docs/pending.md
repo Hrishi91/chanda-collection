@@ -427,9 +427,13 @@ The real-phone smoke test is DONE.
 - **2.12 + 2.13 FIXED in v4.14.1 (A64)** — home shows the right-now in-hand
   figure (the one the cashier asks for), tappable to আমার হিসাব; toasts wrap and
   stay up long enough to read; `--sub` raised from 3.88:1 to 4.53:1.
-- **Tier 2 client half — OPEN**: 2.10 offline receipt serial · 2.14 `myReports()` duplication · 2.16 iOS meta gaps · 2.17 no
-  backend behavioural tests · 2.18 no CI · 2.19 `js/app.js` size · 2.20 dead
-  code. **Not doing before the puja:** merging twin donors (moves money between
+- **2.17 + 2.18 FIXED in v4.15.0 (A65)** — `tests/gas-shim.js` + `tests/backend.js`
+  execute the real request handlers (proven by three sabotages), and
+  `.github/workflows/ci.yml` runs the suite, a syntax check, the version/schema
+  agreement, sw-precache existence and i18n completeness on every push (each
+  gate proven to block).
+- **Tier 2 — OPEN**: 2.10 offline receipt serial · 2.14 `myReports()`
+  duplication · 2.16 iOS meta gaps · 2.19 `js/app.js` size · 2.20 dead code. **Not doing before the puja:** merging twin donors (moves money between
   rows — audit §5 says do not touch the money engine now).
 - **§7 documentation drift — OPEN**. Note the count moved again: A61 added
   `possible_duplicate_daily`, so `money-model.md:163` now says eight where the
