@@ -7187,3 +7187,87 @@ tab — my harness, not the CSS. Measuring in a tab whose size was never set is
 worth exactly nothing, and I nearly "fixed" a problem that did not exist.
 
 No schema change, `Code.gs` untouched — **no redeploy needed.**
+
+## v4.18.1 — A71: a refused parcel could still be confirmed (2026-07-29)
+
+Found by driving the **live** server with real admin / cashier / collector
+tokens, in training mode, with Hrishi's explicit go-ahead. Neither audit caught
+it and my own tests passed throughout.
+
+### The bug
+
+`rejectHandover` has always guarded **both** settled states:
+
+```js
+if (String(rowObj.status) === 'confirmed') throw new Error('already-confirmed');
+if (String(rowObj.status) === 'rejected')  throw new Error('already-rejected');
+```
+
+`confirmHandover` guarded only the first. So **reject → confirm was allowed**,
+and the live sheet ended up holding exactly this:
+
+```
+status = confirmed    rejectReason = 'ZZ পাইনি'
+```
+
+That is the torn row A59's lock and single-write were built to make impossible.
+**A lock cannot help when the code lets the second write through on purpose** —
+the two changes solve different halves of the same problem, and I only did one.
+
+In money terms it is worse than a contradiction. The sender has already been
+shown *"টাকা তোমার হিসাবেই আছে — কখনও বাদ যায়নি"*. Then the parcel silently
+settles anyway, and the notice still says it did not.
+
+### Why the suite missed it
+
+My A59 test asserted confirm-then-reject and never tried the reverse. One
+direction of a two-way rule, which reads as coverage and is not. Both directions
+are now asserted, and the pair is stated as one rule: *a settled parcel is
+settled, whichever way it went*. Proven by putting the bug back — two assertions
+fail by name.
+
+### And a harness lesson worth more than the bug
+
+Halfway through the live run, a cashier calling `setStatus` came back
+`{ok: true}`. That would have meant a non-admin could block accounts. It was my
+own harness: Apps Script answers a POST with a 302, urllib followed it as a GET,
+and **`doGet` cheerfully replies `{ok: true, service: 'chanda-khata'}`** — which
+looks exactly like success. Every "allowed / blocked" result I had produced up to
+that point was suspect.
+
+The harness now refuses any response carrying `service` (the doGet shape),
+retries, and raises rather than guessing. The whole 24-action × 2-role matrix
+was re-run afterwards: **nothing a non-admin sent got through.**
+
+A test rig that can silently answer a question you did not ask is worse than no
+rig — it produces confident, wrong reassurance. Same failure as A48's dead
+buttons and A61's `ANOM_ACTIONABLE`, one layer further out.
+
+### What else the live run proved
+
+- **`safeCell_` on the real Sheet** — a donor named `=টেস্ট` reads back as
+  exactly `=টেস্ট`: six characters, no apostrophe, no `#NAME?`. This is the one
+  thing no offline test could establish, and it is now settled.
+- **A59's receipt guard** — a retry with a blank `receiptNo` kept `2026000001`
+  on the sheet and handed it back to the phone.
+- **A61's `possible_duplicate_daily`** — the same bus written as
+  `WB 65 1234` and `wb651234` was raised as one duplicate.
+- **A68's `setAnomalyFlag`** — a cashier answered a duplicate on another
+  collector's payment; `dupOk` landed, `receivedAt` bumped, and the money stayed
+  with the collector who took it. Arbitrary column and arbitrary store both
+  refused.
+- **A60** — removing a donor that has money against it is refused **for the
+  admin too**.
+- Stale epoch refused; `reason-required`; `not-recipient`; the seven reports
+  reachable per grant and an eighth name refused.
+- `reconcile` catches `split_mismatch`, `breakdown_mismatch` and
+  `orphan_payment` on deliberately malformed rows. `negative_inhand` did not
+  fire because nobody was negative — injecting a ₹99,999 over-handover raises
+  it, so the rule is untested by that data, not broken.
+
+⚠️ **Redeploy needed** — `CODE_SCHEMA` stays 4, so nothing locks; the fix simply
+is not live until Code.gs is redeployed.
+
+Every test row was voided afterwards: the book reads ₹0 collected, ₹0 in hand,
+no anomalies. The rows remain in the sheet for audit and will go with tomorrow's
+training clear.

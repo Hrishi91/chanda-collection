@@ -587,7 +587,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.18.0';
+var CODE_VERSION = 'chanda-v4.18.1';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1355,7 +1355,23 @@ var ACTIONS = {
         if (!mine && u.row.role !== 'admin') throw new Error('not-recipient');
         // Already settled: re-confirming would restamp confirmedBy/confirmedAt
         // and hide who really acknowledged it.
+        //
+        // A71: BOTH settled states, not just 'confirmed'. rejectHandover has
+        // guarded both since it was written; this one guarded only one, and the
+        // asymmetry is a money bug, found by driving the live server rather than
+        // by reading either file:
+        //   reject → confirm was ALLOWED, and left status='confirmed' sitting
+        //   next to the rejectReason that says it never arrived.
+        // That is the exact torn row A59's lock and single-write were meant to
+        // make impossible — a lock cannot help when the code deliberately lets
+        // the second write through. Worse in money terms: the sender has already
+        // been told "টাকা তোমার হিসাবেই আছে — কখনও বাদ যায়নি", and then it
+        // silently moves anyway, with the notice still saying it did not.
+        //
+        // My own A59 test asserted confirm-then-reject and never tried the
+        // reverse, so it passed throughout.
         if (String(rowObj.status) === 'confirmed') throw new Error('already-confirmed');
+        if (String(rowObj.status) === 'rejected') throw new Error('already-rejected');
         var nowIso = new Date().toISOString();
         rowObj.status = 'confirmed';
         rowObj.confirmedBy = u.row.name;

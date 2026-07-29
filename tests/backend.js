@@ -163,10 +163,38 @@ module.exports = function runBackendTests(eq) {
     try { b.call('rejectHandover', { token: tok.bimal, id: 'h1', reason: 'পাইনি' }); }
     catch (e) { threw = String(e.message || e); }
     eq(threw, 'already-confirmed', 'backend 2.5: a settled parcel cannot be settled again the other way');
+    // A71: and the REVERSE, which is the direction that was open. This test
+    // asserted only confirm→reject, so reject→confirm passed for two releases
+    // and was found by driving the live server, not by reading the file.
+    threw = '';
+    try { b.call('confirmHandover', { token: tok.bimal, id: 'h1' }); } catch (e) { threw = String(e.message || e); }
+    eq(threw, 'already-confirmed', 'backend 2.5: …and confirming an already-confirmed one is refused too');
     const h = b.rows('Handovers')[0];
     eq(h.status, 'confirmed', 'backend 2.5: …the row stays confirmed…');
     eq(h.rejectReason, '', 'backend 2.5: …and never carries both answers at once');
     eq(String(h.receivedAt).slice(0, 4), '2026', 'backend 2.5: …with receivedAt bumped, so the delta pull carries it');
+  }
+  {
+    // A71: reject → confirm. This left status='confirmed' sitting next to the
+    // rejectReason that says it never arrived — the exact torn row A59's lock
+    // was meant to make impossible. A lock cannot help when the code lets the
+    // second write through on purpose. And the sender has already been told
+    // "টাকা তোমার হিসাবেই আছে"; then it moves anyway, notice unchanged.
+    const { b, tok } = book();
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('handovers', { id: 'h1', year: 2026, to: 'BIMAL', toId: 'bimal', amount: 500,
+                         cashAmount: 500, upiAmount: 0, date: '2026-08-01' }),
+    ] });
+    b.call('rejectHandover', { token: tok.bimal, id: 'h1', reason: 'পাইনি' });
+    let threw = '';
+    try { b.call('confirmHandover', { token: tok.bimal, id: 'h1' }); } catch (e) { threw = String(e.message || e); }
+    eq(threw, 'already-rejected', 'backend A71: a REFUSED parcel cannot then be confirmed');
+    const h = b.rows('Handovers')[0];
+    eq(h.status, 'rejected', 'backend A71: …it stays refused…');
+    eq(h.rejectReason, 'পাইনি', 'backend A71: …with the reason the sender was given');
+    // the pair, stated as one rule: neither settled state may be overwritten
+    eq(['confirmed', 'rejected'].indexOf(String(h.status)) >= 0, true,
+       'backend A71: …and a settled parcel is settled, whichever way it went');
   }
   {
     // and the recipient rule holds: being A cashier is not enough
