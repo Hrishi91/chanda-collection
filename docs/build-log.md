@@ -6627,3 +6627,76 @@ The full cycle, on real taps:
    and `synced: 0`, and the draft is cleared
 
 `CODE_SCHEMA` unchanged at 3 and Code.gs untouched — **no redeploy needed.**
+
+## v4.14.1 — A64 (audit 2.12 / 2.13): the number you answer for, and messages you can read (2026-07-29)
+
+Two findings about the same thing: what the collector can actually see.
+
+### 2.12 — home showed the wrong clock
+
+*আজ আমার তোলা* is a **season** clock. It only ever goes up, and nobody is asked
+about it. The question a collector actually gets — from the cashier, at the end
+of a round, and from their own conscience — is **"how much of it is still on
+you"**, and that lived one tab away behind 📊 রিপোর্ট.
+
+`Aggregate.myAvailable` was already being computed on the home screen, three
+lines above, purely to decide whether 🤝 জমা দিলাম should appear. The figure was
+right there and nobody drew it.
+
+It is the same figure `inHandRows` and the central in-hand report use
+(`money-model.md`: `personalSummary.inHand === myAvailable.total`), so home
+cannot come to disagree with the report — which is the only thing that makes it
+safe to put a money figure on a screen this often re-rendered.
+
+Tappable, to আমার হিসাব, because a bare money figure invites "made of what?"
+and that is the screen which answers it. **Not** a button when it is zero:
+nothing to explain, and a tap that lands on an empty breakdown is how people
+learn a figure is decorative.
+
+### 2.13 — messages that physically could not display
+
+`.toast` was `white-space: nowrap` + `overflow: hidden` + `text-overflow:
+ellipsis`. Anything past roughly 35 characters was cut off mid-sentence — and
+the messages that matter most are the long ones. *"টাকা জমা হয়নি: সার্ভার বলছে:
+…"* truncated to *"টাকা জমা হয়নি: সা…"* tells a collector that something went
+wrong and nothing whatever about what. Every honest error message this audit
+added (A54's catch-all, A55's offline notice, A61's redeploy note) was landing
+in a box that could not hold it.
+
+Wrapping alone was not enough, and I only saw why by measuring: a fixed-position
+box shrinks to fit, so it wrapped at **188px of an available 337px** and turned
+a two-line message into five. `width: max-content` with the max-width cap fixes
+it — measured after: 7 chars → 98px, 76 chars → 338px and three lines, nothing
+clipped at any length.
+
+Duration was a flat 2.2 s regardless of length. Fine for "সেভ হলো", far too
+short for a sentence explaining a failure — the one a collector most needs to
+finish reading, outdoors, with a donor waiting. Now `2200 + 45 ms per
+character`, capped at 8 s so a toast can never become a wall. The long example
+above gets 5.6 s.
+
+**Contrast**: `--sub` was `#8a7a66` — **3.88:1** on `--bg`, below WCAG AA, and
+it is the colour of *every* secondary line in the app: the collector's name,
+every `row-sub`, every hint, the dues under each donor. Read outdoors, in
+sunlight, on a ₹5,000 screen. `#7f6f5b` is the smallest darkening of the **same
+hue** that clears 4.5:1 on both `--bg` (4.53) and `--card` (4.85) — nothing
+about the look changes except that it can be read.
+
+The admin list rows keep their ellipsis on purpose: a truncated *label* can be
+tapped to see in full, a truncated *message* has nothing behind it.
+
+### Verification
+
+Tests **1080 → 1093**. The contrast is **computed** in the suite from the CSS
+variables, not asserted as a magic hex — so darkening the background later
+cannot silently push it back under AA. The in-hand figure is checked against
+`personalSummary.inHand` on a real dataset (collected 3,000, spent 400 → 2,600),
+so the two can never drift apart.
+
+In the browser on a fresh port: home reads **💰 এখন আমার হিসাবে আছে: ₹2,600**,
+`myAvailable` and `personalSummary.inHand` both say 2600, the line carries
+`data-go="report"`, rendered secondary text measures **4.53:1** against the real
+page background, and toasts at 7 / 17 / 76 characters all render unclipped at
+2.5 / 3.0 / 5.6 seconds.
+
+No schema change, Code.gs untouched — **no redeploy needed.**

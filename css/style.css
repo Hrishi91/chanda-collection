@@ -1,7 +1,12 @@
 * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
 :root {
   --saffron: #d9531e; --saffron-dark: #b03e12; --gold: #f6b93b;
-  --bg: #fdf6ee; --card: #ffffff; --ink: #2d2418; --sub: #8a7a66;
+  --bg: #fdf6ee; --card: #ffffff; --ink: #2d2418; --sub: #7f6f5b; /* A64 (audit 2.13): was #8a7a66 = 3.88:1 on --bg, below WCAG AA,
+     and it is the colour of every secondary line in the app — the collector's
+     name, every row-sub, every hint, the dues under each donor. Read outdoors,
+     in sunlight, on a cheap screen. #7f6f5b is the smallest darkening of the
+     SAME hue that clears 4.5:1 on both --bg (4.53) and --card (4.85), so
+     nothing about the look changes except that it can be read. */
   --green: #1e8f4d; --red: #c62828; --line: #f0e4d4;
 }
 html, body { height: 100%; }
@@ -45,6 +50,19 @@ nav#bottomnav {
   border-radius: 16px; padding: 16px; font-weight: 700; font-size: 17px;
 }
 .hero-sub { font-weight: 400; font-size: 14px; color: var(--sub); margin-top: 6px; }
+
+/* A64 (audit 2.12): the right-now figure on home. A button, because a bare
+   money figure invites "made of what?" and আমার হিসাব answers exactly that.
+   Styled as part of the hero rather than as a tile — it is a fact about the
+   collector, not another thing to do. */
+.hero-hold {
+  display: block; width: 100%; margin-top: 8px; padding: 8px 12px;
+  background: rgba(255,255,255,.72); border: 1px solid var(--line);
+  border-radius: 12px; font-family: inherit; font-size: 14px; font-weight: 600;
+  color: var(--ink); text-align: left; cursor: pointer;
+}
+.hero-hold b { font-size: 16px; }
+
 .section { margin: 18px 4px 8px; font-weight: 700; color: var(--sub); font-size: 13px; text-transform: uppercase; letter-spacing: .4px; }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .grid.one { grid-template-columns: 1fr; margin-top: 10px; }
@@ -156,7 +174,16 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
   position: fixed; bottom: 86px; left: 50%; transform: translateX(-50%) translateY(20px);
   background: var(--ink); color: #fff; padding: 11px 20px; border-radius: 99px;
   font-size: 15px; font-weight: 600; opacity: 0; transition: all .25s; z-index: 99;
-  max-width: 90vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* A64 (audit 2.13): was `nowrap` + ellipsis, so anything past ~35 characters
+     was cut off mid-sentence — and the messages that matter most are the long
+     ones: "টাকা জমা হয়নি: সার্ভার বলছে …", the rejected-row warning, the
+     offline-not-ready notice. A message truncated to "টাকা জমা হয়নি: সা…"
+     tells the collector something went wrong and nothing about what. */
+  /* width: max-content or a fixed element shrinks to fit and wraps far
+     earlier than it needs to — measured 188px of an available 337px, turning a
+     two-line message into five. */
+  width: max-content; max-width: min(90vw, 420px);
+  white-space: normal; text-align: center; line-height: 1.35; word-break: break-word;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast-undo {

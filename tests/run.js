@@ -3017,6 +3017,70 @@ try {
      'A63: a draft whose donor is gone is dropped with an explanation');
 }
 
+
+// ---- A64 (audit 2.12 / 2.13) -------------------------------------------------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const css = fs.readFileSync(__dirname + '/../css/style.css', 'utf8');
+  const A = require('../js/aggregate.js');
+
+  // 2.12 — home showed only আজ আমার তোলা, a season clock that never goes down.
+  // The figure a collector is actually asked for was one tab away.
+  eq(/const inHandNow = \(avail\.cash \+ avail\.upi\);/.test(app), true,
+     'A64: home computes the right-now figure from the ALREADY computed myAvailable');
+  eq(/class="hero-hold" data-go="report"/.test(app), true,
+     'A64: …and it is tappable, to the screen that explains what it is made of');
+  eq(/inHandNow > 0\n?\s*\?/.test(app) || /inHandNow > 0$/m.test(app), true,
+     'A64: …but not a button at zero — a tap onto an empty breakdown teaches people it is decorative');
+
+  // it must agree with the money engine, or home and the report contradict
+  // each other on the one number a collector answers for
+  const base = { parties: [], payments: [], daily: [], expenses: [], handovers: [], voids: [] };
+  const own = { collectorId: 'ratan', collector: 'রতন', collectorRole: 'collector' };
+  const d = Object.assign({}, base, {
+    parties: [Object.assign({ id: 's1', type: 'shop', name: 'x', pledged: 5000 }, own)],
+    payments: [Object.assign({ id: 'p1', partyId: 's1', amount: 3000, cashAmount: 2000, upiAmount: 1000 }, own)],
+    expenses: [Object.assign({ id: 'e1', amount: 400, source: 'collection', collectionType: 'shop',
+                               cashAmount: 400, upiAmount: 0, srcCat: 'shop', spentBy: 'রতন' }, own)],
+  });
+  const av = A.myAvailable(d, 'ratan');
+  eq(av.cash + av.upi, 2600, 'A64: collected 3000 minus 400 spent = 2600');
+  eq(av.cash + av.upi, A.personalSummary(d, 'ratan').inHand,
+     'A64: …and home cannot disagree with আমার হিসাব, because both read myAvailable');
+
+  // 2.13 — half the messages physically could not display
+  // scoped to the .toast rule — an admin LIST row may still ellipsis a long
+  // name (that is a label you can tap to see in full); a MESSAGE may not,
+  // because there is nothing behind it to open
+  {
+    const toastCss = css.slice(css.indexOf('.toast {'), css.indexOf('.toast.show'));
+    eq(/white-space: nowrap/.test(toastCss), false, 'A64: the toast no longer truncates mid-sentence…');
+    eq(/text-overflow: ellipsis/.test(toastCss), false, 'A64: …with no ellipsis left on it either');
+  }
+  eq(/width: max-content; max-width: min\(90vw, 420px\);/.test(css), true,
+     'A64: …and does not shrink-to-fit into a narrow column either (measured 188px of an available 337px)');
+  eq(/function toastMs\(msg\)/.test(app) &&
+     /Math\.min\(8000, 2200 \+ String\(msg \|\| ''\)\.length \* 45\)/.test(app), true,
+     'A64: …and stays up long enough to be read, capped so it can never become a wall');
+  eq(/}, toastMs\(msg\)\);/.test(app), true, 'A64: …which toast() actually uses');
+
+  // contrast: --sub is the colour of every secondary line in the app
+  {
+    const sub = (css.match(/--sub: (#[0-9a-f]{6})/) || [])[1];
+    const bg = (css.match(/--bg: (#[0-9a-f]{6})/) || [])[1];
+    const card = (css.match(/--card: (#[0-9a-f]{6})/) || [])[1];
+    const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    const L = (h) => { const n = h.slice(1); const p = [0, 2, 4].map(i => parseInt(n.slice(i, i + 2), 16));
+                       return 0.2126 * lin(p[0]) + 0.7152 * lin(p[1]) + 0.0722 * lin(p[2]); };
+    const ratio = (a, b) => { let x = L(a), y = L(b); if (x < y) { const t2 = x; x = y; y = t2; }
+                              return (x + 0.05) / (y + 0.05); };
+    eq(sub !== '#8a7a66', true, 'A64: the old --sub was 3.88:1 on --bg — below AA, on every secondary line');
+    eq(ratio(sub, bg) >= 4.5, true, 'A64: --sub clears WCAG AA on --bg (' + ratio(sub, bg).toFixed(2) + ':1)');
+    eq(ratio(sub, card) >= 4.5, true, 'A64: …and on --card (' + ratio(sub, card).toFixed(2) + ':1)');
+  }
+}
+
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------
 {
   const fs = require('fs');

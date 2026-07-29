@@ -424,8 +424,10 @@ The real-phone smoke test is DONE.
 - **2.11 FIXED in v4.14.0 (A63)** — a half-finished entry survives the tab
   dying, and Back asks before abandoning one. Handovers and edits deliberately
   excluded (live money ceiling / void-after-save).
-- **Tier 2 client half — OPEN**: 2.10 offline receipt serial · 2.12 home missing the right-now figure · 2.13 toast `nowrap` +
-  contrast · 2.14 `myReports()` duplication · 2.16 iOS meta gaps · 2.17 no
+- **2.12 + 2.13 FIXED in v4.14.1 (A64)** — home shows the right-now in-hand
+  figure (the one the cashier asks for), tappable to আমার হিসাব; toasts wrap and
+  stay up long enough to read; `--sub` raised from 3.88:1 to 4.53:1.
+- **Tier 2 client half — OPEN**: 2.10 offline receipt serial · 2.14 `myReports()` duplication · 2.16 iOS meta gaps · 2.17 no
   backend behavioural tests · 2.18 no CI · 2.19 `js/app.js` size · 2.20 dead
   code. **Not doing before the puja:** merging twin donors (moves money between
   rows — audit §5 says do not touch the money engine now).

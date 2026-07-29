@@ -29,12 +29,21 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+  // A64 (audit 2.13): 2.2 s regardless of length. That is fine for "সেভ হলো"
+  // and far too short for a sentence explaining why a save failed — the one a
+  // collector most needs to finish reading. Bengali conjuncts are slower to
+  // read than Latin at the same character count, and this is read outdoors
+  // with a donor waiting, so the allowance is generous: ~45 ms a character on
+  // top of the base, capped at 8 s so a toast can never become a wall.
+  function toastMs(msg) {
+    return Math.min(8000, 2200 + String(msg || '').length * 45);
+  }
   function toast(msg) {
     const el = document.createElement('div');
     el.className = 'toast'; el.textContent = msg;
     document.body.appendChild(el);
     setTimeout(function () { el.classList.add('show'); }, 10);
-    setTimeout(function () { el.classList.remove('show'); setTimeout(function () { el.remove(); }, 300); }, 2200);
+    setTimeout(function () { el.classList.remove('show'); setTimeout(function () { el.remove(); }, 300); }, toastMs(msg));
   }
   // Toast with an inline Undo action (5s window) — used after an instant save
   // so entry stays fast (no confirm screen) without losing an escape hatch.
@@ -1818,10 +1827,29 @@
         }
         return;
       }
+      // A64 (audit 2.12): home showed only আজ আমার তোলা — a SEASON clock that
+      // never goes down. The number a collector is actually asked for, by the
+      // cashier and by their own conscience, is "how much of it is still on
+      // you", and that was one tab away behind 📊 রিপোর্ট.
+      //
+      // myAvailable is the same figure inHandRows and the central report use
+      // (money-model: personalSummary.inHand === myAvailable.total), so home
+      // cannot disagree with the report — which is the only reason it is safe
+      // to put a money figure on a screen this often re-rendered.
+      //
+      // Tappable, because a bare number invites "made of what?" — and আমার
+      // হিসাব is exactly the screen that answers it. Not a button when it is
+      // zero: nothing to explain, and a tap that leads to an empty breakdown
+      // is how people learn the figure is decorative.
+      const inHandNow = (avail.cash + avail.upi);
+      const holdLine = inHandNow > 0
+        ? '<button class="hero-hold" data-go="report">' + esc(t('sum_hero')) + ': <b>' + fmtMoney(inHandNow) + '</b> ›</button>'
+        : '<div class="hero-sub">' + esc(t('sum_hero')) + ': <b>' + fmtMoney(0) + '</b></div>';
       $view().innerHTML =
         '<div id="notif-banner"></div>' +
         '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
-        '<div class="hero-sub">' + esc(Settings.get('collectorName')) + ' • ' + esc(t('my_today')) + ': <b>' + fmtMoney(myToday) + '</b></div></div>' +
+        '<div class="hero-sub">' + esc(Settings.get('collectorName')) + ' • ' + esc(t('my_today')) + ': <b>' + fmtMoney(myToday) + '</b></div>' +
+        holdLine + '</div>' +
         (partyTiles ? '<div class="section">' + esc(t('new_entry')) + '</div><div class="grid">' + partyTiles + '</div>' : '') +
         (dailyTiles ? '<div class="section">' + esc(t('today_daily')) + '</div><div class="grid">' + dailyTiles + '</div>' : '') +
         paymentTile +
