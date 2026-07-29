@@ -2806,8 +2806,22 @@
         g.strokeStyle = '#e6ddcf'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(60, 224); g.lineTo(W - 60, 224); g.stroke();
         g.textAlign = 'left';
         // ---- serial (red, right) ----
+        // A67 (audit 2.10): the serial is minted by the SERVER, so an entry
+        // taken out of signal has none yet and this printed a bare "নং —".
+        // A dash is not an explanation. The donor walks away holding a receipt
+        // with no number and no reason for it, and if they ever ring up to ask
+        // about their payment, that number is the only thing either side can
+        // quote.
+        //
+        // The explanation goes INSIDE the image for the same reason the
+        // corrected stamp does, six lines below: the caption is the part an app
+        // may throw away, and the picture is what the donor keeps.
         g.textAlign = 'right'; g.fillStyle = '#c0201a'; g.font = 'bold 20px sans-serif';
-        g.fillText('নং  ' + (rc.receiptNo || '—'), W - 60, 258);
+        // ONE line, not two: y=278 is where the donor sentence begins, and a
+        // second line there printed straight through it. Verified by rendering
+        // the canvas, which is the only way this kind of thing shows up.
+        g.fillText(rc.receiptNo ? 'নং  ' + rc.receiptNo
+                                : 'নং  —  ' + t('rcp_no_pending_stamp'), W - 60, 258);
         // A correction re-uses the ORIGINAL serial, so the donor gets a second
         // message carrying the same number. Without this stamp they would
         // reasonably think they had been counted twice — and it goes in the
@@ -2907,7 +2921,10 @@
       t('receipt_amount') + ': ' + rcpMoney(rc.amount) + '/- (' + banglaNumWords(rc.amount) + ' টাকা মাত্র)',
       (rc.showTotals ? t('paid') + ': ' + rcpMoney(rc.paidTotal) + '/' + rcpMoney(rc.pledged) +
         '   ' + t('due') + ': ' + rcpMoney(rc.due) : ''),
-      (rc.receiptNo ? t('receipt_no') + ' ' + rc.receiptNo : '') +
+      // A67: over SMS there IS no image, so the sentence has to be here too —
+      // otherwise the one receipt that cannot show a number is also the one
+      // that never says why.
+      (rc.receiptNo ? t('receipt_no') + ' ' + rc.receiptNo : t('rcp_no_pending_stamp')) +
         (rc.date ? ' · ' + fmtDate(rc.date) : ''),
       cfg.footer,
     ].filter(function (x) { return x !== ''; }).join('\n');

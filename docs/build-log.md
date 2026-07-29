@@ -6876,3 +6876,47 @@ true → no hint. Served bytes confirmed: 48,113 vs the old 316,597.
 `js/app.js` 5,803 → 5,798 lines and `Code.gs` 2,316 → 2,314 — small, but every
 line removed was one that could be believed. No schema change; Code.gs lost only
 a dead function, so **no redeploy needed** (the next one will carry it).
+
+## v4.16.1 — A67 (audit 2.10): the receipt that could not say why it had no number (2026-07-29)
+
+The serial is minted by the **server**. An entry taken out of signal has none
+yet, and the canvas printed a bare **"নং —"**.
+
+A dash is not an explanation. The donor walks away holding a receipt with no
+number and no reason for it — and that number is the only thing either side can
+quote if they ever ring up to ask about their payment. The app *did* explain
+itself, but on the collector's screen: *"রসিদ নম্বর sync হলে বসবে"*. The
+collector is not the one who leaves with the paper.
+
+The fix is the rule this file already states six lines below the change, about
+the correction stamp: **the caption is the part an app may throw away, and the
+picture is what the donor keeps.** So the sentence goes in the image:
+*"নং — নম্বর নেট এলে বসবে"*.
+
+Over SMS there is no image at all, so `receiptMessage` says it too — otherwise
+the one receipt that cannot show a number would also be the one that never says
+why.
+
+The collector's on-screen note stays. The two are not duplicates: one tells the
+donor a number is coming, the other tells the collector there is something still
+to sync. Different people, different actions.
+
+### The version I nearly shipped
+
+The first attempt drew it as a **second line under the serial, at y=278** — and
+rendering the canvas showed it printing straight through *"মা তারা স্টোর এর
+নিকট হইতে…"*, the donor's own sentence. Nothing in the source hints at that;
+278 is just a number until something draws at it. One line at y=258 instead,
+verified in both states: no serial → *"নং — নম্বর নেট এলে বসবে"*, and after the
+push lands → *"নং 2026000042"* with the collector's note gone.
+
+Tests **1,186 → 1,191**, including one that pins the collision away.
+
+**Not done, deliberately**: pre-allocating serial blocks at login, which the
+audit offers as the larger fix. It needs a server change, a redeploy, and it
+leaves gaps of unused numbers in a book whose serials people read as a
+sequence — a real cost against a problem that one honest sentence solves.
+
+⚠️ This is the last open item I intend to take before the puja. **2.19**
+(`js/app.js` at 5,798 lines) stays open on the audit's own advice: *"Do not
+touch the flow engine before the puja."*

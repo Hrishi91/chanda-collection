@@ -141,6 +141,9 @@ const I18N = {
   party_f_phone: { bn: 'ফোন নম্বর', en: 'Phone number' },
   party_f_pledged: { bn: 'কত টাকা কথা হলো (pledge)', en: 'Pledged amount' },
   anom_needs_deploy: { bn: '⏳ এই উত্তরটা সার্ভারে রাখার জায়গা এখনো নেই — Code.gs redeploy বাকি। তখন বোতামটা কাজ করবে।', en: '⏳ The server has nowhere to keep this answer yet — Code.gs has not been redeployed. The button will work once it is.' },
+  // A67 (audit 2.10): printed on the receipt ITSELF, not only on the
+  // collector's screen — the picture is what the donor keeps.
+  rcp_no_pending_stamp: { bn: 'নম্বর নেট এলে বসবে', en: 'Number follows once online' },
   // --- A66 (audit 2.16): iOS has no install button of its own ---
   ios_install_title: { bn: 'ফোনে বসিয়ে নাও', en: 'Put it on your phone' },
   ios_install_how: { bn: 'নিচের শেয়ার বোতাম (⬆️) চাপো → নিচে নেমে "Add to Home Screen" চাপো → "Add"।', en: 'Tap the Share button (⬆️) below → scroll down to "Add to Home Screen" → "Add".' },

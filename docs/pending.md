@@ -438,8 +438,14 @@ The real-phone smoke test is DONE.
   and iOS given a real 48 KB opaque touch icon, standalone mode, and the only
   install route it has. `adminAction` was NOT dead — the audit list predates
   A48 restoring it — and is now pinned so the next cleanup cannot cut it again.
-- **Tier 2 — OPEN**: 2.10 offline receipt serial · 2.19 `js/app.js` size
-  (audit §5: do NOT touch the flow engine before the puja). **Not doing before the puja:** merging twin donors (moves money between
+- **2.10 FIXED in v4.16.1 (A67)** — an offline receipt now says *"নং — নম্বর নেট
+  এলে বসবে"* inside the image the donor keeps, and in the SMS text too. Serial
+  pre-allocation deliberately not done: server change, redeploy, and gaps in a
+  sequence people read as a sequence.
+- **Tier 2 — OPEN: 2.19 only** (`js/app.js` at 5,798 lines). Staying open on
+  the audit's own advice — §5: *"Do not touch the flow engine before the puja."*
+  Extract order when the season is over: `fmt.js` → `reports-html.js` →
+  `receipt.js` → `admin.js`. **Not doing before the puja:** merging twin donors (moves money between
   rows — audit §5 says do not touch the money engine now).
 - **§7 documentation drift — OPEN**. Note the count moved again: A61 added
   `possible_duplicate_daily`, so `money-model.md:163` now says eight where the

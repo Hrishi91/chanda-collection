@@ -3180,6 +3180,32 @@ try {
   });
 }
 
+
+// ---- A67 (audit 2.10): the receipt with no number yet ------------------------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+
+  // The serial is minted by the SERVER, so an entry taken out of signal has
+  // none — and the canvas printed a bare "নং —". A dash is not an explanation:
+  // the donor walks away holding a receipt with no number and no reason, and
+  // that number is the only thing either side can quote later.
+  eq(i18n.indexOf('  rcp_no_pending_stamp:') >= 0, true, 'A67: there is a sentence for it');
+  eq(/'নং  —  ' \+ t\('rcp_no_pending_stamp'\)/.test(app), true,
+     'A67: …drawn INSIDE the image, where the corrected stamp already goes');
+  // one line, not two — 278 is where the donor sentence starts, and a second
+  // line there printed straight through it. Found by rendering the canvas.
+  eq(/g\.fillText\(t\('rcp_no_pending_stamp'\), W - 60, 278\)/.test(app), false,
+     'A67: …on ONE line, because the second one collided with the donor sentence');
+  // and over SMS there is no image at all, so the sentence has to be there too
+  eq(/\(rc\.receiptNo \? t\('receipt_no'\) \+ ' ' \+ rc\.receiptNo : t\('rcp_no_pending_stamp'\)\)/.test(app), true,
+     'A67: …and in the text receipt, which travels without the picture');
+  // the on-screen hint stays: it is for the collector, who can act on it
+  eq(/receipt_no_pending/.test(app), true,
+     'A67: the collector still gets their own note — the two say different things to different people');
+}
+
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------
 {
   const fs = require('fs');
