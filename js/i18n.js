@@ -141,6 +141,15 @@ const I18N = {
   party_f_phone: { bn: 'ফোন নম্বর', en: 'Phone number' },
   party_f_pledged: { bn: 'কত টাকা কথা হলো (pledge)', en: 'Pledged amount' },
   anom_needs_deploy: { bn: '⏳ এই উত্তরটা সার্ভারে রাখার জায়গা এখনো নেই — Code.gs redeploy বাকি। তখন বোতামটা কাজ করবে।', en: '⏳ The server has nowhere to keep this answer yet — Code.gs has not been redeployed. The button will work once it is.' },
+  // --- A63 (audit 2.11): the half-finished entry ---
+  flow_leave_confirm: { bn: 'এই এন্ট্রিটা এখনো শেষ হয়নি। বেরিয়ে যাবে?\n\nযা লিখেছ সেটা রাখা থাকবে — পরে চাইলে চালিয়ে যেতে পারবে।\n\n"Cancel" = এখানেই থাকি · "OK" = বেরোই', en: 'This entry is not finished. Leave it?\n\nWhat you have typed will be kept — you can carry on later.\n\n"Cancel" = stay here · "OK" = leave' },
+  draft_title: { bn: 'একটা এন্ট্রি শেষ হয়নি', en: 'An entry was left unfinished' },
+  draft_what: { bn: '{what} — {ago} শুরু হয়েছিল। যেখানে ছিলে ঠিক সেখান থেকে চালিয়ে যেতে পারো।', en: '{what} — started {ago}. You can pick up exactly where you left off.' },
+  draft_continue: { bn: '▶️ চালিয়ে যাই', en: '▶️ Carry on' },
+  draft_drop: { bn: 'ফেলে দাও', en: 'Throw it away' },
+  draft_entry: { bn: 'একটা এন্ট্রি', en: 'an entry' },
+  draft_discarded: { bn: '🗑️ অসম্পূর্ণ এন্ট্রিটা ফেলে দেওয়া হলো', en: '🗑️ Unfinished entry discarded' },
+  draft_gone: { bn: 'যে ডোনরের জন্য এন্ট্রিটা ছিল তাকে আর খাতায় পাওয়া যাচ্ছে না — এন্ট্রিটা ফেলে দিলাম', en: 'The donor that entry was for is no longer in the book — the entry was discarded' },
   // --- A61 (audit 2.2 / 2.3): the two anomalies nobody could act on ---
   anom_dup_daily: { bn: 'একই কালেকশন দুবার?', en: 'Same collection twice?' },
   anom_dup_daily_ok: { bn: '✓ আলাদা, ঠিক আছে', en: '✓ Separate, it is fine' },

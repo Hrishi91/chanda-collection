@@ -6542,3 +6542,88 @@ that Sheets strips the leading apostrophe on the way back out. The whole
 not a code property — `codeVersion` coming back as v4.13.1 proves the deployed
 script is this file, but it cannot prove that. Enter one donor named `=টেস্ট`,
 sync, and check the name reads back plain.
+
+## v4.14.0 — A63 (audit 2.11): a half-finished entry stops vanishing (2026-07-29)
+
+`flowState` lived only in memory. Two ways a collector lost work, and both
+happen at a pandal gate rather than at a desk:
+
+- **the tab dies mid-flow** — a phone call, a swipe-away, an OS memory kill, a
+  service-worker reload. Everything typed is simply gone.
+- **hardware / gesture Back** — `popstate` did `flowState = null` with **no
+  question at all**. Android's edge-swipe Back is easy to trigger by accident
+  while holding a phone in one hand and cash in the other.
+
+Nothing was ever said either way. The donor is standing there, and you start
+again.
+
+### What is persisted, and what is deliberately not
+
+Each flow factory now carries a `resume` descriptor — set in the **factory**, not
+at the fourteen `startFlow` call sites, so none can be forgotten. The draft is
+`{descriptor, answers, idx, t}` in localStorage, written **after every accepted
+answer**. Not on `pagehide`/`beforeunload`: those do not fire reliably when
+Android kills a backgrounded tab, which is precisely the case this exists for.
+
+Two flows have **no** descriptor, and the reasons are written into the code
+rather than left as an omission somebody later "fixes":
+
+- **handovers** — the ceiling is computed from live money. Restoring an answer
+  sheet built against yesterday's in-hand would let somebody hand over money
+  they no longer hold.
+- **edits** — `finishFlow` voids the original *after* the replacement saves.
+  Resuming an edit from a stale snapshot could void a row against figures that
+  have since moved.
+
+A draft older than **12 hours** is dropped rather than offered. Past a
+collecting day it is not a rescue, it is a trap: the donor has gone, and
+re-saving it would file today's money under an old context.
+
+### Back now asks, and leaving still keeps the work
+
+The same shape as the A45 skip guard: ask once, only when something has actually
+been typed (presets are context, not work — asking about an entry nobody has
+started is how a confirm becomes something people dismiss without reading).
+`popstate` cannot be cancelled, so staying pushes the entry state back on. And
+saying "yes, leave" still keeps the draft, so even a mis-tap on OK is
+recoverable rather than final.
+
+### A card, not a `window.confirm` — and one bug found only by driving it
+
+The offer was first written as a native confirm at boot. Two things were wrong
+with that, and I only saw the second by running it:
+
+1. **On merit**: a modal fired on every cold start is exactly what people learn
+   to dismiss by reflex, and a reflex-dismissed rescue offer destroys the work
+   it exists to save. It also blocks the first paint, so the answer is given
+   before the collector can see where they are. It is now a card that names the
+   entry, says how long ago, **shows the answers being offered back**, and gives
+   both choices as one tap.
+2. **The bug**: the offer was painted *after* `render()`. `renderHome()` draws
+   from `viewData()`, which resolves a tick later — and painted the home screen
+   straight back over the card. Reading the code, that looked fine. The draft
+   is now chosen **before** the first paint and routed like every other screen,
+   so there is one paint path and nothing to race.
+
+### Verification
+
+Tests **1052 → 1080**. Then driven in a browser on a fresh port — and it took
+**three** fresh ports, because the service worker kept serving the `app.js` it
+had cached before each edit. That is my own recorded lesson, ignored twice more
+in one session; the only reliable answer is a port that has never been visited.
+
+The full cycle, on real taps:
+
+1. start a দোকান entry → no draft written until something is typed
+2. type two answers → draft holds exactly `{name, owner}`, `idx: 2`, with the
+   descriptor `{fn: 'newParty', type: 'shop'}`
+3. Back → *"এই এন্ট্রিটা এখনো শেষ হয়নি। বেরিয়ে যাবে?"*; saying **no** keeps the
+   flow, the transcript and the history state
+4. reload mid-entry (the tab-death case, no unload hook involved) → the card
+   appears naming the entry and showing **পরীক্ষা দোকান · রমেশ দাস**
+5. ▶️ চালিয়ে যাই → the whole transcript is back and the next question is the one
+   that was pending, not the first
+6. finish it → the row saves with `name`, `owner`, `side`, `pledged` all intact
+   and `synced: 0`, and the draft is cleared
+
+`CODE_SCHEMA` unchanged at 3 and Code.gs untouched — **no redeploy needed.**

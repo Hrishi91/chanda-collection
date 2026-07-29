@@ -566,6 +566,130 @@
     }, { passive: true });
   }
 
+  // ---------- A63 (audit 2.11): the half-finished entry ----------------------
+  //
+  // `flowState` lived only in memory. Two ways a collector lost work, and both
+  // happen at a pandal gate rather than at a desk:
+  //   · a phone call, a swipe-away, an OS memory kill, a service-worker reload
+  //     — the tab dies mid-flow and everything typed is simply gone
+  //   · hardware/gesture Back — popstate set `flowState = null` with no
+  //     question at all, and Android's edge-swipe Back is easy to trigger by
+  //     accident while holding a phone in one hand and cash in the other
+  // Nothing was ever said. The donor is standing there, and you start again.
+  //
+  // What is NOT persisted, on purpose:
+  //   · handovers — the ceiling is computed from live money. Restoring an
+  //     answer sheet built against yesterday's in-hand would let somebody hand
+  //     over money they no longer hold.
+  //   · edits — finishFlow voids the original AFTER the replacement saves.
+  //     Resuming an edit from a stale snapshot could void a row against a
+  //     replacement built from figures that have since moved.
+  // Both are silent by omission elsewhere; here the reason is written down.
+  const DRAFT_KEY = 'ck_draft';
+  const DRAFT_MAX_AGE = 12 * 60 * 60 * 1000; // one collecting day, not more
+  function draftSave() {
+    if (!flowState || !flowState.def.resume) return;
+    // presets are context, not typed work — a draft holding only presets would
+    // offer to "resume" an entry nobody has started
+    const typed = Object.keys(flowState.answers).filter(function (k) {
+      return k.indexOf('__') !== 0 && !(flowState.def.presets || {}).hasOwnProperty(k);
+    });
+    if (!typed.length) { draftClear(); return; }
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        r: flowState.def.resume, a: flowState.answers, i: flowState.idx, t: Date.now(),
+      }));
+    } catch (e) { /* storage full — the flow itself must not break */ }
+  }
+  function draftClear() { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {} }
+  // Has the collector actually typed anything, or is this still the flow's own
+  // context? Asking "are you sure" about an entry nobody has started is how a
+  // confirm becomes something people dismiss without reading.
+  function flowHasTypedAnswers() {
+    if (!flowState) return false;
+    const pre = flowState.def.presets || {};
+    return Object.keys(flowState.answers).some(function (k) {
+      return k.indexOf('__') !== 0 && !pre.hasOwnProperty(k);
+    });
+  }
+  function draftRead() {
+    try {
+      const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+      if (!d || !d.r || !d.t) return null;
+      // A draft older than a collecting day is not a rescue, it is a trap: the
+      // donor has gone, and re-saving it would file today's money under an old
+      // context. Drop it rather than offer it.
+      if (Date.now() - Number(d.t) > DRAFT_MAX_AGE) { draftClear(); return null; }
+      return d;
+    } catch (e) { return null; }
+  }
+  // Rebuild the flow the descriptor names. Anything unrecognised (an old draft
+  // from a release that has since changed its flows) is dropped, never guessed.
+  function draftResume(d) {
+    const r = d.r || {};
+    const start = function (def) {
+      if (!def) { draftClear(); navigate('home'); return; }
+      def.presets = Object.assign({}, def.presets || {}, d.a || {});
+      startFlow(def);
+      flowState.answers = Object.assign({}, d.a || {});
+      flowState.idx = Math.min(Number(d.i) || 0, def.steps.length - 1);
+      renderEntry();
+    };
+    if (r.fn === 'newParty') return start(newPartyFlow(r.type, r.presets || {}));
+    if (r.fn === 'daily') return start(dailyFlow(r.type));
+    if (r.fn === 'collExpense') return start(collectionExpenseFlow(r.collectionType));
+    if (r.fn === 'expense') { draftClear(); return startExpense({ presets: d.a || {} }); }
+    if (r.fn === 'payment') {
+      return viewData().then(function (data) {
+        const p = liveParties(data).filter(function (x) { return x.id === r.partyId; })[0];
+        // the donor was corrected away or removed while this sat in storage
+        if (!p) { draftClear(); toast(t('draft_gone')); navigate('home'); return; }
+        start(paymentFlow(p, r.origin || 'list'));
+      });
+    }
+    draftClear(); navigate('home');
+  }
+  // Offered, never automatic — waking up inside a half-finished form you do not
+  // remember starting is its own kind of alarming.
+  //
+  // A CARD, not window.confirm. A native modal fired on every cold start is
+  // exactly the thing people learn to dismiss without reading, and a
+  // reflex-dismissed rescue offer destroys the work it exists to save. It also
+  // blocks the first paint, so the collector answers it before seeing where
+  // they are. This says what the entry was and when, and both answers are one
+  // tap — the same shape as renderAfter.
+  function renderDraftOffer(d) {
+    const what = d.r && d.r.label ? d.r.label : t('draft_entry');
+    const typed = Object.keys(d.a || {}).filter(function (k) { return k.indexOf('__') !== 0; });
+    $view().innerHTML =
+      '<div class="card center onboard"><div class="big-emoji">📝</div>' +
+      '<h2>' + esc(t('draft_title')) + '</h2>' +
+      '<div class="hint">' + esc(t('draft_what').replace('{what}', what)
+        .replace('{ago}', agoText(new Date(d.t).toISOString()))) + '</div>' +
+      // show what is actually being offered back, so "carry on" is a decision
+      // about known work rather than a guess about a vanished screen
+      (typed.length ? '<div class="bd-line" style="display:block;margin-top:8px">' +
+        esc(typed.map(function (k) { return answerText(k, d.a[k]); }).filter(Boolean).join(' · ')) + '</div>' : '') +
+      '<button id="draft-go" class="primary big block">' + esc(t('draft_continue')) + '</button>' +
+      '<button id="draft-drop" class="ghost block">🗑️ ' + esc(t('draft_drop')) + '</button></div>';
+    admEl('draft-go').onclick = function () { draftResume(d); };
+    admEl('draft-drop').onclick = function () { draftClear(); toast(t('draft_discarded')); navigate('home'); };
+  }
+  // Best-effort label for a stored answer: the flow definition is gone by now,
+  // so this is the raw value, not the step's own formatting.
+  function answerText(key, val) {
+    if (val === null || val === undefined || val === '') return '';
+    if (typeof val === 'object') return '';
+    return String(val);
+  }
+  // Reachable from anywhere that wants to surface the draft on demand; boot
+  // uses the router instead (see DOMContentLoaded).
+  function offerDraft() {
+    const d = draftRead();
+    if (!d || flowState) return false;
+    navigate('draft');
+    return true;
+  }
   // ---------- flow engine ----------
   // step: {key, qKey, kind:text|amount|choice, options:[{v,labelKey}], optional, showIf(answers)}
   function startFlow(def) {
@@ -645,6 +769,10 @@
     flowState.answers[step.key] = val;
     Voice.stop();
     flowState.idx++; skipHidden();
+    // A63: written after EVERY accepted answer, not on a timer and not on
+    // unload — `pagehide`/`beforeunload` do not fire reliably when Android
+    // kills a backgrounded tab, which is the case this exists for.
+    draftSave();
     if (flowState.idx >= flowState.def.steps.length) finishFlow();
     else renderEntry();
   }
@@ -673,6 +801,7 @@
       savingFlow = false;
       const r = result || {};
       flowState = null;
+      draftClear(); // saved for real — the draft has done its job
       updateBadge(); autoSync();
       if (r.after && r.after.navigateTo) navigate(r.after.navigateTo, r.after.params);
       else if (r.after) renderAfter(r.after);
@@ -739,9 +868,10 @@
     // name/number in a toto/road flow). If none remain, leave the flow.
     let i = flowState.idx - 1;
     while (i >= 0 && !visible(flowState.def.steps[i])) i--;
-    if (i < 0) { flowState = null; navigate('home'); return; }
+    if (i < 0) { flowState = null; draftClear(); navigate('home'); return; }
     delete flowState.answers[flowState.def.steps[i].key];
     flowState.idx = i;
+    draftSave();
     renderEntry();
   }
 
@@ -1089,6 +1219,9 @@
     return {
       title: t('new_entry') + ' — ' + t('type_' + type),
       presets: presets || {},
+      // A63: what it takes to rebuild this flow from storage. Set in the
+      // factory, not at the fourteen call sites, so none can be forgotten.
+      resume: { fn: 'newParty', type: type, presets: presets || {}, label: t('type_' + type) },
       steps: [
         { key: 'name', qKey: type === 'shop' ? 'q_shop_name' : 'q_person_name', kind: 'text' },
         { key: 'owner', qKey: 'q_owner_name', kind: 'text', optional: true,
@@ -1188,6 +1321,10 @@
     const isMember = String(party.type || '') === 'member';
     return {
       title: t('add_payment') + ' — ' + party.name,
+      // A63: NOT when editing. finishFlow voids the original after the
+      // replacement saves, so resuming an edit from a stale snapshot could
+      // void a row against figures that have since moved.
+      resume: editing ? null : { fn: 'payment', partyId: party.id, origin: origin, label: party.name },
       steps: moneySteps(false).concat([
         isMember
           ? { key: 'note', qKey: 'q_note_member', kind: 'text' }   // no `optional` → mandatory
@@ -1410,6 +1547,7 @@
   }
   function dailyFlow(type) {
     return {
+      resume: { fn: 'daily', type: type, label: t('type_' + type) },
       title: t('daily_' + type),
       steps: [
         { key: 'busName', qKey: 'q_bus_name', kind: 'text', showIf: function () { return type === 'bus'; } },
@@ -1464,6 +1602,7 @@
     opts.push({ v: OTHER_SUBJECT, labelKey: 'subject_other' });
     return {
       title: t('expense'),
+      resume: { fn: 'expense', label: t('expense') },
       steps: [
         { key: 'subject', qKey: 'q_subject', kind: 'choice', options: opts },
       ].concat(moneySteps(false), [
@@ -1511,6 +1650,7 @@
   // Collector's own spend while collecting — free text, no subject.
   function collectionExpenseFlow(collectionType) {
     return {
+      resume: { fn: 'collExpense', collectionType: collectionType, label: t('coll_expense') },
       title: t('coll_expense'),
       steps: [
         { key: 'desc', qKey: 'q_desc', kind: 'text' },
@@ -5499,6 +5639,10 @@
     else if (current.view === 'memberadmin') renderMemberAdmin();
     else if (current.view === 'memberform') renderMemberForm(current.params);
     else if (current.view === 'partyform') renderPartyForm(current.params);
+    // A63: a background refresh must not paint over the resume offer — the
+    // draft is still in storage, so re-render the offer rather than the home
+    // screen the collector never chose.
+    else if (current.view === 'draft') { const dd = draftRead(); dd ? renderDraftOffer(dd) : renderHome(); }
     else if (current.view === 'findparty') renderFindParty();
     else if (current.view === 'review') renderReviewCorrections();
     else if (current.view === 'audit') { Auth.isAdmin() ? renderAuditLog() : renderHome(); }
@@ -5512,7 +5656,22 @@
   window.addEventListener('online', autoSync);
   // phone/browser Back button → step back in the app (in a flow, cancel it)
   window.addEventListener('popstate', function (e) {
-    Voice.stop(); flowState = null;
+    // A63 (audit 2.11): this used to throw away a half-finished entry with no
+    // question at all. On Android the edge-swipe Back is easy to trigger by
+    // accident while holding a phone in one hand and cash in the other, and
+    // there is a donor waiting — so ask once, the same shape as the A45 skip
+    // guard. popstate cannot be cancelled, so staying means pushing the entry
+    // state back on.
+    if (flowState && flowHasTypedAnswers() && !window.confirm(t('flow_leave_confirm'))) {
+      try { history.pushState({ v: 'entry' }, ''); } catch (er) {}
+      renderEntry();
+      return;
+    }
+    Voice.stop();
+    // leaving on purpose: the draft is kept, so a mis-tap on OK is still
+    // recoverable from the resume offer rather than final
+    draftSave();
+    flowState = null;
     const s = e.state, v = (s && s.v) || 'home';
     current = { view: v === 'entry' ? 'home' : v, params: (s && s.p) || {} };
     render();
@@ -5555,6 +5714,14 @@
         updateBadge();
       });
     };
+    // A63: decided BEFORE the first paint, not after it. Painting the offer on
+    // top of render() looked right and was not: renderHome draws from
+    // viewData(), which resolves a tick later and painted the home screen back
+    // over the card. Found by driving it, not by reading it. One paint path —
+    // set the view and let render() route, like every other screen.
+    // Only when logged in: the login screen is not the place to be asked about
+    // a half-finished donation entry.
+    if (Auth.loggedIn() && draftRead()) current = { view: 'draft', params: {} };
     render();
     autoSync();
     if ('serviceWorker' in navigator) {

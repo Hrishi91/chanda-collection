@@ -2949,6 +2949,74 @@ try {
      'A62: …and the dues reminder says so instead of opening an empty chat');
 }
 
+
+// ---- A63 (audit 2.11): the half-finished entry -------------------------------
+{
+  const app = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const i18n = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+
+  // every flow that can safely be rebuilt from storage carries a descriptor,
+  // set in the FACTORY so none of the fourteen startFlow call sites can forget
+  ['newParty', 'daily', 'collExpense', 'payment', 'expense'].forEach(function (fn) {
+    eq(app.indexOf("{ fn: '" + fn + "'") >= 0, true,
+       'A63: ' + fn + ' can be resumed');
+  });
+  // …and the two that must NOT be
+  const ho = app.slice(app.indexOf('function handoverFlow'), app.indexOf('function dailyFlow'));
+  eq(/resume:/.test(ho), false,
+     'A63: a handover is NOT resumable — its ceiling is computed from live money, and a stale sheet would hand over money no longer held');
+  eq(/resume: editing \? null : \{ fn: 'payment'/.test(app), true,
+     'A63: …and neither is an EDIT — finishFlow voids the original after the replacement saves');
+
+  // the draft is written after every accepted answer. NOT on unload:
+  // pagehide/beforeunload do not fire reliably when Android kills a
+  // backgrounded tab, which is the case this exists for.
+  eq(/flowState\.idx\+\+; skipHidden\(\);\n[\s\S]{0,400}?draftSave\(\);/.test(app), true,
+     'A63: saved after every answer…');
+  // there IS a beforeunload guard in this app (the unsynced-rows warning) —
+  // the claim is narrower: the DRAFT does not depend on one, because
+  // pagehide/beforeunload do not fire reliably when Android kills a
+  // backgrounded tab, which is the case this feature exists for.
+  {
+    const bu = app.slice(app.indexOf("addEventListener('beforeunload'"));
+    eq(bu.slice(0, bu.indexOf('});')).indexOf('draftSave') >= 0, false,
+       'A63: …and not left to an unload hook that may never run');
+  }
+  eq(/const DRAFT_MAX_AGE = 12 \* 60 \* 60 \* 1000;/.test(app), true,
+     'A63: a draft older than a collecting day is dropped, not offered — the donor has gone');
+
+  // presets are context, not typed work: a draft holding only presets would
+  // offer to "resume" an entry nobody has started
+  eq(/function flowHasTypedAnswers\(\)/.test(app), true, 'A63: "has anything been typed" is asked once, in one place');
+  eq(/!pre\.hasOwnProperty\(k\)/.test(app) && /k\.indexOf\('__'\) !== 0/.test(app), true,
+     'A63: …and presets and __metadata do not count as typed');
+
+  // Back used to discard silently
+  eq(/flowState && flowHasTypedAnswers\(\) && !window\.confirm\(t\('flow_leave_confirm'\)\)/.test(app), true,
+     'A63: hardware/gesture Back asks before abandoning a started entry');
+  eq(/history\.pushState\(\{ v: 'entry' \}, ''\);[\s\S]{0,80}renderEntry\(\);\n\s*return;/.test(app), true,
+     'A63: …and staying puts the history state back, because popstate cannot be cancelled');
+  eq(/Voice\.stop\(\); flowState = null;\n\s*const s = e\.state/.test(app), false,
+     'A63: …the silent discard is gone');
+
+  // the offer is a CARD, not a native modal people dismiss by reflex — and it
+  // is decided BEFORE the first paint, because renderHome draws from an async
+  // viewData() that would otherwise land on top of it
+  eq(/function renderDraftOffer\(d\)/.test(app), true, 'A63: the offer is an in-app screen');
+  eq(/if \(Auth\.loggedIn\(\) && draftRead\(\)\) current = \{ view: 'draft', params: \{\} \};\n\s*render\(\);/.test(app), true,
+     'A63: …chosen before render(), so the async home paint cannot cover it');
+  eq(/window\.confirm\(t\('draft_resume'\)/.test(app), false, 'A63: …and it is not a boot-time confirm dialog');
+  eq(/current\.view === 'draft'/.test(app), true, 'A63: …with a route, so a background refresh repaints the offer, not home');
+
+  ['flow_leave_confirm', 'draft_title', 'draft_what', 'draft_continue', 'draft_drop',
+   'draft_discarded', 'draft_gone', 'draft_entry'].forEach(function (k) {
+    eq(i18n.indexOf('  ' + k + ':') >= 0, true, 'A63: ' + k + ' is a real message');
+  });
+  // a resumed payment whose donor has since been removed must say so, not throw
+  eq(/if \(!p\) \{ draftClear\(\); toast\(t\('draft_gone'\)\); navigate\('home'\); return; \}/.test(app), true,
+     'A63: a draft whose donor is gone is dropped with an explanation');
+}
+
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------
 {
   const fs = require('fs');

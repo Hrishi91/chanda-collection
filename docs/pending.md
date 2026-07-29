@@ -421,8 +421,10 @@ The real-phone smoke test is DONE.
   four opinions about equality (a float hair no longer raises `overpaid` or
   chases a paid-up donor for a reminder), and one `waNumber()` instead of three
   hand-rolled phone manglings that were each broken differently.
-- **Tier 2 client half — OPEN**: 2.10 offline receipt serial · 2.11 `flowState`
-  lost on reload · 2.12 home missing the right-now figure · 2.13 toast `nowrap` +
+- **2.11 FIXED in v4.14.0 (A63)** — a half-finished entry survives the tab
+  dying, and Back asks before abandoning one. Handovers and edits deliberately
+  excluded (live money ceiling / void-after-save).
+- **Tier 2 client half — OPEN**: 2.10 offline receipt serial · 2.12 home missing the right-now figure · 2.13 toast `nowrap` +
   contrast · 2.14 `myReports()` duplication · 2.16 iOS meta gaps · 2.17 no
   backend behavioural tests · 2.18 no CI · 2.19 `js/app.js` size · 2.20 dead
   code. **Not doing before the puja:** merging twin donors (moves money between
