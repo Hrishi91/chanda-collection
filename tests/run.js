@@ -2018,6 +2018,17 @@ try {
   });
   const found = Object.keys(types);
   eq(found.length >= 8, true, 'anomaly titles: found the anomaly types to check (' + found.length + ')');
+  // A62 (audit §7): the docs said EIGHT while the code raised nine, and then
+  // A61 made it ten. A number written by hand in prose drifts silently, so the
+  // prose is now checked against the code — in words, because that is how it is
+  // written: "raises **ten** anomaly types".
+  {
+    const words = ['zero','one','two','three','four','five','six','seven','eight','nine','ten',
+                   'eleven','twelve','thirteen','fourteen','fifteen'];
+    const mm = fs.readFileSync(__dirname + '/../docs/money-model.md', 'utf8');
+    eq(mm.indexOf('raises **' + words[found.length] + '** anomaly types') >= 0, true,
+       'docs: money-model.md states the real count (' + found.length + ' = ' + words[found.length] + ')');
+  }
   found.forEach(function (ty) {
     eq(i18n.indexOf('  anom_' + ty + '_t:') >= 0, true, 'anomaly titles: anom_' + ty + '_t exists');
   });

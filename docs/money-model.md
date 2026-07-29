@@ -77,7 +77,9 @@ footer for exactly this reason.
   through chains, voids, rejections.
 - personalSummary.inHand === myAvailable.total === mySummary.hero — the
   amount-clock and the split-clock meet at the top.
-- personalSummary.byCat === myAvailable.byCat (two code paths, one table).
+- personalSummary.byCat === myAvailable.byCat. NOT two code paths: `js/aggregate.js`
+  is literally `byCat: myAvailable(data, ident).byCat`, so the test that pins this
+  cannot fail. Kept as documentation of the INVARIANT, not as evidence for it.
 - Σ pots === hero — the drill-down always explains its own headline.
 - handoverReport.sent === personalSummary.handedOver; pendingOut === pending;
   handoverSlots === the book's three buckets.
@@ -105,7 +107,14 @@ footer for exactly this reason.
 3. **The category trail ends at the cashier hop.** Pooled money has no honest
    category, so a cashier's outgoing handover stores a `__snap` of their
    position instead of a per-category breakdown. `__`-prefixed keys are
-   metadata everywhere — never categories, never in anomaly sums.
+   metadata — never categories, never in anomaly sums.
+
+   Precisely: the filter is applied in `myAvailable`, `cashierView`,
+   `handoverable` and `reconcile`. It is NOT applied in `personalSummary`
+   (`js/aggregate.js:229-236`), which does not need it because it reads its
+   `byCat` straight from `myAvailable`, downstream of the filter. "Everywhere"
+   was the wrong word and would send the next reader hunting for a missing
+   guard.
 
 ## Duplicate handling — five layers, each for a different accident
 
@@ -161,16 +170,31 @@ member contribution would raise an anomaly and drown the 🩺 desk.
 
 ## When something IS wrong: the anomaly desk (A23)
 
-`reconcile` raises eight anomaly types. The ⚠️ banner on 📊 রিপোর্ট is a button
-onto **🩺 অসঙ্গতি পরীক্ষা** (cashier/admin), where each one is a sentence plus the
-rows involved. Only duplicates carry actions — ✓ আলাদা কিস্তি (stamp `dupOk`) or
-✖️ বাড়তিটা বাতিল (the normal audited void). The rest are deliberately
-read-only: they are data surgery, and a wrong "fix" moves real money.
+`reconcile` raises **ten** anomaly types. Do not hand-count them: the suite
+reads the list out of `js/aggregate.js` and demands a title and a message for
+each, and this sentence drifted twice before anyone noticed (it said eight when
+the code raised nine, and again when A61 added `possible_duplicate_daily`).
 
-Rule for anyone adding a ninth type: **detection without a sentence is not
-detection.** A count nobody can act on trains people to ignore the banner, and
-then the real gap goes unread too. The test suite enforces it — every type must
-have a title and a message.
+The ⚠️ banner on 📊 রিপোর্ট is a button onto **🩺 অসঙ্গতি পরীক্ষা**
+(cashier/admin), where each one is a sentence plus the rows involved.
+
+**Three** carry actions, as of A61:
+
+- `possible_duplicate_payment` — ✓ আলাদা কিস্তি (stamp `dupOk`) or ✖️ বাড়তিটা
+  বাতিল (the normal audited void)
+- `possible_duplicate_daily` — the same pair, on `daily.dupOk`
+- `overpaid` — ✓ ঠিক আছে (stamp `parties.pledgeOk`), or ✏️ correct the pledge,
+  which goes to A60's donor form and fixes the cause instead of the symptom
+
+The other seven are deliberately read-only: they are data surgery, and a wrong
+"fix" moves real money.
+
+Rule for anyone adding an eleventh type: **detection without a sentence is not
+detection, and a sentence without an answer is not much better.** A count
+nobody can act on trains people to ignore the banner, and then the real gap
+goes unread too. If the new type has an honest human answer, it needs somewhere
+to record it — and that means a real column, or the answer dies at the push and
+the desk asks again for ever (A60, A61).
 
 ## Data-integrity assumptions (now watched, A21)
 

@@ -72,8 +72,11 @@ recovery for small accidents.
 
 ## 4. Deliberately out of scope (re-confirm, don't "fix" by surprise)
 
-- **No edit of a saved entry** — corrections are void + re-enter, by design
-  (audit trail, 10-phone sync safety, receipts already handed out).
+- **No edit of a saved MONEY entry** — corrections are void + re-enter, by
+  design (audit trail, 10-phone sync safety, receipts already handed out).
+  Since A60 a DONOR row is different: it is an identity that payments point at
+  by `partyId`, so it is corrected in place by its creator or an admin. Voiding
+  and replacing one would orphan every rupee collected against it.
 - **Report permissions are UI shaping, not secrecy** — `pull` gives every
   approved user the whole year's data.
 - **Token in localStorage**, no CSP (static Pages hosting).

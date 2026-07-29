@@ -421,13 +421,15 @@ The real-phone smoke test is DONE.
   four opinions about equality (a float hair no longer raises `overpaid` or
   chases a paid-up donor for a reminder), and one `waNumber()` instead of three
   hand-rolled phone manglings that were each broken differently.
-- **Tier 2 client half — OPEN**: 2.2 no duplicate detection on `daily` · 2.3 `overpaid` cannot be dismissed ·
-  2.10 offline receipt serial · 2.11 `flowState` lost on
-  reload · 2.12 home missing the right-now figure · 2.13 toast `nowrap` +
-  contrast · 2.14 `myReports()` duplication · 2.16 iOS meta gaps · 2.17 no backend behavioural tests · 2.18 no CI ·
-  2.19 `js/app.js` size · 2.20 dead code.
-- **§7 documentation drift — OPEN** (e.g. `money-model.md` says eight anomaly
-  types where the code now has nine).
+- **Tier 2 client half — OPEN**: 2.10 offline receipt serial · 2.11 `flowState`
+  lost on reload · 2.12 home missing the right-now figure · 2.13 toast `nowrap` +
+  contrast · 2.14 `myReports()` duplication · 2.16 iOS meta gaps · 2.17 no
+  backend behavioural tests · 2.18 no CI · 2.19 `js/app.js` size · 2.20 dead
+  code. **Not doing before the puja:** merging twin donors (moves money between
+  rows — audit §5 says do not touch the money engine now).
+- **§7 documentation drift — OPEN**. Note the count moved again: A61 added
+  `possible_duplicate_daily`, so `money-model.md:163` now says eight where the
+  code raises **ten**.
 
 ✅ **v4.12.1 redeploy DONE** (2026-07-29) — verified live: `codeVersion
 chanda-v4.12.1`, `schema 2`, config rebaked.
