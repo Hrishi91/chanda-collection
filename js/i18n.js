@@ -89,7 +89,17 @@ const I18N = {
   pos_no_admin: { bn: 'Admin এখানে নেই, ইচ্ছে করেই। Admin কোনো পদের সঙ্গে আসে না — ওটা বোর্ডের সিদ্ধান্তে, একজন করে দেওয়া হয়।', en: 'Admin is deliberately absent. Admin never comes with a post — the board grants it, one person at a time.' },
   perm_money: { bn: '💰 টাকার ক্ষমতা', en: '💰 Money power' },
   user_post: { bn: 'কমিটিতে পদ (এখান থেকেই অনুমতি আসে)', en: 'Committee post (permissions come from this)' },
+  // A72: the ONE permission key with no label. effLine's name() falls back to
+  // 'perm_' + key, and this was the only one missing — so the admin's
+  // "✅ শেষমেশ যা পারবে" line, the exact line you check before go-live, printed
+  // the raw string `perm_review` among the Bengali. Found by reading that line
+  // on a real screen, not by grep.
+  perm_review: { bn: '🛠️ সংশোধন দেখা', en: '🛠️ Review corrections' },
   from_post: { bn: 'পদ থেকে আসছে — এখানে বদলানো যাবে না', en: 'Comes with the post — not editable here' },
+  // A72: said on the SCREEN, not in a hover tooltip a phone never shows. The
+  // 🎖️ chips are ticked because the POST grants them — so after 🧹 they stay
+  // ticked, which looks exactly like the clear having failed.
+  perm_from_post_n: { bn: '🎖️ চিহ্নের {n}টি আসছে "{post}" পদ থেকে — এখানে নয়, পদের অনুমতি বদলালে তবেই বদলাবে। "সবার আলাদা permission মুছে দাও" চাপলেও এগুলো থাকবে।', en: 'The {n} chips marked 🎖️ come from the "{post}" post — change them on the post, not here. They stay even after "clear everyone\'s personal permissions".' },
   eff_from_post: { bn: 'পদ থেকে', en: 'From the post' },
   eff_extra: { bn: 'আলাদা দেওয়া', en: 'Granted on top' },
   eff_final: { bn: 'শেষমেশ যা পারবে', en: 'Ends up with' },

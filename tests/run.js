@@ -3353,6 +3353,46 @@ try {
   }
 }
 
+
+// ---- A72: the admin panel says WHY a chip is ticked ---------------------------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const css = fs.readFileSync(__dirname + '/../css/style.css', 'utf8');
+  const A = require('../js/aggregate.js');
+
+  // Found in the field: Hrishi pressed 🧹, every personal grant really was
+  // cleared on the server, and this screen still showed ticked chips — because
+  // they now come from the POST. Correct, and indistinguishable from "the clear
+  // did not work". The only explanation was a `title` tooltip, and a phone
+  // never shows one — the same mistake as the sync badge (audit #2 U4).
+  eq(i18n.indexOf('  perm_from_post_n:') >= 0, true, 'A72: there is a sentence for it…');
+  eq(/perm_from_post_n/.test(app), true, 'A72: …rendered on the screen…');
+  eq((app.match(/perm_from_post_n/g) || []).length, 2,
+     'A72: …in BOTH chip groups, entries and reports — one would have been half a fix');
+  eq(/\.chip\.from-post \{[^}]*border-style: dashed/.test(css), true,
+     'A72: …and a post-granted chip does not look like one somebody ticked here');
+  // the sentence must name the button, because that is the action whose result
+  // looked wrong
+  eq(/সবার আলাদা permission মুছে দাও/.test(i18n.slice(i18n.indexOf('  perm_from_post_n:'), i18n.indexOf('  perm_from_post_n:') + 400)), true,
+     'A72: …and says these survive the 🧹 clear, which is the question that was actually being asked');
+
+  // every permission key must have a label, or the admin's "✅ শেষমেশ যা পারবে"
+  // line — the exact line checked before go-live — prints a raw key
+  {
+    const CAT = { shop: 'new_shop', person: 'new_person', member: 'new_member', bus: 'daily_bus',
+                  road: 'daily_road', toto: 'daily_toto' };
+    const missing = A.POSITION_PERM_KEYS.filter(function (k) {
+      const key = k === 'cashier' ? 'cashier'
+        : A.REPORT_IDS.indexOf(k) >= 0 ? 'report_' + k
+        : (CAT[k] || ('perm_' + k));
+      return !new RegExp('^  ' + key + ':', 'm').test(i18n);
+    });
+    eq(missing, [], 'A72: every permission key has a label (' + missing.join(', ') + ')');
+  }
+}
+
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------
 {
   const fs = require('fs');

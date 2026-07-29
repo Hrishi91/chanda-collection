@@ -7271,3 +7271,58 @@ is not live until Code.gs is redeployed.
 Every test row was voided afterwards: the book reads ₹0 collected, ₹0 in hand,
 no anomalies. The rows remain in the sheet for audit and will go with tomorrow's
 training clear.
+
+## v4.18.2 — A72: after 🧹, the permission screen still looked full (2026-07-29)
+
+Reported from the field, in the plainest possible terms: *"after cleaning also I
+am able to see the permission in the UI under give permissions of the user."*
+
+### The app was right and said nothing
+
+Checked the live server first: every personal grant really was empty. `🧹` had
+worked. What was still ticked came from the **post** — যামিনী holds কোষাধ্যক্ষ,
+জাদব holds সদস্য, and those posts grant sixteen things each.
+
+The chips already distinguished the two sources: a post-granted chip is drawn
+`on`, `disabled`, with a 🎖️ prefix and a `title` explaining why. But **`title` is
+a hover tooltip and a phone never shows one** — the identical mistake as the sync
+badge (audit #2 U4), which I had fixed four commits earlier and did not think to
+look for again.
+
+So on a phone the entire signal was one small 🎖️. A screen headed *"give this
+person permissions"*, showing permissions it did not give, right after the admin
+pressed a button whose whole purpose was to take permissions away. Correct
+behaviour is not the same as legible behaviour, and here it was indistinguishable
+from the clear having silently failed.
+
+### What landed
+
+A sentence **on the screen**, under both chip groups, naming the post and the
+count, and answering the question actually being asked: *"🎖️ চিহ্নের ৯টি আসছে
+'সদস্য' পদ থেকে — এখানে নয়… 'সবার আলাদা permission মুছে দাও' চাপলেও এগুলো
+থাকবে।"* Plus a dashed border, so the difference survives without a tooltip.
+
+Both groups, not one — entries **and** reports. Half of this fix would have left
+the same confusion one scroll further down.
+
+### And a raw key on the line you check before go-live
+
+Reading the rendered screen turned up `perm_review` printed literally among the
+Bengali, in the **✅ শেষমেশ যা পারবে** line — the exact line the admin reads to
+answer "why can he do that?" before handing out phones. `effLine`'s label
+fallback is `'perm_' + key`, and `review` was the only one of seventeen
+permission keys with no such string. Now labelled, and a test resolves **every**
+key through the same fallback so the next one added cannot ship raw.
+
+Found by reading the screen, not by grep — the string existed, it just was not a
+translation.
+
+### Verification
+
+Tests **1,247 → 1,253**. In a browser at a real 375 px viewport, with the
+post-clear state reproduced exactly: the note renders under both groups naming
+সদস্য and the counts (9 and 7), sixteen chips carry the dashed `from-post` style
+and are disabled, the effective line reads **🛠️ সংশোধন দেখা** instead of
+`perm_review`, and no raw `perm_*` key survives anywhere on the screen.
+
+Client-only — **no redeploy needed** beyond the one A71 already requires.

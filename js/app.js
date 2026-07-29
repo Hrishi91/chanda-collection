@@ -5164,14 +5164,29 @@
                        ['bus', t('daily_bus')], ['road', t('daily_road')], ['toto', t('daily_toto')],
                        ['review', t('review_title')], ['otherdonor', t('perm_otherdonor')],
                        ['memberadmin', t('perm_memberadmin')]];
+        let nPost = 0;
         const chips = kinds.map(function (k) {
           const fromPost = post.indexOf(k[0]) >= 0;
+          if (fromPost) nPost++;
           const on = fromPost || own.indexOf(k[0]) >= 0;
-          return '<button class="chip' + (on ? ' on' : '') + '" data-ent-user="' + u.id +
+          return '<button class="chip' + (on ? ' on' : '') + (fromPost ? ' from-post' : '') + '" data-ent-user="' + u.id +
             '" data-ent-id="' + k[0] + '"' + (fromPost ? ' disabled title="' + esc(t('from_post')) + '"' : '') + '>' +
             (fromPost ? '🎖️ ' : '') + esc(k[1]) + '</button>';
         }).join('');
-        return permGroup(u, 'entry_perms', 'ent', chips, t('perms_common'), false, !eff.length);
+        // A72: the tooltip was the ONLY explanation, and a phone never shows a
+        // title tooltip — the same mistake as the sync badge (audit #2 U4).
+        //
+        // The consequence found in the field: Hrishi pressed 🧹, every personal
+        // grant really was cleared on the server, and this screen still showed
+        // ticked chips — because they now come from the POST. Correct, and
+        // indistinguishable from "the clear did not work". A screen headed "give
+        // this person permissions" that shows permissions it did not give has to
+        // say so in words, on the screen, not on hover.
+        const note = nPost
+          ? t('perm_from_post_n').replace('{n}', String(nPost))
+              .replace('{post}', Lists.labelOf('position', admDraft.position || '')) + '  ' + t('perms_common')
+          : t('perms_common');
+        return permGroup(u, 'entry_perms', 'ent', chips, note, false, !eff.length);
       }
       // which master areas a collector is responsible for (drives area reports)
       function areaChips(u) {
@@ -5188,17 +5203,25 @@
         if (u.status !== 'approved' || u.role === 'admin') return '';
         const own = admDraft.reports;
         const post = Lists.permsOf(admDraft.position || '');
+        let nPost = 0;
         const chips = REPORT_IDS.map(function (rid) {
           const autoCashier = (rid === 'inhand' && u.cashier);
           const fromPost = post.indexOf(rid) >= 0;
+          if (fromPost) nPost++;
           const on = autoCashier || fromPost || own.indexOf(rid) >= 0;
           const lock = autoCashier || fromPost;
-          return '<button class="chip' + (on ? ' on' : '') + '" data-rep-user="' + u.id +
+          return '<button class="chip' + (on ? ' on' : '') + (lock ? ' from-post' : '') + '" data-rep-user="' + u.id +
             '" data-rep-id="' + rid + '"' + (lock ? ' disabled title="' + esc(fromPost ? t('from_post') : 'auto') + '"' : '') + '>' +
             (fromPost ? '🎖️ ' : '') + esc(t('report_' + rid)) + '</button>';
         }).join('');
-        return permGroup(u, 'report_perms', 'rep', chips,
-                         u.cashier ? t('inhand_auto_cashier') : '', false);
+        // A72: same as entriesChips — the reason a chip is ticked has to be on
+        // the screen. Two reasons here, not one, and they are different: the
+        // post grants it, or the cashier flag drags 'inhand' along.
+        const bits = [];
+        if (nPost) bits.push(t('perm_from_post_n').replace('{n}', String(nPost))
+                              .replace('{post}', Lists.labelOf('position', admDraft.position || '')));
+        if (u.cashier) bits.push(t('inhand_auto_cashier'));
+        return permGroup(u, 'report_perms', 'rep', chips, bits.join('  '), false);
       }
       // The answer to "why can he do that?", in one line, in the order a person
       // would ask it: what the post gives, what was added on top, what he ends
