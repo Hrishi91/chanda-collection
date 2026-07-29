@@ -488,6 +488,98 @@ working, they just do not get the fixes. After it, enter one donor named
 `=টেস্ট` and check the name reads back plain: `safeCell_` rests on Sheets
 stripping the leading apostrophe, which cannot be verified off-platform.
 
+## AFTER THE PUJA — closing the year (design note, 2026-07-29)
+
+**Not to be built before the puja.** Closure is needed *after* the season, there
+are two clear months, and touching working code now buys nothing. Written down
+here so the puja rush cannot lose it. Raised by Hrishi: *"after completion of
+all collection, spends everything — how are we going to give a closure for this
+year"*, and *"we need to think about the possibilities of presentations and
+operations"*.
+
+### What exists today
+
+`goLive` (start), `rolloverYear` (copy donors forward), `approveYear`, backups.
+**There is no closure at all** — nothing checks the year is finished, nothing
+freezes it, nothing produces a final statement.
+
+One real gap found while looking: `push` only checks `hasYear_(user.years, year)`
+and there is **no `removeYear_`** — only `addYear_`. So six months after the
+puja anybody can still write a 2026 entry, and nothing objects.
+
+### The arithmetic is already there
+
+Verified by computing an end-of-season book with today's `js/aggregate.js` —
+`computeTotals`, `inHandRows` and `reconcile` answer four of the five questions
+with no new money code. What is missing is a screen that asks them together, and
+a lock.
+
+### Closure = five questions, then a lock
+
+| | Question | Computable today? |
+|---|---|---|
+| 1 | Has every phone pushed everything? | ❌ the server cannot know — each phone must show ✅ |
+| 2 | Any handover still awaiting পেয়েছি / পাইনি? | ✅ |
+| 3 | Is the 🩺 desk clear? | ✅ `reconcile` |
+| 4 | Is everyone's hand empty except the one person who should hold the balance? | ✅ `inHandRows` |
+| 5 | Σ in-hand === collected − expenses? | ✅ |
+
+A worked example on a synthetic book passed 4 and 5 and **failed 2** — one
+collector's ₹20,000 still unconfirmed. That is exactly the thing nobody notices
+at the end of a season, and then "where is the money" has no answer.
+
+A 🏁 **বছর শেষ করো** screen, mirroring `🚀 Live শুরু করো`: name every failure
+(*"জয়ের ₹২০,০০০ এখনো confirm হয়নি"*), refuse to close while one is red **and say
+why**, then produce the statement, lock, and back up.
+
+**The lock: `Config.closed_2026 = 1` plus one line in `push`**, not stripping the
+year from every user. Stripping works but answers `year-not-approved`, which is
+the wrong sentence — it blames the person, not the calendar. `year-closed` is
+honest, and an admin can reopen it.
+
+### Presentations — the part a committee actually cares about
+
+A puja committee publishes its accounts. That is a real deliverable, not a
+report screen, and the app already knows how to make one: `buildReceiptCanvas`
+draws a proper Bengali document on a canvas and shares it. **The same machinery
+produces the year-end statement.** Four things worth having, in this order:
+
+1. **আয়-ব্যয়ের হিসাব** — the one that goes on the board or is read at the
+   meeting. Income by source (দোকান / ব্যক্তি / সদস্য / বাস / রোড / টোটো),
+   expenses by subject, closing balance, in formal সাধু-ভাষা like the receipt,
+   with the committee name and year. Shareable as an image, printable as a page.
+2. **দাতার তালিকা** — donors and amounts, the list that traditionally goes up in
+   public. Needs a decision: full amounts, or names only?
+3. **প্রতি সংগ্রাহকের হিসাব** — what each person collected, handed over, spent.
+   This is accountability, and it is the document that settles arguments.
+4. **খরচের বিস্তারিত** — by subject, with who spent it.
+
+Open question: image (WhatsApp-friendly, like the receipt) or a printable HTML
+page (better for a board, worse to share)? Probably both, same data.
+
+### Operations — the order it has to happen in
+
+1. Last expense recorded
+2. **Every phone opens the app and shows ✅** — the one step no server can verify
+3. Cashiers clear every pending handover (পেয়েছি / পাইনি)
+4. 🩺 desk emptied — every anomaly answered
+5. Collectors hand the last cash to whoever holds the balance
+6. Admin opens 🏁, sees five greens, closes the year
+7. Backup taken automatically at close
+8. Statements generated and shared
+9. **Next season**: `rolloverYear` copies the donors forward
+
+### Three decisions that are Hrishi's, not mine
+
+The screen cannot be built without these — "is the money where it should be"
+has no meaning until the app knows where that is.
+
+1. **Who holds the balance at the end?** কোষাধ্যক্ষ, সভাপতি, or a bank account?
+   Question 4 is unanswerable without it.
+2. **Does the leftover carry into next year?** If yes it must land as the first
+   entry of 2027, or that year's book starts wrong.
+3. **Receipt numbering in 2027** — restart at 000001, or continue?
+
 ## P1 — nice-to-have before puja
 
 - [x] ~~Receipt image per payment~~ — superseded by the full receipt feature

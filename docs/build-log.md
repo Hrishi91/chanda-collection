@@ -7326,3 +7326,51 @@ and are disabled, the effective line reads **🛠️ সংশোধন দে�
 `perm_review`, and no raw `perm_*` key survives anywhere on the screen.
 
 Client-only — **no redeploy needed** beyond the one A71 already requires.
+
+## docs: the year-end closure design note (2026-07-29)
+
+Hrishi asked the question nothing in this project had an answer to: *"after
+completion of all collection, spends everything — how are we going to give a
+closure for this year"*, and then *"we need to think about the possibilities of
+presentations and operations"*.
+
+Written into `docs/pending.md` rather than built. Closure is needed **after** the
+season, there are two clear months, and changing working code a week before a
+puja buys nothing.
+
+**What the investigation found:**
+
+- There is no closure of any kind. `goLive` starts a season, `rolloverYear`
+  copies donors forward, backups exist — and nothing checks a year is finished,
+  freezes it, or produces a final statement.
+- A real gap alongside it: `push` gates on `hasYear_(user.years, year)` and there
+  is **no `removeYear_`**, only `addYear_`. Six months after the puja anybody can
+  still write a 2026 entry and nothing objects.
+- **The arithmetic is already there.** Computed an end-of-season book with
+  today's `js/aggregate.js`: `computeTotals`, `inHandRows` and `reconcile` answer
+  four of the five closure questions with no new money code. What is missing is a
+  screen that asks them together, and a lock.
+- The worked example passed "everything balances" and "no anomalies" and **failed
+  on an unconfirmed ₹20,000 handover** — which is exactly the thing nobody
+  notices at the end of a season, and then "where is the money" has no answer.
+
+**Recorded as design, with the reasoning:**
+
+- The five checks, and which the server genuinely cannot answer (whether every
+  phone has pushed — that one only a green ✅ on each handset can settle).
+- The lock as `Config.closed_2026` plus one line in `push`, **not** by stripping
+  the year from every user: stripping works but answers `year-not-approved`,
+  which blames the person rather than the calendar. `year-closed` is honest and
+  an admin can reopen it.
+- **Presentations**, which is the part a committee actually cares about — a puja
+  publishes its accounts. `buildReceiptCanvas` already draws a proper Bengali
+  document and shares it, so the same machinery makes the year-end statement:
+  আয়-ব্যয়ের হিসাব, দাতার তালিকা, per-collector accountability, expenses by
+  subject.
+- **Operations** — the order it has to happen in, nine steps, starting with the
+  one no server can verify.
+- **Three decisions that are Hrishi's**, written as questions rather than
+  guesses: who holds the balance at the end, whether the leftover carries into
+  next year, and whether receipt numbering restarts. The screen cannot be built
+  without the first — *"is the money where it should be"* has no meaning until
+  the app knows where that is.
