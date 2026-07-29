@@ -7,7 +7,25 @@
 <title>চাঁদা খাতা — Ganesh Puja</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
-<link rel="apple-touch-icon" href="icons/icon-512.png">
+<!-- A66 (audit 2.16): iOS. Four gaps, each of which cost an iPhone collector
+     something real.
+     · apple-touch-icon pointed at the 512px PNG — 316 KB downloaded for a
+       home-screen icon, and WITH an alpha channel, which iOS composites onto
+       BLACK before applying its own squircle mask. A flattened 180×180 on the
+       tile's own colour is 48 KB and lands the way it was drawn.
+     · without apple-mobile-web-app-capable, iOS Safari never runs this
+       standalone: an "installed" icon just reopens a browser tab, with the
+       address bar eating a line of a small screen.
+     · black-translucent lets the saffron header run under the status bar. Safe
+       because the CSS already pads with env(safe-area-inset-top) — with a
+       plain `default` the phone draws a white strip above an orange header.
+     · a home-screen label of "চাঁদা খাতা — Ganesh Puja" is truncated to
+       nonsense; apple-mobile-web-app-title gives it the short name. -->
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="চাঁদা খাতা">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>

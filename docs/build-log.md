@@ -6794,3 +6794,85 @@ Each gate was run here and then **deliberately broken** to check it blocks: a
 **1,093 → 1,151.** 637 i18n keys bilingual, 16 precached assets all present,
 release strings and schemas aligned. `CODE_SCHEMA` unchanged at 3 and `Code.gs`
 untouched — **no redeploy needed.**
+
+## v4.16.0 — A66 (audit 2.14 / 2.16 / 2.20): one copy of each rule, and iPhones (2026-07-29)
+
+### 2.14 — a duplicate with one character different, and that character mattered
+
+`myReports()` was a hand copy of the tested `Aggregate.allowedReports`, with
+`u.cashier === 1` where the real one has `Number(u.cashier) === 1`.
+
+Not a style point. A Sheets round-trip can hand `cashier` back as the **string**
+`"1"`, and then the strict compare is false. Run both ways on that input, the
+copy returns `[]` and the tested one returns `["inhand"]` — **the cashier
+silently loses the one report their job depends on**, with nothing to see and
+nothing to blame. Deleted; its single call site now uses the function the suite
+already covers. All three `REPORT_IDS` lists (app, aggregate, Code.gs) were
+compared first and are identical, so the swap changes nothing else.
+
+### 2.20 — five things that looked like rules and were read by nothing
+
+`SIDES`, `positionOptions`, `hasAnyGrant`, `ANOM_ACTIONABLE` (js/app.js) and
+`nextReceiptNo_` (Code.gs). Each declared once, referenced nowhere.
+
+`ANOM_ACTIONABLE` was the worst of them and it was **mine**, added in A61: a
+second list of "which anomalies are answerable" that nothing consulted, sitting
+next to the three branches that actually decide. A list nobody reads can only
+drift. Worse, **a test was pinning its contents** — so it looked like coverage
+of a rule no code obeyed. That assertion now checks what matters instead: that
+the desk has a branch for each of the three and that each branch renders its
+answer.
+
+`nextReceiptNo_` mints one serial per call with a Config read/write each;
+`reserveReceiptNos_` replaced it with a whole batch in one read/write inside the
+push lock. A dead minting function beside the live one is an invitation to call
+the wrong one.
+
+`CAT_LABELS` was a character-for-character copy of `CAT_LABEL_KEYS`, **1,959
+lines away**. Two maps of the same thing means the day somebody adds a category,
+one screen labels it and the other prints `cat_other`. Now one definition and
+two readers.
+
+**`adminAction` is NOT dead, and the audit's list is stale on that point.** It
+has nine live references. A48 shipped eight admin buttons that rendered and did
+nothing precisely because this handler had been cut out — so the suite now
+asserts it stays, to stop the next cleanup repeating that.
+
+### 2.16 — four iOS gaps, each costing an iPhone collector something real
+
+- **`apple-touch-icon` pointed at the 512px PNG**: 316 KB downloaded for a
+  home-screen icon, *with an alpha channel*, which iOS composites onto **black**
+  before applying its own squircle mask. Replaced with a flattened 180×180 on
+  the tile's own colour — **48 KB**, no alpha (verified from the PNG header:
+  colour type 2, 180×180).
+- **No `apple-mobile-web-app-capable`**: iOS Safari never ran this standalone,
+  so an "installed" icon just reopened a browser tab with the address bar eating
+  a line of a small screen.
+- **`black-translucent`** so the saffron header runs under the status bar. Safe
+  only because the CSS already pads with `env(safe-area-inset-top)` — checked
+  before choosing it; with a plain `default` the phone draws a white strip above
+  an orange header.
+- **`apple-mobile-web-app-title`**, because "চাঁদা খাতা — Ganesh Puja"
+  truncates to nonsense under a home-screen icon.
+
+And the gap with the real cost: **iOS Safari has no `beforeinstallprompt` and no
+install button anywhere.** The only route onto the home screen is Share → "Add
+to Home Screen", which nobody finds by accident. An iPhone collector who never
+does it never gets the service worker — so the app they were told works offline
+simply does not, and they discover that at a roadside with no signal.
+
+A hint in ⚙️ সেটিংস, shown only where it is true and useful: iOS, not already
+installed. Including on **iPadOS, which reports itself as a Mac** — caught by
+`platform === 'MacIntel' && maxTouchPoints > 1`.
+
+### Verification
+
+Tests **1,156 → 1,186**. The icon is checked from the PNG header itself (colour
+type, dimensions, size) rather than by trusting the filename. Driven in a
+browser across all three states: desktop UA → no hint; spoofed iPhone, not
+installed → the hint with both lines; spoofed iPhone, `navigator.standalone`
+true → no hint. Served bytes confirmed: 48,113 vs the old 316,597.
+
+`js/app.js` 5,803 → 5,798 lines and `Code.gs` 2,316 → 2,314 — small, but every
+line removed was one that could be believed. No schema change; Code.gs lost only
+a dead function, so **no redeploy needed** (the next one will carry it).

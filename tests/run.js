@@ -2862,8 +2862,20 @@ try {
   // and both are actionable on the desk
   {
     const app = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
-    eq(/ANOM_ACTIONABLE = \{ possible_duplicate_payment: 1, possible_duplicate_daily: 1, overpaid: 1 \}/.test(app), true,
-       'A61: the desk knows all three are answerable');
+    // A66: this used to assert the contents of ANOM_ACTIONABLE — a constant
+    // that was set and read nowhere. It looked like coverage of a rule no code
+    // obeyed, which is worse than no test at all. What matters is that the
+    // desk RENDERS an answer for each of the three, so assert that instead.
+    {
+      const desk = app.slice(app.indexOf('function renderAnomalies'), app.indexOf('function loadMySummary'));
+      [['possible_duplicate_payment', 'data-dupok'],
+       ['possible_duplicate_daily', 'data-ddupok'],
+       ['overpaid', 'data-pledgeok']].forEach(function (pair) {
+        eq(desk.indexOf("a.type === '" + pair[0] + "'") >= 0, true,
+           'A61: the desk has a branch for ' + pair[0]);
+        eq(desk.indexOf(pair[1] + '=') >= 0, true, 'A61: …and that branch renders its answer (' + pair[1] + ')');
+      });
+    }
     ['data-ddupok', 'data-ddupvoid', 'data-pledgeok', 'data-pledgefix'].forEach(function (d) {
       eq(app.indexOf(d + '=') >= 0 && app.indexOf('[' + d + ']') >= 0, true,
          'A61: ' + d + ' is both rendered and read');
@@ -3079,6 +3091,93 @@ try {
     eq(ratio(sub, bg) >= 4.5, true, 'A64: --sub clears WCAG AA on --bg (' + ratio(sub, bg).toFixed(2) + ':1)');
     eq(ratio(sub, card) >= 4.5, true, 'A64: …and on --card (' + ratio(sub, card).toFixed(2) + ':1)');
   }
+}
+
+
+// ---- A66 (audit 2.14 / 2.20): one copy of each rule --------------------------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  const A = require('../js/aggregate.js');
+
+  // 2.14 — myReports() was a hand copy of the TESTED allowedReports with one
+  // character different, and that character was load-bearing: a Sheets round
+  // trip can hand `cashier` back as the STRING "1", and `=== 1` is then false.
+  // The cashier silently loses the in-hand report — the one their job needs.
+  eq(A.allowedReports({ role: 'user', reports: '', cashier: '1' }), ['inhand'],
+     'A66: a cashier flag that arrived as a string still grants in-hand');
+  eq(A.allowedReports({ role: 'user', reports: '', cashier: 1 }), ['inhand'],
+     'A66: …and as a number');
+  eq(A.allowedReports({ role: 'user', reports: '', cashier: 0 }), [],
+     'A66: …while a plain collector still gets nothing by default');
+  eq(/function myReports\(\)/.test(app), false, 'A66: the local copy is gone…');
+  eq(/showReportButtons\(Aggregate\.allowedReports\(Auth\.current\(\)\)\)/.test(app), true,
+     'A66: …and its one call site uses the tested function');
+
+  // 2.20 — declared once, read nowhere. Each of these looked like a rule.
+  [['const SIDES =', 'SIDES'],
+   ['function positionOptions()', 'positionOptions'],
+   ['function hasAnyGrant()', 'hasAnyGrant'],
+   ['const ANOM_ACTIONABLE =', 'ANOM_ACTIONABLE']].forEach(function (pair) {
+    eq(app.indexOf(pair[0]) >= 0, false, 'A66: ' + pair[1] + ' is gone — it was set and never read');
+  });
+  eq(/function nextReceiptNo_\(year\)/.test(gs), false,
+     'A66: nextReceiptNo_ is gone — a dead minting function beside the live batching one is an invitation to call the wrong one');
+  eq(/function reserveReceiptNos_/.test(gs), true, 'A66: …and the live one is still there');
+
+  // adminAction is NOT dead and must not be "cleaned up" by the next person:
+  // A48 shipped eight admin buttons that rendered and did nothing, precisely
+  // because this handler had been cut.
+  eq((app.match(/adminAction\(/g) || []).length >= 8, true,
+     'A66: adminAction is LIVE — the audit list predates A48 restoring it');
+
+  // the two identical category maps are now one
+  eq(/const CAT_LABELS = CAT_LABEL_KEYS;/.test(app), true, 'A66: one category-label map…');
+  eq((app.match(/shop: 'new_shop', person: 'new_person', member: 'new_member'/g) || []).length, 1,
+     'A66: …defined exactly once, so a new category cannot be labelled on one screen and cat_other on the other');
+}
+
+
+// ---- A66 (audit 2.16): iOS ---------------------------------------------------
+{
+  const fs = require('fs');
+  const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const png = fs.readFileSync(__dirname + '/../icons/apple-touch-icon.png');
+
+  eq(/apple-touch-icon" sizes="180x180" href="icons\/apple-touch-icon\.png"/.test(html), true,
+     'A66: the apple-touch-icon is a real 180×180, not the 316 KB 512px one');
+  // iOS composites transparency onto BLACK, so an alpha channel here means a
+  // black-cornered icon on somebody's home screen.
+  {
+    // PNG colour type lives at byte 25: 2 = truecolour, 6 = truecolour+alpha
+    eq(png[25], 2, 'A66: …with no alpha channel, because iOS composites transparency onto black');
+    eq(png.length < 80000, true, 'A66: …and small enough to be an icon (' + Math.round(png.length / 1024) + ' KB, was 309 KB)');
+    // width/height are the two big-endian ints at bytes 16..23
+    eq(png.readUInt32BE(16), 180, 'A66: …180 wide');
+    eq(png.readUInt32BE(20), 180, 'A66: …and 180 tall');
+  }
+  eq(/name="apple-mobile-web-app-capable" content="yes"/.test(html), true,
+     'A66: iOS runs it standalone — without this an "installed" icon just reopens a browser tab');
+  eq(/name="apple-mobile-web-app-status-bar-style" content="black-translucent"/.test(html), true,
+     'A66: …with the saffron header running under the status bar…');
+  eq(/env\(safe-area-inset-top\)/.test(fs.readFileSync(__dirname + '/../css/style.css', 'utf8')), true,
+     'A66: …which is only safe because the header already pads for the notch');
+  eq(/name="apple-mobile-web-app-title"/.test(html), true,
+     'A66: …and a short home-screen name, since the full title truncates to nonsense');
+
+  // the hint must appear only where it is true: iOS, in Safari, not installed
+  eq(/function iosInstallHint\(\)/.test(app), true, 'A66: iOS gets told how to install…');
+  eq(/if \(!isIOS\) return '';/.test(app), true, 'A66: …and nobody else sees it');
+  eq(/window\.navigator\.standalone === true/.test(app) && /display-mode: standalone/.test(app), true,
+     'A66: …nor does somebody who has already done it');
+  eq(/navigator\.platform === 'MacIntel' && navigator\.maxTouchPoints > 1/.test(app), true,
+     'A66: …including on iPadOS, which reports itself as a Mac');
+  ['ios_install_title', 'ios_install_how', 'ios_install_why'].forEach(function (k) {
+    eq(fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8').indexOf('  ' + k + ':') >= 0, true,
+       'A66: ' + k + ' is a real message');
+  });
 }
 
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------

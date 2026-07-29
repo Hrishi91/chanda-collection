@@ -339,12 +339,10 @@ function setConfig_(key, value) {
 function touchData_() { setConfig_('data_ts', String(Date.now())); }
 function dataTs_() { return Number(readConfig_().data_ts) || 0; }
 
-function nextReceiptNo_(year) {
-  var cfg = readConfig_(), key = 'receiptSeq_' + year;
-  var n = (Number(cfg[key]) || 0) + 1;
-  setConfig_(key, n);
-  return formatReceiptNo_(year, n, cfg.receipt_digits);
-}
+// A66 (audit 2.20): nextReceiptNo_ lived here — one serial per call, one
+// Config read/write each. reserveReceiptNos_ replaced it (a whole batch in one
+// read/write, inside the push lock) and nothing has called this since. A dead
+// minting function next to a live one is an invitation to call the wrong one.
 function formatReceiptNo_(year, n, digits) {
   var d = Math.min(9, Math.max(4, Number(digits) || 6)); // admin-set width
   var s = '' + n; while (s.length < d) s = '0' + s;      // starts at 000…001
@@ -587,7 +585,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.15.0';
+var CODE_VERSION = 'chanda-v4.16.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually

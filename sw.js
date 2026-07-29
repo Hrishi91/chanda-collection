@@ -1,5 +1,5 @@
 // App-shell cache. Bump VERSION on every deploy that changes app files.
-const VERSION = 'chanda-v4.15.0';
+const VERSION = 'chanda-v4.16.0';
 // config.js is intentionally NOT precached — it carries the live backend URL
 // and is served network-first (no-store) by the fetch handler so it can never
 // be stale. Precaching it here would risk baking in a stale copy at install.
@@ -15,7 +15,10 @@ const SHELL = [
   'js/i18n.js', 'js/numparse.js', 'js/aggregate.js', 'js/db.js',
   'js/auth.js', 'js/help.js', 'js/voice.js', 'js/sync.js', 'js/lists.js', 'js/app.js',
 ];
-const EXTRAS = ['manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
+const EXTRAS = ['manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
+                // A66: iOS fetches this at Add-to-Home-Screen time; caching it
+                // costs 48 KB and means the icon appears even on a bad line
+                'icons/apple-touch-icon.png'];
 
 // A28: `cache.addAll(urls)` fetches through the browser's HTTP cache, and
 // GitHub Pages says `max-age=600` on every file. So a phone that had opened the

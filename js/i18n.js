@@ -141,6 +141,10 @@ const I18N = {
   party_f_phone: { bn: 'ফোন নম্বর', en: 'Phone number' },
   party_f_pledged: { bn: 'কত টাকা কথা হলো (pledge)', en: 'Pledged amount' },
   anom_needs_deploy: { bn: '⏳ এই উত্তরটা সার্ভারে রাখার জায়গা এখনো নেই — Code.gs redeploy বাকি। তখন বোতামটা কাজ করবে।', en: '⏳ The server has nowhere to keep this answer yet — Code.gs has not been redeployed. The button will work once it is.' },
+  // --- A66 (audit 2.16): iOS has no install button of its own ---
+  ios_install_title: { bn: 'ফোনে বসিয়ে নাও', en: 'Put it on your phone' },
+  ios_install_how: { bn: 'নিচের শেয়ার বোতাম (⬆️) চাপো → নিচে নেমে "Add to Home Screen" চাপো → "Add"।', en: 'Tap the Share button (⬆️) below → scroll down to "Add to Home Screen" → "Add".' },
+  ios_install_why: { bn: 'এটা না করলে নেট ছাড়া অ্যাপটা খুলবে না — রাস্তায় দাঁড়িয়ে entry করতে গেলে সমস্যা হবে।', en: 'Without this the app will not open without a signal — which is exactly when you need it on the road.' },
   // --- A63 (audit 2.11): the half-finished entry ---
   flow_leave_confirm: { bn: 'এই এন্ট্রিটা এখনো শেষ হয়নি। বেরিয়ে যাবে?\n\nযা লিখেছ সেটা রাখা থাকবে — পরে চাইলে চালিয়ে যেতে পারবে।\n\n"Cancel" = এখানেই থাকি · "OK" = বেরোই', en: 'This entry is not finished. Leave it?\n\nWhat you have typed will be kept — you can carry on later.\n\n"Cancel" = stay here · "OK" = leave' },
   draft_title: { bn: 'একটা এন্ট্রি শেষ হয়নি', en: 'An entry was left unfinished' },

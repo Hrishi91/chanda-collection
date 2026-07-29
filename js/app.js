@@ -7,7 +7,6 @@
   // call passes through and it loads first, so there is no load-order question
   // about who owns the constant.
   const APP_VERSION = Auth.APP_VERSION;
-  const SIDES = ['main_malda', 'main_balurghat', 'harirampur', 'singhadaha'];
   const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
   let flowState = null;
   // set when the user taps 🔄 আপডেট খুঁজি — a reload they asked for is never
@@ -15,15 +14,6 @@
   let userReload = false;
 
   // offline fallback; the server's reportList is the authority when online
-  function myReports() {
-    const u = Auth.current();
-    if (!u) return [];
-    if (u.role === 'admin') return REPORT_IDS.slice();
-    const g = String(u.reports || '').split(',').filter(Boolean);
-    if (u.cashier === 1 && g.indexOf('inhand') < 0) g.push('inhand');
-    return g.filter(function (r) { return REPORT_IDS.indexOf(r) >= 0; });
-  }
-
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -1174,9 +1164,6 @@
   // Committee positions (সভাপতি / সম্পাদক / …) — the same admin-editable master
   // list mechanism as areas and locations, so Hrishi adds his committee's real
   // titles himself instead of living with names hard-coded here.
-  function positionOptions() {
-    return Lists.get('position').map(function (p) { return { v: p.id, label: Lists.labelOf('position', p.id) }; });
-  }
   function modeOptions(withNone) {
     const o = [{ v: 'cash', labelKey: 'mode_cash' }, { v: 'upi', labelKey: 'mode_upi' },
                { v: 'both', labelKey: 'mode_both' }];
@@ -1423,10 +1410,12 @@
     // bus money without bus access). Flow: pick categories → pick নগদ/UPI/
     // দুটোই (each chip shows the selected categories' real amount) → save.
     // "✏️ অন্য পরিমাণ" escapes to manual typed entry for partial handovers.
-    const CAT_LABELS = { shop: 'new_shop', person: 'new_person', member: 'new_member',
-                         payment: 'cat_payment', bus: 'daily_bus',
-                         road: 'daily_road', toto: 'daily_toto', received: 'cat_received',
-                         other: 'cat_other' };
+    // A66 (audit 2.20): this was a character-for-character copy of
+    // CAT_LABEL_KEYS, 1,959 lines away. Two maps of the same thing means the
+    // day somebody adds a category, one screen labels it and the other prints
+    // `cat_other`. Module-level `const`, read at call time, so the order is
+    // fine.
+    const CAT_LABELS = CAT_LABEL_KEYS;
     const catsOf = function (src) {
       return Object.keys(CAT_LABELS).filter(function (k) {
         return src[k] && (src[k].cash + src[k].upi) > 0;
@@ -1865,10 +1854,6 @@
   // Has this person been set up at all? One answer, used by every screen, so
   // the ledger and the reports cannot disagree with the home screen about
   // whether somebody is ready to work.
-  function hasAnyGrant() {
-    if (Auth.isAdmin()) return true;
-    return String((Auth.current() || {}).entries || '').split(',').filter(Boolean).length > 0;
-  }
   // A36: being behind the server and being granted nothing are different walls
   // with different fixes. Saying "ask the admin" to somebody who only needs to
   // tap update would send them down a road that cannot help them.
@@ -3770,7 +3755,14 @@
       '<div id="report-picker"></div>' +
       '<div id="report-body"></div>';
     loadMySummary();
-    showReportButtons(myReports());   // permission list is local — no round-trip
+    // A66 (audit 2.14): was a local myReports() — a hand copy of
+    // Aggregate.allowedReports with `u.cashier === 1` where the tested one has
+    // `Number(u.cashier) === 1`. Not a style point: a Sheets round-trip can
+    // hand `cashier` back as the STRING "1", and then the strict compare is
+    // false and the cashier silently loses their in-hand report — the one
+    // report their job depends on. Run both ways, the copy returns [] where
+    // the real one returns ["inhand"].
+    showReportButtons(Aggregate.allowedReports(Auth.current()));   // local — no round-trip
     checkReconcile();
   }
   // Surface the money invariant to admins/cashiers: Σ everyone's in-hand must
@@ -3804,8 +3796,6 @@
   // Detection nobody can act on is worse than none: it looks like a guard.
   // Each row here says what a human would say, names the rows involved, and
   // carries an action where one honestly exists.
-  // A61: three now. Every one of these is an anomaly where a human can give a
-  // real answer — the rest genuinely are data surgery and get no button.
   // A61: dupOk and pledgeOk are NEW columns. If the deployed Code.gs predates
   // them the answer is written locally, pushed, and silently dropped — the card
   // vanishes, the next pull brings the anomaly straight back, and the button has
@@ -3814,7 +3804,12 @@
   // Only the ADMIN sees the yellow "redeploy" bar, so the cashier working this
   // desk would otherwise have no way to know.
   function serverCanStoreAnswers() { return Auth.schemaCmp() !== 1; }
-  const ANOM_ACTIONABLE = { possible_duplicate_payment: 1, possible_duplicate_daily: 1, overpaid: 1 };
+  // A66 (audit 2.20): ANOM_ACTIONABLE lived here — set, and read nowhere. A
+  // second list of "which anomalies are answerable" that nothing consulted can
+  // only drift away from the branches below that actually decide, and a test
+  // was pinning its contents, which made it worse than useless: it looked like
+  // coverage of a rule no code obeyed. The three branches in renderAnomalies
+  // ARE the rule; there is no second copy left to disagree with them.
   function renderAnomalies() {
     if (!Auth.isCashier()) { $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
     $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('loading')) + '</div>';
@@ -4124,6 +4119,27 @@
         '<br><b class="warn">' + esc(t('upd_stale').replace('{v}', have)) + '</b>';
     });
   }
+  // A66 (audit 2.16): iOS Safari has no beforeinstallprompt and no install
+  // button anywhere — the only way onto the home screen is Share → "Add to Home
+  // Screen", which nobody finds by accident. An iPhone collector who never does
+  // it never gets the service worker, so the app they were told works offline
+  // simply does not, and they find that out at a roadside with no signal.
+  //
+  // Shown only where it is true and useful: iOS, in Safari, not already
+  // installed. A hint that appears on a phone it does not apply to is the kind
+  // of noise people learn to scroll past.
+  function iosInstallHint() {
+    const ua = navigator.userAgent || '';
+    const isIOS = /iPad|iPhone|iPod/.test(ua) ||
+                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS lies
+    if (!isIOS) return '';
+    const standalone = window.navigator.standalone === true ||
+                       (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+    if (standalone) return '';
+    return '<div class="card"><div class="card-title">📲 ' + esc(t('ios_install_title')) + '</div>' +
+      '<div class="row-sub" style="margin-top:4px">' + esc(t('ios_install_how')) + '</div>' +
+      '<div class="perm-note">' + esc(t('ios_install_why')) + '</div></div>';
+  }
   function renderSettings() {
     const user = Auth.current() || { name: '?', username: '?' };
     // scriptUrl is a backend override for testing — admins only, so a
@@ -4135,6 +4151,7 @@
     $view().innerHTML = '<div class="card"><div class="card-title">👤 ' + esc(user.name) +
       (user.role === 'admin' ? ' 👑' : '') + (Auth.isCashier() ? ' 💰' : '') + '</div>' +
       '<div class="row-sub">' + esc(t('logged_in_as')) + ': @' + esc(user.username) + '</div></div>' +
+      iosInstallHint() +
       (Auth.isAdmin() ? '<button id="adm-btn" class="primary big block">' + esc(t('admin_panel')) + '</button>' : '') +
       '<button id="help-btn" class="ghost big block">' + esc(t('help_btn')) + '</button>' +
       (('Notification' in window) ? '<button id="notif-btn" class="ghost big block">' + esc(t('notif_enable')) + '</button>' : '') +

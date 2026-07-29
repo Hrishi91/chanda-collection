@@ -432,8 +432,14 @@ The real-phone smoke test is DONE.
   `.github/workflows/ci.yml` runs the suite, a syntax check, the version/schema
   agreement, sw-precache existence and i18n completeness on every push (each
   gate proven to block).
-- **Tier 2 — OPEN**: 2.10 offline receipt serial · 2.14 `myReports()`
-  duplication · 2.16 iOS meta gaps · 2.19 `js/app.js` size · 2.20 dead code. **Not doing before the puja:** merging twin donors (moves money between
+- **2.14 + 2.16 + 2.20 FIXED in v4.16.0 (A66)** — `myReports()` deleted (its
+  `=== 1` lost a cashier their in-hand report when the flag arrived as a
+  string), five dead declarations removed, the duplicated category map merged,
+  and iOS given a real 48 KB opaque touch icon, standalone mode, and the only
+  install route it has. `adminAction` was NOT dead — the audit list predates
+  A48 restoring it — and is now pinned so the next cleanup cannot cut it again.
+- **Tier 2 — OPEN**: 2.10 offline receipt serial · 2.19 `js/app.js` size
+  (audit §5: do NOT touch the flow engine before the puja). **Not doing before the puja:** merging twin donors (moves money between
   rows — audit §5 says do not touch the money engine now).
 - **§7 documentation drift — OPEN**. Note the count moved again: A61 added
   `possible_duplicate_daily`, so `money-model.md:163` now says eight where the
