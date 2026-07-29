@@ -6358,3 +6358,92 @@ produces twins; merging two donors that both hold payments stays open.
 ⚠️ Code.gs changed again (the parties push gate and `partyHasMoney_`), so the
 outstanding redeploy should be of **this** commit, not v4.12.2. `CODE_SCHEMA`
 is still 2.
+
+## v4.13.0 — A61 (audit 2.2 / 2.3): the 🩺 desk stops raising things nobody can answer (2026-07-29)
+
+`money-model.md:172` already says the rule this release is about: *"A count
+nobody can act on trains people to ignore the banner."* Two anomalies were
+breaking it from opposite ends — one that was never raised at all, and one that
+could never be cleared.
+
+### 2.2 — a double-entered round raised nothing
+
+`dupGroups` keys on `partyId`. `daily` rows have no party, so a road, toto or
+**bus** collection entered twice was invisible to the desk. Bus matters most: a
+bus collection is handed a printed receipt, so entering it twice means two
+serials, in two people's hands, for one payment.
+
+**Two different keys, and the audit's single suggestion would have been wrong
+for half the cases:**
+
+- **bus** → the BUS is the identity. Two collectors can each write down the same
+  bus, which is the commonest version of this mistake, so the collector must
+  **not** be part of the key. Name lower-cased and number stripped of spaces,
+  because "WB 65 1234" and "wb651234" are one bus.
+- **road / toto** → there is no identity beyond who was walking. Two collectors
+  each doing a ₹500 round in one day is completely ordinary, so the collector
+  **must** be part of the key — otherwise the desk fills with noise on day one,
+  which is the exact failure this screen exists to prevent.
+
+The answer settles the GROUP, not the row it happens to sit on. Array order is
+not insertion order, so testing "does THIS row carry the flag" flags the
+innocent twin half the time — the A22 lesson, which cost a release to learn the
+first time.
+
+### 2.3 — "paid more than pledged" could not be cleared by anyone
+
+Giving more than you promised is a normal, good thing a donor does, and the
+documented A3 case (two collectors calling at one shop) lands here too. Neither
+could be acknowledged, so the line sat on the desk for the whole season.
+
+The card now carries **both** honest answers: `pledgeOk` for "nothing is wrong",
+and — since A60 gave donor rows an edit screen — **✏️ কথার অঙ্ক ঠিক করো**, which
+goes and fixes the cause. The confirm quotes both figures back before stamping,
+because "mark as fine" is a decision about somebody's money.
+
+### The trap I nearly shipped
+
+Both answers need somewhere to live: `daily.dupOk` and `parties.pledgeOk` did
+not exist as columns. Written without them, the answer is stamped locally, the
+card vanishes, the push **silently drops the field**, and the next pull brings
+the anomaly straight back. That is precisely the A60 dead-`voided` failure, one
+release later, and I was two lines from repeating it.
+
+So both columns were added (appended LAST, per the header rule) and
+`CODE_SCHEMA` moved **2 → 3**. Two new columns is a contract change, which is
+what that number is for.
+
+**And then a real gap in the version machinery itself.** `schemaCmp() === -1`
+(client behind) locks entry and shows a red bar. `=== 1` (server behind — Code.gs
+not redeployed) shows a yellow note **to the admin only**. So a cashier working
+this desk before the redeploy would have had no way to know, tapped "✓ ঠিক আছে",
+watched the card disappear, and found the anomaly back after the next pull.
+
+The proportionate fix is not to lock the app — an ordinary donation entry is
+perfectly safe against the older server. It is to withhold the two buttons that
+need the new columns and **say why**: *"⏳ এই উত্তরটা সার্ভারে রাখার জায়গা এখনো নেই
+— Code.gs redeploy বাকি।"* The ✖️ void answers stay available throughout, because
+they use the `voids` store, which has always existed.
+
+### Verification
+
+Tests **1027 → 1031**, running the real `reconcile`: the same bus twice is
+raised (spacing and case do not hide it), including across two collectors; two
+collectors each doing a ₹500 road round is **not**; the same collector twice is;
+road-vs-toto are different collections; `dupOk` on either row settles the pair;
+`pledgeOk` clears overpaid while a member with no pledge still raises nothing.
+
+Then driven in a browser on a fresh port, in **both** server states:
+
+- server still on schema 2 → both anomalies detected, both stamp buttons
+  withheld with the reason, ✏️ still offered
+- server on schema 3 → both stamps appear, answering the bus pair set `dupOk=1`
+  and `synced=0`, the card came out **in place** (A44: the desk did not rebuild
+  and throw the cashier back to the top), the overpaid confirm quoted ₹1,000 vs
+  ₹1,500 and stamped `pledgeOk=1`, and `reconcile` then returned `[]` — *✅ কোনো
+  অসঙ্গতি নেই*
+
+⚠️ **This redeploy is now mandatory, not optional.** `CODE_SCHEMA` 3 against a
+deployed 2 means every phone shows the red bar and cannot make entries until
+Code.gs is redeployed. That is the mechanism working as designed — but it is the
+first time in this audit run that a delay actually costs anything.

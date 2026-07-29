@@ -1660,7 +1660,12 @@ function AVAIL_CATS_HAS_MEMBER() {
 // the registry columns ride the parties sheet, appended LAST (header rule)
 const a25Cols = a25Gs.slice(a25Gs.indexOf('  parties:  ['), a25Gs.indexOf('],', a25Gs.indexOf('  parties:  [')))
   .replace(/\/\/[^\n]*/g, '').match(/'([a-zA-Z]+)'/g).map(function (q) { return q.slice(1, -1); });
-eq(a25Cols.slice(-3), ['position', 'email', 'appUser'], 'A25: registry columns appended last on parties');
+// A61: pin the RULE (every schema addition goes on the END, because every
+// write here is position-based), not a frozen tail — a list that has to be
+// rewritten each time something is appended stops meaning anything.
+eq(a25Cols.slice(-4, -1), ['position', 'email', 'appUser'],
+   'A25: registry columns appended last on parties');
+eq(a25Cols[a25Cols.length - 1], 'pledgeOk', 'A61: …and pledgeOk after them, not inserted among them');
 // positions are an ADMIN master list, like areas and locations — not hard-coded
 eq(/var LIST_KINDS = \[[^\]]*'position'[^\]]*\]/.test(a25Gs), true, 'A25: position is a Lists kind');
 eq(a25Gs.indexOf('LIST_KINDS.indexOf(kind) < 0') >= 0, true, 'A25: …and the server gate reads that one list');
@@ -2763,6 +2768,112 @@ try {
     eq(/row\.pledged = pledged;/.test(appSrc), true, 'A60: …the row is updated in place');
   }
   }
+
+
+// ---- A61 (audit 2.2 / 2.3): the two anomalies nobody could act on -----------
+{
+  const A = require('../js/aggregate.js');
+  const base = { parties: [], payments: [], daily: [], expenses: [], handovers: [], voids: [] };
+  const types = (d) => A.reconcile(Object.assign({}, base, d)).anomalies.map(a => a.type);
+  const dailyRow = (o) => Object.assign({ cashAmount: o.amount, upiAmount: 0, collector: 'রতন',
+                                          collectorId: 'ratan', collectorRole: 'collector' }, o);
+
+  // 2.2 — dupGroups keys on partyId and daily rows have none, so a double
+  // entered round raised NOTHING. A bus collection is handed a printed
+  // receipt: entering it twice means two serials for one payment.
+  eq(types({ daily: [
+    dailyRow({ id: 'b1', type: 'bus', busName: 'শিবম', busNumber: 'WB 65 1234', amount: 500, date: '2026-08-01' }),
+    dailyRow({ id: 'b2', type: 'bus', busName: 'শিবম', busNumber: 'wb651234', amount: 500, date: '2026-08-01' }),
+  ] }), ['possible_duplicate_daily'],
+     'A61: the same bus written down twice on one day is raised — spacing and case do not hide it');
+
+  // …and the BUS is the identity, so two collectors writing the same bus is
+  // still one duplicate. Keying on the collector here would miss the commonest
+  // version of this mistake.
+  eq(types({ daily: [
+    dailyRow({ id: 'b1', type: 'bus', busName: 'শিবম', busNumber: 'WB651234', amount: 500, date: '2026-08-01' }),
+    dailyRow({ id: 'b2', type: 'bus', busName: 'শিবম', busNumber: 'WB651234', amount: 500, date: '2026-08-01',
+               collector: 'বিমল', collectorId: 'bimal' }),
+  ] }), ['possible_duplicate_daily'],
+     'A61: …including when two different collectors each wrote it down');
+
+  // road/toto is the opposite: there is no identity beyond who was walking, and
+  // two people each doing a ₹500 round in a day is completely ordinary. Keying
+  // without the collector would fill the desk on day one.
+  eq(types({ daily: [
+    dailyRow({ id: 'r1', type: 'road', amount: 500, date: '2026-08-01' }),
+    dailyRow({ id: 'r2', type: 'road', amount: 500, date: '2026-08-01', collector: 'বিমল', collectorId: 'bimal' }),
+  ] }), [], 'A61: two collectors each doing a ₹500 road round is NOT a duplicate');
+  eq(types({ daily: [
+    dailyRow({ id: 'r1', type: 'road', amount: 500, date: '2026-08-01' }),
+    dailyRow({ id: 'r2', type: 'road', amount: 500, date: '2026-08-01' }),
+  ] }), ['possible_duplicate_daily'], 'A61: …but the SAME collector twice is');
+  eq(types({ daily: [
+    dailyRow({ id: 'r1', type: 'road', amount: 500, date: '2026-08-01' }),
+    dailyRow({ id: 'r2', type: 'toto', amount: 500, date: '2026-08-01' }),
+  ] }), [], 'A61: a road round and a toto round are different collections');
+
+  // the answer settles the GROUP, not the row it happens to sit on — array
+  // order is not insertion order, and testing the row flagged the innocent
+  // twin half the time (A22, learned the expensive way)
+  eq(types({ daily: [
+    dailyRow({ id: 'r1', type: 'road', amount: 500, date: '2026-08-01', dupOk: 1 }),
+    dailyRow({ id: 'r2', type: 'road', amount: 500, date: '2026-08-01' }),
+  ] }), [], 'A61: dupOk on EITHER row settles the pair');
+
+  // 2.3 — overpaid could not be dismissed by anybody, so the documented A3 case
+  // (two collectors calling at one shop) sat on the desk all season.
+  const over = { parties: [{ id: 's1', type: 'shop', name: 'মা তারা', pledged: 1000 }],
+                 payments: [{ id: 'p1', partyId: 's1', amount: 1500, cashAmount: 1500, upiAmount: 0,
+                              collector: 'রতন', collectorId: 'ratan', collectorRole: 'collector' }] };
+  eq(types(over).indexOf('overpaid') >= 0, true, 'A61: paid more than pledged is still raised…');
+  const okd = JSON.parse(JSON.stringify(over)); okd.parties[0].pledgeOk = 1;
+  eq(types(okd).indexOf('overpaid') >= 0, false, 'A61: …and pledgeOk finally clears it');
+  const zero = JSON.parse(JSON.stringify(over)); zero.parties[0].pledged = 0;
+  eq(types(zero).indexOf('overpaid') >= 0, false,
+     'A61: a member with no pledge still raises nothing — that guard is untouched');
+  // the anomaly must name the row, or the desk cannot offer a button for it
+  eq(A.reconcile(Object.assign({}, base, over)).anomalies
+      .filter(a => a.type === 'overpaid')[0].partyId, 's1',
+     'A61: …and it carries the partyId the buttons need');
+
+  // both stamps need REAL columns, or the answer dies at the push and the desk
+  // asks again for ever — which is exactly the A60 dead-field failure
+  {
+    const gs = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+    const dailyCols = gs.slice(gs.indexOf('  daily:    ['), gs.indexOf('],', gs.indexOf('  daily:    [')))
+      .replace(/\/\/[^\n]*/g, '').match(/'([a-zA-Z]+)'/g).map(q => q.slice(1, -1));
+    eq(dailyCols[dailyCols.length - 1], 'dupOk', 'A61: daily.dupOk exists and is appended LAST');
+    eq(/var CODE_SCHEMA = 3;/.test(gs), true, 'A61: two new columns is a contract change — CODE_SCHEMA moved');
+    eq(/const APP_SCHEMA = 3;/.test(require('fs').readFileSync(__dirname + '/../js/auth.js', 'utf8')), true,
+       'A61: …and the client says the same number, or every phone locks itself out');
+  }
+  // and both are actionable on the desk
+  {
+    const app = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    eq(/ANOM_ACTIONABLE = \{ possible_duplicate_payment: 1, possible_duplicate_daily: 1, overpaid: 1 \}/.test(app), true,
+       'A61: the desk knows all three are answerable');
+    ['data-ddupok', 'data-ddupvoid', 'data-pledgeok', 'data-pledgefix'].forEach(function (d) {
+      eq(app.indexOf(d + '=') >= 0 && app.indexOf('[' + d + ']') >= 0, true,
+         'A61: ' + d + ' is both rendered and read');
+    });
+    // …and the two NEW-column answers are withheld until the server can keep
+    // them. Otherwise the card vanishes, the push drops the field, the next
+    // pull brings the anomaly back, and the button has lied — which is the
+    // failure this release is about. Only the admin sees the redeploy bar, so
+    // the cashier working this desk has no other way to know.
+    eq(/function serverCanStoreAnswers\(\) \{ return Auth\.schemaCmp\(\) !== 1; \}/.test(app), true,
+       'A61: the desk asks whether the server can store the answer at all');
+    eq(/\(canStamp \? '<button class="chip on" data-ddupok=/.test(app) &&
+       /\(canStamp \? '<button class="chip on" data-pledgeok=/.test(app), true,
+       'A61: …and both stamps are withheld when it cannot');
+    eq(/anom_needs_deploy/.test(app) && require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8').indexOf('  anom_needs_deploy:') >= 0, true,
+       'A61: …saying why, in words, instead of a button that quietly does nothing');
+    // the VOID answers stay available — they need no new column
+    eq(/\(canStamp \? '<button class="chip void-btn" data-ddupvoid=/.test(app), false,
+       'A61: voiding is not gated — it uses the voids store, which has always existed');
+  }
+}
 
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------
 {

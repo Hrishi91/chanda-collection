@@ -107,6 +107,7 @@ const I18N = {
   // this one is a fallback. It exists anyway: if that special card is ever
   // dropped, the desk must not head the row with a raw key.
   anom_possible_duplicate_payment_t: { bn: 'একই জমা দুবার?', en: 'Same payment twice?' },
+  anom_possible_duplicate_daily_t: { bn: 'একই কালেকশন দুবার?', en: 'Same collection twice?' },
   q_phone: { bn: 'ফোন নম্বর? (না থাকলে Skip)', en: 'Phone number? (Skip if none)' },
   q_pledged: { bn: 'কত টাকা কথা হলো (pledge)?', en: 'Pledged amount?' },
   q_paid_now: { bn: 'এখন কত টাকা দিল? (পরে দিলে Skip)', en: 'Paid now? (Skip if later)' },
@@ -139,6 +140,13 @@ const I18N = {
   party_f_location: { bn: 'এলাকা / জায়গা', en: 'Area / place' },
   party_f_phone: { bn: 'ফোন নম্বর', en: 'Phone number' },
   party_f_pledged: { bn: 'কত টাকা কথা হলো (pledge)', en: 'Pledged amount' },
+  anom_needs_deploy: { bn: '⏳ এই উত্তরটা সার্ভারে রাখার জায়গা এখনো নেই — Code.gs redeploy বাকি। তখন বোতামটা কাজ করবে।', en: '⏳ The server has nowhere to keep this answer yet — Code.gs has not been redeployed. The button will work once it is.' },
+  // --- A61 (audit 2.2 / 2.3): the two anomalies nobody could act on ---
+  anom_dup_daily: { bn: 'একই কালেকশন দুবার?', en: 'Same collection twice?' },
+  anom_dup_daily_ok: { bn: '✓ আলাদা, ঠিক আছে', en: '✓ Separate, it is fine' },
+  anom_overpaid_ok: { bn: '✓ ঠিক আছে, বেশিই দিয়েছেন', en: '✓ Fine — they gave more' },
+  anom_overpaid_fix: { bn: '✏️ কথার অঙ্ক ঠিক করো', en: '✏️ Correct the pledge' },
+  anom_overpaid_ok_confirm: { bn: '{who} কথা ছিল {p}, দিয়েছেন {n} — এটা ঠিক বলে চিহ্ন দেব? তাহলে এই লাইনটা আর দেখাবে না।', en: 'Pledged {p}, gave {n}. Mark {who} as fine? This line will stop appearing.' },
   // --- A60 (audit 2.1): correcting a donor row ---
   party_edit: { bn: '✏️ তথ্য সংশোধন', en: '✏️ Correct details' },
   party_edit_title: { bn: 'ডোনরের তথ্য সংশোধন', en: 'Correct donor details' },

@@ -26,7 +26,12 @@ var SHEETS = {
              //             Money still belongs to whoever COLLECTED it — linking a
              //             member to a user must never move a rupee, or the in-hand
              //             model (docs/money-model.md) stops holding.
-             'position', 'email', 'appUser'],
+             'position', 'email', 'appUser',
+             // A61 (audit 2.3): 1 = a human looked at "paid more than pledged"
+             // and said it is fine — donors do give more than they promised.
+             // Without somewhere to record that, the line could never be
+             // cleared and sat on the 🩺 desk all season. Appended LAST.
+             'pledgeOk'],
   payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo',
              // 1 = the collector was warned this looked like a same-day repeat
              // and confirmed it is a genuine second instalment. Travels to the
@@ -34,7 +39,13 @@ var SHEETS = {
              // banner is read on a different device from the answer. LAST, per
              // the append-only header rule.
              'dupOk'],
-  daily:    ['id', 'year', 'type', 'busName', 'busNumber', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo'],
+  daily:    ['id', 'year', 'type', 'busName', 'busNumber', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo',
+             // A61 (audit 2.2): same meaning as payments.dupOk — somebody was
+             // shown the possible repeat and said it is genuinely separate. It
+             // needs a real column or the answer dies at the push and the desk
+             // asks again for ever, which is the A60 failure exactly. LAST, per
+             // the append-only header rule.
+             'dupOk'],
   expenses: ['id', 'year', 'subject', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole',
              // how it was paid + which pot it came out of, so the cash/UPI and
              // per-category books stay exact on the SPEND side too (appended)
@@ -576,13 +587,13 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.12.3';
+var CODE_VERSION = 'chanda-v4.13.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
 // changes this file's behaviour, so a client-only release stops demanding a
 // redeploy that would change nothing. Bump it here and in js/auth.js together.
-var CODE_SCHEMA = 2;
+var CODE_SCHEMA = 3;
 function doGet() { return json_({ ok: true, service: 'chanda-khata', version: CODE_VERSION }); }
 
 var ACTIONS = {

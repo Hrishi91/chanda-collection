@@ -965,6 +965,45 @@
                          partyId: p.partyId, amount: Number(p.amount) || 0, date: String(p.date).slice(0, 10) });
       });
     });
+    // A61 (audit 2.2): the same guard for `daily`, which had none. dupGroups
+    // above keys on partyId and daily rows have no party, so a double-entered
+    // road, toto or BUS collection raised nothing at all — and a bus collection
+    // is handed a printed receipt, so entering it twice means two serials in
+    // two people's hands for one payment.
+    //
+    // Two different keys, deliberately, because "the same collection twice"
+    // means two different things here:
+    //   bus  → the BUS is the identity. Two collectors can each write down the
+    //          same bus, so the collector must NOT be part of the key.
+    //   road/toto → there is no identity beyond who was walking. Two collectors
+    //          each doing a ₹500 road round on one day is completely ordinary,
+    //          so the collector MUST be part of the key or the desk would fill
+    //          with noise on day one — the failure this whole screen exists to
+    //          avoid (A19/A23).
+    const dailyGroups = {};
+    (daily || []).forEach(function (r) {
+      const day = String(r.date || '').slice(0, 10);
+      const amt = Number(r.amount) || 0;
+      if (!amt || !day || !r.type) return;
+      const k = r.type === 'bus'
+        ? 'bus|' + String(r.busName || '').trim().toLowerCase() + '|' +
+          String(r.busNumber || '').replace(/\s/g, '').toLowerCase() + '|' + amt + '|' + day
+        : ck(r) + '|' + r.type + '|' + amt + '|' + day;
+      (dailyGroups[k] || (dailyGroups[k] = [])).push(r);
+    });
+    Object.keys(dailyGroups).forEach(function (k) {
+      const g = dailyGroups[k];
+      if (g.length < 2) return;
+      // settled if ANY member carries the answer — array order is not insertion
+      // order, so asking "does THIS row carry it" flags the innocent twin half
+      // the time (the A22 lesson, which cost a release to learn once).
+      if (g.some(function (r) { return Number(r.dupOk) === 1; })) return;
+      g.slice(1).forEach(function (r) {
+        anomalies.push({ type: 'possible_duplicate_daily', id: r.id, firstId: g[0].id,
+                         dailyType: r.type, busName: r.busName || '', busNumber: r.busNumber || '',
+                         amount: Number(r.amount) || 0, date: String(r.date || '').slice(0, 10) });
+      });
+    });
     // Party paid more than pledged. A pledge of ZERO means no pledge was ever
     // agreed — committee members are registered without one and simply give what
     // they give — so "more than pledged" is meaningless there. Without this guard
@@ -973,9 +1012,17 @@
     parties.forEach(function (p) {
       const pledged = Number(p.pledged) || 0;
       if (!pledged) return;
+      // A61 (audit 2.3): somebody has looked at this and said it is fine.
+      // Giving more than you promised is a normal, good thing a donor does —
+      // and the documented A3 case (two collectors calling at one shop) lands
+      // here too. Before this the line could not be cleared by anyone, so it
+      // sat on the 🩺 desk for the whole season. money-model.md:172 already
+      // says why that is worse than not detecting it: "A count nobody can act
+      // on trains people to ignore the banner."
+      if (Number(p.pledgeOk) === 1) return;
       const paid = paidByParty[p.id] || 0;
       if (paid > pledged) {
-        anomalies.push({ type: 'overpaid', party: p.name, pledged: pledged, paid: paid });
+        anomalies.push({ type: 'overpaid', id: p.id, partyId: p.id, party: p.name, pledged: pledged, paid: paid });
       }
     });
     // handed over more than held

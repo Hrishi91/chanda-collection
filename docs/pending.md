@@ -429,8 +429,10 @@ The real-phone smoke test is DONE.
 ✅ **v4.12.1 redeploy DONE** (2026-07-29) — verified live: `codeVersion
 chanda-v4.12.1`, `schema 2`, config rebaked.
 
-⚠️ **One more redeploy needed — of v4.12.3** (the five server fixes above plus
-A60's parties push gate).
+🔴 **Redeploy is now MANDATORY — of v4.13.0.** A61 added `daily.dupOk` and
+`parties.pledgeOk`, so `CODE_SCHEMA` moved 2 → 3. Until Code.gs is redeployed
+every phone shows the red bar and cannot make entries. Carries everything since
+v4.12.0.
 `CODE_SCHEMA` is unchanged at 2, so this one is not urgent — phones keep
 working, they just do not get the fixes. After it, enter one donor named
 `=টেস্ট` and check the name reads back plain: `safeCell_` rests on Sheets

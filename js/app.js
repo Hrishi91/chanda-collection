@@ -3613,7 +3613,17 @@
   // Detection nobody can act on is worse than none: it looks like a guard.
   // Each row here says what a human would say, names the rows involved, and
   // carries an action where one honestly exists.
-  const ANOM_ACTIONABLE = { possible_duplicate_payment: 1 };
+  // A61: three now. Every one of these is an anomaly where a human can give a
+  // real answer — the rest genuinely are data surgery and get no button.
+  // A61: dupOk and pledgeOk are NEW columns. If the deployed Code.gs predates
+  // them the answer is written locally, pushed, and silently dropped — the card
+  // vanishes, the next pull brings the anomaly straight back, and the button has
+  // lied. schemaCmp() === 1 means exactly "this app needs a contract the server
+  // has not got yet", so the honest move is to withhold the button and say why.
+  // Only the ADMIN sees the yellow "redeploy" bar, so the cashier working this
+  // desk would otherwise have no way to know.
+  function serverCanStoreAnswers() { return Auth.schemaCmp() !== 1; }
+  const ANOM_ACTIONABLE = { possible_duplicate_payment: 1, possible_duplicate_daily: 1, overpaid: 1 };
   function renderAnomalies() {
     if (!Auth.isCashier()) { $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
     $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('loading')) + '</div>';
@@ -3622,7 +3632,10 @@
       // cannot reach the master lists itself.
       const r = Aggregate.reconcile(data, { positionMax: Lists.maxMap() });
       const byId = {}; (data.payments || []).forEach(function (p) { byId[p.id] = p; });
+      const dailyById = {}; (data.daily || []).forEach(function (r) { dailyById[r.id] = r; });
       const partyById = {}; liveParties(data).forEach(function (p) { partyById[p.id] = p; });
+      const canStamp = serverCanStoreAnswers();
+      const stampNote = canStamp ? '' : '<div class="perm-note">' + esc(t('anom_needs_deploy')) + '</div>';
       const rows = r.anomalies.map(function (a) {
         if (a.type === 'possible_duplicate_payment') {
           const dup = byId[a.id], first = byId[a.firstId];
@@ -3636,6 +3649,42 @@
               (dup && canVoid(dup) ? '<button class="chip void-btn" data-dupvoid="' + esc(a.id) + '">✖️ ' + esc(t('anom_dup_void')) + '</button>' : '') +
               '<button class="chip" data-goparty="' + esc(a.partyId) + '">👁 ' + esc(t('view')) + '</button>' +
             '</div></div>';
+        }
+        // A61 (audit 2.2): a double-entered road/toto/bus round. Same shape as
+        // the payment card, same answer, stamped on the same field name.
+        if (a.type === 'possible_duplicate_daily') {
+          const dup = dailyById[a.id], first = dailyById[a.firstId];
+          const who = a.dailyType === 'bus'
+            ? [a.busName, a.busNumber].filter(Boolean).join(' ') || t('type_bus')
+            : t('type_' + a.dailyType);
+          const line = function (r) {
+            return r ? '• ' + (r.receiptNo ? t('receipt_no') + ' ' + r.receiptNo + ' · ' : '') +
+              fmtMoney(r.amount) + ' · ' + (r.collector || r.collectorId || '?') + ' · ' +
+              (r.createdAt ? fmtDateTime(r.createdAt) : fmtDate(r.date)) + '  [' + String(r.id).slice(0, 8) + ']' : '';
+          };
+          return '<div class="card"><div class="card-title">🔁 ' + esc(t('anom_dup_daily')) + '</div>' +
+            '<div class="row-sub">' + esc(who) + ' · ' + fmtMoney(a.amount) + ' · ' + esc(fmtDate(a.date)) + '</div>' +
+            '<div class="bd-line" style="display:block;margin-top:6px">' +
+              (first ? esc(line(first)) + '<br>' : '') + (dup ? esc(line(dup)) : '') + '</div>' +
+            '<div class="chips" style="margin-top:8px">' +
+              (canStamp ? '<button class="chip on" data-ddupok="' + esc(a.id) + '">' + esc(t('anom_dup_daily_ok')) + '</button>' : '') +
+              (dup && canVoid(dup) ? '<button class="chip void-btn" data-ddupvoid="' + esc(a.id) + '">✖️ ' + esc(t('anom_dup_void')) + '</button>' : '') +
+            '</div>' + stampNote + '</div>';
+        }
+        // A61 (audit 2.3): "paid more than pledged" now carries BOTH honest
+        // answers — the one that fixes the cause (the pledge was typed wrong,
+        // and since A60 there is a screen for that) and the one that says
+        // nothing is wrong at all, which is the commoner case: donors give more
+        // than they promised.
+        if (a.type === 'overpaid') {
+          return '<div class="card"><div class="card-title">⚠️ ' + esc(t('anom_overpaid_t')) + '</div>' +
+            '<div class="row-sub">' + esc(t('anom_overpaid').replace('{who}', a.party || '?')
+              .replace('{n}', fmtMoney(a.paid || 0)).replace('{p}', fmtMoney(a.pledged || 0))) + '</div>' +
+            '<div class="chips" style="margin-top:8px">' +
+              (canStamp ? '<button class="chip on" data-pledgeok="' + esc(a.partyId) + '">' + esc(t('anom_overpaid_ok')) + '</button>' : '') +
+              (canEditParty(partyById[a.partyId]) ? '<button class="chip" data-pledgefix="' + esc(a.partyId) + '">' + esc(t('anom_overpaid_fix')) + '</button>' : '') +
+              '<button class="chip" data-goparty="' + esc(a.partyId) + '">👁 ' + esc(t('view')) + '</button>' +
+            '</div>' + stampNote + '</div>';
         }
         // everything else: say it plainly and point at the row. No button —
         // these are data surgery, and a wrong "fix" here moves real money.
@@ -3693,6 +3742,49 @@
       });
       document.querySelectorAll('[data-dupvoid]').forEach(function (b) {
         b.onclick = function () { renderVoidReason('payments', b.dataset.dupvoid, function () { navigate('anomalies'); }); };
+      });
+      // A61: the same settle-in-place behaviour for the two new answers. A44's
+      // rule — take the card out where it stands rather than rebuilding the
+      // desk, because this screen's whole purpose is working DOWN a list, and
+      // being thrown back to the top after every answer is what makes people
+      // stop working through it.
+      const settleCard = function (b) {
+        const card = b.closest('.card');
+        if (card) card.remove();
+        if (!$view().querySelectorAll('.card').length) {
+          const box = document.createElement('div');
+          box.className = 'empty';
+          box.textContent = t('anom_none');
+          $view().appendChild(box);
+        }
+      };
+      const stampOk = function (b, store, id, field) {
+        b.disabled = true;
+        return DB.get(store, id).then(function (row) {
+          if (!row) { b.disabled = false; return; }
+          row[field] = 1; row.synced = 0; // re-push so every device stops asking
+          return DB.put(store, row).then(function () {
+            toast(t('saved')); updateBadge(); autoSync(); settleCard(b);
+          });
+        }).catch(function (e) { b.disabled = false; toast(errMsg(e)); });
+      };
+      document.querySelectorAll('[data-ddupok]').forEach(function (b) {
+        b.onclick = function () { stampOk(b, 'daily', b.dataset.ddupok, 'dupOk'); };
+      });
+      document.querySelectorAll('[data-ddupvoid]').forEach(function (b) {
+        b.onclick = function () { renderVoidReason('daily', b.dataset.ddupvoid, function () { navigate('anomalies'); }); };
+      });
+      document.querySelectorAll('[data-pledgeok]').forEach(function (b) {
+        b.onclick = function () {
+          const p = partyById[b.dataset.pledgeok] || {};
+          const paid = (r.anomalies.filter(function (a) { return a.type === 'overpaid' && a.partyId === b.dataset.pledgeok; })[0] || {});
+          if (!window.confirm(t('anom_overpaid_ok_confirm').replace('{who}', p.name || '?')
+                .replace('{p}', fmtMoney(paid.pledged || 0)).replace('{n}', fmtMoney(paid.paid || 0)))) return;
+          stampOk(b, 'parties', b.dataset.pledgeok, 'pledgeOk');
+        };
+      });
+      document.querySelectorAll('[data-pledgefix]').forEach(function (b) {
+        b.onclick = function () { navigate('partyform', { id: b.dataset.pledgefix }); };
       });
     }).catch(function () {
       $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('fetch_fail')) + '</div>';
