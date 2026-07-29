@@ -7009,3 +7009,20 @@ collector's rows and this device's IndexedDB empty — the exact shape of the bu
 
 ⚠️ **Redeploy required** — `CODE_SCHEMA` 4. Until then the ✓ answers are
 withheld with an explanation; nothing else changes and no phone is locked out.
+
+## config.js rebaked for the v4.17.0 deployment (2026-07-29)
+
+Verified live: `codeVersion chanda-v4.17.0`, `schema 4`, `ok true`. Client
+`APP_SCHEMA` 4 == server `CODE_SCHEMA` 4 and the release strings match, so both
+`schemaCmp()` and `versionCmp()` are 0 — no bar, no lock, and the 🩺 desk's ✓
+answers are offered again now that `setAnomalyFlag` exists to receive them.
+
+This carries everything since the last redeploy: A66's dead `nextReceiptNo_` and
+A68's `setAnomalyFlag` + `ANOMALY_FLAGS`.
+
+`CODE_VERSION` sits in the same file as `setAnomalyFlag`, so the stamp coming
+back as v4.17.0 is direct evidence the deployed script is this one — but it does
+not prove the action behaves, only that it is there. That behaviour is covered
+by `tests/backend.js` against the shim (14 assertions), and the one thing
+neither can prove remains the same as before: that Sheets strips `safeCell_`'s
+leading apostrophe on read-back.
