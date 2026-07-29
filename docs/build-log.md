@@ -7374,3 +7374,30 @@ puja buys nothing.
   next year, and whether receipt numbering restarts. The screen cannot be built
   without the first — *"is the money where it should be"* has no meaning until
   the app knows where that is.
+
+## config.js rebaked for the v4.18.2 deployment (2026-07-29)
+
+Verified live: `codeVersion chanda-v4.18.2`, `schema 4`, `ok true`. Client and
+server agree on both numbers, so no bar and no lock.
+
+**A71 proven fixed on the live server**, by running the exact sequence that was
+broken before this redeploy:
+
+```
+1. collector hands over ₹111
+2. cashier says পাইনি          → ok
+3. cashier then says পেয়েছি    → already-rejected     (was: ALLOWED)
+
+final row: status = rejected, rejectReason = 'ZZ A71 check'
+torn (confirmed WITH a reject reason)? False
+```
+
+The version stamp alone would only have proved the deployed file is this one;
+the sequence proves the behaviour. Worth the extra call — A71 was a money bug,
+and "the right file is deployed" and "the money path is right" are different
+claims.
+
+This deployment also carries A72's `perm_review` label and the post-source note
+(client-side, already live via Pages) and nothing else server-side beyond A71.
+
+Test rows voided afterwards: ₹0 collected, ₹0 in hand, no anomalies.
