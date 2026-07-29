@@ -4,6 +4,21 @@
 
   // Voided (corrected) records are kept for audit in a separate `voids` store,
   // each pointing at a targetId. Aggregation drops those ids everywhere.
+  // A62 (audit 2.8): money here is NOT always whole rupees. NumParse turns
+  // "দেড়" into 1.5 and "আড়াই" into 2.5, so fractions genuinely enter the book,
+  // and once they do, binary floating point does what it always does:
+  // 0.1 + 0.2 is 0.30000000000000004. Every comparison below was written as if
+  // that could not happen.
+  //
+  //   paid > pledged     → a false `overpaid` of 4×10⁻¹⁷, on the 🩺 desk, for
+  //                        the season (until A61 it could not even be cleared)
+  //   inHand < 0         → a false `negative_inhand` accusing somebody of
+  //                        handing over more than they held
+  //   due > 0            → a donor who has paid in full sits in the dues list
+  //                        and gets a WhatsApp reminder for four femto-rupees
+  //
+  // Half a paisa. Below that, two amounts are the same amount.
+  const EPS = 0.005;
   function voidedIds(data) {
     const s = {};
     (data.voids || []).forEach(function (v) { if (v && v.targetId) s[v.targetId] = 1; });
@@ -843,7 +858,7 @@
     return (parties || []).filter(function (pt) { return !v[pt.id]; }).map(function (pt) {
       const paid = paidByParty[pt.id] || 0;
       return { party: pt, paid: paid, due: (Number(pt.pledged) || 0) - paid };
-    }).filter(function (x) { return x.due > 0; })
+    }).filter(function (x) { return x.due > EPS; })
       .sort(function (a, b) { return b.due - a.due; });
   }
 
@@ -894,7 +909,11 @@
     const expected = totalCollected - totalExpenses;
     const anomalies = [];
 
-    if (Math.round(totalInHand) !== Math.round(expected)) {
+    // A62: rounding was wrong in BOTH directions — ₹100.40 vs ₹100.60 rounds
+    // to 100 vs 101 and screams about 20 paisa, while ₹100.49 vs ₹99.51 both
+    // round to 100 and hides very nearly a whole rupee. An epsilon is stricter
+    // where it matters and quieter where it does not.
+    if (Math.abs(totalInHand - expected) > EPS) {
       anomalies.push({ type: 'unbalanced', totalInHand: totalInHand, expected: expected,
                        diff: totalInHand - expected });
     }
@@ -1021,13 +1040,13 @@
       // on trains people to ignore the banner."
       if (Number(p.pledgeOk) === 1) return;
       const paid = paidByParty[p.id] || 0;
-      if (paid > pledged) {
+      if (paid - pledged > EPS) {
         anomalies.push({ type: 'overpaid', id: p.id, partyId: p.id, party: p.name, pledged: pledged, paid: paid });
       }
     });
     // handed over more than held
     rows.forEach(function (r) {
-      if (r.inHand < 0) anomalies.push({ type: 'negative_inhand', collector: r.collector, inHand: r.inHand });
+      if (r.inHand < -EPS) anomalies.push({ type: 'negative_inhand', collector: r.collector, inHand: r.inHand });
     });
     // More people in a one-person post than the post allows.
     const posMax = (rules && rules.positionMax) || null;
@@ -1182,7 +1201,7 @@
         const pd = paid[p.id] || 0;
         return { name: p.name, type: p.type, side: p.side, owner: p.owner,
                  pledged: Number(p.pledged) || 0, paid: pd, due: (Number(p.pledged) || 0) - pd };
-      }).filter(function (r) { return r.due > 0; })
+      }).filter(function (r) { return r.due > EPS; })
         .sort(function (a, b) { return b.due - a.due; });
       return { rows: rows, totalDue: sum(rows, function (r) { return r.due; }) };
     }

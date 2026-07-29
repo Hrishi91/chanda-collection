@@ -417,11 +417,14 @@ The real-phone smoke test is DONE.
   (creator-or-admin, enforced both sides) and empty ones removed; the committee
   register's 🗑️, which wrote a field nobody read, now actually removes. Twin
   MERGING stays open on purpose: it moves money between donor rows.
+- **2.8 + 2.15 FIXED in v4.13.1 (A62)** — one shared `EPS = 0.005` instead of
+  four opinions about equality (a float hair no longer raises `overpaid` or
+  chases a paid-up donor for a reminder), and one `waNumber()` instead of three
+  hand-rolled phone manglings that were each broken differently.
 - **Tier 2 client half — OPEN**: 2.2 no duplicate detection on `daily` · 2.3 `overpaid` cannot be dismissed ·
-  2.8 float epsilon · 2.10 offline receipt serial · 2.11 `flowState` lost on
+  2.10 offline receipt serial · 2.11 `flowState` lost on
   reload · 2.12 home missing the right-now figure · 2.13 toast `nowrap` +
-  contrast · 2.14 `myReports()` duplication · 2.15 three phone-normalisation
-  copies · 2.16 iOS meta gaps · 2.17 no backend behavioural tests · 2.18 no CI ·
+  contrast · 2.14 `myReports()` duplication · 2.16 iOS meta gaps · 2.17 no backend behavioural tests · 2.18 no CI ·
   2.19 `js/app.js` size · 2.20 dead code.
 - **§7 documentation drift — OPEN** (e.g. `money-model.md` says eight anomaly
   types where the code now has nine).
@@ -429,7 +432,7 @@ The real-phone smoke test is DONE.
 ✅ **v4.12.1 redeploy DONE** (2026-07-29) — verified live: `codeVersion
 chanda-v4.12.1`, `schema 2`, config rebaked.
 
-🔴 **Redeploy is now MANDATORY — of v4.13.0.** A61 added `daily.dupOk` and
+🔴 **Redeploy is now MANDATORY — of the latest commit.** A61 added `daily.dupOk` and
 `parties.pledgeOk`, so `CODE_SCHEMA` moved 2 → 3. Until Code.gs is redeployed
 every phone shows the red bar and cannot make entries. Carries everything since
 v4.12.0.

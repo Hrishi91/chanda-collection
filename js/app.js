@@ -104,6 +104,25 @@
   function cleanPhoneIN(s) {
     return String(s || '').replace(/[\s\-()]/g, '').replace(/^(\+?91|0)/, '');
   }
+  // A62 (audit 2.15): the digits WhatsApp and SMS can actually dial.
+  //
+  // Three hand-rolled copies of this existed and ALL THREE were wrong for a
+  // number written the way people write it down — 09876543210:
+  //   dues reminder  → wa.me/09876543210   (no leading-0 strip at all: dead)
+  //   admin contact  → wa.me/9876543210    (0 stripped, country code lost)
+  //   SMS receipt    → +9876543210         (same, with a + in front of it)
+  // Each broke differently, which is why nobody spotted a pattern — and the
+  // dues reminder is the one a collector taps most, standing in front of a
+  // donor who owes money.
+  //
+  // cleanPhoneIN already knew all of this (it strips spaces, dashes, a leading
+  // +91 and a leading 0). Built on it, so there is now one thing to be right.
+  // Empty for anything that is not a valid 10-digit Indian mobile: a link that
+  // cannot work must not be offered, which is the whole lesson of this audit.
+  function waNumber(s) {
+    const n = cleanPhoneIN(s);
+    return /^\d{10}$/.test(n) ? '91' + n : '';
+  }
   // null if a valid 10-digit Indian mobile, else an error key.
   // Deliberately loose: an address the app never sends to only has to LOOK
   // like one. A strict RFC pattern here would reject real addresses and buy
@@ -1711,13 +1730,15 @@
     }
     const a = fromList || { name: Settings.get('adminName') || '', phone: Settings.get('adminPhone') || '' };
     if (!a.name && !a.phone) return '';
-    const digits = String(a.phone || '').replace(/\D/g, '');
-    const wa = digits ? (digits.length === 10 ? '91' + digits : digits.replace(/^0/, '')) : '';
+    const wa = waNumber(a.phone);
+    const digits = cleanPhoneIN(a.phone);
     return '<div class="row-sub" style="margin-top:10px"><b>' + esc(a.name || '') + '</b>' +
       (a.phone ? ' · 📞 ' + esc(a.phone) : '') + '</div>' +
       (digits ? '<div class="chips" style="margin-top:6px">' +
         '<a class="chip" href="tel:' + esc(digits) + '">' + esc(t('home_call_admin')) + '</a>' +
-        '<a class="chip" href="https://wa.me/' + esc(wa) + '" target="_blank" rel="noopener">' + esc(t('home_wa_admin')) + '</a>' +
+        // no WhatsApp chip when the number cannot make one — a dead link that
+        // opens an empty chat is worse than no button
+        (wa ? '<a class="chip" href="https://wa.me/' + esc(wa) + '" target="_blank" rel="noopener">' + esc(t('home_wa_admin')) + '</a>' : '') +
         '</div>' : '');
   }
 
@@ -2459,9 +2480,8 @@
     if (remindBtn) remindBtn.onclick = function () {
       // opens WhatsApp with a pre-filled reminder — the collector still taps
       // send themselves (never auto-sent).
-      const digits = String(p.phone || '').replace(/\D/g, '');
-      if (!digits) { toast(t('no_phone')); return; }
-      const num = digits.length === 10 ? '91' + digits : digits; // default +91
+      const num = waNumber(p.phone);
+      if (!num) { toast(t('no_phone')); return; }
       const msg = t('remind_msg').replace('{name}', p.name).replace('{due}', fmtMoney(due));
       window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
     };
@@ -2760,8 +2780,11 @@
   // app with the text pre-filled; the collector taps send.
   function shareReceiptText(rc, phone) {
     const lines = receiptMessage(rc);
-    const digits = String(phone || '').replace(/\D/g, '');
-    const num = digits ? (digits.length === 10 ? '+91' + digits : '+' + digits.replace(/^0/, '')) : '';
+    const wa = waNumber(phone);
+    // left blank rather than wrong when the number is unusable: the messaging
+    // app then opens with an empty recipient the collector can fill in, which
+    // is recoverable. A wrong number is not.
+    const num = wa ? '+' + wa : '';
     // `?body=` works on Android; iOS is lenient with it too
     window.open('sms:' + num + '?body=' + encodeURIComponent(lines), '_blank');
   }

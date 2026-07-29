@@ -6447,3 +6447,67 @@ Then driven in a browser on a fresh port, in **both** server states:
 deployed 2 means every phone shows the red bar and cannot make entries until
 Code.gs is redeployed. That is the mechanism working as designed — but it is the
 first time in this audit run that a delay actually costs anything.
+
+## v4.13.1 — A62 (audit 2.8 / 2.15): four opinions about equality, three about phone numbers (2026-07-29)
+
+Two findings, one shape: a rule that existed in several places and disagreed
+with itself.
+
+### 2.8 — money here is not always whole rupees
+
+`NumParse.parseAmount('দেড়')` is **1.5** and `'আড়াই'` is **2.5** — verified, not
+assumed. So fractions genuinely enter the book, and once they do, binary
+floating point does what it always does: `0.1 + 0.2 > 0.3` is **true**.
+
+Every comparison was written as if that could not happen:
+
+| | before | what it did |
+|---|---|---|
+| `paid > pledged` | bare `>` | a false `overpaid` of 4×10⁻¹⁷ — on the 🩺 desk, all season, and until A61 it could not even be dismissed |
+| `inHand < 0` | bare `<` | a false `negative_inhand`, which accuses a named person of handing over more than they held |
+| `due > 0` | bare `>` | a donor who has paid in full sits in the dues list — and gets a 📞 WhatsApp reminder for four femto-rupees |
+| `unbalanced` | `Math.round(a) !== Math.round(b)` | wrong in **both** directions |
+
+That last one deserves its own line, because rounding looked like the careful
+option. ₹100.40 vs ₹100.60 rounds to 100 vs 101 and screams about twenty paisa;
+₹100.49 vs ₹99.51 both round to 100 and **hides very nearly a whole rupee** — on
+the one check that asks whether the whole book balances. An epsilon is stricter
+where it matters and quieter where it does not.
+
+One shared `EPS = 0.005` — half a paisa. Below that, two amounts are the same
+amount. The server's mirror of the dues filter agrees, and there was exactly one
+(`Code.gs:2181`); the rest of reconcile lives only on the client.
+
+### 2.15 — three copies of "make this dialable", all three broken
+
+For a number written the way people actually write it down — `09876543210`:
+
+```
+dues reminder  →  wa.me/09876543210   dead link, no leading-0 strip at all
+admin contact  →  wa.me/9876543210    0 stripped, country code lost
+SMS receipt    →  +9876543210         same, with a + in front of it
+```
+
+Each broke **differently**, which is why nobody ever saw a pattern. And the dues
+reminder is the one a collector taps most — standing in front of a donor who
+owes money.
+
+`cleanPhoneIN()` has known all of this since v3.60 (spaces, dashes, a leading
+`+91`, a leading `0`). One `waNumber()` built on it, and now there is a single
+thing to be right. It returns **empty** for anything that is not a valid 10-digit
+Indian mobile, and the callers honour that: the admin's WhatsApp chip is not
+rendered, the dues reminder says "no phone" rather than opening an empty chat,
+and the SMS receipt leaves the recipient blank — blank is recoverable, wrong is
+not.
+
+### Verification
+
+**1031 → 1051.** The premise is tested, not assumed (`parseAmount('দেড়')` is
+1.5; `0.1 + 0.2 > 0.3` is true), then the real `reconcile` and `duesList`: a hair
+over the pledge raises nothing while a real overpayment still does; a fully-paid
+donor is not chased while one who genuinely owes still is. `waNumber` is executed
+against all six shapes including the leading-0 case that broke every previous
+copy, and both "a link that cannot work is not offered" behaviours are pinned.
+
+No schema change (`CODE_SCHEMA` stays 3) — but Code.gs changed by one line, so
+this rides the same outstanding redeploy.

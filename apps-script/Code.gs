@@ -587,7 +587,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.13.0';
+var CODE_VERSION = 'chanda-v4.13.1';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -2178,7 +2178,11 @@ function computeReport_(id, d) {
       var pd = paid[p.id] || 0;
       return { name: p.name, type: p.type, side: p.side, owner: p.owner,
                pledged: num_(p.pledged), paid: pd, due: num_(p.pledged) - pd };
-    }).filter(function (r) { return r.due > 0; })
+    // A62 (audit 2.8): mirrors js/aggregate.js EPS. "দেড়" parses to 1.5, so
+    // fractions do enter, and 0.1 + 0.2 > 0.3 is true in binary — a donor who
+    // has paid in full would sit in the central dues report for ever. Half a
+    // paisa; below that, two amounts are the same amount.
+    }).filter(function (r) { return r.due > 0.005; })
       .sort(function (a, b) { return b.due - a.due; });
     return { rows: rows, totalDue: sumBy_(rows, function (r) { return r.due; }) };
   }

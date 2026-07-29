@@ -2875,6 +2875,69 @@ try {
   }
 }
 
+
+// ---- A62 (audit 2.8 / 2.15) -------------------------------------------------
+{
+  const fs = require('fs');
+  const A = require('../js/aggregate.js');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+
+  // 2.8 — money is not always whole rupees. NumParse turns "দেড়" into 1.5, so
+  // fractions enter, and 0.1 + 0.2 > 0.3 is true in binary.
+  const NP = require('../js/numparse.js');
+  eq(NP.parseAmount('দেড়'), 1.5, 'A62: "দেড়" really does produce a fraction — the premise is real');
+  eq(0.1 + 0.2 > 0.3, true, 'A62: …and this is why a bare > was not safe');
+
+  const base = { parties: [], payments: [], daily: [], expenses: [], handovers: [], voids: [] };
+  const pay = (o) => Object.assign({ cashAmount: o.amount, upiAmount: 0, collector: 'র',
+                                     collectorId: 'r', collectorRole: 'collector' }, o);
+  // paid 0.1 + 0.2 against a pledge of 0.3 — arithmetically equal, and in
+  // binary very slightly over. Before this it raised `overpaid` for the season.
+  const hair = { parties: [{ id: 's1', type: 'shop', name: 'x', pledged: 0.3 }],
+                 payments: [pay({ id: 'a', partyId: 's1', amount: 0.1 }), pay({ id: 'b', partyId: 's1', amount: 0.2 })] };
+  eq(A.reconcile(Object.assign({}, base, hair)).anomalies.map(a => a.type).indexOf('overpaid'), -1,
+     'A62: a float hair over the pledge is not an overpayment');
+  // …and a real overpayment still is
+  const over = JSON.parse(JSON.stringify(hair)); over.payments[1].amount = 5;
+  eq(A.reconcile(Object.assign({}, base, over)).anomalies.map(a => a.type).indexOf('overpaid') >= 0, true,
+     'A62: …while a real one still is');
+  // the same hair must not put a fully-paid donor in the dues list, where it
+  // earns them a WhatsApp reminder for four femto-rupees
+  const dues = (d) => A.duesList(d.parties, d.payments, []);
+  eq(dues(hair).length, 0, 'A62: a donor who has paid in full is not chased for a rounding artefact');
+  eq(dues(over).length, 0, 'A62: …nor is one who overpaid');
+  const owes = JSON.parse(JSON.stringify(hair)); owes.parties[0].pledged = 100;
+  eq(dues(owes).length, 1, 'A62: …but somebody who genuinely owes is');
+
+  eq(/const EPS = 0\.005;/.test(fs.readFileSync(__dirname + '/../js/aggregate.js', 'utf8')), true,
+     'A62: one shared epsilon, not four opinions');
+  eq(/r\.due > 0\.005/.test(gs), true, 'A62: …and the server mirror of the dues filter agrees');
+  eq(/Math\.round\(totalInHand\) !== Math\.round\(expected\)/.test(
+       fs.readFileSync(__dirname + '/../js/aggregate.js', 'utf8')), false,
+     'A62: unbalanced no longer rounds — ₹100.49 vs ₹99.51 both round to 100 and hid a whole rupee');
+
+  // 2.15 — three hand-rolled phone manglings, all three wrong for a number
+  // written the way people write it down. Run the real helper.
+  const waSrc = app.slice(app.indexOf('function cleanPhoneIN'), app.indexOf('function emailErr'));
+  const wa = new Function(waSrc + '\n return { cleanPhoneIN: cleanPhoneIN, waNumber: waNumber };')();
+  eq(wa.waNumber('09876543210'), '919876543210',
+     'A62: a leading 0 — the case that broke the dues reminder into a dead wa.me link');
+  eq(wa.waNumber('9876543210'), '919876543210', 'A62: a bare 10-digit number gets the country code');
+  eq(wa.waNumber('+91 98765-43210'), '919876543210', 'A62: …as written on a visiting card');
+  eq(wa.waNumber('919876543210'), '919876543210', 'A62: …and one already carrying 91 is not doubled');
+  eq(wa.waNumber('12345'), '', 'A62: anything that cannot dial returns empty…');
+  eq(wa.waNumber(''), '', 'A62: …including nothing at all');
+  // and no copy survives anywhere
+  eq(/replace\(\/\\\\D\/g, ''\)/.test(app), false, 'A62: no hand-rolled digit-strip is left in app.js');
+  eq((app.match(/waNumber\(/g) || []).length >= 4, true, 'A62: …all three call sites go through the one helper');
+  // a link that cannot work must not be offered
+  eq(/\(wa \? '<a class="chip" href="https:\/\/wa\.me\//.test(app), true,
+     'A62: the admin WhatsApp chip is withheld when the number cannot make one');
+  eq(/const num = waNumber\(p\.phone\);\n\s*if \(!num\) \{ toast\(t\('no_phone'\)\); return; \}/.test(app), true,
+     'A62: …and the dues reminder says so instead of opening an empty chat');
+}
+
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------
 {
   const fs = require('fs');
