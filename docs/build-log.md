@@ -6511,3 +6511,34 @@ copy, and both "a link that cannot work is not offered" behaviours are pinned.
 
 No schema change (`CODE_SCHEMA` stays 3) — but Code.gs changed by one line, so
 this rides the same outstanding redeploy.
+
+## config.js rebaked for the v4.13.1 deployment (2026-07-29)
+
+New deployment id (this account never repoints an existing one). Verified live
+against the new /exec, not assumed:
+
+```
+codeVersion: chanda-v4.13.1
+schema     : 3
+ok         : true
+```
+
+Client `APP_SCHEMA` 3 == server `CODE_SCHEMA` 3 and the release strings match,
+so `schemaCmp()` and `versionCmp()` are both 0: the red bar is gone, the entry
+lock is off, and the 🩺 desk's ✓ answers are offered again.
+
+This one deployment carries **everything since v4.12.0** — Tier-0's six, Tier-1
+(including `stripTokens_`), Tier-2's five server fixes, A60's parties push gate
+and `partyHasMoney_`, A61's two new columns, and A62's dues epsilon.
+
+**No `setup()` run is needed for the new columns.** `push` calls `ensureCols_`
+on every store it writes, so `daily.dupOk` and `parties.pledgeOk` appear in the
+header the first time anybody pushes to those sheets — which is the same
+self-healing path every earlier column addition used.
+
+**Still unverifiable from here, and still worth one minute of Hrishi's time:**
+that Sheets strips the leading apostrophe on the way back out. The whole
+`safeCell_` design (A59, audit 2.7) rests on it, and it is a platform property,
+not a code property — `codeVersion` coming back as v4.13.1 proves the deployed
+script is this file, but it cannot prove that. Enter one donor named `=টেস্ট`,
+sync, and check the name reads back plain.
