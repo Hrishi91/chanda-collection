@@ -305,6 +305,9 @@
         });
       }
       resetPullBackoff(); // it got through: forget any earlier failures
+      // A77: when the phone last actually heard from the server. Nothing
+      // recorded this, so nothing could say how old a report was.
+      try { localStorage.setItem('ck_last_pull', String(Date.now())); } catch (e) {}
       let changed, chatOnly = false;
       if (resp.mode === 'delta' && centralData) {
         const m = mergeDelta(resp.data || {});
@@ -2825,6 +2828,27 @@
   // Persistent training strip under the header — shows on EVERY screen until the
   // admin goes live (it lives outside #view, so a re-render can't drop it). Also
   // keeps the header title in sync with the puja name.
+  // A77: say when the phone is offline, and how stale what it shows is.
+  //
+  // Everything reads from the local snapshot, which is what makes the app
+  // usable at a pandal gate — and it means a collector looking at 💰 কার হাতে
+  // কত sees whatever was true at the last sync. That number gets acted on. The
+  // app never said so; there was no offline indicator anywhere in the UI.
+  //
+  // Its own strip rather than a fourth state of the training bar, because a
+  // collector can be offline AND in training at once and one slot would have to
+  // pick. Grey, not red: offline is the normal condition here, not a fault.
+  function updateNetBar() {
+    const el = document.getElementById('net-bar');
+    if (!el) return;
+    if (navigator.onLine || !Auth.loggedIn()) { el.style.display = 'none'; el.textContent = ''; return; }
+    let at = 0;
+    try { at = Number(localStorage.getItem('ck_last_pull')) || 0; } catch (e) {}
+    el.style.display = 'block';
+    el.textContent = at
+      ? t('net_off_since').replace('{ago}', agoText(new Date(at).toISOString()))
+      : t('net_off_never');
+  }
   function updateTrainingBar() {
     const at = document.getElementById('app-title');
     if (at && Auth.loggedIn()) at.textContent = '🙏 ' + pujaName();
@@ -3705,6 +3729,115 @@
           '<div class="row-sub">/ ' + fmtMoney(r.pledged) + '</div></div></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
   }
+  // A77: the PRINTED report, which is a different document from the screen one.
+  //
+  // The screen is a phone held one-handed — compact on purpose. The printed
+  // sheet is read at a table, kept in a file, and shown to people who were not
+  // there. It should carry everything the app knows, not everything that fits
+  // on 375 px.
+  //
+  // Built from the SNAPSHOT, not by changing computeReport: that function is
+  // mirrored byte-for-byte in Code.gs and verified against it, so widening it
+  // would mean a server change and a redeploy for a formatting improvement.
+  // Everything extra here — phone numbers, last payment date, who collected —
+  // is looked up from `data`, which the client already holds.
+  function printTable(head, rows) {
+    if (!rows.length) return '<div class="empty">' + esc(t('no_entries')) + '</div>';
+    return '<table class="p-table"><thead><tr>' +
+      head.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') +
+      '</tr></thead><tbody>' +
+      rows.map(function (r) {
+        return '<tr>' + r.map(function (c, i) {
+          return '<td' + (i ? ' class="p-num"' : '') + '>' + (c === '' || c == null ? '—' : esc(String(c))) + '</td>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody></table>';
+  }
+  function printReportHTML(id, d, data) {
+    const money = function (n) { return fmtMoney(n); };
+    if (id === 'dues') {
+      // per donor: everything a person chasing a due actually needs in front of
+      // them — the number to ring, when they last gave, and who to ask
+      const v = Aggregate.voidedIds(data);
+      const last = {}, who = {};
+      (data.payments || []).forEach(function (p) {
+        if (v[p.id] || !p.partyId) return;
+        const day = String(p.date || p.createdAt || '').slice(0, 10);
+        if (!last[p.partyId] || day > last[p.partyId]) { last[p.partyId] = day; who[p.partyId] = p.collector || ''; }
+      });
+      const byName = {}; liveParties(data).forEach(function (p) { byName[p.name] = p; });
+      return '<h3>' + esc(t('report_dues')) + ' — ' + esc(t('total_due')) + ': ' + money(d.totalDue) + '</h3>' +
+        printTable([t('party_f_person'), t('type_shop'), t('party_f_side'), t('party_f_owner'),
+                    t('party_f_phone'), t('pledged'), t('paid'), t('due'), t('last_paid_col'), t('collector_col')],
+          (d.rows || []).map(function (r) {
+            const p = byName[r.name] || {};
+            return [r.name, t('type_' + r.type), r.side ? Lists.labelOf('area', r.side) : '', r.owner || '',
+                    p.phone || '', money(r.pledged), money(r.paid), money(r.due),
+                    last[p.id] ? fmtDate(last[p.id]) : '', who[p.id] || ''];
+          }));
+    }
+    if (id === 'inhand') {
+      // byCat is already computed and never printed — it is the answer to
+      // "which pot is that money from", which is the first question at a count
+      const cats = Object.keys(CAT_LABEL_KEYS);
+      const used = cats.filter(function (k) {
+        return (d.rows || []).some(function (r) { const c = (r.byCat || {})[k]; return c && (c.cash || c.upi); });
+      });
+      return '<h3>' + esc(t('report_inhand')) + '</h3>' +
+        printTable([t('collector_col'), t('collected_col'), t('received_col'), t('handed_col'),
+                    t('my_pending'), t('spent_col'), t('inhand_col')].concat(used.map(function (k) { return t(CAT_LABEL_KEYS[k]); })),
+          (d.rows || []).map(function (r) {
+            return [r.collector, money(r.collected), money(r.received), money(r.handedOver),
+                    money(r.pending), money(r.spent), money(r.inHand)]
+              .concat(used.map(function (k) {
+                const c = (r.byCat || {})[k]; return c ? money((c.cash || 0) + (c.upi || 0)) : '';
+              }));
+          }));
+    }
+    if (id === 'expenses') {
+      return '<h3>' + esc(t('report_expenses')) + ' — ' + money(d.total) +
+        ' (💵 ' + money(d.totalCash) + ' · 📱 ' + money(d.totalUpi) + ')</h3>' +
+        printTable([t('date_col'), t('subject_col'), t('comment_col'), t('spent_by_col'), t('amount_col'), '💵', '📱'],
+          (d.rows || []).map(function (r) {
+            return [fmtDate(r.date), r.subject || '', r.desc || '', r.spentBy || '',
+                    money(r.amount), money(r.cash), money(r.upi)];
+          })) +
+        '<h3>' + esc(t('by_subject_col')) + '</h3>' +
+        printTable([t('subject_col'), t('count_col'), t('amount_col'), '💵', '📱'],
+          (d.bySubject || []).map(function (r) {
+            return [r.subject, r.count, money(r.total), money(r.cash), money(r.upi)];
+          }));
+    }
+    if (id === 'collectors') {
+      // how many donors each person actually called on — the row said totals
+      // only, which cannot separate "one big donor" from "forty small ones"
+      const v = Aggregate.voidedIds(data);
+      const donors = {};
+      (data.payments || []).forEach(function (p) {
+        if (v[p.id]) return;
+        const k = p.collector || p.collectorId || '?';
+        (donors[k] = donors[k] || {})[p.partyId || p.id] = 1;
+      });
+      return '<h3>' + esc(t('report_collectors')) + '</h3>' +
+        printTable([t('collector_col'), t('donor_count_col'), t('amount_col'), '💵', '📱'],
+          (d.rows || []).map(function (r) {
+            return [r.collector, Object.keys(donors[r.collector] || {}).length,
+                    money(r.total), money(r.cash), money(r.upi)];
+          }));
+    }
+    if (id === 'areas') {
+      return '<h3>' + esc(t('report_areas')) + ' — ' + esc(t('paid')) + ': ' + money(d.totalPaid) + '</h3>' +
+        printTable([t('party_f_side'), t('count_col'), t('pledged'), t('paid'), t('due')],
+          (d.rows || []).map(function (r) {
+            return [Lists.labelOf('area', r.area), r.count, money(r.pledged), money(r.paid), money(r.due)];
+          }));
+    }
+    if (id === 'daily') {
+      return '<h3>' + esc(t('report_daily')) + '</h3>' +
+        printTable([t('date_col'), t('type_col'), t('amount_col')],
+          (d.rows || []).map(function (r) { return [fmtDate(r.date), t('type_' + r.type), money(r.amount)]; }));
+    }
+    return reportHTML(id, d); // overview is already a full statement
+  }
   function reportHTML(id, d) {
     if (id === 'overview') return totalsHTML(d, t('report_overview'));
     if (id === 'dues') return reportDuesHTML(d);
@@ -4173,7 +4306,7 @@
         '<div class="p-head"><div class="p-puja">' + esc(pujaName()) + '</div>' +
         '<div class="p-sub">' + esc(t('report_' + id)) + ' · ' + esc(String(Settings.get('year'))) + '</div>' +
         '<div class="p-meta">' + esc(t('printed_on')) + ': ' + esc(now) + (isLive() ? '' : ' · ' + esc(t('training_mode'))) + '</div></div>' +
-        reportHTML(id, Aggregate.computeReport(id, data));
+        printReportHTML(id, Aggregate.computeReport(id, data), data);
       window.print();
     });
   }
@@ -5915,7 +6048,8 @@
   // A69: 'online', focus and a manual refresh are a human or the OS saying
   // "conditions changed" — better evidence than any timer, so each resets the
   // backoff instead of waiting it out.
-  window.addEventListener('online', function () { resetPullBackoff(); autoSync(); });
+  window.addEventListener('online', function () { resetPullBackoff(); updateNetBar(); autoSync(); });
+  window.addEventListener('offline', updateNetBar);
   // phone/browser Back button → step back in the app (in a flow, cancel it)
   window.addEventListener('popstate', function (e) {
     // A63 (audit 2.11): this used to throw away a half-finished entry with no

@@ -7739,3 +7739,75 @@ overwrote the snapshot I had just seeded. Fixed by having the mock answer for th
 year it was asked about, which is what the real server does.
 
 Tests **1,294 → 1,302**. Client-only — **no redeploy needed.**
+
+## v4.20.0 — A77: the offline strip, and a printed report worth filing (2026-07-29)
+
+Two things Hrishi asked for after the offline behaviour was mapped. He also
+declined one I offered — a CSV export — and was right to: *"in pdf only with
+more detailing"*. One document that everybody can read beats two formats where
+one of them needs a computer.
+
+### The offline strip
+
+Everything renders from the local snapshot. That is what makes the app usable at
+a pandal gate, and it means a cashier looking at **💰 কার হাতে কত** sees whatever
+was true at the last sync. **That number gets acted on.**
+
+There was no offline indicator anywhere in the UI — verified, not assumed. And
+nothing recorded *when* the phone last heard from the server, so nothing could
+have said how stale a figure was even if it wanted to.
+
+Now: `ck_last_pull` is stamped on every successful pull, and a thin strip says
+**📴 নেট নেই — যা দেখছ তা ৩ ঘণ্টা আগে sync করা হিসাব**, with a different sentence
+when nothing has ever synced.
+
+Its own element, not a fourth state of the training bar: a collector can be
+offline **and** in training mode at once, and one slot would have to pick a
+winner. Grey rather than red — being offline is the normal condition here, not a
+fault.
+
+### The printed report
+
+The screen version is a phone held one-handed, and compact on purpose. The
+printed sheet is read at a table, kept in a file, and shown to people who were
+not there. It should carry everything the app knows, not everything that fits in
+375 px.
+
+| Report | now also prints |
+|---|---|
+| বাকির তালিকা | **phone number**, **when they last gave**, **who collected it** |
+| কার হাতে কত | **byCat** — which pot the money is from, computed all along and never shown |
+| খরচ | every line with date, note, who spent it, cash/UPI — **plus** the by-subject summary |
+| কে কত তুলল | **how many donors**, so one large gift is not read as forty small ones |
+| এলাকা / দিনের রোড | proper tables rather than list rows |
+
+**Built from the snapshot, never by widening `computeReport`.** That function is
+mirrored byte-for-byte in `Code.gs` and verified against it, so touching it would
+mean a server change and a redeploy — for a formatting improvement. Everything
+extra is looked up from data the client already holds.
+
+Printed as real tables, with `display: table-header-group` so the headings repeat
+on every page and `break-inside: avoid` so no row is split down the middle. These
+sheets run to several pages, and a column nobody can name halfway down is a
+column nobody trusts.
+
+### Verified in a browser
+
+Offline strip: hidden online → **"📴 নেট নেই — যা দেখছ তা 3 ঘণ্টা আগে sync করা
+হিসাব"** offline → hidden again on reconnect.
+
+Print, all four reports, columns and first row read out of the actual
+`#print-area`:
+
+```
+DUES       নাম | দোকান | রাস্তা | মালিক | ফোন নম্বর | কথা | জমা | বাকি | শেষ জমা | সংগ্রাহক
+INHAND     সংগ্রাহক | তুলেছে | … | হাতে | দোকান | রোড কালেকশন
+EXPENSES   তারিখ | বিষয় | মন্তব্য | কে খরচ করল | টাকা | 💵 | 📱   (+ by-subject)
+COLLECTORS সংগ্রাহক | কতজন দাতা | টাকা | 💵 | 📱
+```
+
+One older assertion pinned the exact text of the `online` handler and failed when
+`updateNetBar()` joined it — rewritten to pin the behaviour. Fourth time; the
+rule is now reflexive.
+
+Tests **1,303 → 1,320**. Client-only — **no redeploy needed.**

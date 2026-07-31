@@ -3280,8 +3280,13 @@ try {
 
   // 'online', focus and a manual refresh are a human or the OS saying
   // "conditions changed" — better evidence than any timer.
-  eq(/window\.addEventListener\('online', function \(\) \{ resetPullBackoff\(\); autoSync\(\); \}\);/.test(app), true,
-     'A69: coming back online resets the backoff');
+  // pins the BEHAVIOUR — A77 added updateNetBar() to the same handler, and an
+  // assertion naming the exact line failed a change that kept the rule
+  {
+    const on = app.slice(app.indexOf("window.addEventListener('online'"));
+    eq(/resetPullBackoff\(\)/.test(on.slice(0, 160)), true, 'A69: coming back online resets the backoff');
+    eq(/autoSync\(\)/.test(on.slice(0, 160)), true, 'A69: …and pushes what is queued');
+  }
   eq(/resetPullBackoff\(\);\n\s*pullCentral\(\{ force: true \}\); \/\/ refresh the central snapshot/.test(app), true,
      'A69: …so does returning to the app');
   eq(/Sync\.syncNow\(\)\.then\(function \(\) \{ resetPullBackoff\(\); return pullCentral\(\{ force: true \}\); \}\)/.test(app), true,
@@ -3555,6 +3560,58 @@ try {
   // the count goes into the confirm, so "carry 2 donors" is not "carry donors"
   eq(/rollover_confirm:[^\n]*\{n\}/.test(i18n) && /replace\('\{n\}', donors\)/.test(roll), true,
      'A76: the confirm says HOW MANY will be copied');
+}
+
+
+// ---- A77: the offline strip, and a printed report worth filing ---------------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const css = fs.readFileSync(__dirname + '/../css/style.css', 'utf8');
+  const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+
+  // Everything renders from the local snapshot — that is what makes the app
+  // usable at a pandal gate, and it means 💰 কার হাতে কত shows whatever was
+  // true at the last sync. That number gets acted on, and nothing said so:
+  // there was no offline indicator anywhere in the UI.
+  eq(/<div id="net-bar"/.test(html), true, 'A77: there is a place to say it');
+  eq(/function updateNetBar\(\)/.test(app), true, 'A77: …and something that says it');
+  eq(/localStorage\.setItem\('ck_last_pull'/.test(app), true,
+     'A77: …recording when the phone last actually heard from the server, which nothing did');
+  eq(/net_off_since:[^\n]*\{ago\}/.test(i18n), true,
+     'A77: …so it can say HOW OLD, because "offline" alone does not tell you whether to trust the number');
+  eq(i18n.indexOf('  net_off_never:') >= 0, true, 'A77: …and a different sentence when nothing has ever synced');
+  // its own element, not a fourth state of the training bar: a collector can be
+  // offline AND in training at once, and one slot would have to pick a winner
+  eq(app.indexOf('function updateNetBar') !== app.indexOf('function updateTrainingBar'), true,
+     'A77: it is separate from the training bar');
+  eq(/window\.addEventListener\('offline', updateNetBar\);/.test(app), true, 'A77: …and reacts to the OS event');
+
+  // the printed report is a different document from the screen one: a phone
+  // held one-handed vs a sheet read at a table and kept in a file
+  eq(/function printReportHTML\(id, d, data\)/.test(app), true, 'A77: print has its own renderer');
+  eq(/printReportHTML\(id, Aggregate\.computeReport\(id, data\), data\)/.test(app), true,
+     'A77: …and printReport uses it');
+  // built from the SNAPSHOT, never by widening computeReport — that function is
+  // mirrored byte-for-byte in Code.gs, so changing it would mean a redeploy for
+  // a formatting improvement
+  eq(/function computeReport\(id, data\)/.test(fs.readFileSync(__dirname + '/../js/aggregate.js', 'utf8')), true,
+     'A77: computeReport is untouched…');
+  const pr = app.slice(app.indexOf('function printReportHTML'), app.indexOf('function reportHTML'));
+  eq(/Aggregate\.voidedIds\(data\)/.test(pr), true,
+     'A77: …the extra columns are looked up from the data the client already holds');
+  eq(/p\.phone/.test(pr) && /last_paid_col/.test(pr) && /collector_col/.test(pr), true,
+     'A77: dues prints the number to ring, when they last gave, and who to ask');
+  eq(/r\.byCat/.test(pr) && /CAT_LABEL_KEYS\[k\]/.test(pr), true,
+     'A77: in-hand prints byCat, which was computed and never shown — the first question at a cash count');
+  eq(/spent_by_col/.test(pr) && /by_subject_col/.test(pr), true, 'A77: expenses prints every line AND the summary');
+  eq(/donor_count_col/.test(pr), true,
+     'A77: by-collector prints how many donors, so one big gift is not read as forty small ones');
+  // a multi-page sheet needs its headers back on every page
+  eq(/\.p-table thead \{ display: table-header-group; \}/.test(css), true,
+     'A77: …and the header row repeats across pages');
+  eq(/\.p-table tr \{ break-inside: avoid; \}/.test(css), true, 'A77: …with no row split down the middle');
 }
 
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------

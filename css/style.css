@@ -63,6 +63,27 @@ nav#bottomnav {
 }
 .hero-hold b { font-size: 16px; }
 
+/* A77: the offline strip. Its own element, not a fourth state of the training
+   bar — a collector can be offline AND in training mode at once, and one slot
+   would have to pick a winner. Grey rather than red: being offline is normal
+   and expected here, it is not an error. */
+/* A77: the printed report is a table, not a phone list. Borders and a repeating
+   header row, because these sheets run to several pages and a column nobody can
+   name halfway down is a column nobody trusts. */
+.p-table { width: 100%; border-collapse: collapse; font-size: 11px; margin: 6px 0 14px; }
+.p-table th, .p-table td { border: 1px solid #bbb; padding: 4px 6px; text-align: left; }
+.p-table th { background: #f0e8dc; font-weight: 700; }
+.p-table td.p-num { text-align: right; white-space: nowrap; }
+.p-table thead { display: table-header-group; }
+.p-table tr { break-inside: avoid; }
+#print-area h3 { font-size: 13px; margin: 12px 0 4px; }
+
+#net-bar {
+  background: #ece4d8; color: #4a4034; text-align: center;
+  font-size: 13px; font-weight: 600; padding: 6px 12px; line-height: 1.35;
+  border-bottom: 1px solid #d9cdba;
+}
+
 .section { margin: 18px 4px 8px; font-weight: 700; color: var(--sub); font-size: 13px; text-transform: uppercase; letter-spacing: .4px; }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .grid.one { grid-template-columns: 1fr; margin-top: 10px; }
