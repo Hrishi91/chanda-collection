@@ -3525,6 +3525,38 @@ try {
      'A75: nothing is destroyed — set the year back and last season returns');
 }
 
+
+// ---- A76 (audit #3 F2 + Hrishi): rollover must know what it can see ----------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const roll = app.slice(app.indexOf("admEl('rollover-btn').onclick"),
+                         app.indexOf("admEl('subj-add').onclick"));
+
+  // The button took `from` straight from the admin's year setting and offered
+  // from + 1, with no idea whether either year held anything. Two failures, and
+  // the second is the one Hrishi raised — a brand-new committee with no data at
+  // all was offered a rollover, which copies nothing and then reports
+  // "০ জন দাতা যোগ হলো", reading as though something happened.
+  eq(/viewData\(\)\.then/.test(roll), true, 'A76: rollover looks at what is actually there first');
+  eq(/const donors = liveParties\(data\)\.length;/.test(roll), true, 'A76: …counting live donors, not voided ones');
+  eq(/if \(!donors\) \{ alert\(t\('rollover_empty'\)/.test(roll), true,
+     'A76: …and refuses instead of performing a no-op');
+  eq(roll.indexOf("if (!donors)") < roll.indexOf("Auth.call('rolloverYear'"), true,
+     'A76: …BEFORE the server is called, so an empty year costs nothing');
+  eq(i18n.indexOf('  rollover_empty:') >= 0, true, 'A76: with a real message…');
+  // it must name the year it looked at — the answer is usually "wrong year"
+  eq(/rollover_empty:[^\n]*\{from\}/.test(i18n), true, 'A76: …naming the year it checked');
+  // and a brand-new committee is told this is not for them, rather than left
+  // wondering what they skipped
+  eq(/নতুন কমিটি/.test(i18n.slice(i18n.indexOf('  rollover_empty:'), i18n.indexOf('  rollover_empty:') + 600)), true,
+     'A76: …and telling a first-time committee it does not apply to them');
+  // the count goes into the confirm, so "carry 2 donors" is not "carry donors"
+  eq(/rollover_confirm:[^\n]*\{n\}/.test(i18n) && /replace\('\{n\}', donors\)/.test(roll), true,
+     'A76: the confirm says HOW MANY will be copied');
+}
+
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------
 {
   const fs = require('fs');

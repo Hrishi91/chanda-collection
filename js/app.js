@@ -5663,12 +5663,38 @@
             }).catch(function (e) { toast(errMsg(e)); });
         }).catch(function (e) { toast(errMsg(e)); });
       };
+      // A76 (audit #3 F2, extended by Hrishi): the button used to take `from`
+      // straight from the admin's year setting and offer `from + 1`, with no
+      // idea whether either year contained anything. Two ways that goes wrong,
+      // and the second is the one Hrishi raised:
+      //
+      //   · In August 2027 the admin's year is already 2027, so it offered
+      //     2027 → 2028 — while the donors nobody has carried across are still
+      //     sitting in 2026. The required dance (set the year BACK, press, set
+      //     it forward) was written down nowhere.
+      //   · A brand-new committee with no data at all was offered a rollover
+      //     too. It copies nothing and reports "০ জন দাতা যোগ হলো", which reads
+      //     like something happened.
+      //
+      // The client cannot see other years — `viewData` is filtered to the
+      // current one (A75) and the snapshot only ever holds one book. So rather
+      // than guess, the button is driven by what it CAN see: the year being
+      // read. If that year has no donors there is nothing to carry from, and it
+      // says so instead of performing a no-op. If it has donors, `from` is that
+      // year by construction, and the 2027 → 2028 trap cannot be reached — an
+      // admin sitting on an empty 2027 is told 2027 is empty, which points at
+      // the right move instead of quietly doing the wrong one.
       admEl('rollover-btn').onclick = function () {
         const from = Number(Settings.get('year')), to = from + 1;
-        if (!window.confirm(t('rollover_confirm').replace('{from}', from).replace('{to}', to))) return;
-        Auth.call('rolloverYear', { token: Auth.token(), fromYear: from, toYear: to })
-          .then(function (r) { alert(t('rollover_done').replace('{n}', r.count).replace('{to}', to)); })
-          .catch(function (e) { toast(errMsg(e)); });
+        viewData().then(function (data) {
+          const donors = liveParties(data).length;
+          if (!donors) { alert(t('rollover_empty').replace('{from}', from)); return; }
+          if (!window.confirm(t('rollover_confirm').replace('{from}', from)
+                .replace('{to}', to).replace('{n}', donors))) return;
+          Auth.call('rolloverYear', { token: Auth.token(), fromYear: from, toYear: to })
+            .then(function (r) { alert(t('rollover_done').replace('{n}', r.count).replace('{to}', to)); })
+            .catch(function (e) { toast(errMsg(e)); });
+        }).catch(function (e) { toast(errMsg(e)); });
       };
       admEl('subj-add').onclick = function () {
         const name = admEl('subj-input').value.trim();

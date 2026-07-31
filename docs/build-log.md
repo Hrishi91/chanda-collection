@@ -7690,3 +7690,52 @@ release-session *"the answer to a lost or stolen phone"* — it is the answer to
 lost **session**.
 
 Tests **1,286 → 1,294**. Client-only — **no redeploy needed.**
+
+## v4.19.3 — A76: rollover, including the case audit #3 did not raise (2026-07-29)
+
+Audit #3's F2 says the rollover button is a trap: in August 2027 the admin's
+year is already 2027, so it offers **2027 → 2028** while the donors nobody has
+carried across are still in 2026 — and the required dance (set the year *back*,
+press, set it forward) is documented nowhere.
+
+**Hrishi added the case the audit missed:** *"if the user is not having any data
+and first using this, this also need to take in mind."* A brand-new committee
+was offered a rollover too. It copies nothing and then says *"০ জন দাতা যোগ
+হলো"* — which reads like something happened, to somebody with no way to tell.
+
+### What the client actually knows
+
+Worth stating, because it decided the shape of the fix: **the client cannot see
+other years.** `viewData` is filtered to the current one since A75, and the
+snapshot only ever holds one book. So a button that tries to be clever about
+which year to copy *from* would be guessing.
+
+So it is driven by what it **can** see — the year being read:
+
+- **no donors in that year** → say so, name the year, and **do not call the
+  server**. For an admin sitting on an empty 2027 that points at the right move;
+  for a new committee it says plainly that this is not for them.
+- **donors present** → `from` is that year by construction, and the confirm now
+  says **how many** will be copied. The 2027 → 2028 trap is no longer reachable,
+  because the only year that can be a source is one you are actually looking at.
+
+That is a smaller fix than automating the sequence, and it removes the wrong
+action rather than documenting it.
+
+### Verified in a browser, all three states
+
+```
+1. brand-new committee, 2026, no donors
+     "২০২৬ সালে এখনো কোনো দাতা নেই, তাই কিছু আনার নেই।"     server: not called
+2. donors in 2026, admin on 2026
+     "২০২৬ সালের ২ জন দাতা ২০২৭ সালে…"                      server: 2026→2027
+3. August 2027, admin on 2027, donors still in 2026
+     "২০২৭ সালে এখনো কোনো দাতা নেই…"                        server: not called
+```
+
+One harness note: the first attempt at case 2 reported "no donors" and looked
+like a failure. It was my stub — the `pull` mock returned an empty book and
+overwrote the snapshot I had just seeded. Fixed by having the mock answer for the
+year it was asked about, which is what the real server does.
+
+Tests **1,294 → 1,302**. Client-only — **no redeploy needed.**

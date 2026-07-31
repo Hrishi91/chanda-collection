@@ -307,7 +307,11 @@ const I18N = {
   restore_confirm: { bn: '⚠️ "{f}" ফেরালে এখনকার সব ডেটা ওই সময়ের অবস্থায় ফিরে যাবে। (নিরাপত্তার জন্য এখনকার অবস্থার backup আগে নেওয়া হবে।) এগোবে?', en: '⚠️ Restoring "{f}" replaces all current data with that snapshot. (A safety backup of the current state is taken first.) Continue?' },
   restore_type: { bn: 'নিশ্চিত হতে RESTORE টাইপ করো', en: 'Type RESTORE to confirm' },
   restore_done: { bn: '✅ ফেরানো হয়েছে: {n}\n(এখনকার অবস্থার safety backup: {s})', en: '✅ Restored: {n}\n(safety backup of previous state: {s})' },
-  rollover_confirm: { bn: '{from} সালের সব দাতা {to} সালে নতুন করে আনা হবে (কোনো জমা কপি হবে না)। করবে?', en: 'Copy all {from} donors into {to} (no payments carried). Proceed?' },
+  rollover_confirm: { bn: '{from} সালের {n} জন দাতা {to} সালে নতুন করে আনা হবে (কোনো জমা কপি হবে না)। করবে?', en: 'Copy {n} donors from {from} into {to} (no payments carried). Proceed?' },
+  // A76: the year being read has no donors, so there is nothing to carry FROM.
+  // Says which year it looked at, because the answer is usually "you are on the
+  // wrong year" — and for a brand-new committee it is simply "not yet".
+  rollover_empty: { bn: '{from} সালে এখনো কোনো দাতা নেই, তাই কিছু আনার নেই।\n\nযে বছরের দাতা আনতে চাও, ⚙️ সেটিংস-এ সেই বছরটা দাও — তারপর আবার এখানে এসো।\n\n(নতুন কমিটি হলে এটা লাগবেই না — সরাসরি দাতা যোগ করা শুরু করো।)', en: 'There are no donors in {from}, so there is nothing to carry forward.\n\nSet the year you want to copy FROM in ⚙️ Settings, then come back.\n\n(A brand-new committee does not need this at all — just start adding donors.)' },
   rollover_done: { bn: '{to} সালে {n} জন দাতা যোগ হলো', en: '{n} donors added to {to}' },
   remind_btn: { bn: 'মনে করাও (WhatsApp)', en: 'Remind (WhatsApp)' },
   remind_msg: { bn: 'নমস্কার {name}, পুজোর চাঁদার {due} বাকি আছে — সুবিধামতো দিয়ে দেবেন। ধন্যবাদ। 🙏', en: 'Hello {name}, {due} of the puja donation is still pending — please pay when convenient. Thank you. 🙏' },

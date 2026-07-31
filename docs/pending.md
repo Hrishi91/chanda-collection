@@ -574,6 +574,11 @@ page (better for a board, worse to share)? Probably both, same data.
 
 ### Answered
 
+- **F2 rollover** — FIXED in v4.19.3 (A76), including the first-time-user case
+  Hrishi raised. Still open for the closure work: what to do about **last year's
+  unpaid balance**, which `rolloverYear` has no answer for (the 2027 row reads
+  "pledged ₹1000, paid ₹0" and nothing records the carry-over).
+
 - **Who owns the data if the committee changes?** (audit #4 Q5) — Hrishi,
   2026-07-31: the Google account is his; handover will be handled later as
   configuration. Recorded in `PROJECT_CONTEXT.md`. Closed.
