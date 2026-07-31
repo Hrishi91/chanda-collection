@@ -199,6 +199,11 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
 .toast-undo-btn {
   background: none; border: 0; color: var(--gold); font-size: 15px; font-weight: 700;
   padding: 11px 14px; margin: -9px -6px -9px 0;
+  /* A73 (audit #5 V12): min-height makes 44px a GUARANTEE. Without it the
+     height came out ~43px and depended on the UA control font's metrics for a
+     Bengali label — a real improvement resting on a coincidence. font-family
+     was missing too, unlike every sibling rule. */
+  min-height: 44px; font-family: inherit; line-height: 1.2;
   cursor: pointer; text-transform: uppercase; letter-spacing: .3px;
 }
 

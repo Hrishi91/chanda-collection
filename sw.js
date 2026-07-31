@@ -1,5 +1,5 @@
 // App-shell cache. Bump VERSION on every deploy that changes app files.
-const VERSION = 'chanda-v4.18.2';
+const VERSION = 'chanda-v4.19.0';
 // config.js is intentionally NOT precached — it carries the live backend URL
 // and is served network-first (no-store) by the fetch handler so it can never
 // be stale. Precaching it here would risk baking in a stale copy at install.
@@ -60,12 +60,31 @@ self.addEventListener('fetch', function (e) {
     // network completes TCP and TLS and then goes quiet — the browser will sit
     // on that for 30–120 s showing a white screen, with a perfectly good cached
     // shell one line away. Race the network against a 4 s timer and take
-    // whichever answers; the fetch is still allowed to finish and refresh.
+    // whichever answers first.
     e.respondWith(new Promise(function (resolve) {
       var settled = false;
-      var done = function (r) { if (!settled && r) { settled = true; resolve(r); } };
-      var fallback = function () { caches.match('./').then(function (c) { done(c); }); };
+      // A73 (audit #5 V13): `if (!settled && r)` was the bug. When
+      // caches.match('./') resolves UNDEFINED — an evicted entry, which is
+      // ordinary on the low-storage Androids this exists for, or a cache that
+      // never filled — `r` is falsy, nothing resolves, and respondWith hangs
+      // FOREVER on a white screen.
+      //
+      // Before A55 a cache miss simply rejected and the browser painted its own
+      // offline page at once. So the 30–120 s white screen A55 was written to
+      // remove became an unbounded one, in exactly the population A55 protects.
+      // The guard has to be on `settled` alone; a network error is a real,
+      // final answer and the browser knows what to do with it.
+      var done = function (r) {
+        if (settled) return;
+        settled = true;
+        resolve(r || Response.error());
+      };
+      var fallback = function () {
+        caches.match('./').then(done).catch(function () { done(null); });
+      };
       var timer = setTimeout(fallback, 4000);
+      // the late fetch is DISCARDED, not merged — the earlier comment claimed
+      // it "refreshes", and it does not
       fetch(e.request).then(function (r) { clearTimeout(timer); done(r); })
         .catch(function () { clearTimeout(timer); fallback(); });
     }));

@@ -7401,3 +7401,103 @@ This deployment also carries A72's `perm_review` label and the post-source note
 (client-side, already live via Pages) and nothing else server-side beyond A71.
 
 Test rows voided afterwards: ₹0 collected, ₹0 in hand, no anomalies.
+
+## v4.19.0 — A73 (audit #5): the five things my own fixes broke or half-did (2026-07-29)
+
+A fifth audit arrived and its subject is **my work**: *"did the fixes actually
+fix it?"* Sixteen of twenty-one land. Five do not, and its diagnosis of the
+pattern is exact and worth quoting:
+
+> **The fix was applied exactly where the audit pointed, and was not swept across
+> its siblings.**
+
+A71 was a two-way rule guarded one way. A68, one commit later, was a
+three-button rule gated on two. Every one of the five below is that same shape.
+
+### V1 🔴 — `restoreBackup` refused every backup this code produces
+
+**The worst thing in this whole run, and it is mine.** A52's pre-validation
+whitelist omitted `ExpenseSubjects`, which `dailyBackup` has always written. So
+the key threw unconditionally, in the *first* loop, and **`goLive` had no undo at
+all.** Verified by round-tripping a real backup through the shim:
+`unknown-sheet: ExpenseSubjects`.
+
+It went from working-but-wrong to not working, while `A52: every key is resolved
+BEFORE the first clear()` **stayed green** — because it matched the text of the
+guard and never once ran a restore. The audit is right that this is the clearest
+illustration in the repository of what a source-text assertion does not buy.
+
+Fixed by deriving the list instead of typing it twice: one
+`BACKUP_EXTRA_SHEETS`, read by both writer and reader. Two hand-maintained lists
+of the same thing is exactly how this happened.
+
+And a real round-trip test now exists — back up a book, restore it, check the
+donors, the money and the accounts came back. It also observes A58's stated
+consequence rather than asserting it: **restoring logs everybody out**, because
+the backup carries blanked tokens. The admin has to sign in again mid-test.
+
+### V13 🔴 — the navigate race could hang forever
+
+`if (!settled && r)`. When `caches.match('./')` resolves **undefined** — an
+evicted entry, ordinary on the low-storage Androids A55 exists for — `r` is
+falsy, nothing resolves, and `respondWith` never settles. Before A55 a cache
+miss simply rejected and the browser painted its offline page at once. **So the
+30–120 s white screen A55 was written to remove became an unbounded one, in
+exactly the population A55 protects.**
+
+The guard belongs on `settled` alone: a network error is a real, final answer.
+Run for all four cases — network answers, network dead with a shell, network
+dead with an evicted cache, network *quiet* with an evicted cache. The last two
+used to hang; both now fall through to the browser.
+
+### V11 🟠 — A68 gated two of its three buttons
+
+The payments card — **the card A68's headline bug was actually about** — kept its
+✓ ungated when A68 moved all three onto `setAnomalyFlag`, new at `CODE_SCHEMA 4`.
+So in the redeploy window A68's own commit warns about, two cards politely
+explained themselves and the third took the tap and answered with a bare server
+error. It also had no `stampNote`.
+
+And the test encoded the omission: it asserted `data-ddupok` and
+`data-pledgeok` and was silent on `data-dupok`. It now derives the list from the
+buttons that exist, because a hand-written subset is precisely how the gap
+survived.
+
+### V2 🟠 — the 0.6 blanking sat below an early `return`
+
+The admin-reassign branch returns thirty lines *above* the `if (isNew)` blanking,
+so server-decided fields were cleared on the collector path and left verbatim on
+the admin one. Measured before the fix: an admin-reassigned handover kept
+`status:'confirmed'` and `confirmedBy:'FORGED'`.
+
+Lifting the block above the branch closes two more things that were never
+regressions, just consequences of the same early return: a reassigned payment
+now receives the serial `reserveReceiptNos_` had **already burned** for it — the
+counter was gapping, on a system whose stated contract is that serials are never
+reused — and it is returned to the phone.
+
+### V12 🟠 — A70's toast could cover A70's own Undo button
+
+One commit made the undo target bigger and turned a silent quota failure into a
+**repeating** toast, into a channel that holds exactly one slot. The
+`storage_full` string runs 6.9 s against a 5 s undo window, and past quota it
+fires on every changed pull. A one-shot flag: saying it once is the whole value.
+
+Also `min-height: 44px` and `font-family: inherit` on `.toast-undo-btn` — the
+audit measured ~43 px and was right that the improvement rested on the UA
+control font's metrics for a Bengali label. A floor now, not a coincidence.
+
+### Verification
+
+Tests **1,263 → 1,279**, and three of the new ones exist specifically because
+their absence let a regression ship green.
+
+One method note: the first version of the V13 test used `return` at module top
+level, which in CommonJS **ends the module** — every assertion after it silently
+stopped running and the suite printed nothing at all. Caught because "no output"
+is not "passed". And for the third time, an assertion tripped on its own
+explanatory comment quoting the old code; comments are stripped before asserting
+absence now.
+
+⚠️ **Redeploy needed** — V1 and V2 are both in `Code.gs`. `CODE_SCHEMA` stays 4.
+**V1 makes this one urgent: until it is deployed, `goLive` still has no undo.**

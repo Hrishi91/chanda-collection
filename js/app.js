@@ -262,6 +262,7 @@
   // on a manual pull-to-refresh — all three are a human or the OS saying
   // "conditions changed", which is better evidence than a timer.
   let pullBusy = false, pullSkip = 0, pullFails = 0;
+  let storageWarned = false; // A73/V12: the quota warning is worth saying once, not every minute
   function resetPullBackoff() { pullSkip = 0; pullFails = 0; }
   function pullCentral(opts) {
     if (!navigator.onLine || !Sync.configured() || !Auth.loggedIn()) return Promise.resolve();
@@ -349,7 +350,15 @@
           // …and it used to fail SILENTLY. Past the quota the snapshot never
           // persists again: every cold start replays an ever-growing delta from
           // a frozen cursor, gets slower every day, and nobody is told why.
-          toast(t('storage_full'));
+          //
+          // A73 (audit #5 V12): ONCE per app run. Past quota this fires on every
+          // changed pull — the 60 s tick, every focus, after every push — and
+          // `toast()` appends into a single fixed slot at z-index 99. The
+          // storage_full string runs 6.9 s against the Undo window's 5 s, so a
+          // repeating toast would paint over the one escape hatch a collector
+          // has after an instant save, and swallow the tap. Saying it once is
+          // the whole value; saying it every minute costs an entry.
+          if (!storageWarned) { storageWarned = true; toast(t('storage_full')); }
         }
       } else {
         try {
@@ -3938,10 +3947,18 @@
             '<div class="bd-line" style="display:block;margin-top:6px">' +
               (first ? esc(dupLine(first)) + '<br>' : '') + (dup ? esc(dupLine(dup)) : '') + '</div>' +
             '<div class="chips" style="margin-top:8px">' +
-              '<button class="chip on" data-dupok="' + esc(a.id) + '">✓ ' + esc(t('anom_dup_ok')) + '</button>' +
+              // A73 (audit #5 V11): this button was left UNGATED when A68 moved
+              // all three onto setAnomalyFlag — new at CODE_SCHEMA 4. So in the
+              // redeploy window A68's own commit warns about, the two cards
+              // beside this one politely explained themselves while THIS one —
+              // the card A68's headline bug was actually about — showed the ✓,
+              // took the tap, and answered with a bare server error.
+              // A rule stated for three cases and guarded for two, one commit
+              // after A71 was a rule stated two ways and guarded one.
+              (canStamp ? '<button class="chip on" data-dupok="' + esc(a.id) + '">✓ ' + esc(t('anom_dup_ok')) + '</button>' : '') +
               (dup && canVoid(dup) ? '<button class="chip void-btn" data-dupvoid="' + esc(a.id) + '">✖️ ' + esc(t('anom_dup_void')) + '</button>' : '') +
               '<button class="chip" data-goparty="' + esc(a.partyId) + '">👁 ' + esc(t('view')) + '</button>' +
-            '</div></div>';
+            '</div>' + stampNote + '</div>';
         }
         // A61 (audit 2.2): a double-entered road/toto/bus round. Same shape as
         // the payment card, same answer, stamped on the same field name.

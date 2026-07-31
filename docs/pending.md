@@ -479,14 +479,17 @@ against HEAD `16f390e`). Spot-checked every headline claim; all accurate.
 ✅ **v4.12.1 redeploy DONE** (2026-07-29) — verified live: `codeVersion
 chanda-v4.12.1`, `schema 2`, config rebaked.
 
-🔴 **Redeploy is now MANDATORY — of the latest commit.** A61 added `daily.dupOk` and
-`parties.pledgeOk`, so `CODE_SCHEMA` moved 2 → 3. Until Code.gs is redeployed
-every phone shows the red bar and cannot make entries. Carries everything since
-v4.12.0.
-`CODE_SCHEMA` is unchanged at 2, so this one is not urgent — phones keep
-working, they just do not get the fixes. After it, enter one donor named
-`=টেস্ট` and check the name reads back plain: `safeCell_` rests on Sheets
-stripping the leading apostrophe, which cannot be verified off-platform.
+✅ **Redeploys done and verified**: v4.12.1 → v4.13.1 → v4.17.0 → v4.18.2, each
+confirmed live by `codeVersion` + `schema` from the deployment itself.
+
+🔴 **One redeploy outstanding — v4.19.0, and it is urgent.** A73/V1 means
+`restoreBackup` currently refuses every backup this code produces, so **`goLive`
+has no undo until it lands**. A73/V2 (the 0.6 blanking on the admin path, plus
+the receipt-serial gap) rides the same deploy. `CODE_SCHEMA` stays **4** —
+nothing locks, so no phone is affected either way.
+
+✅ `safeCell_` verified on the real Sheet 2026-07-29: a donor named `=টেস্ট`
+reads back as exactly `=টেস্ট`.
 
 ## AFTER THE PUJA — closing the year (design note, 2026-07-29)
 

@@ -2900,9 +2900,17 @@ try {
     // the cashier working this desk has no other way to know.
     eq(/function serverCanStoreAnswers\(\) \{ return Auth\.schemaCmp\(\) !== 1; \}/.test(app), true,
        'A61: the desk asks whether the server can store the answer at all');
-    eq(/\(canStamp \? '<button class="chip on" data-ddupok=/.test(app) &&
-       /\(canStamp \? '<button class="chip on" data-pledgeok=/.test(app), true,
-       'A61: …and both stamps are withheld when it cannot');
+    // A73 (audit #5 V11): this asserted TWO of the three and was silent on the
+    // third — so A68 shipping the payments card ungated passed clean. The list
+    // is now derived from the buttons that exist, not typed out, because a
+    // hand-written subset is exactly how the gap survived.
+    ['data-dupok', 'data-ddupok', 'data-pledgeok'].forEach(function (d) {
+      eq(new RegExp("\\(canStamp \\? '<button class=\"chip on\" " + d + "=").test(app), true,
+         'A61: ' + d + ' is withheld when the server cannot store the answer');
+    });
+    // every card that offers a stamp must also carry the explanation
+    eq((app.match(/'<\/div>' \+ stampNote \+ '<\/div>'/g) || []).length, 3,
+       'A73: …and all three cards say WHY the button is missing, not just two');
     eq(/anom_needs_deploy/.test(app) && require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8').indexOf('  anom_needs_deploy:') >= 0, true,
        'A61: …saying why, in words, instead of a button that quietly does nothing');
     // the VOID answers stay available — they need no new column
@@ -3391,6 +3399,55 @@ try {
     });
     eq(missing, [], 'A72: every permission key has a label (' + missing.join(', ') + ')');
   }
+}
+
+
+// ---- A73 (audit #5): regressions my own fixes introduced ---------------------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const sw = fs.readFileSync(__dirname + '/../sw.js', 'utf8');
+  const css = fs.readFileSync(__dirname + '/../css/style.css', 'utf8');
+
+  // V13: `if (!settled && r)` — when caches.match('./') resolves UNDEFINED (an
+  // evicted entry, ordinary on the phones this exists for) nothing resolved and
+  // respondWith hung FOREVER. Before A55 a miss simply rejected and the browser
+  // painted its own offline page at once. The race is run for real, but
+  // SYNCHRONOUSLY: a `return` here would end the whole module (CommonJS wraps
+  // it in a function), which is exactly what happened on the first attempt and
+  // silently skipped every assertion after it.
+  const race = function (cacheResult, fetchResult) {
+    // same shape as sw.js, with the timer collapsed so it can be asserted inline
+    let settled = false, out = null;
+    const done = function (r) { if (settled) return; settled = true; out = (r || 'BROWSER_OFFLINE_PAGE'); };
+    if (fetchResult === 'quiet') { done(cacheResult); }                 // timer fires first
+    else if (fetchResult === 'dead') { done(cacheResult); }             // .catch → fallback
+    else { done(fetchResult); }                                         // network answered
+    return out;
+  };
+  eq(race('SHELL', 'LIVE'), 'LIVE', 'A73/V13: the network wins when it answers');
+  eq(race('SHELL', 'dead'), 'SHELL', 'A73/V13: the cached shell wins when the network is dead');
+  eq(race(undefined, 'dead'), 'BROWSER_OFFLINE_PAGE',
+     'A73/V13: an EVICTED cache falls through to the browser instead of hanging');
+  eq(race(undefined, 'quiet'), 'BROWSER_OFFLINE_PAGE',
+     'A73/V13: …and so does a quiet network with an evicted cache');
+
+  eq(/if \(settled\) return;\n\s*settled = true;\n\s*resolve\(r \|\| Response\.error\(\)\);/.test(sw), true,
+     'A73/V13: the guard is on `settled` alone — a falsy cache hit must still settle');
+  // strip comments first: the A73 note QUOTES the old line, and an assertion
+  // its own explanation trips is a test nobody can keep (third time — A54's
+  // `voided` note and A60's did the same)
+  eq(/if \(!settled && r\)/.test(sw.replace(/\/\/[^\n]*/g, '')), false,
+     'A73/V13: …the `&& r` that caused the hang is gone from the CODE');
+
+  // V12: the quota warning shares one fixed toast slot with Undo, and its
+  // string runs 6.9 s against Undo's 5 s window — repeated on every changed
+  // pull it would paint over the only escape hatch after an instant save.
+  eq(/let storageWarned = false;/.test(app) &&
+     /if \(!storageWarned\) \{ storageWarned = true; toast\(t\('storage_full'\)\); \}/.test(app), true,
+     'A73/V12: the storage warning is said once per run, not once a minute');
+  eq(/\.toast-undo-btn \{[\s\S]*?min-height: 44px; font-family: inherit;/.test(css), true,
+     'A73/V12: …and 44 px is a floor, not a font-metrics coincidence');
 }
 
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------

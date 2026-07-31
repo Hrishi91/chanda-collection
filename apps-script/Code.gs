@@ -587,7 +587,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.18.2';
+var CODE_VERSION = 'chanda-v4.19.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -797,30 +797,18 @@ var ACTIONS = {
           // under the collector they belong to, or the money lands on the
           // admin's head and every in-hand figure is wrong. Only an admin, only
           // when the row names someone, and it is written to the audit log.
-          var claimed = String(row.collectorId || '');
-          var reassign = user.row.role === 'admin' && claimed && claimed !== user.row.username
-            ? findUser_('username', claimed) : null;
-          if (reassign) {
-            row.collector = reassign.row.name;
-            row.collectorId = reassign.row.username;
-            row.collectorRole = roleOf_(reassign.row.role, reassign.row.cashier);
-            reassigned[claimed] = (reassigned[claimed] || 0) + 1;
-            var values0 = safeRow_(cols, row);
-            if (idRow[row.id]) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([preserve(row.id, values0)]);
-            else pending.push(values0);
-            savedIds.push(row.id);
-            return;
-          }
-          row.collector = user.row.name;
-          row.collectorId = user.row.username; // stable identity
-          // roleOf_, NOT the raw Users-sheet role: entry rows speak
-          // 'admin'|'cashier'|'collector', while the Users sheet says
-          // 'admin'|'user' plus a separate cashier flag. Storing the raw word
-          // wrote 'user' on every collector's row, which no separation-of-
-          // duties check ever matched — a cashier could neither void such a
-          // row nor resolve its correction flag. (Identity still comes from
-          // the token only; A9 is untouched.)
-          row.collectorRole = roleOf_(user.row.role, user.row.cashier);
+          // A73 (audit #5 V2): this used to sit 30 lines BELOW the admin
+          // reassign branch's early `return`, so every server-decided field was
+          // blanked on the collector path and left verbatim on the admin one.
+          // Measured before the fix: an admin-reassigned handover kept
+          // status:'confirmed' and confirmedBy:'FORGED'. The acceptance said "on
+          // EVERY code path that inserts" and it was true of one of two.
+          //
+          // Lifting it also closes two things that were never regressions, just
+          // consequences of the same early return: a reassigned payment now gets
+          // the serial reserveReceiptNos_ had already burned for it (the counter
+          // was gapping, on a system whose contract is that serials are never
+          // reused), and a reassigned void is audited like any other.
           var isNew = !idRow[row.id];
           // A51 (audit 0.6): fields only the SERVER may decide, blanked on
           // INSERT whatever the client sent.
@@ -860,6 +848,30 @@ var ACTIONS = {
             row.receiptNo = serials[serialAt++];
             receipts[row.id] = row.receiptNo;
           }
+          var claimed = String(row.collectorId || '');
+          var reassign = user.row.role === 'admin' && claimed && claimed !== user.row.username
+            ? findUser_('username', claimed) : null;
+          if (reassign) {
+            row.collector = reassign.row.name;
+            row.collectorId = reassign.row.username;
+            row.collectorRole = roleOf_(reassign.row.role, reassign.row.cashier);
+            reassigned[claimed] = (reassigned[claimed] || 0) + 1;
+            var values0 = safeRow_(cols, row);
+            if (idRow[row.id]) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([preserve(row.id, values0)]);
+            else pending.push(values0);
+            savedIds.push(row.id);
+            return;
+          }
+          row.collector = user.row.name;
+          row.collectorId = user.row.username; // stable identity
+          // roleOf_, NOT the raw Users-sheet role: entry rows speak
+          // 'admin'|'cashier'|'collector', while the Users sheet says
+          // 'admin'|'user' plus a separate cashier flag. Storing the raw word
+          // wrote 'user' on every collector's row, which no separation-of-
+          // duties check ever matched — a cashier could neither void such a
+          // row nor resolve its correction flag. (Identity still comes from
+          // the token only; A9 is untouched.)
+          row.collectorRole = roleOf_(user.row.role, user.row.cashier);
           var values = safeRow_(cols, row);
           if (!isNew) {
             sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([preserve(row.id, values)]);
@@ -1199,7 +1211,19 @@ var ACTIONS = {
       // halfway used to leave the book half old and half new, with data_epoch
       // never bumped, so no phone was ever told. Validate first, then destroy.
       var titles = {};
-      var known = { Users: 1, Lists: 1, Config: 1, Audit: 1 };
+      // A73 (audit #5 V1): ExpenseSubjects was missing, and dailyBackup has
+      // ALWAYS written it — so the pre-validation I added in A52 refused every
+      // backup this code produces. goLive's only undo went from
+      // working-but-wrong to not working at all, and my A52 test stayed green
+      // throughout because it matched the TEXT of the guard ("every key is
+      // resolved before the first clear") and never once ran a restore.
+      //
+      // The list is now derived from what dailyBackup actually writes, not
+      // typed out beside it — two hand-maintained lists of the same thing is
+      // how this happened.
+      var known = {};
+      BACKUP_EXTRA_SHEETS.forEach(function (n) { known[n] = 1; });
+      known.Users = 1;
       // backups written before this fix carry the lowercase key — they are the
       // ones most likely to be needed, so they must still restore
       var legacy = { users: 'Users' };
@@ -2322,6 +2346,10 @@ function computeReport_(id, d) {
 // straight from a drive root).
 var BACKUP_FOLDER = 'ganesh_pooja_daulatpur';
 var BACKUP_PREFIX = 'chanda-backup-';
+// A73: the sheets a backup carries beyond the transactional stores. ONE list,
+// read by both dailyBackup and restoreBackup — they disagreed, and the
+// disagreement made every backup unrestorable.
+var BACKUP_EXTRA_SHEETS = ['ExpenseSubjects', 'Lists', 'Config', 'Audit'];
 function backupFolder_() {
   try {
     var parents = DriveApp.getFileById(SpreadsheetApp.getActive().getId()).getParents();
@@ -2363,7 +2391,7 @@ function dailyBackup() {
   // 'users' — so every account, hash, salt, role and permission was silently NOT
   // restored, on the one action that is goLive's only undo.
   data.Users = stripTokens_(usersSheet_() ? usersSheet_().getDataRange().getValues() : []);
-  ['ExpenseSubjects', 'Lists', 'Config', 'Audit'].forEach(function (n) {
+  BACKUP_EXTRA_SHEETS.forEach(function (n) {
     var sh = ss.getSheetByName(n);
     data[n] = sh ? sh.getDataRange().getValues() : [];
   });

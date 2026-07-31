@@ -74,6 +74,31 @@ module.exports = function runBackendTests(eq) {
     eq(h.fromId, 'ratan', 'backend 0.6: …and it is from whoever holds the token, not whoever the payload named');
   }
 
+  // ---- A73 (audit #5 V2): 0.6 on the ADMIN path too ----------------------
+  // The blanking sat 30 lines BELOW the admin-reassign branch's early `return`,
+  // so it ran on the collector path and not on the one directly above it. The
+  // acceptance said "on EVERY code path that inserts"; it was true of one of
+  // two, and only the true one had a test.
+  {
+    const { b, tok } = book();
+    const res = b.call('push', { token: tok.admin, epoch: '', records: [
+      rec('handovers', { id: 'h1', year: 2026, to: 'X', toId: 'x', amount: 5000,
+                         cashAmount: 5000, upiAmount: 0, status: 'confirmed',
+                         confirmedBy: 'FORGED', confirmedAt: '2026-07-01T00:00:00Z',
+                         collectorId: 'ratan' }),
+      rec('payments', { id: 'p1', year: 2026, partyId: 's1', amount: 500, cashAmount: 500,
+                        upiAmount: 0, date: '2026-08-01', collectorId: 'ratan' }),
+    ] });
+    const h = b.rows('Handovers')[0], p = b.rows('Payments')[0];
+    eq(h.status, 'pending', 'A73/V2: an admin-reassigned handover is blanked back to pending too');
+    eq(h.confirmedBy, '', 'A73/V2: …and the forged acknowledgement is cleared on this path as well');
+    eq(h.collectorId, 'ratan', 'A73/V2: …while the reassignment itself still works, which is the point of the branch');
+    // and the two consequences that fell out of the same early return
+    eq(!!p.receiptNo, true,
+       'A73/V2: a reassigned payment gets the serial reserveReceiptNos_ had already burned for it');
+    eq(res.receipts.p1, p.receiptNo, 'A73/V2: …and it is handed back, so the counter cannot gap silently');
+  }
+
   // ---- 0.5 / A53: a stale epoch is refused --------------------------------
   // goLive and restoreBackup bump the epoch. A phone that slept through it
   // would otherwise replay training money into the live book.
@@ -293,6 +318,59 @@ module.exports = function runBackendTests(eq) {
        'backend 1.1: …with every session token blanked — a leaked backup was a password-free login for everyone');
     eq(dump.Users.slice(1).some(function (r) { return String(r[dump.Users[0].indexOf('passwordHash')]).length > 0; }), true,
        'backend 1.1: …while the salted hashes stay, so a restore is still a restore');
+  }
+
+  // ---- A73 (audit #5 V1): the backup must actually RESTORE ---------------
+  // A52 added a pre-validation whitelist to restoreBackup and left
+  // ExpenseSubjects out of it — which dailyBackup has always written. So
+  // goLive's only undo went from working-but-wrong to refusing every backup in
+  // existence, and the A52 test stayed green the whole time because it matched
+  // the TEXT of the guard and never ran a restore.
+  //
+  // This one round-trips: back up a real book, wipe it, restore, and check the
+  // rows came back. It is the assertion whose absence let the regression ship.
+  {
+    const { b, tok } = book();
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 's1', year: 2026, type: 'shop', name: 'মা তারা', pledged: 1000 }),
+      rec('payments', { id: 'p1', year: 2026, partyId: 's1', amount: 500, cashAmount: 500, upiAmount: 0, date: '2026-08-01' }),
+    ] });
+    const name = b.api.dailyBackup();
+    const dump = JSON.parse(b.env._files[name].getBlob().getDataAsString());
+    // every key the backup writes must be one restore will accept — the two
+    // lists disagreed, and nothing noticed
+    const r = b.call('restoreBackup', { token: tok.admin, fileId: name, confirm: 'RESTORE' });
+    eq(r.ok, true, 'A73: a backup this code produced can be restored by this code');
+    eq(b.rows('Parties').length, 1, 'A73: …the donors come back…');
+    eq(b.rows('Payments').length, 1, 'A73: …the money comes back…');
+    eq(b.rows('Users').length >= 1, true, 'A73: …and so do the accounts, which is the whole point of 0.2');
+    eq(Object.keys(dump).indexOf('ExpenseSubjects') >= 0, true,
+       'A73: …including ExpenseSubjects, the key that was written and then refused');
+    // the two lists are now one
+    const gs = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+    eq(/var BACKUP_EXTRA_SHEETS = \['ExpenseSubjects', 'Lists', 'Config', 'Audit'\];/.test(gs), true,
+       'A73: …because dailyBackup and restoreBackup read ONE list now');
+    eq((gs.match(/BACKUP_EXTRA_SHEETS/g) || []).length >= 3, true, 'A73: …and both of them use it');
+    // A58's stated consequence, now observed rather than asserted: the backup
+    // carries blanked tokens, so restoring one logs EVERYBODY out. The admin
+    // has to sign in again — which is the correct price for a disaster action,
+    // and worth pinning so nobody "fixes" it by putting the tokens back.
+    let kicked = '';
+    try { b.call('auditLog', { token: tok.admin }); } catch (e) { kicked = String(e.message || e); }
+    eq(kicked, 'bad-token', 'A73: restoring a backup logs everybody out, tokens included');
+    const admin2 = b.call('login', { username: 'hrishi', password: 'secret1', year: 2026 }).token;
+
+    // a genuinely unknown key must still be refused — the guard was right to
+    // exist, it was the list that was wrong
+    b.env._files['chanda-backup-bogus.json'] = {
+      getName: function () { return 'chanda-backup-bogus.json'; },
+      getBlob: function () { return { getDataAsString: function () { return JSON.stringify({ Spaceship: [['a']] }); } }; },
+    };
+    let threw = '';
+    try { b.call('restoreBackup', { token: admin2, fileId: 'chanda-backup-bogus.json', confirm: 'RESTORE' }); }
+    catch (e) { threw = String(e.message || e); }
+    eq(threw, 'unknown-sheet: Spaceship', 'A73: an unknown sheet is still refused BEFORE anything is cleared');
+    eq(b.rows('Parties').length, 1, 'A73: …and the book is untouched when it refuses');
   }
 
   // ---- 0.1 / A52: goLive cannot fire twice or by accident -----------------
