@@ -7811,3 +7811,110 @@ One older assertion pinned the exact text of the `online` handler and failed whe
 rule is now reflexive.
 
 Tests **1,303 → 1,320**. Client-only — **no redeploy needed.**
+
+## v4.21.0 — A78: বিদায়ী, the door the committee closes
+
+Hrishi: *"there is no delete option or block option of the user"* — then, after
+I proposed a design without discussing it: *"atfirst discuss then
+implementation"*, and after I proposed one without investigating: *"what are
+the side effect did you investigate in all perspective"*. Both landed. What
+follows came out of the investigation that should have come first.
+
+### The finding that reframed the whole feature
+
+Permissions come from TWO places and `effPerms_` unions them:
+
+```
+RATAN holds "সভাপতি", which grants shop+road
+  admin removes every PERSONAL permission   STILL ALLOWED
+  admin presses 🧹 clear-all-grants         STILL ALLOWED
+  admin ALSO removes the POST               rejected
+```
+
+…and the mirror image is just as true: removing only the post leaves the
+personal extras. So "take their permissions away" is not one action, it is
+three, and doing two of them looks exactly like success. `setAccess` does all
+three in one call for that reason, and there is no chip that does any of them
+separately for somebody standing down.
+
+The second finding is worse. Emptying the permission lists stops donors, daily
+rounds and expenses — the stores that carry a permission key. It stops nothing
+else: payments, handovers, voids, chat and correction flags all reach
+`entryAllowed_` with a `null` key, which is granted to everybody. A stood-down
+collector could still collect from anyone's donor, and could still **void a
+payment they had taken**: the row leaves the book, their in-hand falls by the
+same amount, `reconcile` says nothing because the arithmetic still balances,
+nobody is owed anything, and the cash is in their pocket. The push gate is
+therefore an explicit **allow-list**, not an inference from empty lists.
+
+### What Hrishi specified
+
+> "block means no new entry, no report visibility / only submit amount, collect
+> his own pending amount (not others pending amount) / comitee position will be
+> lost … 1 admin only / revoke block means positions mut be selected"
+
+> "block / log in will be available till amount submit / … after that we can do
+> final block / this is access block decided by commitee / other one is security"
+
+Two doors, and the login deliberately stays open behind the first one: a person
+who cannot log in cannot hand the money back.
+
+He also asked that the account be photographed at block time. The important
+part is that these figures **keep moving afterwards** — by his own design,
+somebody else collects the outstanding dues. So the saved picture sits beside
+today's, and the difference is the story. He spotted the first draft of that
+table reading wrong; the arithmetic was right, but *their* collection and
+*their donors'* dues stop moving together after the exit, so the reason is now
+printed under it: `সেদিনের পর অন্যে তুলেছে ₹4,000 · সে নিজে ₹1,000`.
+
+That line is computed by subtracting the saved per-donor figures, never by
+comparing timestamps against the exit stamp. The exit lands in the middle of a
+working day and two rows written in the same second cannot be ordered at all —
+a comparison there is right most days and wrong on the day it matters.
+
+### Guards, each standing over a way somebody got stranded
+
+```
+admin stands HIMSELF down            cant-exit-self
+admin blocks himself                 cant-block-self   ← one tap, sole admin, token cleared,
+                                                          recovery only by editing the sheet
+an admin is stood down               demote-first      ← they bypass every gate; it would look
+                                                          like it worked and change nothing
+brought back with no post            position-required ← else identical to just stood down
+blocked while holding ₹5,000         holds-money:5000  ← override records it, never zeroes it
+cashier flag handed back             is-exiting        ← confirmHandover is not a push
+promoted to admin                    is-exiting
+```
+
+`setRole` has refused self-demotion since the beginning. `setStatus` never had
+the equivalent — the same rule, guarded for one door and not the other. That is
+the third time this pattern has shown up (A71 two-way/one-way, A68
+three-button/two-gated), and it is now the first thing I look for.
+
+### Verified
+
+Shim, then the browser on a fresh port (the SW served a stale `app.js` twice
+before I obeyed my own note):
+
+```
+নতুন দোকান তোলা                 রুখল      চ্যাটে লেখা              রুখল
+রাস্তার কালেকশন                 রুখল      correction flag         রুখল
+নিজের দোকানের বাকি নেওয়া        পারল      কালীর দোকানের বাকি      রুখল
+নিজের payment void করা          রুখল      হাতের টাকা জমা দেওয়া    পারল
+```
+
+Admin list: **বিমল "⚠️ কিছুই দেওয়া হয়নি"** and **কালী "🚪 বিদায়ী"** on separate
+shelves — the confusion the recorded state exists to end. On কালী's own phone,
+the three tiles that remain, and no "ask the admin" card sending her to argue
+about a decision already taken.
+
+One rendering bug found by looking rather than asserting: `ICON` has no
+`payments` entry (it has a wide tile of its own), so the stood-down home drew
+the bare word `payments`. Now tested as a class — *every* key a plan can name
+must be drawable.
+
+Every one of the twelve new guards was then removed one at a time to confirm
+the suite goes red. Three did not, and got tests. Tests **1,320 → 1,357**.
+
+`CODE_SCHEMA` 4 → **5** — new column, new handlers. **Redeploy required**, and
+phones show the red bar until they reload. Cheap now; ten phone calls later.

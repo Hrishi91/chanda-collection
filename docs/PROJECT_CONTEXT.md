@@ -153,6 +153,34 @@ Bengali and an English label. Collectors are assigned areas via `Users.areas`.
   session" button, and queueing an offline logout so it reaches the server.
   Consequence to keep in mind: a logout made while offline clears the phone but
   leaves the sheet's token valid until the next login overwrites it.
+- **Leaving the committee and being blocked are two different doors**
+  (2026-07-31, A78, Hrishi's own design). 🚪 **বিদায়ী** is the committee's
+  decision: the post, the personal grants and the cashier flag all go, but the
+  **login stays open**, because a person who cannot log in cannot hand the
+  money back. Behind that door they may do exactly two things — hand in what
+  they hold, and collect the balance of donors they themselves brought in.
+  🚫 **Block** stays what it always was, the security answer above, and now
+  refuses while they are still holding cash: the admin is told the figure, and
+  can only close it by recording that amount as unrecovered.
+
+  Cause: taking somebody's permissions away does not stop them. Permissions are
+  the union of a POST's set and personal extras, so clearing either alone
+  changes nothing while reporting success; and payments, handovers, voids, chat
+  and correction flags carry no permission key at all, so an "unpermissioned"
+  collector could still collect from anybody's donor and could still void a
+  payment they had taken — which removes the money from the book, drops their
+  in-hand by the same amount, and leaves the arithmetic balancing with the cash
+  in their pocket. The gate is an explicit allow-list for that reason.
+
+  Known cost, accepted: the exit picture is **stored, not recomputed**. A void
+  or a correction rewrites history backwards, so replaying to the exit date
+  would not reproduce what the committee saw — but it also means a later void
+  can leave the saved figure disagreeing with a fresh count. That is the point
+  of a record, and the screen labels both columns so it cannot read as a bug.
+
+  Deletion of a user remains deliberately absent, for the same reason
+  `partyHasMoney_` refuses to remove a donor who has paid: a person who has
+  touched money cannot leave the book without taking a row it needs.
 
 ## Current state (2026-07-25)
 

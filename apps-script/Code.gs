@@ -81,7 +81,24 @@ var USER_COLS = ['id', 'username', 'name', 'phone', 'passwordHash', 'salt', 'rol
                  'areas', // append-only: comma-separated area ids this collector is responsible for
                  'entries', // permission keys granted to this PERSON (see PERM_KEYS) — extras only
                  'position', // the committee post they hold; its permission set is added on top
-                 'appVersion']; // last version this person's phone reported (A34)
+                 'appVersion', // last version this person's phone reported (A34)
+                 // A78: the committee's ACCESS decision, which is not the same
+                 // thing as `status`. '' = ordinary member; 'exiting' = the
+                 // committee has taken this person off the work but they still
+                 // owe money, so the login stays open until they hand it in.
+                 // `status='blocked'` remains the SECURITY door (lost phone,
+                 // stolen session) and is unchanged — the two are deliberately
+                 // separate columns because they answer different questions and
+                 // are decided by different people.
+                 'access',
+                 // A78: what they were holding on the day each door closed, as
+                 // JSON {exit:{…}, block:{…}}. ONE column and not one per figure
+                 // — every future figure would otherwise be a schema change. It
+                 // is stored, not recomputed from a date: a void or a correction
+                 // rewrites history backwards, so replaying to the exit date
+                 // would not reproduce what the committee actually saw. A record
+                 // that moves is not a record.
+                 'exitSnap'];
 var AUDIT_COLS = ['id', 'ts', 'actor', 'actorId', 'action', 'detail'];
 
 // Per-report access: admin sees all; cashier gets 'inhand' by default;
@@ -141,6 +158,17 @@ function effPerms_(row) {
 // sources and eight callers. Admin is always one.
 function isCashier_(row) {
   return !!row && (row.role === 'admin' || effPerms_(row).cashier === 1);
+}
+// A78: the committee has stood this person down, but they still hold cash. The
+// login stays open ON PURPOSE — a person who cannot log in cannot hand money
+// back, and the money is the reason we are here. What they may still do is
+// enumerated at the push gate, not inferred from empty permission lists:
+// setAccess empties those lists too, but payments, handovers, voids, chat and
+// correction flags all fall through permForRow_ with a null key, which
+// entryAllowed_ grants to everyone. Emptying the lists alone would have stopped
+// nothing that matters.
+function isExiting_(row) {
+  return !!row && String(row.access || '') === 'exiting';
 }
 function allowedReports_(u) {
   if (u.row.role === 'admin') return REPORT_IDS.slice();
@@ -280,7 +308,100 @@ function publicUser_(row) {
            areas: String(row.areas || ''), entries: eff.entries.join(','), createdAt: row.createdAt,
            position: String(row.position || ''), appVersion: String(row.appVersion || ''),
            ownCashier: Number(row.cashier) || 0,
+           // A78: the badge every user list draws. `exitSnap` is deliberately
+           // NOT here — it is a fat JSON blob and listUsers sends one of these
+           // per person; the snapshot is fetched for one user at a time.
+           access: String(row.access || ''),
            ownReports: String(row.reports || ''), ownEntries: String(row.entries || '') };
+}
+// A78: what this person is holding, right now, in the shape the exit record
+// keeps. Money side comes from personalSummary_ — the same function the
+// collector's own screen uses, so the committee and the collector can never be
+// shown two different numbers. Donor side is the balance of the donors THEY
+// brought in, because that is what "his own pending" means and it is what
+// somebody else will have to go and collect.
+function accountPicture_(d, ident) {
+  var s = personalSummary_(d, ident);
+  var act = activeData_(d);
+  var paid = {}, mine = {};
+  act.payments.forEach(function (p) {
+    var k = String(p.partyId);
+    paid[k] = (paid[k] || 0) + num_(p.amount);
+    // …and how much of it THIS person took. Recorded per donor so "who
+    // collected the rest after they left" can later be answered by subtracting
+    // two saved figures instead of comparing timestamps. Two rows written in
+    // the same second are indistinguishable by clock, and the exit stamp lands
+    // in the middle of a working day.
+    if (ck_(p) === String(ident)) mine[k] = (mine[k] || 0) + num_(p.amount);
+  });
+  var dues = act.parties.filter(function (p) { return ck_(p) === String(ident); })
+    .map(function (p) {
+      var pd = paid[String(p.id)] || 0;
+      return { id: String(p.id), name: String(p.name || ''), type: String(p.type || ''),
+               phone: String(p.phone || ''), pledged: num_(p.pledged), paid: pd,
+               paidMine: mine[String(p.id)] || 0, due: num_(p.pledged) - pd };
+    })
+    // EPS, same half-paisa as computeReport_ 'dues' — "দেড়" parses to 1.5, so
+    // fractions are real here and a fully-paid donor must not linger in a list
+    // somebody is being sent out to collect.
+    .filter(function (r) { return r.due > 0.005; })
+    .sort(function (a, b) { return b.due - a.due; });
+  return { collected: s.collected, received: s.received, handedOver: s.handedOver,
+           pending: s.pending, expenseTotal: s.expenseTotal, inHand: s.inHand,
+           dueTotal: sumBy_(dues, function (r) { return r.due; }), dueCount: dues.length, dues: dues };
+}
+// The saved record, tolerant of a blank cell and of anything unparseable — a
+// corrupted blob must never stop an admin from blocking somebody.
+// A78: one place decides whether a post may be handed to this person. It was
+// inline in setUserPosition; restoring an exiting member needs exactly the same
+// cap check, and a second copy of a rule is a second chance to get it wrong.
+// `required` is true only on the restore path — an ordinary admin may clear
+// somebody's post, but bringing a member back without one would leave them
+// looking identical to a member who was just stood down.
+function applyPosition_(u, want, required) {
+  want = String(want || '');
+  if (!want && required) throw new Error('position-required');
+  if (want) {
+    var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
+    if (!sh) throw new Error('not-found');
+    ensureListCols_(sh);
+    var mx = ensureCol_(sh, 'maxCount');
+    var rows = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, Math.max(2, mx)).getValues() : [];
+    var found = null;
+    rows.forEach(function (r) { if (String(r[0]) === want && String(r[1]) === 'position') found = r; });
+    if (!found) throw new Error('no-such-position');
+    // The cap, enforced where it cannot be argued with. The dropdown greys a
+    // full post out, but a stale screen or a cap tightened since it was drawn
+    // would sail past that — this is the check at the moment of writing.
+    var cap = Number(found[mx - 1]) || 0;
+    if (cap > 0) {
+      var us = usersSheet_(), held = [];
+      if (us.getLastRow() > 1) {
+        var pcol = ensureCol_(us, 'position'), ucol = USER_COLS.indexOf('username') + 1;
+        us.getRange(2, 1, us.getLastRow() - 1, Math.max(pcol, ucol)).getValues().forEach(function (r, i) {
+          if (String(r[pcol - 1]) === want && (i + 2) !== u.rowIndex) held.push(String(r[ucol - 1]));
+        });
+      }
+      if (held.length >= cap) throw new Error('position-full:' + held.join(','));
+    }
+  }
+  u.row.position = want;
+}
+function readSnap_(row) {
+  try {
+    var o = JSON.parse(String(row.exitSnap || '') || '{}');
+    return (o && typeof o === 'object') ? o : {};
+  } catch (e) { return {}; }
+}
+function takeSnap_(row, key, year, extra) {
+  var pic = accountPicture_(readAll_(Number(year) || new Date().getFullYear()), String(row.username));
+  pic.at = new Date().toISOString();
+  pic.year = Number(year) || new Date().getFullYear();
+  if (extra) Object.keys(extra).forEach(function (k) { pic[k] = extra[k]; });
+  var snap = readSnap_(row);
+  snap[key] = pic;
+  row.exitSnap = JSON.stringify(snap);
+  return pic;
 }
 // Append-only activity log for accountability (who did what, when). Logging
 // must never break the real action, so it is fully wrapped in try/catch.
@@ -587,13 +708,13 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.20.0';
+var CODE_VERSION = 'chanda-v4.21.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
 // changes this file's behaviour, so a client-only release stops demanding a
 // redeploy that would change nothing. Bump it here and in js/auth.js together.
-var CODE_SCHEMA = 4;
+var CODE_SCHEMA = 5;
 function doGet() { return json_({ ok: true, service: 'chanda-khata', version: CODE_VERSION }); }
 
 var ACTIONS = {
@@ -709,8 +830,34 @@ var ACTIONS = {
       (b.records || []).forEach(function (r) {
         if (r && SHEETS[r.store] && r.row && r.row.id) noteIncomingOwner_(r.store, r.row.id, user);
       });
+      var exiting = isExiting_(user.row);
       (b.records || []).forEach(function (r) {
         if (!SHEETS[r.store] || !r.row || !r.row.id) return;
+        // A78: the access-block, and it is an ALLOW-LIST on purpose. Taking the
+        // post and both permission lists away — which setAccess does — stops
+        // donors, daily rounds and expenses, because those carry a permission
+        // key. It stops NOTHING else: payments, handovers, voids, chat and
+        // correction flags all reach entryAllowed_ with a null key, which is
+        // granted to everybody. So the two things the committee actually
+        // decided they may still do are named here, and everything absent is
+        // refused rather than left to fall through.
+        //
+        // Two of those exclusions are the point rather than tidiness:
+        //   · voids — a person on their way out must not be able to erase a
+        //     payment they already took. The row would leave the book, their
+        //     in-hand would drop by the same amount, the arithmetic would still
+        //     balance, and nobody would be owed anything. The cash would simply
+        //     be gone.
+        //   · payments against SOMEBODY ELSE's donor — "his own pending, not
+        //     others'". Nothing else in this file keys a payment to an owner,
+        //     so without this line that half of the rule is only a sentence.
+        if (exiting) {
+          if (r.store === 'handovers') { /* handing in what they hold: the whole point */ }
+          else if (r.store === 'payments') {
+            var pOwn = ownerIndex_('parties')[String(r.row.partyId)];
+            if (!pOwn || String(pOwn.collectorId) !== String(user.row.username)) { rejectedIds.push(r.row.id); return; }
+          } else { rejectedIds.push(r.row.id); return; }
+        }
         // general puja expenses are cashier/admin only; a COLLECTION expense is
         // spent out of a round the person is running, so permForRow_ hands back
         // that round's key instead.
@@ -1638,12 +1785,118 @@ var ACTIONS = {
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
     if (['approved', 'blocked', 'pending'].indexOf(b.status) < 0) throw new Error('bad-input');
+    var note = '';
+    if (b.status === 'blocked') {
+      // A78: setRole has refused self-demotion since the beginning; this door
+      // had no such guard, and blocking clears the token — so the sole admin
+      // could shut himself out with one tap and the only way back in was
+      // editing the Users sheet by hand. Same rule, same words.
+      if (String(u.row.id) === String(me.row.id)) throw new Error('cant-block-self');
+      if (String(u.row.role) === 'admin' && countAdmins_() <= 1) throw new Error('last-admin');
+      // A78: the security door is also the LAST door — it takes the login away,
+      // and a person who cannot log in cannot hand money back. So it refuses
+      // while they are still holding some, and says how much rather than just
+      // "no": the admin needs the figure to decide whether to chase it or write
+      // it off. `override` is that decision, and it is written into the record
+      // with the amount — never silently zeroed, or the book stops adding up.
+      var pic = accountPicture_(readAll_(Number(b.year) || new Date().getFullYear()), String(u.row.username));
+      var held = pic.inHand;
+      if (held > 0.005 && !b.override) throw new Error('holds-money:' + held);
+      takeSnap_(u.row, 'block', b.year, held > 0.005 ? { writtenOff: held } : null);
+      if (held > 0.005) note = ' · ₹' + held + ' অনাদায়ী (override)';
+      u.row.token = '';
+    }
     u.row.status = b.status;
     if (b.status === 'approved') u.row.years = addYear_(u.row.years, b.year || new Date().getFullYear());
-    if (b.status === 'blocked') u.row.token = '';
     saveUser_(u);
-    logAudit_(me.row, 'status:' + b.status, '@' + u.row.username);
+    logAudit_(me.row, 'status:' + b.status, '@' + u.row.username + note);
     return { ok: true, user: publicUser_(u.row) };
+  },
+  // A78: the committee's access decision. One call, because it has to move the
+  // post AND both permission lists together — leave any one of them behind and
+  // effPerms_ (post ∪ personal extras) hands everything straight back, while
+  // the screen reports success. Making the admin remember three separate steps
+  // was never an option.
+  setAccess: function (b) {
+    var me = requireAdmin_(b.token);
+    var lock = LockService.getScriptLock(); lock.waitLock(20000);
+    try { ensureCols_(usersSheet_(), USER_COLS); } finally { lock.releaseLock(); }
+    var u = findUser_('id', b.userId);
+    if (!u) throw new Error('user not found');
+    var want = String(b.access || '');
+    if (['', 'exiting'].indexOf(want) < 0) throw new Error('bad-input');
+    if (want === 'exiting') {
+      if (String(u.row.id) === String(me.row.id)) throw new Error('cant-exit-self');
+      // An admin bypasses every gate in this file, so standing one down would
+      // change precisely nothing while looking like it had. Demote first — and
+      // setRole already refuses to demote the last one.
+      if (String(u.row.role) === 'admin') throw new Error('demote-first');
+      var pic = takeSnap_(u.row, 'exit', b.year);
+      u.row.position = ''; u.row.entries = ''; u.row.reports = ''; u.row.cashier = 0;
+      u.row.access = 'exiting';
+      saveUser_(u);
+      logAudit_(me.row, 'access:exit', '@' + u.row.username + ' · হাতে ₹' + pic.inHand +
+        ' · বাকি ₹' + pic.dueTotal + ' (' + pic.dueCount + ' জন)');
+    } else {
+      // Coming back needs a post, because a post is what a returning member is
+      // being given — and without one they would be "active" with nothing
+      // granted, which looks identical to standing them down again.
+      applyPosition_(u, String(b.position || ''), true);
+      u.row.access = '';
+      // The years are deliberately untouched: setStatus('approved') adds the
+      // ADMIN's current year, and doing that here would quietly hand a
+      // returning member access to a season nobody discussed.
+      saveUser_(u);
+      logAudit_(me.row, 'access:restore', '@' + u.row.username + ' → ' + String(b.position || ''));
+    }
+    return { ok: true, user: publicUser_(u.row) };
+  },
+  // A78: the two saved pictures beside today's, for one person. Separate from
+  // listUsers because the blob is fat and this is opened one user at a time.
+  userSnapshot: function (b) {
+    var me = requireAdmin_(b.token);
+    var u = findUser_('id', b.userId);
+    if (!u) throw new Error('user not found');
+    var year = Number(b.year) || new Date().getFullYear();
+    var d = readAll_(year);
+    var live = accountPicture_(d, String(u.row.username));
+    var snap = readSnap_(u.row);
+    // The line that stops the table reading like a bug. Between the exit and
+    // today his own dues can fall without his collection rising by the same
+    // amount — because somebody ELSE went and collected them, which is exactly
+    // what the committee intended. Two figures that do not move together need
+    // the reason written next to them, or every reader recomputes it wrong.
+    //
+    // Computed by SUBTRACTING the saved per-donor figures from today's, never
+    // by asking which payments are newer than the exit stamp. The exit lands in
+    // the middle of a working day, and two rows written in the same second
+    // cannot be ordered by their timestamps at all — a comparison there would
+    // be right most days and quietly wrong on the day it mattered.
+    var since = null;
+    if (snap.exit && snap.exit.dues) {
+      var nowPaid = {}, nowMine = {};
+      activeData_(d).payments.forEach(function (p) {
+        var k = String(p.partyId);
+        nowPaid[k] = (nowPaid[k] || 0) + num_(p.amount);
+        if (ck_(p) === String(u.row.username)) nowMine[k] = (nowMine[k] || 0) + num_(p.amount);
+      });
+      var byHim = 0, byOthers = 0;
+      snap.exit.dues.forEach(function (r) {
+        var k = String(r.id);
+        // A donor voided since the exit takes their payments with them, which
+        // would read as money flowing backwards. Nothing was collected there,
+        // so it contributes nothing — skipping is the honest answer, and the
+        // erased row is the void report's business, not this line's.
+        if (nowPaid[k] === undefined) return;
+        var gotMine = (nowMine[k] || 0) - num_(r.paidMine);
+        var gotAll = nowPaid[k] - num_(r.paid);
+        if (gotMine > 0) byHim += gotMine;
+        if (gotAll - gotMine > 0) byOthers += gotAll - gotMine;
+      });
+      since = { byHim: byHim, byOthers: byOthers };
+    }
+    logAudit_(me.row, 'access:view', '@' + u.row.username);
+    return { ok: true, user: publicUser_(u.row), saved: snap, live: live, since: since };
   },
 
   approveYear: function (b) {
@@ -1711,6 +1964,13 @@ var ACTIONS = {
     var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
+    // A78: not while they are standing down. The access-block empties the
+    // permission lists, and every gate in push honours it — but confirmHandover
+    // is not a push, it asks isCashier_ directly. So handing the cashier flag
+    // back to a stood-down member let them confirm money again, undoing the
+    // committee's decision from a screen that said nothing about it. Bring them
+    // back first; that is a decision somebody has to make on purpose.
+    if (isExiting_(u.row) && b.cashier) throw new Error('is-exiting');
     u.row.cashier = b.cashier ? 1 : 0;
     saveUser_(u);
     logAudit_(me.row, b.cashier ? 'cashier:on' : 'cashier:off', '@' + u.row.username);
@@ -1737,6 +1997,10 @@ var ACTIONS = {
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
     if (['admin', 'user'].indexOf(b.role) < 0) throw new Error('bad-input');
+    // A78: an admin bypasses every gate in this file, so promoting a
+    // stood-down member would hand back more than they ever had — silently,
+    // from a button that says only "make admin". Bring them back first.
+    if (isExiting_(u.row) && b.role === 'admin') throw new Error('is-exiting');
     if (b.role !== 'admin' && String(u.row.role) === 'admin') {
       if (String(u.row.id) === String(me.row.id)) throw new Error('cant-demote-self');
       if (countAdmins_() <= 1) throw new Error('last-admin');
@@ -1771,31 +2035,7 @@ var ACTIONS = {
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
     var want = String(b.position || '');
-    if (want) {
-      var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
-      if (!sh) throw new Error('not-found');
-      ensureListCols_(sh);
-      var mx = ensureCol_(sh, 'maxCount');
-      var rows = sh.getLastRow() > 1 ? sh.getRange(2, 1, sh.getLastRow() - 1, Math.max(2, mx)).getValues() : [];
-      var found = null;
-      rows.forEach(function (r) { if (String(r[0]) === want && String(r[1]) === 'position') found = r; });
-      if (!found) throw new Error('no-such-position');
-      // The cap, enforced where it cannot be argued with. The dropdown greys a
-      // full post out, but a stale screen or a cap tightened since it was drawn
-      // would sail past that — this is the check at the moment of writing.
-      var cap = Number(found[mx - 1]) || 0;
-      if (cap > 0) {
-        var us = usersSheet_(), held = [];
-        if (us.getLastRow() > 1) {
-          var pcol = ensureCol_(us, 'position'), ucol = USER_COLS.indexOf('username') + 1;
-          us.getRange(2, 1, us.getLastRow() - 1, Math.max(pcol, ucol)).getValues().forEach(function (r, i) {
-            if (String(r[pcol - 1]) === want && (i + 2) !== u.rowIndex) held.push(String(r[ucol - 1]));
-          });
-        }
-        if (held.length >= cap) throw new Error('position-full:' + held.join(','));
-      }
-    }
-    u.row.position = want;
+    applyPosition_(u, want, false);
     saveUser_(u);
     logAudit_(me.row, 'position', '@' + u.row.username + ' → ' + (want || '(none)'));
     return { ok: true, user: publicUser_(u.row) };

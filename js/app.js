@@ -1918,16 +1918,19 @@
       // money to hand over and no book to read. Chat stays open — that is the
       // one thing everybody has — but the real fix is a phone call, so the
       // admin's number is right here.
-      if (!plan.setUp) {
+      if (!plan.setUp || plan.exiting) {
         const paintCard = function () {
           $view().innerHTML =
             '<div id="notif-banner"></div>' +
             '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
             '<div class="hero-sub">' + esc(Settings.get('collectorName')) + '</div></div>' +
-            (plan.blocked ? staleVersionCard() : noGrantCard()) +
-            // …and if there is money in hand, the way to hand it in comes with it
-            (plan.common.length ? '<div class="grid" style="margin-top:10px">' +
-              plan.common.map(function (g) { return drawTile(g); }).join('') + '</div>' : '');
+            (plan.blocked ? staleVersionCard() : plan.exiting ? exitingCard() : noGrantCard()) +
+            // …and if there is money in hand, the way to hand it in comes with
+            // it. 💰 চাঁদা নেওয়া has its own wide tile above — ICON has no
+            // 'payments' entry, so drawTile would render the bare key, which is
+            // what a stood-down member first saw.
+            paymentTile +
+            (cashTiles ? '<div class="grid" style="margin-top:10px">' + cashTiles + '</div>' : '');
           renderNotifBanner();
           wireNav();
           const vf = document.getElementById('ver-fix-card');
@@ -1992,6 +1995,16 @@
       '</div>' +
       '<button id="ver-fix-card" class="primary big block" style="margin-top:8px">' +
         esc(t('ver_fix_btn')) + '</button></div>';
+  }
+  // A78: what a stood-down member sees instead of "ask the admin for
+  // permissions". They must not be sent to argue about a decision the committee
+  // already took — and they must be told the one thing that is still theirs to
+  // do, which is hand in what they are holding.
+  function exitingCard() {
+    return '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
+      '<b>🚪 ' + esc(t('home_exiting_title')) + '</b>' +
+      '<div class="row-sub" style="margin-top:4px">' + esc(t('home_exiting_body')) + '</div>' +
+      adminContactHTML() + '</div>';
   }
   function noGrantCard() {
     return '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
@@ -3221,7 +3234,19 @@
   // showing it or hiding it consistently.
   function liveParties(data) {
     const v = Aggregate.voidedIds(data);
-    return (data.parties || []).filter(function (p) { return p && !v[p.id]; });
+    let rows = (data.parties || []).filter(function (p) { return p && !v[p.id]; });
+    // A78: a stood-down member sees only the donors they brought in, because
+    // those are the only ones the server will let them collect from. Done at
+    // the ONE choke point all eleven listing sites read, not per screen: the
+    // alternative is a book full of shops that reject the payment after it is
+    // typed, which is the failure this project keeps having to relearn — a
+    // control that looks available and then does nothing.
+    const me = Auth.current();
+    if (me && String(me.access || '') === 'exiting') {
+      const myId = Settings.get('collectorUsername') || me.username;
+      rows = rows.filter(function (p) { return p.collectorId === myId; });
+    }
+    return rows;
   }
   function canEditParty(p) {
     const u = Auth.current();
@@ -4938,6 +4963,117 @@
       // the message names the action too: one line is then a whole bug report.
       .catch(function (e) { alert('⚠️ ' + action + '\n\n' + errMsg(e)); });
   }
+  // A78 ── the committee's access door ─────────────────────────────────────
+  // Standing a member down takes their post AND both permission lists in one
+  // server call, because effPerms_ unions the post's set with their personal
+  // extras: leave either behind and everything comes straight back while the
+  // screen says it worked. That is why there is no chip for this and no
+  // three-step recipe for the admin to remember.
+  function exitUser(u) {
+    if (!u) return;
+    if (!window.confirm(t('access_exit_confirm').replace('{n}', u.name))) return;
+    adminAction('setAccess', { userId: u.id, access: 'exiting', year: Settings.get('year') },
+      function () { toast('🚪 ' + t('access_exit_done')); });
+  }
+  // Coming back needs a post, and the post is the whole content of the screen.
+  // Without one they would be "active" with nothing granted — indistinguishable
+  // from having just been stood down, which is the confusion this feature
+  // exists to end.
+  function restoreUser(u, positions) {
+    if (!u) return;
+    const list = (positions || []).filter(function (p) { return p && p.id; });
+    if (!list.length) { alert(t('access_no_posts')); return; }
+    const lines = list.map(function (p, i) { return (i + 1) + '. ' + (p.nameBn || p.nameEn || p.id); });
+    const ans = window.prompt(t('access_restore_pick').replace('{n}', u.name) + '\n\n' + lines.join('\n'), '');
+    if (ans === null) return;
+    const pick = list[Number(String(ans).trim()) - 1];
+    if (!pick) { alert(t('access_bad_pick')); return; }
+    adminAction('setAccess', { userId: u.id, access: '', position: pick.id, year: Settings.get('year') },
+      function () { toast('✅ ' + t('access_restore_done')); });
+  }
+  // The security door. It refuses while the person still holds cash and names
+  // the figure — a person who cannot log in cannot hand money back, so the
+  // refusal is the feature. `override` is the committee writing the amount off,
+  // and it goes into the record and the audit log with the number on it; it is
+  // never quietly zeroed, or the book stops adding up.
+  function blockUser(id) {
+    if (!window.confirm(t('block_confirm'))) return;
+    Auth.call('setStatus', { token: Auth.token(), userId: id, status: 'blocked', year: Settings.get('year') })
+      .then(function (resp) {
+        if (resp && resp.user && admCache) { admPut(resp.user); paintAdmin(admCache); }
+        else renderAdmin(true);
+      })
+      .catch(function (e) {
+        const m = String(e && e.message || '');
+        if (m.indexOf('holds-money:') !== 0) { alert('⚠️ setStatus\n\n' + errMsg(e)); return; }
+        const amt = m.slice('holds-money:'.length);
+        if (!window.confirm(t('block_holds_money').replace('{amt}', fmtMoney(Number(amt))))) return;
+        adminAction('setStatus', { userId: id, status: 'blocked', year: Settings.get('year'), override: 1 },
+          function () { toast('🚫 ' + t('access_written_off').replace('{amt}', fmtMoney(Number(amt)))); });
+      });
+  }
+  function showSnapshot(u) { if (u) navigate('usersnap', { userId: u.id, name: u.name }); }
+  // Saved beside live, because after the exit these two stop moving together
+  // and either one alone lies: the saved figures are what the committee decided
+  // on, the live ones are what is still outstanding today.
+  function renderUserSnapshot(p) {
+    p = p || {};
+    $view().innerHTML = backBar('admin') +
+      '<div class="flow-title">' + esc(t('access_picture')) + ' — ' + esc(p.name || '') + '</div>' +
+      '<div id="snap-body"><div class="empty">' + esc(t('loading')) + '</div></div>';
+    Auth.call('userSnapshot', { token: Auth.token(), userId: p.userId, year: Settings.get('year') })
+      .then(function (r) {
+        const body = document.getElementById('snap-body'); if (!body) return;
+        const live = r.live || {}, saved = r.saved || {};
+        const money = function (v) { return esc(fmtMoney(Number(v) || 0)); };
+        const pane = function (key, titleKey) {
+          const s = saved[key];
+          if (!s) return '';
+          const line = function (lab, a, b) {
+            return '<div class="row" style="cursor:default"><div style="flex:1">' + esc(t(lab)) + '</div>' +
+              '<div style="width:38%;text-align:right">' + money(a) + '</div>' +
+              '<div style="width:38%;text-align:right"><b>' + money(b) + '</b></div></div>';
+          };
+          return '<div class="section">' + esc(t(titleKey)) + ' · ' + esc(fmtDateTime(s.at)) + '</div>' +
+            '<div class="card">' +
+            '<div class="row" style="cursor:default"><div style="flex:1"></div>' +
+              '<div style="width:38%;text-align:right" class="row-sub">' + esc(t('access_then')) + '</div>' +
+              '<div style="width:38%;text-align:right" class="row-sub">' + esc(t('access_now')) + '</div></div>' +
+            line('access_collected', s.collected, live.collected) +
+            line('access_handed', s.handedOver, live.handedOver) +
+            line('access_inhand', s.inHand, live.inHand) +
+            '<div class="row" style="cursor:default"><div style="flex:1">' + esc(t('access_their_due')) + '</div>' +
+              '<div style="width:38%;text-align:right">' + money(s.dueTotal) + ' <span class="row-sub">(' +
+                esc(toBengaliDigits(String(s.dueCount))) + ')</span></div>' +
+              '<div style="width:38%;text-align:right"><b>' + money(live.dueTotal) + '</b> <span class="row-sub">(' +
+                esc(toBengaliDigits(String(live.dueCount))) + ')</span></div></div>' +
+            // The line without which the table reads like a bug: their own dues
+            // can fall while their collection stands still, because somebody
+            // else went and collected them — which is what was intended.
+            (key === 'exit' && r.since
+              ? '<div class="row-sub" style="padding:0 12px 10px">' +
+                  esc(t('access_since').replace('{o}', fmtMoney(r.since.byOthers)).replace('{h}', fmtMoney(r.since.byHim))) +
+                '</div>' : '') +
+            (s.writtenOff ? '<div class="perm-note">⚠️ ' +
+              esc(t('access_written_off').replace('{amt}', fmtMoney(s.writtenOff))) + '</div>' : '') +
+            '</div>';
+        };
+        const dues = (live.dues || []);
+        body.innerHTML = pane('exit', 'access_at_exit') + pane('block', 'access_at_block') +
+          (!saved.exit && !saved.block ? '<div class="empty">' + esc(t('access_no_picture')) + '</div>' : '') +
+          '<div class="section">' + esc(t('access_open_dues')) + '</div>' +
+          (dues.length ? '<div class="card">' + dues.map(function (d) {
+            return '<div class="row" style="cursor:default"><div style="flex:1"><b>' + esc(d.name) + '</b>' +
+              (d.phone ? '<div class="row-sub">📞 ' + esc(d.phone) + '</div>' : '') + '</div>' +
+              '<div style="text-align:right"><b>' + money(d.due) + '</b>' +
+              '<div class="row-sub">' + esc(t('access_of')).replace('{p}', fmtMoney(d.pledged)) + '</div></div></div>';
+          }).join('') + '</div>' : '<div class="empty">' + esc(t('access_no_dues')) + '</div>');
+      })
+      .catch(function (e) {
+        const body = document.getElementById('snap-body');
+        if (body) body.innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>';
+      });
+  }
   // human label for an audit action code (falls back to the raw code)
   function auditLabel(action) {
     const lang = Settings.get('lang') === 'en' ? 'en' : 'bn';
@@ -5267,8 +5403,16 @@
       const locations = items.filter(function (i) { return i.kind === 'location'; });
       const positions = items.filter(function (i) { return i.kind === 'position'; });
       const year = String(Settings.get('year'));
-      const groups = { pending: [], approved: [], blocked: [] };
-      resp.users.forEach(function (u) { (groups[u.status] || groups.blocked).push(u); });
+      // A78: four groups, not three. 'exiting' is an APPROVED person the
+      // committee has stood down — their login still works so they can hand in
+      // what they hold. Left inside `approved` they would read as an ordinary
+      // member with no permissions, which is exactly what a newly-approved
+      // person also looks like: the two states must not share a shelf.
+      const groups = { pending: [], approved: [], exiting: [], blocked: [] };
+      resp.users.forEach(function (u) {
+        if (u.status === 'approved' && u.access === 'exiting') groups.exiting.push(u);
+        else (groups[u.status] || groups.blocked).push(u);
+      });
       function userButtons(u) {
         const hasYear = u.years.split(',').indexOf(year) >= 0;
         let btns = '';
@@ -5276,22 +5420,48 @@
           btns = '<button class="chip" data-act="approve" data-id="' + u.id + '">' + esc(t('approve')) + '</button>';
         } else if (u.status === 'approved') {
           if (!hasYear) btns += '<button class="chip" data-act="year" data-id="' + u.id + '">' + esc(t('give_year_access')) + '</button>';
-          btns += '<button class="chip" data-act="cashier" data-id="' + u.id + '" data-v="' + (u.cashier ? 0 : 1) + '">' +
-                  esc(u.cashier ? t('remove_cashier') : t('make_cashier')) + '</button>' +
-                  '<button class="chip" data-act="role" data-id="' + u.id + '" data-v="' + (u.role === 'admin' ? 'user' : 'admin') + '">' +
-                  esc(u.role === 'admin' ? t('remove_admin') : t('make_admin')) + '</button>' +
-                  '<button class="chip" data-act="reset" data-id="' + u.id + '">' + esc(t('reset_pw')) + '</button>' +
+          // A78: 💰 and 👑 are hidden while somebody is standing down. Both hand
+          // back more than the access-block took — the cashier flag reaches
+          // confirmHandover, which is not a push and never sees the block — so
+          // the server refuses them; a chip the server refuses is worse than no
+          // chip. Bringing the person back is the way, and it is right below.
+          if (u.access !== 'exiting') {
+            btns += '<button class="chip" data-act="cashier" data-id="' + u.id + '" data-v="' + (u.cashier ? 0 : 1) + '">' +
+                    esc(u.cashier ? t('remove_cashier') : t('make_cashier')) + '</button>' +
+                    '<button class="chip" data-act="role" data-id="' + u.id + '" data-v="' + (u.role === 'admin' ? 'user' : 'admin') + '">' +
+                    esc(u.role === 'admin' ? t('remove_admin') : t('make_admin')) + '</button>';
+          }
+          btns += '<button class="chip" data-act="reset" data-id="' + u.id + '">' + esc(t('reset_pw')) + '</button>' +
                   '<button class="chip" data-act="release" data-id="' + u.id + '">' + esc(t('release_session')) + '</button>' +
                   (u.role === 'admin' ? '' : '<button class="chip" data-act="block" data-id="' + u.id + '">' + esc(t('block')) + '</button>');
         } else {
           btns = '<button class="chip" data-act="unblock" data-id="' + u.id + '">' + esc(t('unblock')) + '</button>';
         }
+        // A78: the committee's door, kept apart from the security one above.
+        // Standing somebody down is offered only for an ordinary approved
+        // member — an admin bypasses every gate, so the server refuses it and
+        // the button would be a lie. Coming back needs a post, so it is a
+        // screen, not a chip.
+        if (u.status === 'approved' && u.role !== 'admin') {
+          btns += u.access === 'exiting'
+            ? '<button class="chip" data-act="restore" data-id="' + u.id + '">' + esc(t('access_restore')) + '</button>'
+            : '<button class="chip" data-act="exit" data-id="' + u.id + '">' + esc(t('access_exit')) + '</button>';
+        }
+        // The account picture. Offered for anyone who has one — that is the
+        // stood-down and the blocked, and blocked is when you most want to know
+        // what they were holding.
+        if (u.access === 'exiting' || u.status === 'blocked')
+          btns += '<button class="chip" data-act="snap" data-id="' + u.id + '">' + esc(t('access_picture')) + '</button>';
         return btns;
       }
       // One line that says what this person actually has, so the list can be
       // read without opening anybody.
       function userSummary(u) {
         if (u.status !== 'approved') return '@' + u.username;
+        // A78: said in words, not left to be inferred from an empty chip row —
+        // "nothing granted yet" and "everything taken away" are the same
+        // emptiness and mean opposite things.
+        if (u.access === 'exiting') return t('access_exiting_sum');
         if (u.role === 'admin') return t('sum_admin_all');
         const ent = String(u.entries || '').split(',').filter(Boolean);
         const entTxt = !ent.length ? '⚠️ ' + t('sum_none')
@@ -5520,6 +5690,7 @@
             esc([u.name, u.username, u.phone].filter(Boolean).join(' ')) + '" style="width:100%;text-align:left">' +
             '<div style="flex:1"><b>' + esc(u.name) + '</b>' +
             (u.role === 'admin' ? ' 👑' : '') + (u.cashier ? ' 💰' : '') +
+            (u.access === 'exiting' ? ' 🚪' : '') +
             '<div class="row-sub">' + esc(userSummary(u)) + '</div>' +
             '<div class="row-sub">' + esc(verLine(u)) + '</div>' +
             '</div><span class="adm-caret">›</span></button>';
@@ -5533,6 +5704,7 @@
           '<div id="adm-fu-none" class="empty" style="display:none">' + esc(t('adm_filter_none')) + '</div>' +
           grp('pending_users', groups.pending) +
           grp('approved_users', groups.approved) +
+          grp('exiting_users', groups.exiting) +
           grp('blocked_users', groups.blocked);
       } else if (admSection === 'users') {
         const u = resp.users.filter(function (x) { return x.id === admUserId; })[0];
@@ -5552,7 +5724,13 @@
             '<div class="row-sub">@' + esc(u.username) + (u.phone ? ' • 📞 ' + esc(u.phone) : '') +
             ' • ' + esc(u.years || '—') + '</div>' +
             '<div class="row-sub">' + esc(verLine(u)) + '</div></div>' +
-          (u.status === 'approved'
+          // A78: a stood-down member gets the explanation instead of the chips.
+          // Leaving the chips would invite the admin to tick one, save it, and
+          // watch the server refuse every entry anyway — the permission is
+          // real, the access-block sits above it.
+          (u.access === 'exiting'
+            ? '<div class="perm-note">🚪 ' + esc(t('access_exit_note')) + '</div>'
+            : u.status === 'approved'
             ? postSelect(u) + entriesChips(u) + reportChips(u) + areaChips(u) + effLine(u) +
               '<button id="adm-save" class="primary big block">💾 ' + esc(t('save')) + '</button>' +
               '<div id="adm-dirty" class="hint" style="text-align:center"></div>'
@@ -5900,8 +6078,15 @@
           else if (b.dataset.act === 'year') adminAction('approveYear', { userId: id, year: Settings.get('year') });
           else if (b.dataset.act === 'cashier') adminAction('setCashier', { userId: id, cashier: Number(b.dataset.v) });
           else if (b.dataset.act === 'role') adminAction('setRole', { userId: id, role: b.dataset.v });
-          else if (b.dataset.act === 'block') adminAction('setStatus', { userId: id, status: 'blocked' });
+          // A78: the security door now refuses while the person still holds
+          // cash, and says how much. That refusal is not an error to shrug at —
+          // it is the decision the committee has to make, so it is put to the
+          // admin in the amount's own words, and the answer is recorded.
+          else if (b.dataset.act === 'block') blockUser(id);
           else if (b.dataset.act === 'unblock') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') });
+          else if (b.dataset.act === 'exit') exitUser(resp.users.filter(function (x) { return x.id === id; })[0]);
+          else if (b.dataset.act === 'restore') restoreUser(resp.users.filter(function (x) { return x.id === id; })[0], positions);
+          else if (b.dataset.act === 'snap') showSnapshot(resp.users.filter(function (x) { return x.id === id; })[0]);
           else if (b.dataset.act === 'reset') adminAction('resetPassword', { userId: id }, function (r) {
             alert(t('temp_pw_is') + ':\n\n' + r.tempPassword);
           });
@@ -6038,6 +6223,7 @@
     else if (current.view === 'findparty') renderFindParty();
     else if (current.view === 'review') renderReviewCorrections();
     else if (current.view === 'audit') { Auth.isAdmin() ? renderAuditLog() : renderHome(); }
+    else if (current.view === 'usersnap') { Auth.isAdmin() ? renderUserSnapshot(current.params) : renderHome(); }
     else if (current.view === 'receiptcfg') { Auth.isAdmin() ? renderReceiptConfig() : renderHome(); }
     else if (current.view === 'receipt') renderReceiptShare(current.params);
     else if (current.view === 'help') renderHelp();

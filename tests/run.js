@@ -723,6 +723,56 @@ eq(homeTiles({ role: 'user', cashier: 0, entries: 'memberadmin' }).role, ['membe
    'A29: the register is its own grant, and carries nothing else with it');
 eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real permission key');
 
+// ---- A78: what a stood-down member's own phone shows -------------------------
+// Their permission lists are empty, which is also what a brand-new approved
+// person looks like — so without its own branch this lands on "ask the admin
+// for permissions", sending them to argue about a decision the committee has
+// already taken, and dropping 💳 with it so they cannot collect the dues the
+// server WILL accept from them.
+{
+  const ex = homeTiles({ role: 'user', cashier: 0, entries: '', access: 'exiting' });
+  eq(ex.exiting, true, 'A78: a stood-down member is its own home state, not "nothing granted yet"');
+  eq(ex.common.indexOf('payments') >= 0, true,
+     'A78: …and keeps 💳, because the server accepts their own donors’ dues — a tile missing here is money that cannot be collected');
+  eq(ex.common.indexOf('handover') >= 0 && ex.common.indexOf('hbook') >= 0, true,
+     'A78: …and keeps 🤝, which is the whole reason the login stays open');
+  eq(ex.entry.length === 0 && ex.daily.length === 0 && ex.role.length === 0, true,
+     'A78: …and gets no entry, daily or role tile — a tile the server will refuse is worse than no tile');
+  const fresh = homeTiles({ role: 'user', cashier: 0, entries: '' });
+  eq(fresh.exiting === false && fresh.common.indexOf('payments') >= 0, false,
+     'A78: a newly-approved person with nothing granted is NOT the same state — they get the "ask the admin" card');
+}
+// …and every tile a plan can name must be DRAWABLE. drawTile falls back to the
+// raw key when ICON has no entry, silently — the stood-down home first shipped
+// showing the word "payments" where 💰 চাঁদা নেওয়া belongs, because 'payments'
+// has a wide tile of its own and is not in ICON. A fallback that renders
+// something wrong is worse than one that renders nothing.
+{
+  const appSrc = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const icons = (appSrc.slice(appSrc.indexOf('const ICON = {'), appSrc.indexOf('// 🔴 A dot means'))
+    .match(/(\w+):\s*\['/g) || []).map(function (s) { return s.split(':')[0]; });
+  const plans = [
+    homeTiles({ role: 'admin', cashier: 1, entries: 'shop' }),
+    homeTiles({ role: 'user', cashier: 1, entries: 'shop,person,member,bus,road,toto,review,memberadmin' }),
+    homeTiles({ role: 'user', cashier: 0, entries: '', access: 'exiting' }),
+    homeTiles({ role: 'user', cashier: 0, entries: '' }, { holding: true }),
+    homeTiles({ role: 'user', cashier: 0, entries: 'shop' }, { staleVersion: true, holding: true }),
+  ];
+  const named = {};
+  plans.forEach(function (p) {
+    ['entry', 'daily', 'common', 'role'].forEach(function (g) { (p[g] || []).forEach(function (k) { named[k] = 1; }); });
+  });
+  // 'payments' is the one deliberate exception: it is drawn by paymentTile, wide.
+  const undrawable = Object.keys(named).filter(function (k) { return k !== 'payments' && icons.indexOf(k) < 0; });
+  eq(undrawable.join(','), '', 'A78: every tile homeTiles can name has an ICON entry — no plan can render a bare key');
+  // Scoped to the card itself: `paymentTile +` also appears in the ordinary
+  // home render, so an unscoped search stays green while this branch is broken.
+  const card = appSrc.slice(appSrc.indexOf('if (!plan.setUp || plan.exiting) {'),
+                            appSrc.indexOf('function exitingCard()'));
+  eq(card.indexOf('paymentTile +') >= 0 && card.indexOf('plan.common.map(') < 0, true,
+     'A78: …and the no-grant/stood-down card draws 💰 through paymentTile, not a raw map over common');
+}
+
 // ---- what the chat is costing ------------------------------------------------
 // Chat adds no requests (it rides the 60s pull), so what grows is the payload
 // and the localStorage snapshot every phone keeps. `perDay` is watched too,
@@ -2262,9 +2312,15 @@ try {
   eq(/staleVersion: Auth\.schemaCmp\(\) === -1/.test(app)
      && /holding: \(avail\.cash \+ avail\.upi\) > 0/.test(app), true,
      'A36: the home screen tells homeTiles both facts');
-  // two different walls need two different cards, or the fix sends you the wrong way
-  eq(/plan\.blocked \? staleVersionCard\(\) : noGrantCard\(\)/.test(app), true,
-     'A36: "update your app" and "ask the admin" are different cards');
+  // Different walls need different cards, or the fix sends you the wrong way.
+  // A78 added a third (stood down), and this assertion pinned the exact TEXT of
+  // a two-way ternary — so a correct third card failed it. Pin the property:
+  // every wall has its own card, and each is reachable from that one branch.
+  ['staleVersionCard()', 'exitingCard()', 'noGrantCard()'].forEach(function (c) {
+    eq(app.indexOf('plan.blocked ? staleVersionCard() : plan.exiting ? exitingCard() : noGrantCard()') >= 0
+       && app.indexOf('function ' + c.replace('()', '(')) >= 0, true,
+       'A36/A78: ' + c + ' is a card of its own, chosen by its own branch');
+  });
   eq(/vf\.onclick = function \(\) \{ runUpdate\(vf\); \}/.test(app), true,
      'A36: …and the blocked card carries the fix, like the bar does');
   ['ver_blocked_title', 'ver_blocked_body'].forEach(function (k) {
@@ -2772,6 +2828,29 @@ try {
     eq(/function liveParties\(data\)/.test(appSrc), true, 'A60: …and that filter exists once');
     eq(typeof require('../js/aggregate.js').voidedIds, 'function',
        'A60: …built on the exported voidedIds, so screens and money cannot disagree');
+    // A78: and because it is the one choke point, the stood-down member's
+    // narrowed book belongs HERE and nowhere else. The server accepts a payment
+    // from them only against a donor they brought in; a ledger still showing
+    // everyone else's shops is a screenful of rows that reject the payment
+    // after it has been typed — the exact failure this project keeps repeating.
+    {
+      const lp = appSrc.slice(appSrc.indexOf('function liveParties(data)'),
+                              appSrc.indexOf('function canEditParty'));
+      eq(/=== 'exiting'/.test(lp) && /p\.collectorId === myId/.test(lp), true,
+         'A78: liveParties narrows a stood-down member to their OWN donors, at the single point all eleven listings read');
+    }
+    // A78: 💰 and 👑 are the two chips that hand back MORE than the block took,
+    // and they sat on the same screen as the block itself. The server refuses
+    // them now; the chips must not be drawn either, or the admin taps one and
+    // gets an error where they expected an action.
+    {
+      const ub = appSrc.slice(appSrc.indexOf('function userButtons(u)'),
+                              appSrc.indexOf('function userSummary(u)'));
+      eq(/if \(u\.access !== 'exiting'\) \{[\s\S]*make_cashier[\s\S]*make_admin[\s\S]*\}/.test(ub), true,
+         'A78: the cashier and admin chips are withheld from a stood-down member');
+      eq(/data-act="reset"/.test(ub) && ub.indexOf('data-act="reset"') > ub.indexOf("u.access !== 'exiting'"), true,
+         'A78: …and only those two — password reset and session release still work, because a stood-down member still logs in');
+    }
 
     // A27's rule applies to this form too: no flow question text, because the
     // flow questions promise a Skip button this screen does not have.

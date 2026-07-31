@@ -840,7 +840,7 @@
   // COLLECTING, which is exactly what they may no longer do.
   function homeTiles(user, opts) {
     opts = opts || {};
-    const out = { entry: [], daily: [], common: [], role: [], setUp: false, blocked: false };
+    const out = { entry: [], daily: [], common: [], role: [], setUp: false, blocked: false, exiting: false };
     if (!user) return out;
     const granted = function (k) { return permAllowed(user, k); };
     // Behind the server: no new entries by anybody, admin included — a stale
@@ -849,6 +849,17 @@
     if (opts.staleVersion) {
       out.blocked = true;
       if (opts.holding) out.common = ['handover', 'hbook'];
+      return out;
+    }
+    // A78: the committee stood this person down. Their permission lists are
+    // empty, so without this they would fall into the branch below and be shown
+    // "ask the admin for permissions" — sending them to argue with the admin
+    // about a decision the committee already took. What they may still do is
+    // exactly two things, and both of them are here: hand in what they hold,
+    // and take the balance of the donors they brought in.
+    if (String(user.access || '') === 'exiting') {
+      out.exiting = true;
+      out.common = ['payments', 'handover', 'hbook'];
       return out;
     }
     out.setUp = user.role === 'admin' ||

@@ -525,6 +525,150 @@ module.exports = function runBackendTests(eq) {
        'backend 2.4: …and data_ts moves, or every phone answers idle:true and the rows stay invisible for ever');
   }
 
+  // ---- A78: the committee's access door -----------------------------------
+  //
+  // The whole feature exists because taking permissions away does NOT stop
+  // somebody. Every case below is a thing that was possible before it.
+  {
+    const { b, tok } = book();
+    const uid = function (n) { return b.rows('Users').filter(function (x) { return x.username === n; })[0].id; };
+    // A post that grants something, held by the person we stand down — this is
+    // the trap: setEntries([]) empties the PERSONAL list, effPerms_ unions it
+    // with the POST's, and the post hands everything straight back.
+    b.call('listItems', { token: tok.admin, kind: 'position' });
+    const post = b.rows('Lists').filter(function (r) { return r.kind === 'position'; })[0];
+    b.call('setPositionRules', { token: tok.admin, id: post.id, perms: ['shop', 'road'], maxCount: 20 });
+    b.call('setUserPosition', { token: tok.admin, userId: uid('ratan'), position: post.id });
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 's1', year: 2026, type: 'shop', name: 'দোকান ১', pledged: 8000 }),
+      rec('parties', { id: 's2', year: 2026, type: 'shop', name: 'দোকান ২', pledged: 6000 }),
+      rec('payments', { id: 'p1', year: 2026, partyId: 's1', amount: 5000, cashAmount: 5000, upiAmount: 0, date: '2026-09-01' }),
+      rec('payments', { id: 'p2', year: 2026, partyId: 's2', amount: 2000, cashAmount: 2000, upiAmount: 0, date: '2026-09-01' }),
+    ] });
+    b.call('push', { token: tok.kali, epoch: '', records: [
+      rec('parties', { id: 'k1', year: 2026, type: 'shop', name: 'কালীর দোকান', pledged: 5000 }),
+    ] });
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('handovers', { id: 'h1', year: 2026, from: 'RATAN', fromId: 'ratan', to: 'BIMAL', toId: 'bimal',
+                         amount: 3000, cashAmount: 3000, upiAmount: 0, date: '2026-09-02', breakdown: '{}', status: 'pending' }),
+    ] });
+    b.call('confirmHandover', { token: tok.bimal, id: 'h1' });
+
+    const out = b.call('setAccess', { token: tok.admin, userId: uid('ratan'), access: 'exiting', year: 2026 });
+    eq(out.user.position === '' && out.user.entries === '' && out.user.reports === '' && out.user.cashier === 0, true,
+       'backend A78: standing down takes the POST and both permission lists in ONE call — leave the post and effPerms_ hands it all back');
+    eq(out.user.access, 'exiting', 'backend A78: …and the state is RECORDED, so it cannot be confused with "nothing granted yet"');
+
+    // What they may still do — an allow-list, asserted item by item, because
+    // every one of these falls through permForRow_ with a null key and would
+    // otherwise be granted to everybody.
+    const can = function (store, row) {
+      b.api.resetRequestState();
+      return b.call('push', { token: tok.ratan, epoch: '', records: [rec(store, row)] }).rejectedIds.length === 0;
+    };
+    eq(can('parties', { id: 'x1', year: 2026, type: 'shop', name: 'নতুন', pledged: 100 }), false,
+       'backend A78: a stood-down member cannot open a new donor');
+    eq(can('daily', { id: 'x2', year: 2026, type: 'road', amount: 200, cashAmount: 200, upiAmount: 0, date: '2026-09-03' }), false,
+       'backend A78: …nor run a daily round');
+    eq(can('voids', { id: 'x5', year: 2026, targetStore: 'payments', targetId: 'p1', reason: 'zz' }), false,
+       'backend A78: …nor VOID a payment they took — the row would leave the book, their in-hand would fall by the same amount, and the cash would simply be gone');
+    eq(can('messages', { id: 'x6', year: 2026, text: 'hi' }), false, 'backend A78: …nor post in the committee chat');
+    eq(can('corrections', { id: 'x7', year: 2026, targetStore: 'payments', targetId: 'p1', reason: 'zz' }), false,
+       'backend A78: …nor file a correction flag');
+    eq(can('payments', { id: 'x4', year: 2026, partyId: 'k1', amount: 1000, cashAmount: 1000, upiAmount: 0, date: '2026-09-03' }), false,
+       'backend A78: …nor collect against SOMEBODY ELSE’s donor — nothing else in the file keys a payment to an owner');
+    eq(can('payments', { id: 'x3', year: 2026, partyId: 's1', amount: 1000, cashAmount: 1000, upiAmount: 0, date: '2026-09-03' }), true,
+       'backend A78: they CAN collect the balance of a donor they brought in');
+    eq(can('handovers', { id: 'x8', year: 2026, from: 'RATAN', fromId: 'ratan', to: 'BIMAL', toId: 'bimal',
+                          amount: 5000, cashAmount: 5000, upiAmount: 0, date: '2026-09-03', breakdown: '{}', status: 'pending' }), true,
+       'backend A78: …and they CAN hand in what they hold — a person who cannot log in cannot give the money back');
+  }
+  // The guards, each standing over a way somebody got stranded.
+  {
+    const { b, tok } = book();
+    const uid = function (n) { return b.rows('Users').filter(function (x) { return x.username === n; })[0].id; };
+    const refuses = function (f) { try { f(); return ''; } catch (e) { return e.message; } };
+    eq(refuses(function () { b.call('setAccess', { token: tok.admin, userId: uid('hrishi'), access: 'exiting', year: 2026 }); }),
+       'cant-exit-self', 'backend A78: the admin cannot stand HIMSELF down');
+    eq(refuses(function () { b.call('setStatus', { token: tok.admin, userId: uid('hrishi'), status: 'blocked', year: 2026 }); }),
+       'cant-block-self', 'backend A78: …nor block himself — setRole has refused self-demotion since the beginning, this door had no such guard and blocking clears the token, so one tap locked everyone out with no way back but editing the sheet by hand');
+    b.call('setRole', { token: tok.admin, userId: uid('kali'), role: 'admin' });
+    eq(refuses(function () { b.call('setAccess', { token: tok.admin, userId: uid('kali'), access: 'exiting', year: 2026 }); }),
+       'demote-first', 'backend A78: an admin cannot be stood down — they bypass every gate, so it would change nothing while looking like it had');
+    eq(refuses(function () { b.call('setAccess', { token: tok.admin, userId: uid('ratan'), access: '', year: 2026 }); }),
+       'position-required', 'backend A78: bringing somebody back needs a post, or they look identical to somebody just stood down');
+  }
+  // Holding money is the reason the last door stays shut.
+  {
+    const { b, tok } = book();
+    const uid = function (n) { return b.rows('Users').filter(function (x) { return x.username === n; })[0].id; };
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 's1', year: 2026, type: 'shop', name: 'দোকান', pledged: 8000 }),
+      rec('payments', { id: 'p1', year: 2026, partyId: 's1', amount: 5000, cashAmount: 5000, upiAmount: 0, date: '2026-09-01' }),
+    ] });
+    let msg = '';
+    try { b.call('setStatus', { token: tok.admin, userId: uid('ratan'), status: 'blocked', year: 2026 }); }
+    catch (e) { msg = e.message; }
+    eq(msg, 'holds-money:5000',
+       'backend A78: blocking is refused while they hold cash, and says HOW MUCH — the admin needs the figure to decide whether to chase it or write it off');
+    const forced = b.call('setStatus', { token: tok.admin, userId: uid('ratan'), status: 'blocked', year: 2026, override: 1 });
+    eq(forced.user.status, 'blocked', 'backend A78: …the committee can still close it');
+    const snap = b.call('userSnapshot', { token: tok.admin, userId: uid('ratan'), year: 2026 });
+    eq(snap.saved.block.writtenOff, 5000,
+       'backend A78: …and the amount is written into the record, never silently zeroed, or the book stops adding up');
+  }
+  // The way back in that nobody would have thought to close. Every gate in
+  // push honours the access-block — but confirmHandover is not a push, it asks
+  // isCashier_ directly, and an admin bypasses the lot. So the two chips that
+  // sat beside the block on the same screen could quietly undo it.
+  {
+    const { b, tok } = book();
+    const uid = function (n) { return b.rows('Users').filter(function (x) { return x.username === n; })[0].id; };
+    const refuses = function (f) { try { f(); return ''; } catch (e) { return e.message; } };
+    b.call('setAccess', { token: tok.admin, userId: uid('ratan'), access: 'exiting', year: 2026 });
+    eq(refuses(function () { b.call('setCashier', { token: tok.admin, userId: uid('ratan'), cashier: 1 }); }),
+       'is-exiting', 'backend A78: a stood-down member cannot be handed the cashier flag — it reaches confirmHandover, which never sees the block');
+    eq(refuses(function () { b.call('setRole', { token: tok.admin, userId: uid('ratan'), role: 'admin' }); }),
+       'is-exiting', 'backend A78: …nor promoted to admin, which bypasses every gate in the file');
+    // …and the way back is the way back: bring them in, then decide.
+    b.call('listItems', { token: tok.admin, kind: 'position' });
+    const post = b.rows('Lists').filter(function (r) { return r.kind === 'position'; })[0];
+    b.call('setAccess', { token: tok.admin, userId: uid('ratan'), access: '', position: post.id, year: 2026 });
+    eq(b.call('setCashier', { token: tok.admin, userId: uid('ratan'), cashier: 1 }).user.cashier, 1,
+       'backend A78: …once brought back, the ordinary buttons work again');
+  }
+  // The saved picture, and the line that stops it reading like a bug.
+  {
+    const { b, tok } = book();
+    const uid = function (n) { return b.rows('Users').filter(function (x) { return x.username === n; })[0].id; };
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 's1', year: 2026, type: 'shop', name: 'দোকান ১', pledged: 8000 }),
+      rec('parties', { id: 's2', year: 2026, type: 'shop', name: 'দোকান ২', pledged: 6000 }),
+      rec('payments', { id: 'p1', year: 2026, partyId: 's1', amount: 5000, cashAmount: 5000, upiAmount: 0, date: '2026-09-01' }),
+      rec('payments', { id: 'p2', year: 2026, partyId: 's2', amount: 2000, cashAmount: 2000, upiAmount: 0, date: '2026-09-01' }),
+    ] });
+    b.call('setAccess', { token: tok.admin, userId: uid('ratan'), access: 'exiting', year: 2026 });
+    const s0 = b.call('userSnapshot', { token: tok.admin, userId: uid('ratan'), year: 2026 });
+    eq(s0.saved.exit.inHand === 7000 && s0.saved.exit.dueTotal === 7000 && s0.saved.exit.dueCount === 2, true,
+       'backend A78: the exit picture records what they held AND what their donors still owe');
+    eq(s0.saved.exit.dues.map(function (d) { return d.name; }).join(','), 'দোকান ২,দোকান ১',
+       'backend A78: …donor by donor, biggest first — "₹7000 outstanding" is not something anybody can go and collect on');
+    // Somebody else collects part of it; the stood-down member collects the rest.
+    b.api.resetRequestState();
+    b.call('push', { token: tok.kali, epoch: '', records: [
+      rec('payments', { id: 'p3', year: 2026, partyId: 's2', amount: 4000, cashAmount: 4000, upiAmount: 0, date: '2026-09-05' }),
+    ] });
+    b.api.resetRequestState();
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('payments', { id: 'p4', year: 2026, partyId: 's1', amount: 1000, cashAmount: 1000, upiAmount: 0, date: '2026-09-05' }),
+    ] });
+    const s1 = b.call('userSnapshot', { token: tok.admin, userId: uid('ratan'), year: 2026 });
+    eq(s1.saved.exit.dueTotal, 7000, 'backend A78: the saved figures do NOT move — a record that changes is not a record');
+    eq(s1.live.dueTotal, 2000, 'backend A78: …while today’s figures do');
+    eq(s1.since.byOthers === 4000 && s1.since.byHim === 1000, true,
+       'backend A78: …and the split says WHO collected the difference, computed by subtracting the saved per-donor figures — never by comparing timestamps, which cannot order two rows written in the same second');
+  }
+
   // ---- the version/schema handshake every client depends on ---------------
   {
     const { b, tok } = book();

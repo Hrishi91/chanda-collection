@@ -583,6 +583,40 @@ page (better for a board, worse to share)? Probably both, same data.
   2026-07-31: the Google account is his; handover will be handled later as
   configuration. Recorded in `PROJECT_CONTEXT.md`. Closed.
 
+- **"there is no delete option or block option of the user"** — DONE in
+  v4.21.0 (A78), as a **two-door** design Hrishi specified himself:
+
+  > "block / log in will be available till amount submit / if pending amout
+  > collection is pending other user can collect / after that we can do final
+  > block / this is access block decided by commitee / other one is security"
+
+  **বিদায়ী (access block)** — the committee's door. Post, personal entries,
+  reports and the cashier flag all go in ONE call; the login stays open, and
+  the person may do exactly two things: hand in what they hold, and collect
+  the balance of donors they brought in. **বন্ধ (security block)** — unchanged,
+  the answer to a lost or stolen phone, and now refused while they still hold
+  cash unless the committee writes the amount off on the record.
+
+  Deletion is deliberately still absent, and stays absent: a collector who has
+  touched money cannot be removed without the book losing a row it needs
+  (`partyHasMoney_` already says the same thing about donors). Standing them
+  down is the operation people actually want when they say "delete".
+
+  What the investigation found on the way — each one is now a test:
+
+  | | was possible | now |
+  |---|---|---|
+  | permissions | taking every personal permission left the POST's set intact, and 🧹 does not touch posts either | one call moves post + extras + cashier together |
+  | payments | a permission-less user could still collect from **anybody's** donor | own donors only |
+  | voids | they could void a payment they had taken — the row leaves the book, their in-hand falls by the same amount, reconcile stays silent, and the cash is simply gone | refused |
+  | cashier / admin | either chip could be handed back on the same screen as the block, undoing it — `confirmHandover` is not a push and never sees the block | refused, both ends |
+  | self-block | the sole admin could shut himself out with one tap; recovery only by hand-editing the sheet | `cant-block-self`, mirroring `cant-demote-self` |
+  | stranded cash | blocking took the login away from somebody still holding money | refused with the figure; override records it as unrecovered |
+
+  Still open, and not part of this: **🧹 clear-all-grants does not clear
+  posts.** Before go-live the সদস্য post's own permissions must be reduced
+  first, or 🧹 will report success and take nothing from anybody holding it.
+
 ### Three decisions that are Hrishi's, not mine
 
 The screen cannot be built without these — "is the money where it should be"
