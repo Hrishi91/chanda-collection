@@ -7530,3 +7530,42 @@ up → restore → donors, money and accounts all return), and the deployed
 `codeVersion` proves that source is what is running.
 
 Offered to him as a one-line decision rather than assumed either way.
+
+## A73/V1 proven on the live server (2026-07-29)
+
+Hrishi said run it, so the restore was run for real against the live book — the
+one verification that could not be faked, because `restoreBackup` validates only
+after taking the safety backup and the lock.
+
+```
+restoring from: chanda-backup-2026-07-31_1258.json
+
+RESULT: ok
+  restored     : Parties:6  Payments:5  DailyCollections:2  Expenses:0
+                 Handovers:4  Voids:17  Messages:0  Corrections:0
+                 Users:12  ExpenseSubjects:18  Lists:25  Config:11
+  safety backup: chanda-backup-2026-07-31_1303.json
+```
+
+Every transactional sheet came back at **exactly** its pre-restore count, checked
+against a snapshot taken beforehand. And the three keys the broken whitelist
+could never reach are there: `ExpenseSubjects:18`, `Lists:25`, `Config:11`.
+`ExpenseSubjects` is the one that threw `unknown-sheet` and made `goLive`
+undoable until this release — eighteen rows of the committee's real expense
+subjects, which would have been unrecoverable.
+
+**A58's consequence observed rather than asserted.** All three role tokens went
+dead the instant the restore landed:
+
+```
+ADMIN     -> bad-token
+CASHIER   -> bad-token
+COLLECTOR -> bad-token
+```
+
+That is the design working: backups carry blanked tokens, so restoring one logs
+everybody out. It also means the three session tokens shared in chat are now
+invalid — the revocation step became free.
+
+`goLive` has an undo again, and it has been exercised end to end on the real
+deployment rather than only in the shim.
