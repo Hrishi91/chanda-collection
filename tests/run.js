@@ -3450,6 +3450,36 @@ try {
      'A73/V12: …and 44 px is a floor, not a font-metrics coincidence');
 }
 
+
+// ---- A74 (audit #4 D1): logging out must leave nothing behind -----------------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const guide = fs.readFileSync(__dirname + '/../docs/user-guide/collector-guide.md', 'utf8');
+
+  // Measured before the fix, on a seeded season: 260 donor phone numbers were
+  // reachable on the handset before logging out and 60 after. The snapshot went
+  // (the button already cleared it — audit #4 read Auth.logout() alone and
+  // missed the wrapper); IndexedDB did not. Those 60 are the donors this
+  // collector personally called on: name, owner, phone, what they gave.
+  const btn = app.slice(app.indexOf("document.getElementById('logout-btn')"),
+                        app.indexOf("document.querySelectorAll('[data-l]')"));
+  eq(/DB\.clearAll\(\)/.test(btn), true, 'A74: logging out clears this device’s own rows too');
+  eq(/\['ck_central', 'ck_central_cursor', 'ck_central_year'\]/.test(btn), true,
+     'A74: …as well as the central snapshot');
+  // and the ordering that makes it safe rather than dangerous
+  eq(btn.indexOf("if (n > 0)") < btn.indexOf('DB.clearAll()'), true,
+     'A74: …INSIDE the unsynced guard, so it can never destroy money that has not reached the server');
+  eq(/DB\.unsyncedCount\(\)\.then/.test(btn), true, 'A74: …which is asked first, every time');
+
+  // the written rule is the half that actually covers the common case — nobody
+  // logs out before handing a phone to a repair shop, so it has to be taught
+  eq(/ফোনটা কারও হাতে দেওয়ার আগে/.test(guide), true,
+     'A74: the collector guide says what to do before handing the phone over');
+  eq(/লগ আউট/.test(guide) && /মুছে ফেলো/.test(guide), true, 'A74: …both steps, in order');
+  eq(/হারালে|চুরি/.test(guide), true, 'A74: …and what to do if it is lost');
+}
+
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------
 {
   const fs = require('fs');

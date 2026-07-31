@@ -4334,7 +4334,27 @@
         // drop the central snapshot so the next login starts with a clean full pull
         setCentral(null); centralCursor = ''; centralYear = '';
         ['ck_central', 'ck_central_cursor', 'ck_central_year'].forEach(function (k) { try { localStorage.removeItem(k); } catch (e) {} });
-        Auth.logout(); authView = 'login'; navigate('home');
+        // A74 (audit #4 D1): and this device's OWN rows, which stayed behind.
+        //
+        // Measured on a seeded season: 260 donor phone numbers were reachable
+        // on the handset before logging out and 60 after — the snapshot went,
+        // IndexedDB did not. Those 60 are the donors this collector personally
+        // called on: name, owner, phone, what they gave.
+        //
+        // The case this is really about is not theft. It is a ₹7,000 Android
+        // handed to a roadside repair shop, unlocked, for two days — nobody
+        // thinks of that as a data event, and nobody logs out first either,
+        // which is why the written rule in the collector guide matters more
+        // than this code does.
+        //
+        // Safe because it is INSIDE the unsynced guard above: the app already
+        // refuses to log out while anything is queued, so this can never
+        // destroy money that has not reached the server. That ordering is the
+        // whole reason this is a three-line change and not a dangerous one.
+        DB.clearAll().catch(function () {}).then(function () {
+          Auth.logout(); authView = 'login'; navigate('home');
+        });
+        return;
       });
     };
     document.querySelectorAll('[data-l]').forEach(function (b) {

@@ -7569,3 +7569,65 @@ invalid — the revocation step became free.
 
 `goLive` has an undo again, and it has been exercised end to end on the real
 deployment rather than only in the shim.
+
+## v4.19.1 — A74 (audit #4 D1): logging out left a quarter of the donor list behind (2026-07-29)
+
+Audit #4 covers what none of the earlier passes touched: **what personal data
+this system holds, and where it ends up.** Its D0 states the fact plainly, and
+the sentence is true and appears in no document of ours:
+
+> ten personal handsets — none of them owned or controlled by the committee —
+> each carry the full donor list, with phone numbers.
+
+### The finding, corrected
+
+D1 says logout leaves *"the entire year's donor list"* on the phone. **That is
+half right, and the correction matters.** The audit read `Auth.logout()` in
+`js/auth.js`, which does clear only two keys — but the only route to it, the
+settings button, already wipes `ck_central`. What it did **not** do was
+`DB.clearAll()`.
+
+Measured in a browser on a seeded season rather than argued:
+
+| | before logout | after |
+|---|---|---|
+| `ck_central` (everyone's donors) | 56,379 chars | **gone** |
+| IndexedDB (this phone's own rows) | 60 | **60 — stayed** |
+| **donor phone numbers readable on the handset** | **260** | **60** |
+
+Three quarters went. The quarter that stayed is the one this collector
+personally called on — name, owner, phone, what they gave — and it stayed with
+no password in front of it.
+
+After the fix: **260 → 0.**
+
+### Why it is a three-line change and not a dangerous one
+
+`DB.clearAll()` sits **inside** the unsynced guard that was already there. The
+app refuses to log out while anything is queued, so this can never destroy money
+that has not reached the server. Verified by trying: with one unsynced ₹2,500
+payment, the logout **did not happen**, the row is still on the phone, and it
+said *"⏳ ১টা এন্ট্রি এখনো পাঠানো হয়নি — ফোনেই নিরাপদে আছে"*.
+
+### The half that matters more is written, not coded
+
+The case this is really about is not theft. It is **a ₹7,000 Android handed to a
+roadside repair shop, unlocked, for two days.** Nobody thinks of that as a data
+event, and nobody logs out first — so the code fix does not reach it. A rule in
+`collector-guide.md` does:
+
+> **ফোনটা কারও হাতে দেওয়ার আগে** — ⚙️ সেটিংস → লগ আউট → তারপর অ্যাপটা মুছে
+> ফেলো। ফোন হারালে বা চুরি গেলে সঙ্গে সঙ্গে admin-কে বলো।
+
+With the warning attached: if it says entries are still unsent, **sync first** —
+the app will refuse, deliberately, so the money is not lost.
+
+It also corrects something the docs had wrong. `PROJECT_CONTEXT.md` calls
+🔓 release-session and blocking *"the answer to a lost or stolen phone"*. They
+are the answer to a lost or stolen **session**. They stop that device syncing;
+they do nothing about what is already on it. Now both are said, separately.
+
+Tests **1,279 → 1,286**, covering both halves — the clear, the guard ordering
+that makes it safe, and the guide actually containing the rule.
+
+Client-only — **no redeploy needed.**

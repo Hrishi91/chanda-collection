@@ -129,9 +129,15 @@ Bengali and an English label. Collectors are assigned areas via `Users.areas`.
   else overwrites it, so one account = one device. Nothing else ends a session.
   A time limit was considered and rejected: it would expire exactly when someone
   is at a shop with no signal, which is the worst possible moment in an
-  offline-first app. The answer to a lost or stolen phone is 🔓 **সেশন ছাড়ো**
-  (`releaseSession`) or 🚫 **Block** — Hrishi's call, and he considers it
-  sufficient. Two follow-ups were offered and declined: a "release every
+  offline-first app. The answer to a lost or stolen **session** is 🔓 **সেশন
+  ছাড়ো** (`releaseSession`) or 🚫 **Block** — Hrishi's call, and he considers it
+  sufficient. **Corrected 2026-07-29 (audit #4 D1):** this used to say "a lost
+  or stolen phone", and those are different things. Both buttons clear the
+  token, which stops that handset SYNCING. Neither touches the donor list
+  already on it. The data question is answered by logging out (A74 now clears
+  IndexedDB as well as the snapshot — measured 260 readable phone numbers down
+  to 0) and, for the case no code reaches — a phone handed to a repair shop —
+  by the written rule in `collector-guide.md`. Two follow-ups were offered and declined: a "release every
   session" button, and queueing an offline logout so it reaches the server.
   Consequence to keep in mind: a logout made while offline clears the phone but
   leaves the sheet's token valid until the next login overwrites it.
