@@ -3480,6 +3480,51 @@ try {
   eq(/হারালে|চুরি/.test(guide), true, 'A74: …and what to do if it is lost');
 }
 
+
+// ---- A75 (audit #3 F1): the year boundary -----------------------------------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const A = require('../js/aggregate.js');
+
+  // On 1 January every phone's year flips — it comes from the system clock,
+  // because the year field is admin-only and a collector's ck_year is never
+  // written. pullCentral discards the snapshot and pulls an EMPTY 2027 book,
+  // while IndexedDB still holds every 2026 row. No 2026 id matches any 2027 id,
+  // so A49's guard never fires. Reproduced before the fix: the collector is
+  // shown last season's ₹5,000 as cash still in hand and a settled handover as
+  // still awaiting confirmation. A different wrong number on every handset, at
+  // the moment a new season's book is asking to be trusted.
+  const own = { collector: 'রতন', collectorId: 'ratan', collectorRole: 'collector' };
+  const lastSeason = {
+    parties: [Object.assign({ id: 's1', year: 2026, type: 'shop', name: 'মা তারা', pledged: 5000 }, own)],
+    payments: [Object.assign({ id: 'p1', year: 2026, partyId: 's1', amount: 5000, cashAmount: 5000, upiAmount: 0 }, own)],
+    daily: [], expenses: [], handovers: [], voids: [], messages: [], corrections: [],
+  };
+  eq(A.activeData(lastSeason, 2026).payments.length, 1, 'A75: this season counts');
+  eq(A.activeData(lastSeason, 2027).payments.length, 0, 'A75: last season stops counting in the new book');
+  eq(A.activeData(lastSeason).payments.length, 1,
+     'A75: …and with no year given nothing changes, so every existing caller is unaffected');
+  // a row written before the field existed must NOT be dropped — that would be
+  // losing somebody's money to a schema detail
+  const legacy = JSON.parse(JSON.stringify(lastSeason));
+  delete legacy.payments[0].year;
+  eq(A.activeData(legacy, 2027).payments.length, 1,
+     'A75: a row with no year belongs to whatever book is being read, never nowhere');
+
+  // ONE choke point, in viewData, rather than a parameter threaded through the
+  // nine activeData call sites where the tenth would eventually be missed
+  eq(/const year = Number\(Settings\.get\('year'\)\) \|\| new Date\(\)\.getFullYear\(\);/.test(app), true,
+     'A75: viewData resolves the year the same way the rest of the app does');
+  eq(/Number\(r\.year\) === year/.test(app), true, 'A75: …and filters the local rows by it');
+  eq(/const key = DB\.dataVersion\(\) \+ ':' \+ centralVersion \+ ':' \+ year;/.test(app), true,
+     'A75: …with the year in the memo key, or switching years would serve a stale merge');
+  // filtered, never deleted: a wipe at the year boundary would take unsynced
+  // rows with it, and the year boundary is exactly when nobody is watching
+  eq(/DB\.clearAll\(\)/.test(app.slice(app.indexOf('function viewData'), app.indexOf('function viewData') + 2000)), false,
+     'A75: nothing is destroyed — set the year back and last season returns');
+}
+
 // ---- A54–A57 (audit Tier 1) -------------------------------------------------
 {
   const fs = require('fs');

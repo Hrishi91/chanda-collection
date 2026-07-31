@@ -7631,3 +7631,62 @@ Tests **1,279 → 1,286**, covering both halves — the clear, the guard orderin
 that makes it safe, and the guide actually containing the rule.
 
 Client-only — **no redeploy needed.**
+
+## v4.19.2 — A75 (audit #3 F1) + audit #4's free half (2026-07-29)
+
+### F1 — on 1 January every phone would show last season's money as cash in hand
+
+A verified live defect, and the chain is five links long, each checked:
+
+- a collector's year comes from the **system clock** — the year field is
+  admin-only (`js/app.js:4270`), so `ck_year` is never written on their phone
+- on 1 Jan the clock flips, `pullCentral` sees `centralYear !== year` and
+  discards the snapshot
+- it full-pulls 2027, which is **empty** until rollover runs
+- but **IndexedDB keeps every 2026 row**
+- `viewData` merges local over central, and no 2026 id matches any 2027 id — so
+  **A49's guard never fires**
+
+`.year` appeared **zero times** in `js/aggregate.js`. The money engine had no
+year concept at all.
+
+Reproduced before fixing, with last season's rows in IndexedDB and an empty 2027
+snapshot: the collector is shown **₹5,000 as cash still in hand** and a handover
+that settled in September as **still awaiting confirmation**. A different wrong
+number on every handset, at the exact moment a new season's book is asking to be
+trusted. This is the class A49 was written to kill, re-created by the calendar.
+
+**Filtered at one choke point, not threaded and not deleted.**
+
+- **One place** — `viewData()`, where local and central meet — rather than a
+  parameter through the nine `activeData` call sites, where the tenth would
+  eventually be missed. The year joins the memo key, or switching years would
+  serve a stale merge.
+- **Filtered, never wiped.** `DB.clearAll()` at the year change was the other
+  option and it would also destroy anything unsynced — at the one moment of the
+  year when nobody is watching. Measured after the fix: **₹5,000 → ₹0 → ₹5,000**
+  as the year moves 2026 → 2027 → 2026. Nothing is lost; a row from another book
+  simply stops counting in this one.
+- A row with **no year at all** is treated as belonging to whatever book is being
+  read. Dropping it would mean losing somebody's money to a schema detail.
+
+### Audit #4's free half
+
+Its closing observation is the sharpest thing in the whole series, and it is now
+recorded in `PROJECT_CONTEXT.md` as a rule:
+
+> **It is not enough to write down why you decided something. Write down what it
+> cost you.**
+
+Every finding in that audit had the same shape — a decision that was correct,
+reasoned and recorded, whose *cost* was never recorded beside it. So the
+snapshot-on-every-device decision now carries its cost in the same table cell:
+ten personal handsets, none owned by the committee, each holding every donor's
+name, phone and para. The decision stands; the cost is written down.
+
+Also: one sentence in the collector guide about the chat being permanent and on
+everyone's phone (D4), and `PROJECT_CONTEXT.md` corrected where it called
+release-session *"the answer to a lost or stolen phone"* — it is the answer to a
+lost **session**.
+
+Tests **1,286 → 1,294**. Client-only — **no redeploy needed.**

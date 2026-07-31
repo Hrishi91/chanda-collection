@@ -31,7 +31,7 @@ the final hisab. Data survives any phone/app deletion because the Sheet
 | **Pull-down snapshot instead of per-screen fetches** (2026-07-24) | Every screen used to fetch on open — each an ~1–3s round-trip on puja-crowd networks. Indexes would cut server compute but NOT the round-trip, so the win is *fewer calls*: one `pull` returns the year, the client caches it and paints instantly from cache, merging its own unsynced rows on top |
 | **Incremental delta pull (`since` + `cursor`)** (2026-07-24) | The 60s refresh re-downloaded the whole year even when nothing changed (~780KB projected at season scale × 10–20 phones). `since` returns only rows with a newer `receivedAt`; idle polls come back empty. In-place status changes (handover confirm, correction resolve) bump `receivedAt` so they ride the delta |
 | **One aggregation path — reports computed client-side** (2026-07-24) | Reports were computed on the server while ledger screens were computed on the client: two mirrored implementations that could drift, plus a round-trip per report. `Aggregate.computeReport` mirrors `computeReport_` exactly, so reports now come off the same snapshot (verified byte-identical against the server) |
-| **Every collector's device holds the whole year's data** | Consequence of the snapshot, accepted knowingly: this is a combined committee khata where party balances already sum across collectors, so there is nothing one collector may see that another may not. Role gates remain on *actions* (writes), which stay server-enforced |
+| **Every collector's device holds the whole year's data** | Consequence of the snapshot, accepted knowingly: this is a combined committee khata where party balances already sum across collectors, so there is nothing one collector may see that another may not. Role gates remain on *actions* (writes), which stay server-enforced. **AND ITS COST, written down 2026-07-29 (audit #4 D3):** that reasoning is about collectors seeing each other's work. It is not about the phone. The cost is that **ten personal handsets — none owned or controlled by the committee — each carry every donor's name, phone number and para**, in plaintext, with no remote wipe. The decision is still right; the phones are simply the real exposure, not the Sheet. This is why A74 makes logout clear the device, and why `collector-guide.md` carries a rule about repair shops that no code can enforce. 🔓 releaseSession and 🚫 Block stop a handset SYNCING; they do nothing about what is already on it. |
 | **Collector↔area assignment (`Users.areas`)** | "Who is responsible for which road" — drives the area report/leaderboard and accountability. Areas come from the editable master list, not a hardcoded enum |
 | **Admin grant/revoke in-app, with two safeguards** | Was editor-only (`makeAdmin`). Now any admin can promote/demote, except: you cannot demote yourself, and the last remaining admin cannot be demoted — the committee can never lock itself out |
 | **Append-only Audit sheet for privileged + money actions** | A money app needs "who did what, when": voids, correction approve/reject, handover confirms, role/permission/status changes, password resets and master-list edits are all logged. `logAudit_` is try/catch-wrapped so logging can never break the real action |
@@ -110,6 +110,17 @@ Bengali and an English label. Collectors are assigned areas via `Users.areas`.
   Pinned by 17 tile tests. **This decision was never written down at the time,
   and on 2026-07-28 that cost an hour and I nearly reversed it a second time.**
   Do not change it without Hrishi saying so in as many words.
+- **Write down what a decision COST, not only why it was made** (2026-07-29,
+  audit #4). Every finding in that audit had the same shape: a decision that was
+  correct, reasoned and recorded — whose cost was never recorded beside it. The
+  snapshot-on-every-device decision was evaluated for speed and for fairness
+  between collectors, and never for what it means that the data leaves the
+  committee's control. That sentence was in no file until today.
+  This file already records what happens when a decision's *reasoning* goes
+  unwritten — it cost an hour and I nearly reversed it twice. This is the same
+  lesson one level up: the cost is what stops the next person, who may well be
+  you next September, from re-deciding it wrongly or never noticing there was a
+  cost at all.
 - **Two exceptions to that rule, added 2026-07-28** because the assumption under
   it broke. Its stated reason was "somebody who collects nothing has no money to
   hand over" — true while grants could only be ADDED. 🧹 clearUserGrants now

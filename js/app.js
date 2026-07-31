@@ -414,9 +414,34 @@
   // bumped in one place each.
   let viewMemo = null, viewMemoKey = '';
   function viewData() {
-    const key = DB.dataVersion() + ':' + centralVersion;
+    const year = Number(Settings.get('year')) || new Date().getFullYear();
+    const key = DB.dataVersion() + ':' + centralVersion + ':' + year;
     if (viewMemo && viewMemoKey === key) return viewMemo;
-    const p = DB.allData().then(function (local) {
+    const p = DB.allData().then(function (localAll) {
+      // A75 (audit #3 F1): ONE choke point for the year, here, where local and
+      // central meet — rather than threading a parameter through nine
+      // aggregate call sites, where the tenth would eventually be missed.
+      //
+      // On 1 January every phone's year flips (it comes from the system clock;
+      // the year field is admin-only, so a collector's is never set). pullCentral
+      // then discards the snapshot and pulls an EMPTY 2027 book — while IndexedDB
+      // still holds every 2026 row. No 2026 id matches any 2027 id, so A49's
+      // guard never fires, and the collector is shown last season's money as
+      // cash still in their hand. Reproduced before fixing: ₹5,000 in hand and a
+      // handover still "awaiting confirmation", eleven months after it settled.
+      //
+      // Filtered, not deleted. A wipe at the year boundary would also destroy
+      // anything that had not synced, and the year boundary is exactly when
+      // nobody is watching. A row from another book simply stops counting in
+      // this one, and is still there if the year is set back.
+      const local = {};
+      DB.STORES.forEach(function (st) {
+        local[st] = (localAll[st] || []).filter(function (r) {
+          // no year at all = written before the field existed; treat it as this
+          // book's rather than silently dropping somebody's money
+          return !r || r.year === undefined || r.year === null || r.year === '' || Number(r.year) === year;
+        });
+      });
       if (!centralData) return local;
       const merged = {};
       DB.STORES.forEach(function (s) {

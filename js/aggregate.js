@@ -43,9 +43,38 @@
     const s = String(stored || '');
     return (s === 'admin' || s === 'cashier') ? s : 'collector';
   }
-  function activeData(data) {
+  // A75 (audit #3 F1): the money engine had NO year logic at all — `.year`
+  // appeared zero times in this file. That was fine while every device held one
+  // book, and stops being fine at midnight on 31 December.
+  //
+  // The chain, verified: a collector's year comes from the system clock (the
+  // year field is admin-only, so `ck_year` is never written on their phone) →
+  // on 1 Jan `pullCentral` sees the year change and discards the central
+  // snapshot → it full-pulls 2027, which is EMPTY until rollover runs → but
+  // IndexedDB still holds every 2026 row. `viewData` merges local over central
+  // and no 2026 id matches any 2027 id, so A49's guard never fires. Reproduced:
+  // the collector is shown last season's ₹5,000 as cash still in their hand,
+  // and last season's handover as still awaiting confirmation.
+  //
+  // A different wrong number on every handset, at the exact moment a new
+  // season's book is asking to be trusted. This is the class A49 was written to
+  // kill, re-created by the calendar.
+  //
+  // Filtering HERE rather than clearing IndexedDB on the year change: a wipe
+  // would also destroy any row that had not synced, and the year boundary is
+  // precisely when nobody is watching. A filter cannot lose anything — a row
+  // from another book simply stops counting in this one.
+  function ofYear(rows, year) {
+    if (!year) return rows || [];
+    return (rows || []).filter(function (r) {
+      // a row with no year at all predates the field; treat it as belonging to
+      // the book being read rather than silently dropping money
+      return !r || r.year === undefined || r.year === null || r.year === '' || Number(r.year) === year;
+    });
+  }
+  function activeData(data, year) {
     const v = voidedIds(data);
-    const keep = function (rows) { return (rows || []).filter(function (r) { return r && !v[r.id]; }); };
+    const keep = function (rows) { return ofYear(rows, year).filter(function (r) { return r && !v[r.id]; }); };
     return { parties: keep(data.parties), payments: keep(data.payments), daily: keep(data.daily),
              expenses: keep(data.expenses), handovers: keep(data.handovers), voids: data.voids || [],
              // messages deliberately NOT carried: activeData runs on every money
