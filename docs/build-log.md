@@ -7501,3 +7501,32 @@ absence now.
 
 ⚠️ **Redeploy needed** — V1 and V2 are both in `Code.gs`. `CODE_SCHEMA` stays 4.
 **V1 makes this one urgent: until it is deployed, `goLive` still has no undo.**
+
+## config.js rebaked for the v4.19.0 deployment (2026-07-29)
+
+Verified live: `codeVersion chanda-v4.19.0`, `schema 4`, `ok true`. Client and
+server agree on both, so no bar and no lock.
+
+`backupNow` through the deployed code produced
+`chanda-backup-2026-07-31_1258.json`, and `listBackups` shows ten snapshots on
+Drive — so the daily trigger is running.
+
+**What is NOT yet proven live, and why.** A73/V1 — that `restoreBackup` accepts a
+backup this code writes — can only be demonstrated by actually restoring. The
+validation happens *after* the safety backup and *after* the lock, so there is no
+way to reach it without committing to the restore. And a restore has two real
+consequences, both correct and both visible to other people:
+
+- **every token is blanked** (A58, by design) — everyone using the app right now
+  is logged out and must sign in again
+- **`data_epoch` bumps** — every phone drops its local cache and re-pulls, losing
+  any unsynced practice rows
+
+Both are survivable in training mode, and the second is what tomorrow's clear
+does anyway. But logging the whole committee out mid-practice is Hrishi's call to
+make, not a verification step to take unilaterally. So the evidence stands at:
+the round trip passes against the identical source in `tests/backend.js` (back
+up → restore → donors, money and accounts all return), and the deployed
+`codeVersion` proves that source is what is running.
+
+Offered to him as a one-line decision rather than assumed either way.
