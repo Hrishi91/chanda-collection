@@ -572,6 +572,12 @@ page (better for a board, worse to share)? Probably both, same data.
 8. Statements generated and shared
 9. **Next season**: `rolloverYear` copies the donors forward
 
+### Answered
+
+- **Who owns the data if the committee changes?** (audit #4 Q5) — Hrishi,
+  2026-07-31: the Google account is his; handover will be handled later as
+  configuration. Recorded in `PROJECT_CONTEXT.md`. Closed.
+
 ### Three decisions that are Hrishi's, not mine
 
 The screen cannot be built without these — "is the money where it should be"
