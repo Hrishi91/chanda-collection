@@ -7918,3 +7918,37 @@ the suite goes red. Three did not, and got tests. Tests **1,320 → 1,357**.
 
 `CODE_SCHEMA` 4 → **5** — new column, new handlers. **Redeploy required**, and
 phones show the red bar until they reload. Cheap now; ten phone calls later.
+
+## config.js rebaked for the v4.21.0 deployment (2026-08-06)
+
+Verified live: `codeVersion chanda-v4.21.0`, `schema 5`, `ok true`. Client and
+server agree on both, so no bar and no lock.
+
+`config.js` had been left pointing at the **v4.19.0** `/exec`. So for five
+releases — A74, A75, A76, A77, A78 — every phone was talking to a backend that
+old while the client had already shipped at v4.21.0 through Pages.
+
+**The version lock does not catch that direction, and that is deliberate.**
+`canEntry` refuses when `schemaCmp() === -1`, i.e. when the CLIENT is behind. A
+client that is AHEAD returns `1` and stays silent, so a normal deploy window does
+not paint ten phones red. Correct as a rule — but it means a *stale server* has
+no collector-facing signal at all. The only place it showed was the admin's
+"redeploy pending" line. Worth knowing: the lock protects against the phone being
+old, never against the deployment being old.
+
+**Blast radius while it was wrong: smaller than it looks.** No transactional
+store gained a column between v4.19.0 and v4.21.0 — the new columns are on
+`Users` and `Lists`, which `ensureCol_` heals on first use — so no entry field
+was being silently dropped and no money path was affected. What actually failed
+was A78's বিদায়ী screen: `setAccess` and `userSnapshot` did not exist on the old
+deployment, so both answered `unknown action`. Collectors saw nothing wrong
+because nothing they touch had changed.
+
+**Not yet proven live:** the বিদায়ী screen itself. The deployed `codeVersion`
+proves the source carrying both handlers is what is running, and the suite
+exercises them against the identical source in `tests/backend.js` — but nobody
+has opened the screen against the real server. One admin tap settles it, and it
+is the one thing this deploy was for.
+
+`setup()` was not run and should not be needed: the two new columns are added by
+`ensureCol_` at the point of use. Harmless to run anyway if in doubt.
