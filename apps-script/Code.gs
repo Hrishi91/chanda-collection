@@ -387,6 +387,31 @@ function applyPosition_(u, want, required) {
   }
   u.row.position = want;
 }
+// A78c: an exit picture taken during practice is practice data. It survives
+// 🧹 and 🚀 because it lives in Users, which those deliberately spare — and it
+// would then sit in front of the committee showing training money against
+// donors the wipe deleted ("দোকান ১, ₹3,000 বাকি") with today's column reading
+// ₹0 beside it. Same reasoning as the receiptSeq_ counters, which are cleared
+// for exactly this reason despite living in Config.
+//
+// `access` is deliberately NOT cleared here. That is a decision about a PERSON,
+// the same kind of thing as role, cashier and post — all of which survive on
+// purpose. A wipe must not quietly reverse something the committee decided; the
+// 🚀 screen names anyone still standing down instead, so it is a choice rather
+// than an accident.
+function clearExitSnaps_() {
+  var sh = usersSheet_();
+  if (!sh || sh.getLastRow() < 2) return 0;
+  var col = ensureCol_(sh, 'exitSnap');
+  var n = sh.getLastRow() - 1;
+  var vals = sh.getRange(2, col, n, 1).getValues();
+  var cleared = 0, out = vals.map(function (r) {
+    if (String(r[0] || '')) cleared++;
+    return [''];
+  });
+  if (cleared) sh.getRange(2, col, n, 1).setValues(out);
+  return cleared;
+}
 function readSnap_(row) {
   try {
     var o = JSON.parse(String(row.exitSnap || '') || '{}');
@@ -708,7 +733,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.21.1';
+var CODE_VERSION = 'chanda-v4.21.2';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1275,9 +1300,10 @@ var ACTIONS = {
       }
       // every device clears its local copy on the next pull, or phones would
       // keep showing practice rows the sheet no longer has
+      var snaps = clearExitSnaps_(); // A78c: practice money, in a sheet the wipe spares
       setConfig_('data_epoch', String(Date.now()));
       touchData_(); // the sheets are now empty — no device may fast-path past that
-      logAudit_(me.row, 'training:clear', 'practice data cleared; backup=' + backupFile);
+      logAudit_(me.row, 'training:clear', 'practice data cleared; exit pictures=' + snaps + '; backup=' + backupFile);
       return { ok: true, backup: backupFile };
     } finally { lock.releaseLock(); }
   },
@@ -1319,11 +1345,13 @@ var ACTIONS = {
           if (String(vals[i][0]).indexOf('receiptSeq_') === 0) csh.deleteRow(i + 2);
         }
       }
+      var snaps = clearExitSnaps_(); // A78c: same reasoning as the serial counters above
       setConfig_('receipt_digits', digits);
       setConfig_('live_mode', 'on');
       setConfig_('data_epoch', String(Date.now()));
       touchData_(); // the sheets are now empty — no device may fast-path past that
-      logAudit_(me.row, 'went-live', 'training data cleared; digits=' + digits + '; backup=' + backupFile);
+      logAudit_(me.row, 'went-live', 'training data cleared; exit pictures=' + snaps +
+        '; digits=' + digits + '; backup=' + backupFile);
       return { ok: true, backup: backupFile };
     } finally { lock.releaseLock(); }
   },

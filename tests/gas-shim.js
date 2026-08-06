@@ -40,6 +40,10 @@ function makeSheet(name, rows) {
     clear: () => { grid.length = 0; return sheet; },
     appendRow: (row) => { grid.push(row.slice()); return sheet; },
     deleteRow: (i) => { grid.splice(i - 1, 1); return sheet; },
+    // Missing until A78c, which is why goLive and clearTraining — the two most
+    // destructive actions in the file — had never once been EXECUTED here. They
+    // were read, and reading is not a test (see the note at the top).
+    deleteRows: (i, n) => { grid.splice(i - 1, n); return sheet; },
     getDataRange: () => sheet.getRange(1, 1, Math.max(grid.length, 1), Math.max(sheet.getLastColumn(), 1)),
     getRange: (r, c, nr, nc) => {
       nr = nr === undefined ? 1 : nr;

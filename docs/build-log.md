@@ -8002,3 +8002,45 @@ Verified in the browser on a fresh port: **"এখনও ২টি পার্�
 
 Tests **1,357 → 1,365**. `CODE_SCHEMA` stays **5** — same deployment, new
 version; no client is left behind.
+
+## v4.21.2 — A78c: what a wipe keeps, and what it must not
+
+Hrishi: *"i will refresh the data, so no old data"*. Reading the two handlers
+rather than assuming, that turns out not to be true — and it is true on
+purpose. Both `clearTraining` and `goLive` clear only the transactional sheets;
+the comment in the file says so plainly: **Users, Config, Lists,
+ExpenseSubjects and Audit are spared**, because approvals and permissions must
+survive practice.
+
+A78 had just put two new things in Users, and they are not the same kind of
+thing:
+
+- **`exitSnap` is practice MONEY.** Left alone, it would face the committee
+  after go-live showing training figures — *"দোকান ১, ₹3,000 বাকি"* — against
+  donors the wipe had deleted, with today's column reading ₹0 beside it. Now
+  cleared by both handlers, on exactly the reasoning that already clears the
+  `receiptSeq_` counters despite their living in Config: practice residue in a
+  sheet the wipe spares is still practice residue.
+- **`access` is a decision about a PERSON**, the same category as role, cashier
+  and post — all of which survive deliberately. A wipe that quietly reverses
+  something the committee decided is worse than one that keeps it. So it is
+  kept, and the 🚀 card **names them** at the moment the go-live decision is
+  being made:
+
+  > 🚪 ২ জন এখনও বিদায়ী অবস্থায়: রতন, কালী। ডেটা মুছলেও এটা থাকবে — কমিটির
+  > সিদ্ধান্ত, তাই নিজে থেকে মুছি না। Live করার আগে দেখে নিন।
+
+  Without it, a বিদায়ী set while practising walks into the real season with no
+  post and no permissions, and that collector's first sign of it is being
+  unable to work.
+
+### The harness gap this exposed
+
+`goLive` and `clearTraining` — the two most destructive actions in the file —
+had **never been executed by a test**. The shim had no `deleteRows`, so every
+assertion about them was a regex over the source. That is the A52 failure
+exactly: a guard whose test matched its *text*. One line of shim, and both are
+now run for real: practice rows gone, exit pictures gone, permissions intact,
+the committee's decision intact.
+
+Tests **1,365 → 1,376**. `CODE_SCHEMA` stays **5**.

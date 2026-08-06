@@ -2839,6 +2839,16 @@ try {
       eq(/=== 'exiting'/.test(lp) && /p\.collectorId === myId/.test(lp), true,
          'A78: liveParties narrows a stood-down member to their OWN donors, at the single point all eleven listings read');
     }
+    // A78c: the wipe spares Users, so a practice-time বিদায়ী walks into the
+    // live season with no post and no permissions and nobody remembering why.
+    // Clearing it automatically would reverse a committee decision, so the 🚀
+    // card names them instead — at the moment the decision to go live is made.
+    {
+      const tc = appSrc.slice(appSrc.indexOf('const stillOut = resp.users.filter'),
+                              appSrc.indexOf('const menuRow = function'));
+      eq(/access === 'exiting'/.test(tc) && /golive_still_exiting/.test(tc), true,
+         'A78c: the go-live card names anyone still standing down, so it is a choice rather than an accident');
+    }
     // A78b: the server's two refusals carry numbers the admin has to ACT on —
     // how much cash is still held, how many parcels are still unanswered. Left
     // as raw codes ('holds-money:5000', 'has-pending:2:3500') they are a wall,

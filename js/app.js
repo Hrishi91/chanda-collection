@@ -5664,9 +5664,22 @@
           '</summary><div class="adm-fold-body">' + inner + '</div></details>';
       };
       // ── five screens, one at a time ─────────────────────────────────────
+      // A78c: the wipe spares Users on purpose, so a 🚪 বিদায়ী set during
+      // practice walks straight into the live season — no post, no permissions,
+      // login open. Nobody would remember why, and that collector's first sign
+      // of it is being unable to work. Clearing it automatically would be worse:
+      // it is a decision about a person, like role or post, and a wipe must not
+      // reverse those. So it is NAMED here, where the decision to go live is
+      // being made, and left to the admin.
+      const stillOut = resp.users.filter(function (u) { return u.access === 'exiting'; });
       const trainCard = isLive() ? '' :
         '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
           '<b>🟡 ' + esc(t('training_mode')) + '</b><div class="row-sub">' + esc(t('training_admin_hint')) + '</div>' +
+          (stillOut.length ? '<div class="perm-note" style="margin-top:8px">🚪 ' +
+            esc(t('golive_still_exiting')
+              .replace('{n}', toBengaliDigits(String(stillOut.length)))
+              .replace('{names}', stillOut.map(function (u) { return u.name; }).join(', '))) +
+            '</div>' : '') +
           '<button id="golive-btn" class="primary big block" style="margin-top:8px">🚀 ' + esc(t('golive_btn')) + '</button>' +
           '<button id="clear-tr-btn" class="ghost block" style="margin-top:6px">🧹 ' + esc(t('clear_training_btn')) + '</button>' +
           '<div class="row-sub" style="margin-top:6px">' + esc(t('clear_training_hint')) + '</div></div>';

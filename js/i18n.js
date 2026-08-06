@@ -299,6 +299,10 @@ const I18N = {
   // A78b: the parcels already on their way to a cashier being stood down.
   // Named, counted and totalled, because the fix takes a minute NOW and
   // becomes the admin's private job for ever if it is skipped.
+  // A78c: named at the moment of going live, because the wipe spares Users and
+  // a practice-time বিদায়ী would otherwise walk into the real season unnoticed.
+  golive_still_exiting: { bn: '{n} জন এখনও বিদায়ী অবস্থায়: {names}। ডেটা মুছলেও এটা থাকবে — কমিটির সিদ্ধান্ত, তাই নিজে থেকে মুছি না। Live করার আগে দেখে নিন।',
+                          en: '{n} still standing down: {names}. This survives the wipe — it is a committee decision, so it is not cleared automatically. Check before going live.' },
   access_has_pending: { bn: 'এখনও {n}টি পার্সেল ({amt}) তাঁর দিকে আসছে, তিনি এখনও উত্তর দেননি।\n\nবিদায়ী করলে তিনি আর কোষাধ্যক্ষ থাকবেন না, তাই ওগুলো তিনিও মেটাতে পারবেন না, অন্য কোষাধ্যক্ষও পারবেন না — শুধু admin পারবে।\n\nআগে তাঁকে দিয়ে "পেয়েছি / পাইনি" করিয়ে নিন, তারপর বিদায়ী করুন।',
                         en: '{n} parcel(s) ({amt}) are still on their way to them, unanswered.\n\nStanding them down removes the cashier flag, so neither they nor any other cashier can settle those — only an admin.\n\nHave them answer "পেয়েছি / পাইনি" first, then stand them down.' },
   access_exit_note: { bn: 'বিদায়ী। পদ ও permission নেই। লগ-ইন খোলা — শুধু হাতের টাকা জমা দিতে ও নিজের তোলা চাঁদাদাতাদের বাকি নিতে পারবে। ফেরাতে গেলে একটা পদ দিতে হবে।',

@@ -715,6 +715,41 @@ module.exports = function runBackendTests(eq) {
        'backend A78: …and the split says WHO collected the difference, computed by subtracting the saved per-donor figures — never by comparing timestamps, which cannot order two rows written in the same second');
   }
 
+  // ---- A78c: what a wipe keeps, and what it must not ----------------------
+  //
+  // 🧹 and 🚀 spare Users, Config, Lists, ExpenseSubjects and Audit on purpose —
+  // approvals and permissions must survive practice. A78 then put two new
+  // things in Users, and they are not the same kind of thing:
+  //   · exitSnap is practice MONEY, and would face the committee showing
+  //     training figures against donors the wipe had just deleted
+  //   · access is a decision about a PERSON, like role or post, and a wipe that
+  //     silently reverses a committee decision is worse than one that keeps it
+  // Until now neither handler had ever been EXECUTED by a test — the shim had
+  // no deleteRows, so the most destructive pair in the file was read-only-
+  // verified. That is the A52 failure exactly.
+  ['goLive', 'clearTraining'].forEach(function (action) {
+    const { b, tok } = book();
+    const uid = function (n) { return b.rows('Users').filter(function (x) { return x.username === n; })[0].id; };
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 's1', year: 2026, type: 'shop', name: 'প্র্যাকটিস দোকান', pledged: 8000 }),
+      rec('payments', { id: 'p1', year: 2026, partyId: 's1', amount: 5000, cashAmount: 5000, upiAmount: 0, date: '2026-09-01' }),
+    ] });
+    b.call('setEntries', { token: tok.admin, userId: uid('kali'), entries: ['shop', 'road'] });
+    b.call('setAccess', { token: tok.admin, userId: uid('ratan'), access: 'exiting', year: 2026 });
+    eq(String(b.rows('Users').filter(function (u) { return u.username === 'ratan'; })[0].exitSnap || '') !== '', true,
+       'backend A78c/' + action + ': the exit picture is there before the wipe');
+    b.call(action, { token: tok.admin, confirm: action === 'goLive' ? 'LIVE' : 'CLEAR', digits: 6 });
+    const after = b.rows('Users').filter(function (u) { return u.username === 'ratan'; })[0];
+    eq(b.rows('Parties').length === 0 && b.rows('Payments').length === 0, true,
+       'backend A78c/' + action + ': …the practice rows are gone');
+    eq(String(after.exitSnap || ''), '',
+       'backend A78c/' + action + ': …and so is the exit picture, which would otherwise show training money against donors that no longer exist');
+    eq(String(after.access), 'exiting',
+       'backend A78c/' + action + ': …but the committee’s decision SURVIVES — a wipe must not quietly reverse it, any more than it clears role or post');
+    eq(String(b.rows('Users').filter(function (u) { return u.username === 'kali'; })[0].entries), 'shop,road',
+       'backend A78c/' + action + ': …and permissions survive, which is why the wipe spares Users in the first place');
+  });
+
   // ---- the version/schema handshake every client depends on ---------------
   {
     const { b, tok } = book();

@@ -623,6 +623,13 @@ page (better for a board, worse to share)? Probably both, same data.
   Sending money TO somebody stood down or blocked is refused at the push, so a
   stale screen or an offline queue cannot rebuild the trap.
 
+  **Surviving the wipe** (v4.21.2 / A78c): 🧹 and 🚀 spare Users on purpose, so
+  both new columns outlive a data refresh. `exitSnap` is practice money and is
+  now cleared by both — it would otherwise show training figures against donors
+  the wipe deleted. `access` is a decision about a person, like role or post,
+  and is kept; the 🚀 card names anyone still standing down instead, so it is a
+  choice rather than an accident.
+
   Still open, and not part of this: **🧹 clear-all-grants does not clear
   posts.** Before go-live the সদস্য post's own permissions must be reduced
   first, or 🧹 will report success and take nothing from anybody holding it.
