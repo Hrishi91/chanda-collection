@@ -708,7 +708,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.21.0';
+var CODE_VERSION = 'chanda-v4.21.1';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -857,6 +857,20 @@ var ACTIONS = {
             var pOwn = ownerIndex_('parties')[String(r.row.partyId)];
             if (!pOwn || String(pOwn.collectorId) !== String(user.row.username)) { rejectedIds.push(r.row.id); return; }
           } else { rejectedIds.push(r.row.id); return; }
+        }
+        // A78b: and nobody may send money TO somebody who has been stood down or
+        // blocked. The recipient picker already omits them — it lists cashiers,
+        // and standing somebody down clears that flag — but a screen drawn
+        // before the decision, or a parcel sitting in an offline queue from
+        // yesterday, would sail straight past a UI-only rule and rebuild the
+        // stranded-parcel trap the guard above exists to prevent.
+        //
+        // Only refused when the recipient is KNOWN to be shut: a free-text name
+        // that matches no account is left alone, because "we cannot tell" must
+        // never become "no".
+        if (r.store === 'handovers') {
+          var to = accessIndex_()[String(r.row.toId || r.row.to || '')];
+          if (to && (to.access === 'exiting' || to.status === 'blocked')) { rejectedIds.push(r.row.id); return; }
         }
         // general puja expenses are cashier/admin only; a COLLECTION expense is
         // spent out of a round the person is running, so permForRow_ hands back
@@ -1831,6 +1845,24 @@ var ACTIONS = {
       // change precisely nothing while looking like it had. Demote first — and
       // setRole already refuses to demote the last one.
       if (String(u.row.role) === 'admin') throw new Error('demote-first');
+      // A78b (Hrishi: "if cashier blocked then he cant receive the amount from
+      // the collector or other cashier"). confirmHandover asks for TWO things —
+      // cashier AND recipient — so standing a cashier down strands every parcel
+      // already on its way to them: they can no longer confirm, and no other
+      // cashier may, because no other cashier is the recipient. Only the admin
+      // can settle them, and nothing tells him he has to.
+      //
+      // So refuse first, and say how many and how much. While they are still a
+      // cashier they can clear their own inbox in a minute — which is the order
+      // this whole feature wants anyway: inbox empty → stand down → hand in what
+      // they hold → final block.
+      //
+      // Deliberately NOT auto-rejecting those parcels back to their senders:
+      // 'pending' means a collector has said "I gave it to you", and the cash
+      // may physically be in the cashier's hands already. Only a human knows.
+      // A machine writing "did not receive" would be entering a false figure.
+      var inbox = pendingToUser_(u.row.username, b.year);
+      if (inbox.count) throw new Error('has-pending:' + inbox.count + ':' + inbox.total);
       var pic = takeSnap_(u.row, 'exit', b.year);
       u.row.position = ''; u.row.entries = ''; u.row.reports = ''; u.row.cashier = 0;
       u.row.access = 'exiting';
@@ -2299,6 +2331,37 @@ function isRecipient_(h, u) {
 // One read per store per request, indexed by id. A script-global is safe here
 // for the same reason REQ_APP_VERSION is: Apps Script runs one request per
 // execution context, so this is per-request state, not shared state.
+// A78b: username → the two facts that decide whether money may be sent to this
+// person. Same per-request-global reasoning as OWNER_CACHE above; one read for
+// a check that otherwise runs once per handover row in a batch.
+var ACCESS_CACHE = null;
+function accessIndex_() {
+  if (ACCESS_CACHE) return ACCESS_CACHE;
+  var idx = {}, sh = usersSheet_();
+  if (sh && sh.getLastRow() >= 2) {
+    var values = sh.getDataRange().getValues(), head = values[0].map(String);
+    var iU = head.indexOf('username'), iA = head.indexOf('access'), iS = head.indexOf('status');
+    for (var i = 1; i < values.length; i++) {
+      if (iU < 0) break;
+      idx[String(values[i][iU])] = { access: String(iA >= 0 ? values[i][iA] : ''),
+                                     status: String(iS >= 0 ? values[i][iS] : '') };
+    }
+  }
+  ACCESS_CACHE = idx;
+  return idx;
+}
+// Parcels somebody has been SENT and has not answered yet. 'pending' is
+// everything that is neither confirmed nor rejected — the same reading
+// personalSummary_ uses, because a rejected parcel came back and is not
+// waiting on anybody.
+function pendingToUser_(username, year) {
+  var d = readAll_(Number(year) || new Date().getFullYear());
+  var mine = (d.handovers || []).filter(function (h) {
+    return String(h.toId || h.to || '') === String(username) &&
+           String(h.status) !== 'confirmed' && String(h.status) !== 'rejected';
+  });
+  return { count: mine.length, total: sumBy_(mine, function (h) { return h.amount; }) };
+}
 var OWNER_CACHE = null;
 function ownerIndex_(store) {
   OWNER_CACHE = OWNER_CACHE || {};

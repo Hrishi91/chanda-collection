@@ -613,6 +613,16 @@ page (better for a board, worse to share)? Probably both, same data.
   | self-block | the sole admin could shut himself out with one tap; recovery only by hand-editing the sheet | `cant-block-self`, mirroring `cant-demote-self` |
   | stranded cash | blocking took the login away from somebody still holding money | refused with the figure; override records it as unrecovered |
 
+  **The cashier case** (Hrishi, same day, v4.21.1 / A78b): `confirmHandover`
+  wants cashier AND recipient, so standing a cashier down stranded every parcel
+  already on its way to them — they lose the flag, no other cashier is the
+  recipient, and only an admin could settle it, unprompted. Now refused while
+  the inbox is unanswered, with the count and total named, so they clear it
+  themselves while they still can. The order this feature wants:
+  **inbox empty → বিদায়ী → hand in what they hold → চূড়ান্ত বন্ধ.**
+  Sending money TO somebody stood down or blocked is refused at the push, so a
+  stale screen or an offline queue cannot rebuild the trap.
+
   Still open, and not part of this: **🧹 clear-all-grants does not clear
   posts.** Before go-live the সদস্য post's own permissions must be reduced
   first, or 🧹 will report success and take nothing from anybody holding it.

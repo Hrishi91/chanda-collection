@@ -4972,8 +4972,24 @@
   function exitUser(u) {
     if (!u) return;
     if (!window.confirm(t('access_exit_confirm').replace('{n}', u.name))) return;
-    adminAction('setAccess', { userId: u.id, access: 'exiting', year: Settings.get('year') },
-      function () { toast('🚪 ' + t('access_exit_done')); });
+    Auth.call('setAccess', { token: Auth.token(), userId: u.id, access: 'exiting', year: Settings.get('year') })
+      .then(function (resp) {
+        toast('🚪 ' + t('access_exit_done'));
+        if (resp && resp.user && admCache) { admPut(resp.user); paintAdmin(admCache); }
+        else renderAdmin(true);
+      })
+      .catch(function (e) {
+        // A78b: "there are parcels on their way to this person" is not an error
+        // to shrug at — it is a job with a number on it, and the person who can
+        // do that job fastest is the one about to be stood down, while they are
+        // still a cashier. So it is spelled out rather than shown as a code.
+        const m = String(e && e.message || '');
+        if (m.indexOf('has-pending:') !== 0) { alert('⚠️ setAccess\n\n' + errMsg(e)); return; }
+        const p = m.split(':');
+        alert('⚠️ ' + t('access_has_pending')
+          .replace('{n}', toBengaliDigits(String(p[1])))
+          .replace('{amt}', fmtMoney(Number(p[2]))));
+      });
   }
   // Coming back needs a post, and the post is the whole content of the screen.
   // Without one they would be "active" with nothing granted — indistinguishable

@@ -2839,6 +2839,18 @@ try {
       eq(/=== 'exiting'/.test(lp) && /p\.collectorId === myId/.test(lp), true,
          'A78: liveParties narrows a stood-down member to their OWN donors, at the single point all eleven listings read');
     }
+    // A78b: the server's two refusals carry numbers the admin has to ACT on —
+    // how much cash is still held, how many parcels are still unanswered. Left
+    // as raw codes ('holds-money:5000', 'has-pending:2:3500') they are a wall,
+    // not an instruction. Both must be translated where they are caught.
+    {
+      const eu = appSrc.slice(appSrc.indexOf('function exitUser(u)'), appSrc.indexOf('function restoreUser'));
+      eq(/has-pending:/.test(eu) && /access_has_pending/.test(eu), true,
+         'A78b: "parcels are on their way to this person" is spelled out, with the count and the total — the person who can clear them fastest is the one about to lose the cashier flag');
+      const bu = appSrc.slice(appSrc.indexOf('function blockUser(id)'), appSrc.indexOf('function showSnapshot'));
+      eq(/holds-money:/.test(bu) && /block_holds_money/.test(bu), true,
+         'A78: …and "they still hold ₹X" is put as the decision it is, not as an error code');
+    }
     // A78: 💰 and 👑 are the two chips that hand back MORE than the block took,
     // and they sat on the same screen as the block itself. The server refuses
     // them now; the chips must not be drawn either, or the admin taps one and

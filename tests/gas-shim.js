@@ -175,7 +175,7 @@ function loadBackend(opts) {
     // reset the per-request caches the real runtime gets for free by starting a
     // fresh execution context each time — forgetting this is how a shim starts
     // reporting things the server would never do
-    '\n g.resetRequestState = function () { OWNER_CACHE = null; PARTY_PAY_CACHE = null; REQ_APP_VERSION = ""; };');
+    '\n g.resetRequestState = function () { OWNER_CACHE = null; PARTY_PAY_CACHE = null; ACCESS_CACHE = null; REQ_APP_VERSION = ""; };');
   fn(env.SpreadsheetApp, env.LockService, env.Utilities, env.Session, env.DriveApp,
      env.ScriptApp, env.Logger, env.ContentService, FixedDate, out);
 

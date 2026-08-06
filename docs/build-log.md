@@ -7952,3 +7952,53 @@ is the one thing this deploy was for.
 
 `setup()` was not run and should not be needed: the two new columns are added by
 `ensureCol_` at the point of use. Harmless to run anyway if in doubt.
+
+## v4.21.1 — A78b: the cashier's inbox, which A78 stranded
+
+Hrishi, reading A78 the same day it shipped: *"what about the cashier, if
+cashier blocked then he cant receive the amount from the collector or other
+cashier"*. He was right, and the hole was mine.
+
+`confirmHandover` asks for TWO things — `isCashier_` **and** being the
+recipient. Standing a cashier down clears the flag, so:
+
+```
+বিমল কোষাধ্যক্ষ, তাঁর দিকে ₹২০০০ pending — বিদায়ী করার পর
+  বিদায়ী বিমল confirm করবে       রুখল — not-cashier
+  অন্য কোষাধ্যক্ষ কালী করবে       রুখল — not-recipient   ← neither door opens
+  admin confirm / reject করবে     পারল
+```
+
+Not lost — the admin can settle it either way — but that makes every in-flight
+parcel Hrishi's personal job, and **nothing tells him the job exists**. The
+sender just watches "waiting for confirmation" for ever. The same class as A19,
+A23, A31: a state nobody is told about is a state nobody clears.
+
+Two guards, no schema change:
+
+- `setAccess exiting` is **refused while parcels are unanswered**, carrying the
+  count and the total (`has-pending:2:3500`). While they are still a cashier
+  they clear their own inbox in a minute — which is the order this feature
+  wanted all along: **inbox empty → stand down → hand in → final block.**
+- push **rejects a handover addressed to somebody stood down or blocked**. The
+  recipient picker already omits them (it lists cashiers), but a screen drawn
+  before the decision, or a parcel sitting in an offline queue from yesterday,
+  would walk straight past a UI-only rule and rebuild the trap.
+
+What was deliberately NOT done: auto-rejecting the pending parcels back to
+their senders. `pending` means a collector has said *"I gave it to you"*, and
+the cash may already be physically in the cashier's hands. Only a human knows.
+A machine writing "did not receive" would be entering a false figure into a
+book whose whole value is that its figures are true.
+
+One thing the refusal must not become is a wall: `has-pending:2:3500` as raw
+text tells an admin nothing. Both server refusals — this one and A78's
+`holds-money:` — are now asserted to be translated where they are caught, after
+a mutation test showed the client message was the one new guard with no test
+over it.
+
+Verified in the browser on a fresh port: **"এখনও ২টি পার্সেল (₹3,500) তাঁর দিকে
+আসছে … আগে তাঁকে দিয়ে পেয়েছি / পাইনি করিয়ে নিন, তারপর বিদায়ী করুন।"**
+
+Tests **1,357 → 1,365**. `CODE_SCHEMA` stays **5** — same deployment, new
+version; no client is left behind.

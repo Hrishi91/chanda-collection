@@ -637,6 +637,52 @@ module.exports = function runBackendTests(eq) {
     eq(b.call('setCashier', { token: tok.admin, userId: uid('ratan'), cashier: 1 }).user.cashier, 1,
        'backend A78: …once brought back, the ordinary buttons work again');
   }
+  // A78b — Hrishi: "if cashier blocked then he cant receive the amount from the
+  // collector or other cashier". confirmHandover wants cashier AND recipient,
+  // so standing a cashier down strands every parcel already on its way: they
+  // lose the flag, and no other cashier is the recipient. Only an admin could
+  // settle them, and nothing told him to.
+  {
+    const { b, tok } = book();
+    const uid = function (n) { return b.rows('Users').filter(function (x) { return x.username === n; })[0].id; };
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 's1', year: 2026, type: 'shop', name: 'দোকান', pledged: 9000 }),
+      rec('payments', { id: 'p1', year: 2026, partyId: 's1', amount: 6000, cashAmount: 6000, upiAmount: 0, date: '2026-09-01' }),
+    ] });
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('handovers', { id: 'h1', year: 2026, from: 'RATAN', fromId: 'ratan', to: 'BIMAL', toId: 'bimal',
+                         amount: 2000, cashAmount: 2000, upiAmount: 0, date: '2026-09-03', breakdown: '{}', status: 'pending' }),
+      rec('handovers', { id: 'h2', year: 2026, from: 'RATAN', fromId: 'ratan', to: 'BIMAL', toId: 'bimal',
+                         amount: 1500, cashAmount: 1500, upiAmount: 0, date: '2026-09-03', breakdown: '{}', status: 'pending' }),
+    ] });
+    let msg = '';
+    try { b.call('setAccess', { token: tok.admin, userId: uid('bimal'), access: 'exiting', year: 2026 }); }
+    catch (e) { msg = e.message; }
+    eq(msg, 'has-pending:2:3500',
+       'backend A78b: a cashier with unanswered parcels cannot be stood down — and the refusal carries the COUNT and the TOTAL, because the job is theirs to finish while they are still a cashier');
+    // …and they can finish it themselves, in a minute, which is the whole point.
+    b.call('confirmHandover', { token: tok.bimal, id: 'h1' });
+    b.call('rejectHandover', { token: tok.bimal, id: 'h2', reason: 'গোনায় মেলেনি' });
+    eq(b.call('setAccess', { token: tok.admin, userId: uid('bimal'), access: 'exiting', year: 2026 }).user.access, 'exiting',
+       'backend A78b: …with the inbox empty it goes through');
+    // Nothing may be sent to them afterwards. The picker already omits them, but
+    // a screen drawn before the decision — or an offline queue from yesterday —
+    // would rebuild the same trap through a UI-only rule.
+    const send = function (to, toId, id) {
+      b.api.resetRequestState();
+      return b.call('push', { token: tok.ratan, epoch: '', records: [
+        rec('handovers', { id: id, year: 2026, from: 'RATAN', fromId: 'ratan', to: to, toId: toId,
+                           amount: 1000, cashAmount: 1000, upiAmount: 0, date: '2026-09-06', breakdown: '{}', status: 'pending' }),
+      ] }).rejectedIds.length > 0;
+    };
+    eq(send('BIMAL', 'bimal', 'h9'), true, 'backend A78b: a stale screen or an offline queue cannot send money to somebody stood down');
+    b.call('setCashier', { token: tok.admin, userId: uid('kali'), cashier: 1 });
+    eq(send('KALI', 'kali', 'h10'), false, 'backend A78b: …a working cashier is untouched');
+    eq(send('কেউ একজন', '', 'h11'), false,
+       'backend A78b: …and a name matching no account is left alone — "we cannot tell" must never become "no"');
+    b.call('setStatus', { token: tok.admin, userId: uid('kali'), status: 'blocked', year: 2026 });
+    eq(send('KALI', 'kali', 'h12'), true, 'backend A78b: …the security door closes the same route');
+  }
   // The saved picture, and the line that stops it reading like a bug.
   {
     const { b, tok } = book();
