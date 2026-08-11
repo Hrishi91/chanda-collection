@@ -2879,13 +2879,24 @@ try {
       const sites = [
         ['canEditParty', /if \(amExiting\(\)\) return false;/],
         ['the entry ✏️ chip', /mineNow && !amExiting\(\) &&/],
-        ['the flag chip', /\(isVoid \|\| isFlag \|\| amExiting\(\)\)/],
         ['the chat composer', /\(amExiting\(\)\s*\n?\s*\? '<div class="perm-note">/],
       ];
       sites.forEach(function (s) {
         eq(s[1].test(appSrc), true,
            'A78d: …and ' + s[0] + ' asks it, so it cannot offer what push refuses');
       });
+      // A78e: and the ⚠️ flag is deliberately NOT gated — the one thing they may
+      // still say. Asserted as an absence, so putting the gate back (the tidy,
+      // consistent-looking change) fails instead of silently costing the book a
+      // reported mistake.
+      // The end marker is searched FROM the start marker. Without the offset it
+      // matched an earlier copy in the file, b landed before a, and slice()
+      // returned '' — which failed the assertion for a reason that had nothing
+      // to do with the code under test.
+      const chipsFrom = appSrc.indexOf('const action = busReceipt + editBtn');
+      const chips = appSrc.slice(chipsFrom, appSrc.indexOf('return \'<div class="row\'', chipsFrom));
+      eq(chips.length > 0 && /\(isVoid \|\| isFlag\)/.test(chips) && !/amExiting/.test(chips), true,
+         'A78e: the ⚠️ flag stays open to a stood-down member — a flag is a report, not an entry');
     }
     // A78: 💰 and 👑 are the two chips that hand back MORE than the block took,
     // and they sat on the same screen as the block itself. The server refuses

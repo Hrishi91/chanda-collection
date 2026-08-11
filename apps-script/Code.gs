@@ -733,7 +733,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.21.3';
+var CODE_VERSION = 'chanda-v4.21.4';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -881,6 +881,19 @@ var ACTIONS = {
           else if (r.store === 'payments') {
             var pOwn = ownerIndex_('parties')[String(r.row.partyId)];
             if (!pOwn || String(pOwn.collectorId) !== String(user.row.username)) { rejectedIds.push(r.row.id); return; }
+          } else if (r.store === 'corrections') {
+            // A78e (Hrishi's call): a flag is not an entry, it is a sentence to
+            // the cashier — "the ₹500 I took is written down as ₹5,000". Refuse
+            // it and the mistake stays in the book, which is the opposite of
+            // what standing somebody down is meant to protect. They cannot fix
+            // it themselves (voids and edits are still refused); they can only
+            // report it, and a cashier decides.
+            //
+            // Their OWN rows only, like every other rule in this feature — a
+            // departing member has no business filing complaints about other
+            // people's work, and the correction desk is somebody's afternoon.
+            var tOwn = targetOwner_(String(r.row.targetStore || ''), r.row.targetId);
+            if (!tOwn || String(tOwn.collectorId) !== String(user.row.username)) { rejectedIds.push(r.row.id); return; }
           } else { rejectedIds.push(r.row.id); return; }
         }
         // A78b: and nobody may send money TO somebody who has been stood down or

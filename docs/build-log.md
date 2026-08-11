@@ -8254,3 +8254,35 @@ a dead button; and an admin password reset correctly forces
 *"নতুন পাসওয়ার্ড বসাও"* before anything else can be reached.
 
 Tests **1,385 → 1,390**. Client-only — no schema change, no redeploy.
+
+## v4.21.4 — A78e: a flag is a report, not an entry
+
+A78's allow-list refused `corrections` for a stood-down member along with
+everything else. Walking the live app surfaced the cost of that: if they see
+that the ₹500 they took is written down as ₹5,000, they have no way to say so —
+and the mistake stays in the book. That is the opposite of what standing
+somebody down is meant to protect.
+
+Hrishi agreed, so the ⚠️ flag comes back, on both sides:
+
+- push accepts `corrections` from them, **for their own rows only**
+  (`targetOwner_`, the index that already exists for voids). A departing member
+  has no business filing complaints about other people's work, and the
+  correction desk is somebody's afternoon.
+- the ⚠️ chip is no longer gated. ✏️ stays shut — that one IS an edit — and so
+  do voids. They can report; a cashier decides.
+
+The test for it is written as an **absence**: `amExiting` must NOT appear in
+that chip block. Putting the gate back is the tidy, consistent-looking change
+somebody makes six months from now, and it would quietly cost the book a
+reported mistake.
+
+One more assertion bug found the same way. `appSrc.indexOf(end)` without a
+start offset matched an earlier copy of the marker, so `b < a`, `slice(a, b)`
+returned `''`, and the check failed for a reason that had nothing to do with
+the code under test. Search the end marker FROM the start marker, and assert
+the slice is non-empty — an empty slice satisfies every "must not contain".
+
+Tests **1,390 → 1,391**. `CODE_SCHEMA` stays **5** — the contract is unchanged,
+the client already sent these rows — but Code.gs moved, so this one needs a
+redeploy.

@@ -3431,7 +3431,11 @@
         const editBtn = canEdit
           ? '<button class="chip void-btn" data-ed="' + it.store + '|' + esc(r.id) + '">✏️ ' + esc(t('fix_btn')) + '</button>'
           : '';
-        const action = busReceipt + editBtn + ((isVoid || isFlag || amExiting()) ? '' :
+        // A78e: the ⚠️ flag comes BACK for a stood-down member — it is not an
+        // entry, it is telling the cashier "the ₹500 I took is written down as
+        // ₹5,000". They still cannot void or edit; they can only report, and
+        // somebody else decides. ✏️ above stays shut, because that IS an edit.
+        const action = busReceipt + editBtn + ((isVoid || isFlag) ? '' :
           (canVoid(r) ? '<button class="chip void-btn" data-vd="' + it.store + '|' + esc(r.id) + '">' + esc(t('void_btn')) + '</button>'
                       : '<button class="chip void-btn" data-fl="' + it.store + '|' + esc(r.id) + '">' + esc(t('flag_btn')) + '</button>'));
         return '<div class="row' + (isVoid ? ' voided' : '') + '" style="cursor:default"><div style="flex:1 1 60%"><b>' +

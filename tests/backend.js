@@ -573,8 +573,13 @@ module.exports = function runBackendTests(eq) {
     eq(can('voids', { id: 'x5', year: 2026, targetStore: 'payments', targetId: 'p1', reason: 'zz' }), false,
        'backend A78: …nor VOID a payment they took — the row would leave the book, their in-hand would fall by the same amount, and the cash would simply be gone');
     eq(can('messages', { id: 'x6', year: 2026, text: 'hi' }), false, 'backend A78: …nor post in the committee chat');
-    eq(can('corrections', { id: 'x7', year: 2026, targetStore: 'payments', targetId: 'p1', reason: 'zz' }), false,
-       'backend A78: …nor file a correction flag');
+    // A78e: but they CAN report a mistake in their own row. Refusing this left
+    // the error in the book — the opposite of what standing somebody down is
+    // for. They still cannot void or edit it; a cashier decides.
+    eq(can('corrections', { id: 'x7', year: 2026, targetStore: 'payments', targetId: 'p1', reason: 'ভুল অঙ্ক' }), true,
+       'backend A78e: they CAN flag a mistake in a payment they took — a flag is a report, not an entry');
+    eq(can('corrections', { id: 'x7b', year: 2026, targetStore: 'parties', targetId: 'k1', reason: 'zz' }), false,
+       'backend A78e: …but not about somebody else’s row — the correction desk is a real person’s afternoon');
     eq(can('payments', { id: 'x4', year: 2026, partyId: 'k1', amount: 1000, cashAmount: 1000, upiAmount: 0, date: '2026-09-03' }), false,
        'backend A78: …nor collect against SOMEBODY ELSE’s donor — nothing else in the file keys a payment to an owner');
     eq(can('payments', { id: 'x3', year: 2026, partyId: 's1', amount: 1000, cashAmount: 1000, upiAmount: 0, date: '2026-09-03' }), true,
