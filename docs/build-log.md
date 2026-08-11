@@ -8441,3 +8441,24 @@ nobody fixes.
 
 Every one of the six writes was reverted to its old form afterwards to confirm
 the suite goes red. Tests **1,421 → 1,436**.
+
+### v4.23.1 deployed — and A81 proven on the live sheet
+
+The ghost column is still there (removing it is a destructive edit, and nothing
+now depends on its absence). With it in place:
+
+```
+নতুন সারি প্রতিটি ঘরে ঠিক              ✅
+সংশোধনেও ঠিক ঘরে                       ✅
+…আর ভূত-কলাম মোছেনি                    ✅
+pledgeOk পতাকা pledgeOk-এ, memberType-এ নয়  ✅   ← the year-old bug
+dupOk পতাকা dupOk-এ, আগেরটা অক্ষত       ✅
+দুই ভাবে লেখা এক নম্বর ডুপ্লিকেট ধরল    ✅   ← A80, live
+উত্তর দিলে লাইনটা সত্যিই মুছল           ✅
+```
+
+Two of my own live assertions failed first, and neither was the product: Sheets
+returns a numeric-looking phone as a **number**, and I compared it to a string
+with `===`. Same shape as this morning's hard-coded `inHand === 4000` — an
+assertion that pins the representation instead of the property. Compared
+through `normPhone` now, which is what the app itself uses.
