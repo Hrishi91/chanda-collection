@@ -8333,3 +8333,58 @@ Two fixes, and the second matters more than today's feature:
 Tests **1,391 → 1,400**. `CODE_SCHEMA` stays **5**: the only contract change is
 one more accepted config key, and an old server simply refuses that one admin
 button rather than losing anything. Code.gs moved, so it wants a redeploy.
+
+## v4.23.0 — A80: the same donor, written down twice
+
+I told Hrishi the app had no duplicate-donor detection. **That was wrong**, and
+worth correcting in writing: the entry form has warned on a phone match for a
+long time, and warns well — same number means same household, so it names the
+existing donor, its owner, its pledge and who wrote it, and asks rather than
+blocks. Hrishi's own instruction to collectors to take the mobile number is
+what makes that work.
+
+The real gap is narrower and worse. That check reads `liveParties(data)` — THIS
+DEVICE's book. The case where duplicates actually happen is two collectors on
+the same street **offline**: neither has the other's row, neither is warned,
+both sync later, and nothing ever looks again. The pledge is counted twice, the
+target is wrong, and the shopkeeper is asked twice.
+
+So the desk gets the second line of defence: after everything has synced,
+`reconcile` groups live donors by normalised phone and raises
+`possible_duplicate_party`.
+
+**Phone only, never name.** "মা তারা স্টোর" can honestly be three shops, and a
+desk full of innocent twins is a desk nobody reads (A19/A23). A blank phone
+matches nothing — most emphatically not another blank one — and a half-typed
+number is not an identity.
+
+`normPhone` moved into `aggregate.js` and `cleanPhoneIN` now delegates to it,
+so the form and the desk cannot disagree about what "the same number" means.
+A62 already paid for that lesson once with three hand-rolled copies; the A62
+test now injects the real module instead of running the copy standalone, which
+makes it the proof that the two agree.
+
+`ANOMALY_FLAGS` went from store→field to store→**[fields]**, because a donor row
+now carries two answers (`pledgeOk`, `dupOk`). Widening that table is exactly
+the moment it could stop being a table, so the tests pin that `pledged`, `token`
+and anything else are still refused.
+
+### Two older assertions this broke, and only one deserved fixing
+
+`A25`/`A61` pinned the *last four* party columns — a frozen tail sitting
+directly under a comment saying "pin the RULE, not a frozen tail". Appending
+`dupOk` broke it while breaking nothing real. Rewritten to assert ORDER: the
+registry trio stays contiguous, `pledgeOk` sits after it, `dupOk` after that.
+That survives the next append, which is the point.
+
+The other two were the tests doing their job — `money-model.md` must state the
+real anomaly count, and every anomaly type must have a title in both languages.
+Both updated.
+
+Verified in the browser at 375px with the exact offline case: two rows, one
+number typed as `+91 98765-43210` and `09876543210`, and the desk names **both
+collectors** — because the answer is never "delete one" in the abstract, and
+somebody has to be asked.
+
+Tests **1,400 → 1,421**. `CODE_SCHEMA` stays **5**; `dupOk` self-heals via
+`ensureCols_`, but Code.gs moved, so the stamp needs a redeploy to persist.

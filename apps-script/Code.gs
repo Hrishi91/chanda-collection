@@ -31,7 +31,13 @@ var SHEETS = {
              // and said it is fine — donors do give more than they promised.
              // Without somewhere to record that, the line could never be
              // cleared and sat on the 🩺 desk all season. Appended LAST.
-             'pledgeOk'],
+             'pledgeOk',
+             // A80: 1 = a human looked at "two donors, same phone number" and
+             // said they are genuinely different — one owner's second shop is a
+             // real thing. Without somewhere to record that, the line could
+             // never be cleared and would sit on the 🩺 desk all season, which
+             // is how a desk stops being read. Appended LAST, like every other.
+             'dupOk'],
   payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo',
              // 1 = the collector was warned this looked like a same-day repeat
              // and confirmed it is a genuine second instalment. Travels to the
@@ -104,7 +110,11 @@ var AUDIT_COLS = ['id', 'ts', 'actor', 'actorId', 'action', 'detail'];
 // Per-report access: admin sees all; cashier gets 'inhand' by default;
 // anyone else sees only what the admin grants (Users.reports, comma list).
 // A68: which flag may be stamped on which store, and nothing else.
-var ANOMALY_FLAGS = { payments: 'dupOk', daily: 'dupOk', parties: 'pledgeOk' };
+// A80: parties now carry TWO answers — "paid more than pledged is fine" and
+// "same phone, different shop is fine" — so this maps a store to the LIST of
+// fields it accepts. Still a fixed table and never a caller-supplied column
+// name: this action must not become a way to set an arbitrary cell.
+var ANOMALY_FLAGS = { payments: ['dupOk'], daily: ['dupOk'], parties: ['pledgeOk', 'dupOk'] };
 var REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
 
 // ---------- a user's permissions come from TWO places ----------
@@ -733,7 +743,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.22.0';
+var CODE_VERSION = 'chanda-v4.23.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1487,7 +1497,7 @@ var ACTIONS = {
     var store = String(b.store || ''), field = String(b.field || '');
     // a fixed table, not a caller-supplied column name: this action must never
     // become a way to set an arbitrary cell on an arbitrary row
-    if (ANOMALY_FLAGS[store] !== field) throw new Error('bad-input');
+    if (!ANOMALY_FLAGS[store] || ANOMALY_FLAGS[store].indexOf(field) < 0) throw new Error('bad-input');
     var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES[store]);
     var cols = SHEETS[store];
     if (!sh || sh.getLastRow() < 2) throw new Error('not-found');

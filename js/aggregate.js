@@ -887,6 +887,15 @@
     return out;
   }
 
+  // A80: the digits that identify a person, whatever they typed around them.
+  // Lifted out of app.js so reconcile can use the SAME rule the entry-time
+  // warning uses — two different notions of "same number" would disagree about
+  // which donors are duplicates, and the desk would argue with the form.
+  // (A62 already paid for this lesson once, with three hand-rolled copies.)
+  function normPhone(s) {
+    return String(s || '').replace(/[\s\-()]/g, '').replace(/^(\+?91|0)/, '');
+  }
+
   // Parties with outstanding due, biggest due first.
   function duesList(parties, payments, voids) {
     const v = voidedIds({ voids: voids });
@@ -1061,6 +1070,39 @@
         anomalies.push({ type: 'possible_duplicate_daily', id: r.id, firstId: g[0].id,
                          dailyType: r.type, busName: r.busName || '', busNumber: r.busNumber || '',
                          amount: Number(r.amount) || 0, date: String(r.date || '').slice(0, 10) });
+      });
+    });
+    // A80: the SAME donor written down twice, caught by phone number.
+    //
+    // The entry form already warns about this, and it warns well — same phone
+    // means same household, so it names the existing donor rather than saying
+    // "a name matched". But that check reads THIS DEVICE's book, and the case
+    // where it matters most is the one it cannot see: two collectors working
+    // the same street OFFLINE. Neither has the other's row, neither is warned,
+    // both sync later, and nothing looks at it again. The pledge is counted
+    // twice, the target is wrong, and the shopkeeper is asked twice.
+    //
+    // Phone ONLY, never name. "মা তারা স্টোর" can honestly be three shops and a
+    // desk full of innocent twins is a desk nobody reads (A19/A23). A blank
+    // phone matches nothing — most emphatically not another blank one.
+    const phoneGroups = {};
+    // `parties` is already the live set — reconcile runs activeData() first, so
+    // a removed donor is gone before this sees it.
+    (parties || []).forEach(function (p) {
+      if (!p) return;
+      const ph = normPhone(p.phone);
+      if (ph.length < 10) return; // a partial number is not an identity
+      (phoneGroups[ph] || (phoneGroups[ph] = [])).push(p);
+    });
+    Object.keys(phoneGroups).forEach(function (ph) {
+      const g = phoneGroups[ph];
+      if (g.length < 2) return;
+      // settled if ANY member carries the answer — the A22 lesson: array order
+      // is not insertion order, so asking "does THIS row carry it" flags the
+      // innocent twin half the time.
+      if (g.some(function (p) { return Number(p.dupOk) === 1; })) return;
+      g.slice(1).forEach(function (p) {
+        anomalies.push({ type: 'possible_duplicate_party', id: p.id, firstId: g[0].id, phone: ph });
       });
     });
     // Party paid more than pledged. A pledge of ZERO means no pledge was ever
@@ -1320,7 +1362,7 @@
     return granted.filter(function (r) { return REPORT_IDS.indexOf(r) >= 0; });
   }
 
-  const api = { computeTotals: computeTotals, duesList: duesList,
+  const api = { computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
                 inHandRows: inHandRows, personalSummary: personalSummary,
                 myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,

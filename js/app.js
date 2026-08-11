@@ -100,9 +100,10 @@
   }
   // Indian mobile: strip spaces/dashes/brackets and an optional +91 / 91 / 0
   // prefix, leaving the 10-digit national number.
-  function cleanPhoneIN(s) {
-    return String(s || '').replace(/[\s\-()]/g, '').replace(/^(\+?91|0)/, '');
-  }
+  // A80: the rule itself now lives in aggregate.js, so the 🩺 desk and this
+  // form cannot disagree about which two donors are the same person. The name
+  // stays because ten call sites use it.
+  function cleanPhoneIN(s) { return Aggregate.normPhone(s); }
   // A62 (audit 2.15): the digits WhatsApp and SMS can actually dial.
   //
   // Three hand-rolled copies of this existed and ALL THREE were wrong for a
@@ -4212,6 +4213,31 @@
               (dup && canVoid(dup) ? '<button class="chip void-btn" data-ddupvoid="' + esc(a.id) + '">✖️ ' + esc(t('anom_dup_void')) + '</button>' : '') +
             '</div>' + stampNote + '</div>';
         }
+        // A80: the same donor written down twice, caught by phone number after
+        // the fact — the entry form's warning is blind when two collectors are
+        // offline on the same street, which is exactly when this happens.
+        //
+        // Both rows are named with who wrote them and what is pledged, because
+        // the answer is never "delete one" in the abstract: somebody has to
+        // decide which is real, and that needs the collector's name to ask.
+        if (a.type === 'possible_duplicate_party') {
+          const dup = partyById[a.id], first = partyById[a.firstId];
+          const line = function (p) {
+            return p ? '• ' + (p.name || '?') + (p.owner ? ' (' + p.owner + ')' : '') +
+              ' · ' + t('pledged') + ' ' + fmtMoney(p.pledged || 0) +
+              ' · ' + (p.collector || p.collectorId || '?') : '';
+          };
+          return '<div class="card"><div class="card-title">👥 ' + esc(t('anom_dup_party')) + '</div>' +
+            '<div class="row-sub">📞 ' + esc(a.phone) + '</div>' +
+            '<div class="bd-line" style="display:block;margin-top:6px">' +
+              (first ? esc(line(first)) + '<br>' : '') + (dup ? esc(line(dup)) : '') + '</div>' +
+            '<div class="chips" style="margin-top:8px">' +
+              (canStamp ? '<button class="chip on" data-pdupok="' + esc(a.id) + '">' + esc(t('anom_dup_party_ok')) + '</button>' : '') +
+              '<button class="chip" data-goparty="' + esc(a.id) + '">👁 ' + esc(t('view')) + '</button>' +
+              (first ? '<button class="chip" data-goparty="' + esc(a.firstId) + '">👁 ' + esc(t('view')) + ' ①</button>' : '') +
+            '</div><div class="row-sub" style="margin-top:6px">' + esc(t('anom_dup_party_hint')) + '</div>' +
+            stampNote + '</div>';
+        }
         // A61 (audit 2.3): "paid more than pledged" now carries BOTH honest
         // answers — the one that fixes the cause (the pledge was typed wrong,
         // and since A60 there is a screen for that) and the one that says
@@ -4307,6 +4333,10 @@
       });
       document.querySelectorAll('[data-ddupok]').forEach(function (b) {
         b.onclick = function () { stampOk(b, 'daily', b.dataset.ddupok, 'dupOk'); };
+      });
+      // A80: same stamp, same field name, on the donor row this time.
+      document.querySelectorAll('[data-pdupok]').forEach(function (b) {
+        b.onclick = function () { stampOk(b, 'parties', b.dataset.pdupok, 'dupOk'); };
       });
       document.querySelectorAll('[data-ddupvoid]').forEach(function (b) {
         b.onclick = function () { renderVoidReason('daily', b.dataset.ddupvoid, function () { navigate('anomalies'); }); };

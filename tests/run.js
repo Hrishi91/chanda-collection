@@ -723,6 +723,60 @@ eq(homeTiles({ role: 'user', cashier: 0, entries: 'memberadmin' }).role, ['membe
    'A29: the register is its own grant, and carries nothing else with it');
 eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real permission key');
 
+// ---- A80: the same donor written down twice ---------------------------------
+// The entry form already warns on a phone match, and warns well. But it reads
+// THIS DEVICE's book, so it is blind in the one case that matters: two
+// collectors offline on the same street. Both rows sync later and nothing looks
+// again — the pledge is counted twice, the target is wrong, and the shopkeeper
+// is asked twice.
+{
+  const A = require('../js/aggregate.js');
+  const P = function (id, name, phone, extra) {
+    return Object.assign({ id: id, year: 2026, type: 'shop', name: name, phone: phone,
+                           pledged: 1000, collector: id.toUpperCase(), collectorId: id }, extra || {});
+  };
+  const book = function (parties) {
+    return { parties: parties, payments: [], daily: [], expenses: [], handovers: [],
+             voids: [], messages: [], corrections: [] };
+  };
+  const dups = function (d) {
+    return A.reconcile(d, {}).anomalies.filter(function (x) { return x.type === 'possible_duplicate_party'; });
+  };
+  eq(dups(book([P('a', 'রাম স্টোর্স', '9876543210'), P('b', 'রাম স্টোর', '9876543210')])).length, 1,
+     'A80: two donors on one phone number raise exactly one line, not two');
+  // the shapes people actually write a number in
+  eq(dups(book([P('a', 'x', '+91 98765-43210'), P('b', 'y', '09876543210')])).length, 1,
+     'A80: …however differently the two collectors typed it');
+  // the failure that would fill the desk with innocent twins
+  eq(dups(book([P('a', 'x', ''), P('b', 'y', ''), P('c', 'z', '')])).length, 0,
+     'A80: a blank phone matches nothing — most emphatically not another blank one');
+  eq(dups(book([P('a', 'x', '98765'), P('b', 'y', '98765')])).length, 0,
+     'A80: …nor does a half-typed number, which is not an identity');
+  eq(dups(book([P('a', 'মা তারা স্টোর', '9000000001'), P('b', 'মা তারা স্টোর', '9000000002')])).length, 0,
+     'A80: the same NAME is not enough — "মা তারা স্টোর" can honestly be three shops, and a desk of innocent twins is a desk nobody reads');
+  // the answer, and the A22 trap it has to avoid
+  eq(dups(book([P('a', 'x', '9876543210', { dupOk: 1 }), P('b', 'y', '9876543210')])).length, 0,
+     'A80: one human answer settles the pair — asked of the FIRST row…');
+  eq(dups(book([P('a', 'x', '9876543210'), P('b', 'y', '9876543210', { dupOk: 1 })])).length, 0,
+     'A80: …and of the second, because array order is not insertion order (the A22 lesson)');
+  // removed donors are not duplicates of anything
+  const removed = book([P('a', 'x', '9876543210'), P('b', 'y', '9876543210')]);
+  removed.voids = [{ id: 'v1', year: 2026, targetStore: 'parties', targetId: 'b' }];
+  eq(dups(removed).length, 0, 'A80: a removed donor stops being anybody’s twin');
+  // three on one number is two lines against the first, not three cards
+  eq(dups(book([P('a', 'x', '9876543210'), P('b', 'y', '9876543210'), P('c', 'z', '9876543210')])).length, 2,
+     'A80: three on one number raise two lines, each pointing back at the first');
+
+  // The card is only half the feature: without the stamp wired to the SAME
+  // field the rule reads, the line can never be cleared and the 🩺 desk fills
+  // with lines nobody can answer — which is how a desk stops being read
+  // (A19/A23, and A60's `voided` button that reported success and did nothing).
+  const appSrc = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/data-pdupok="/.test(appSrc), true, 'A80: the desk draws an answer button for it');
+  eq(/stampOk\(b, 'parties', b\.dataset\.pdupok, 'dupOk'\)/.test(appSrc), true,
+     'A80: …wired to parties.dupOk — the same field reconcile reads, or the answer never clears the line');
+}
+
 // ---- A79: the season target, and the window it must not open ----------------
 // "কত হল, আর কত বাকি" is the question a committee asks every evening, and the
 // app could not answer it without opening a report. The bar answers it — but
@@ -1738,9 +1792,20 @@ const a25Cols = a25Gs.slice(a25Gs.indexOf('  parties:  ['), a25Gs.indexOf('],', 
 // A61: pin the RULE (every schema addition goes on the END, because every
 // write here is position-based), not a frozen tail — a list that has to be
 // rewritten each time something is appended stops meaning anything.
-eq(a25Cols.slice(-4, -1), ['position', 'email', 'appUser'],
-   'A25: registry columns appended last on parties');
-eq(a25Cols[a25Cols.length - 1], 'pledgeOk', 'A61: …and pledgeOk after them, not inserted among them');
+// A80: this WAS a frozen tail — slice(-4,-1) — directly under a comment saying
+// not to write one, and appending `dupOk` broke it while breaking nothing real.
+// The rule is ORDER, not position: the registry trio stays contiguous and in
+// sequence, and everything added later sits after it. That survives the next
+// append, which is the whole point.
+{
+  const at = function (c) { return a25Cols.indexOf(c); };
+  eq(at('email') === at('position') + 1 && at('appUser') === at('email') + 1, true,
+     'A25: the registry columns stay together and in order on parties');
+  eq(at('pledgeOk') > at('appUser'), true,
+     'A61: …and pledgeOk was appended after them, not inserted among them');
+  eq(at('dupOk') > at('pledgeOk'), true,
+     'A80: …and dupOk after that — every schema addition goes on the END, because every write here is position-based');
+}
 // positions are an ADMIN master list, like areas and locations — not hard-coded
 eq(/var LIST_KINDS = \[[^\]]*'position'[^\]]*\]/.test(a25Gs), true, 'A25: position is a Lists kind');
 eq(a25Gs.indexOf('LIST_KINDS.indexOf(kind) < 0') >= 0, true, 'A25: …and the server gate reads that one list');
@@ -3121,8 +3186,15 @@ try {
 
   // 2.15 — three hand-rolled phone manglings, all three wrong for a number
   // written the way people write it down. Run the real helper.
+  // A80: cleanPhoneIN now delegates to Aggregate.normPhone, so the real module
+  // is handed in rather than stubbed — which makes this ALSO the proof that the
+  // form and the 🩺 desk normalise a number the same way. A stub here would let
+  // them drift apart while every assertion stayed green.
   const waSrc = app.slice(app.indexOf('function cleanPhoneIN'), app.indexOf('function emailErr'));
-  const wa = new Function(waSrc + '\n return { cleanPhoneIN: cleanPhoneIN, waNumber: waNumber };')();
+  const wa = new Function('Aggregate', waSrc + '\n return { cleanPhoneIN: cleanPhoneIN, waNumber: waNumber };')(
+    require('../js/aggregate.js'));
+  eq(wa.cleanPhoneIN('+91 98765-43210'), require('../js/aggregate.js').normPhone('+91 98765-43210'),
+     'A80: the form and reconcile agree on what "the same number" means — one rule, not two');
   eq(wa.waNumber('09876543210'), '919876543210',
      'A62: a leading 0 — the case that broke the dues reminder into a dead wa.me link');
   eq(wa.waNumber('9876543210'), '919876543210', 'A62: a bare 10-digit number gets the country code');

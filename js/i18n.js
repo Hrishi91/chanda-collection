@@ -118,6 +118,12 @@ const I18N = {
   // dropped, the desk must not head the row with a raw key.
   anom_possible_duplicate_payment_t: { bn: 'একই জমা দুবার?', en: 'Same payment twice?' },
   anom_possible_duplicate_daily_t: { bn: 'একই কালেকশন দুবার?', en: 'Same collection twice?' },
+  // A80 — the same donor written down twice, caught by phone number.
+  anom_possible_duplicate_party_t: { bn: 'একই চাঁদাদাতা দুবার?', en: 'Same donor twice?' },
+  anom_dup_party: { bn: 'একই ফোন নম্বরে দুটো নাম', en: 'Two entries, one phone number' },
+  anom_dup_party_ok: { bn: '✅ আলাদা দোকান, ঠিক আছে', en: '✅ Different shops, fine' },
+  anom_dup_party_hint: { bn: 'একজনের দুটো দোকান হতেই পারে — তখন উপরের বোতাম টিপে বন্ধ করে দিন।',
+                         en: 'One owner can genuinely have two shops — clear it with the button above.' },
   q_phone: { bn: 'ফোন নম্বর? (না থাকলে Skip)', en: 'Phone number? (Skip if none)' },
   q_pledged: { bn: 'কত টাকা কথা হলো (pledge)?', en: 'Pledged amount?' },
   q_paid_now: { bn: 'এখন কত টাকা দিল? (পরে দিলে Skip)', en: 'Paid now? (Skip if later)' },

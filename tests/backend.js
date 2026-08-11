@@ -811,6 +811,33 @@ module.exports = function runBackendTests(eq) {
        'backend 🧹: …while somebody with no post is left with nothing, which is the whole point of the stranded warning on the admin screen');
   }
 
+  // ---- A80: parties now carry TWO answers -------------------------------
+  // ANOMALY_FLAGS went from store→field to store→[fields] so a donor row can
+  // hold both "paid more than pledged is fine" and "same phone, different shop
+  // is fine". Widening that table is exactly the moment it stops being a table
+  // and becomes "any column the caller names".
+  {
+    const { b, tok } = book();
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 's1', year: 2026, type: 'shop', name: 'দোকান', pledged: 1000, phone: '9876543210' }),
+    ] });
+    const cashId = b.rows('Users').filter(function (u) { return u.username === 'bimal'; })[0].id;
+    const refuses = function (f) { try { f(); return ''; } catch (e) { return e.message; } };
+    eq(b.call('setAnomalyFlag', { token: tok.bimal, store: 'parties', id: 's1', field: 'dupOk' }).ok, true,
+       'backend A80: a cashier can answer "same phone, different shop"');
+    eq(Number(b.rows('Parties').filter(function (r) { return r.id === 's1'; })[0].dupOk), 1,
+       'backend A80: …and it lands in the dupOk column, so the line clears for everybody');
+    eq(b.call('setAnomalyFlag', { token: tok.bimal, store: 'parties', id: 's1', field: 'pledgeOk' }).ok, true,
+       'backend A80: …while pledgeOk still works — a party can need both answers');
+    eq(refuses(function () { b.call('setAnomalyFlag', { token: tok.bimal, store: 'parties', id: 's1', field: 'pledged' }); }),
+       'bad-input', 'backend A80: …and the table still refuses any other column — this must never become "set an arbitrary cell"');
+    eq(refuses(function () { b.call('setAnomalyFlag', { token: tok.bimal, store: 'parties', id: 's1', field: 'token' }); }),
+       'bad-input', 'backend A80: …including one that exists on another sheet');
+    eq(refuses(function () { b.call('setAnomalyFlag', { token: tok.ratan, store: 'parties', id: 's1', field: 'dupOk' }); }),
+       'not-cashier', 'backend A80: …and a plain collector cannot answer it at all');
+    eq(cashId.length > 0, true, 'backend A80: (fixture sanity)');
+  }
+
   // ---- A79: the season target -------------------------------------------
   // A config key, so it needs the same two things every other one does: only an
   // admin may set it, and the whitelist must still refuse the keys that would

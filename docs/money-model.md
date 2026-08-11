@@ -170,7 +170,7 @@ member contribution would raise an anomaly and drown the 🩺 desk.
 
 ## When something IS wrong: the anomaly desk (A23)
 
-`reconcile` raises **ten** anomaly types. Do not hand-count them: the suite
+`reconcile` raises **eleven** anomaly types. Do not hand-count them: the suite
 reads the list out of `js/aggregate.js` and demands a title and a message for
 each, and this sentence drifted twice before anyone noticed (it said eight when
 the code raised nine, and again when A61 added `possible_duplicate_daily`).
