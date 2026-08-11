@@ -8081,3 +8081,21 @@ be reduced FIRST — but that is the documented behaviour, not a broken promise.
 Both directions are now pinned so neither can move silently.
 
 Tests **1,376 → 1,385**.
+
+### v4.21.2 deployed
+
+New deployment URL rebaked into `config.js` (this account never repoints an
+existing deployment — see `apps-script-deploy-quirks`). `doGet` on the new URL
+answers **chanda-v4.21.2 / schema 5**, matching `auth.js` and `sw.js`, so the
+A78b cashier-inbox guard and the A78c wipe rules are live rather than merely
+committed. Schema unchanged at 5, so no phone is locked out and nobody has to
+reload before working.
+
+One wasted detour worth noting so it is not repeated: I tried to prove the two
+new handlers exist by POSTing `{"action":"setAccess"}` with curl. Apps Script
+answers a POST with a 302 to `script.googleusercontent.com`, which does not
+accept a POST — so `--post302` returns Google's "Page not found" page, and
+plain `-L` downgrades to GET and returns doGet's payload. Neither says anything
+about the handler. `doGet` carrying `codeVersion` exists precisely so this
+question needs one unauthenticated GET and nothing else; the version string and
+the handlers come out of the same file, so the version IS the proof.
