@@ -10,6 +10,13 @@ single source of truth and a combined "main" dashboard.
 - `docs/pending.md` — THE roadmap (prioritized, living)
 - `docs/build-log.md` — append-only chronology
 
+**These three are the ONLY source of truth for decisions, their causes and
+their costs.** Assistant-side memory tools (claude-mem and the like) are a
+search convenience — useful for "what was I working on last week" — never a
+place to record a decision. Two memories that drift apart cannot be told apart
+later, and in this project the *why* and the *what it cost* are the asset. If
+one ever disagrees with these files, these files win.
+
 ## Working rules (from Hrishi's global discipline)
 
 - Explain in Bengali (technical terms English); code/docs/commits in English.
