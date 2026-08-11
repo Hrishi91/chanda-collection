@@ -1824,10 +1824,17 @@ eq((a27Pos.match(/\{ id:/g) || []).length, 4, 'A27: four committee posts seeded'
 });
 eq(/id="mf-pos"[\s\S]{0,400}Lists\.labelOf\('position'/.test(a25App), true,
    'A27: the post is a DROPDOWN off the master list, on every member');
-// the membership-type list was never wanted — it must be gone everywhere
+// The membership-type list was never wanted — it must be gone everywhere.
+// A81: comments stripped first. The word now has to appear in a comment,
+// because the COLUMN is still on the live sheet (ensureCols_ appends, it never
+// removes) and that ghost is what made every position-based write land one cell
+// to the left. Documenting the cause is the fix staying fixed; the fifth time
+// an assertion in this suite has tripped over its own explanation.
 ['js/app.js', 'js/lists.js', 'js/i18n.js', 'apps-script/Code.gs'].forEach(function (f) {
-  eq(require('fs').readFileSync(__dirname + '/../' + f, 'utf8').indexOf('memberType') < 0, true,
-     'A27: no memberType left in ' + f);
+  const code = require('fs').readFileSync(__dirname + '/../' + f, 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  eq(code.indexOf('memberType') < 0, true,
+     'A27: no memberType left in ' + f + ' (comments excluded)');
 });
 // registration REGISTERS; money comes later through the collection screen
 // The register is a FORM now, not a guided flow — Hrishi asked for dropdowns

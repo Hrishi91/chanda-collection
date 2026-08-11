@@ -64,6 +64,23 @@ function makeSheet(name, rows) {
           return row[c - 1] === undefined ? '' : row[c - 1];
         },
         setValues: (vals) => {
+          // A81: real Sheets REFUSES a mismatch — "The number of rows/columns
+          // in the data does not match the number in the range". This shim used
+          // to accept anything and quietly write it, so a write sized by the
+          // wrong array (cols.length against a header that had grown) looked
+          // fine here and would have thrown in production. A harness that is
+          // more forgiving than the thing it stands in for hides exactly the
+          // bugs it exists to catch.
+          if (vals.length !== nr) {
+            throw new Error('The number of rows in the data does not match the number of rows in the range. (' +
+                            vals.length + ' vs ' + nr + ')');
+          }
+          vals.forEach((line) => {
+            if (line.length !== nc) {
+              throw new Error('The number of columns in the data does not match the number of columns in the range. (' +
+                              line.length + ' vs ' + nc + ')');
+            }
+          });
           vals.forEach((line, i) => {
             const at = r - 1 + i;
             while (grid.length <= at) grid.push([]);

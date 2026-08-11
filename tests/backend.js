@@ -811,6 +811,122 @@ module.exports = function runBackendTests(eq) {
        'backend 🧹: …while somebody with no post is left with nothing, which is the whole point of the stranded warning on the admin screen');
   }
 
+  // ---- A81: a column the sheet has and this file does not ----------------
+  //
+  // Found on the LIVE sheet, not here: v4.7.3 dropped `memberType` from
+  // SHEETS.parties, ensureCols_ only ever APPENDS, so the column stayed — and
+  // every write aimed by `cols.indexOf` landed one cell to the left of where it
+  // meant to. Stamping pledgeOk wrote into memberType; stamping dupOk wrote
+  // into pledgeOk; dupOk was never written at all. Reads are header-driven and
+  // were always right, which is precisely why nobody saw it: the answer went
+  // in, came back as nothing, and the 🩺 line could never be cleared. A61's
+  // "paid more than pledged is fine" button had therefore never once worked in
+  // production.
+  //
+  // The shim builds its sheets from SHEETS, so it can never drift on its own.
+  // This test makes it drift on purpose. Every assertion below fails against
+  // the old by-position code.
+  {
+    const { b, tok } = book();
+    const sh = b.env.SpreadsheetApp.getActive().getSheetByName('Parties');
+    const head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    const at = head.indexOf('pledgeOk');
+    sh.getRange(1, head.length + 1).setValue('pledgeOk'); // pledgeOk moves to the end…
+    sh.getRange(1, at + 1).setValue('memberType');        // …and a ghost takes its place
+    // …and `phone` goes last, carrying REAL data. Written with an empty column
+    // last, a truncating insert (cols.length instead of head.length) dropped
+    // only a blank and every assertion stayed green — the mutation proved the
+    // test blind before it proved the code right.
+    const at2 = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].indexOf('phone');
+    sh.getRange(1, sh.getLastColumn() + 1).setValue('phone');
+    sh.getRange(1, at2 + 1).setValue('ghost2');
+    b.api.resetRequestState();
+
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 'g1', year: 2026, type: 'shop', name: 'ভূত', phone: '9000000001', pledged: 100 }),
+    ] });
+    const row = function () { return b.rows('Parties').filter(function (r) { return r.id === 'g1'; })[0]; };
+    eq(row().name, 'ভূত',
+       'backend A81: a row still writes to the right columns when the sheet carries one this file does not list');
+    eq(Number(row().pledged), 100, 'backend A81: …including the money');
+    eq(String(row().phone), '9000000001',
+       'backend A81: …and the LAST column of the sheet, which a write sized by `cols` silently truncates');
+
+    const cashId = b.rows('Users').filter(function (u) { return u.username === 'bimal'; })[0].id;
+    b.call('setCashier', { token: tok.admin, userId: cashId, cashier: 1 });
+    b.api.resetRequestState();
+    b.call('setAnomalyFlag', { token: tok.bimal, store: 'parties', id: 'g1', field: 'pledgeOk' });
+    eq(Number(row().pledgeOk), 1,
+       'backend A81: the pledgeOk answer lands in pledgeOk — this is the one that had been going into the ghost');
+    eq(String(row().memberType || ''), '',
+       'backend A81: …and NOT in the column next door');
+    b.api.resetRequestState();
+    b.call('setAnomalyFlag', { token: tok.bimal, store: 'parties', id: 'g1', field: 'dupOk' });
+    eq(Number(row().dupOk), 1, 'backend A81: dupOk lands in dupOk');
+    eq(Number(row().pledgeOk), 1, 'backend A81: …without disturbing the answer already there');
+
+    // an UPDATE must not blank the ghost either — a wipe would be a second bug
+    // fixing the first
+    sh.getRange(2, sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].indexOf('memberType') + 1)
+      .setValue('legacy-value');
+    b.api.resetRequestState();
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 'g1', year: 2026, type: 'shop', name: 'ভূত ২', phone: '9000000001', pledged: 150 }),
+    ] });
+    eq(row().name, 'ভূত ২', 'backend A81: an update still lands correctly…');
+    eq(String(row().memberType), 'legacy-value',
+       'backend A81: …and leaves an unknown column alone rather than wiping it');
+  }
+
+  // The same fix on the correction desk, which had never been executed at all.
+  // No ghost exists on that sheet today; that is not a thing to rely on, and a
+  // rule guarded in one place and not the other is this project's oldest bug.
+  {
+    const { b, tok } = book();
+    const csh = b.env.SpreadsheetApp.getActive().getSheetByName('Corrections');
+    const chead = csh.getRange(1, 1, 1, csh.getLastColumn()).getValues()[0];
+    const si = chead.indexOf('status');
+    csh.getRange(1, chead.length + 1).setValue('status');
+    csh.getRange(1, si + 1).setValue('ghostCol');
+    b.api.resetRequestState();
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 'c1', year: 2026, type: 'shop', name: 'দোকান', pledged: 500 }),
+      rec('payments', { id: 'cp1', year: 2026, partyId: 'c1', amount: 500, cashAmount: 500, upiAmount: 0, date: '2026-09-01' }),
+    ] });
+    b.api.resetRequestState();
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('corrections', { id: 'cf1', year: 2026, targetStore: 'payments', targetId: 'cp1',
+                           targetSummary: 'দোকান — ₹500', reason: 'অঙ্ক ভুল', status: 'pending' }),
+    ] });
+    const cashId = b.rows('Users').filter(function (u) { return u.username === 'bimal'; })[0].id;
+    b.call('setCashier', { token: tok.admin, userId: cashId, cashier: 1 });
+    // canReview_, not isCashier_ — the desk needs the `review` grant on top
+    b.call('setEntries', { token: tok.admin, userId: cashId, entries: ['shop', 'review'] });
+    b.api.resetRequestState();
+    b.call('resolveCorrection', { token: tok.bimal, id: 'cf1', decision: 'reject' });
+    const row = b.rows('Corrections').filter(function (r) { return r.id === 'cf1'; })[0];
+    eq(String(row.status), 'rejected',
+       'backend A81: a resolved flag lands in `status`, not in the column beside it');
+    eq(String(row.ghostCol || ''), '', 'backend A81: …and the unknown column is untouched');
+    eq(String(row.resolvedBy || '').length > 0, true, 'backend A81: …with who decided it recorded');
+  }
+
+  // Drift that nobody can see is drift nobody fixes. setup() now names it.
+  {
+    const { b } = book();
+    const sh = b.env.SpreadsheetApp.getActive().getSheetByName('Parties');
+    sh.getRange(1, sh.getLastColumn() + 1).setValue('memberType');
+    b.api.setup();
+    const said = b.rows('Audit').filter(function (r) { return String(r.action) === 'schema:ghost'; });
+    eq(said.length, 1, 'backend A81: setup() reports a column the sheet has and this file does not');
+    eq(String(said[0].detail).indexOf('memberType') >= 0, true,
+       'backend A81: …and names it, so the admin meets the cause rather than the symptom');
+    const clean = book();
+    clean.b.api.setup();
+    eq(clean.b.rows('Audit').filter(function (r) { return String(r.action) === 'schema:ghost'; }).length, 0,
+       'backend A81: …and says nothing when the sheets agree — a warning that always fires is not a warning');
+  }
+
   // ---- A80: parties now carry TWO answers -------------------------------
   // ANOMALY_FLAGS went from store→field to store→[fields] so a donor row can
   // hold both "paid more than pledged is fine" and "same phone, different shop

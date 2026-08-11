@@ -197,6 +197,15 @@ function setup() {
     var have = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
     var missing = want.filter(function (c) { return have.indexOf(c) < 0; });
     if (missing.length) sh.getRange(1, have.length + 1, 1, missing.length).setValues([missing]);
+    // A81: and say so when the sheet carries a column this file no longer
+    // lists. ensureCols_ only ever APPENDS, so a name dropped from SHEETS lives
+    // on in the sheet for ever — invisible, because reads go by header and look
+    // right. That ghost is what put the pledgeOk answer into memberType for a
+    // year. Every write is header-driven now and handles it, but drift that
+    // nobody can see is drift nobody fixes, so it goes in the audit log where
+    // the admin will meet it.
+    var ghosts = have.filter(function (c) { return c && want.indexOf(c) < 0; });
+    if (ghosts.length) logAudit_(null, 'schema:ghost', SHEET_TITLES[key] + ' → [' + ghosts.join(', ') + ']');
   });
   var us = ss.getSheetByName('Users') || ss.insertSheet('Users');
   if (us.getLastRow() === 0) { us.appendRow(USER_COLS); us.setFrozenRows(1); }
@@ -743,7 +752,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.23.0';
+var CODE_VERSION = 'chanda-v4.23.1';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -969,13 +978,22 @@ var ACTIONS = {
         // mint time — so its receipt would read "নং —" for ever while the book
         // knew the number all along. Handing back what we preserved closes that.
         var carried = {};
+        // A81: `head` is the sheet's real header; every read and write below is
+        // aimed by NAME through it. cols.length / cols.indexOf were correct only
+        // while the two agreed, and they stopped agreeing in v4.7.3.
+        var head = sheetHeader_(sh);
+        var rowAt = function (rowId) {
+          return idRow[rowId] ? sh.getRange(idRow[rowId], 1, 1, head.length).getValues()[0] : null;
+        };
         var preserve = function (rowId, values) {
           if (!settle || !idRow[rowId]) return values;
-          var have = sh.getRange(idRow[rowId], 1, 1, cols.length).getValues()[0];
-          var ex = {}; cols.forEach(function (c, ci) { ex[c] = have[ci]; });
+          var have = rowAt(rowId);
+          var ex = {}; head.forEach(function (h, ci) { ex[h] = have[ci]; });
           if (!settle.when(ex)) return values;
           settle.keep.forEach(function (c) {
-            values[cols.indexOf(c)] = ex[c];
+            var at = head.indexOf(c);
+            if (at < 0) return;
+            values[at] = ex[c];
             (carried[rowId] = carried[rowId] || {})[c] = ex[c];
           });
           return values;
@@ -1065,8 +1083,8 @@ var ACTIONS = {
             row.collectorId = reassign.row.username;
             row.collectorRole = roleOf_(reassign.row.role, reassign.row.cashier);
             reassigned[claimed] = (reassigned[claimed] || 0) + 1;
-            var values0 = safeRow_(cols, row);
-            if (idRow[row.id]) sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([preserve(row.id, values0)]);
+            var values0 = rowForSheet_(head, row, rowAt(row.id));
+            if (idRow[row.id]) sh.getRange(idRow[row.id], 1, 1, head.length).setValues([preserve(row.id, values0)]);
             else pending.push(values0);
             savedIds.push(row.id);
             return;
@@ -1081,9 +1099,9 @@ var ACTIONS = {
           // row nor resolve its correction flag. (Identity still comes from
           // the token only; A9 is untouched.)
           row.collectorRole = roleOf_(user.row.role, user.row.cashier);
-          var values = safeRow_(cols, row);
+          var values = rowForSheet_(head, row, rowAt(row.id));
           if (!isNew) {
-            sh.getRange(idRow[row.id], 1, 1, cols.length).setValues([preserve(row.id, values)]);
+            sh.getRange(idRow[row.id], 1, 1, head.length).setValues([preserve(row.id, values)]);
             // tell the retrying phone the serial its lost response carried
             if (carried[row.id] && carried[row.id].receiptNo) receipts[row.id] = carried[row.id].receiptNo;
           }
@@ -1095,7 +1113,7 @@ var ACTIONS = {
         });
         // one write for every new row in this store
         if (pending.length) {
-          sh.getRange(sh.getLastRow() + 1, 1, pending.length, cols.length).setValues(pending);
+          sh.getRange(sh.getLastRow() + 1, 1, pending.length, head.length).setValues(pending);
         }
       });
       // an admin filing rows under someone else is unusual enough to record
@@ -1166,24 +1184,33 @@ var ACTIONS = {
       var csh = ss.getSheetByName(SHEET_TITLES.corrections), cols = SHEETS.corrections;
       if (!csh || csh.getLastRow() < 2) throw new Error('not-found');
       var values = csh.getDataRange().getValues();
+      // A81: read through the SHEET's header, not through `cols`. The write
+      // below was fixed first and the read was left — which is this project's
+      // oldest bug wearing a new hat: a rule applied to one half of a pair.
+      var chead = values[0].map(String);
       for (var i = 1; i < values.length; i++) {
-        if (String(values[i][cols.indexOf('id')]) === String(b.id)) {
-          var corr = {}; cols.forEach(function (c, j) { corr[c] = values[i][j]; });
+        if (String(values[i][chead.indexOf('id')]) === String(b.id)) {
+          var corr = {}; chead.forEach(function (c, j) { corr[c] = values[i][j]; });
           if (corr.status !== 'pending') throw new Error('already-resolved');
           // a cashier may only resolve a regular collector's entry; admin any
           if (u.row.role !== 'admin' && targetCollectorRole_(corr.targetStore, corr.targetId) !== 'collector') {
             throw new Error('not-allowed');
           }
-          csh.getRange(i + 1, cols.indexOf('status') + 1).setValue(b.decision === 'approve' ? 'approved' : 'rejected');
-          csh.getRange(i + 1, cols.indexOf('resolvedBy') + 1).setValue(u.row.name);
-          csh.getRange(i + 1, cols.indexOf('resolvedAt') + 1).setValue(new Date().toISOString());
-          csh.getRange(i + 1, cols.indexOf('receivedAt') + 1).setValue(new Date().toISOString()); // carry in delta pull
+          // A81: by name, for the same reason as setAnomalyFlag — this sheet has
+          // no ghost column today, and that is not a thing to rely on.
+          csh.getRange(i + 1, ensureCol_(csh, 'status')).setValue(b.decision === 'approve' ? 'approved' : 'rejected');
+          csh.getRange(i + 1, ensureCol_(csh, 'resolvedBy')).setValue(u.row.name);
+          csh.getRange(i + 1, ensureCol_(csh, 'resolvedAt')).setValue(new Date().toISOString());
+          csh.getRange(i + 1, ensureCol_(csh, 'receivedAt')).setValue(new Date().toISOString()); // carry in delta pull
           if (b.decision === 'approve') {
             var vsh = ss.getSheetByName(SHEET_TITLES.voids), vcols = SHEETS.voids;
             var v = { id: Utilities.getUuid(), year: corr.year, targetStore: corr.targetStore, targetId: corr.targetId,
                       reason: corr.reason, collector: u.row.name, collectorId: u.row.username,
                       createdAt: new Date().toISOString(), receivedAt: new Date().toISOString() };
-            vsh.appendRow(safeRow_(vcols, v));
+            // A81: appendRow writes from column 1 by position, so it needs the
+            // sheet's header for the same reason everything else does.
+            ensureCols_(vsh, vcols);
+            vsh.appendRow(rowForSheet_(sheetHeader_(vsh), v, null));
           }
           logAudit_(u.row, b.decision === 'approve' ? 'correction:approve' : 'correction:reject',
             corr.targetStore + '/' + corr.targetId + (corr.reason ? ' — ' + corr.reason : ''));
@@ -1508,10 +1535,13 @@ var ACTIONS = {
       for (var i = 0; i < ids.length; i++) {
         if (String(ids[i][0]) !== String(b.id)) continue;
         var r = i + 2;
-        sh.getRange(r, cols.indexOf(field) + 1).setValue(1);
+        // A81: ensureCol_ resolves by NAME against the live header. cols.indexOf
+        // was one cell out on any sheet carrying a column this file no longer
+        // lists, which is how the pledgeOk answer went into memberType.
+        sh.getRange(r, ensureCol_(sh, field)).setValue(1);
         // bump receivedAt or the delta pull never carries the answer and every
         // other phone keeps raising it — the A59 lesson, one release on
-        sh.getRange(r, cols.indexOf('receivedAt') + 1).setValue(new Date().toISOString());
+        sh.getRange(r, ensureCol_(sh, 'receivedAt')).setValue(new Date().toISOString());
         touchData_();
         logAudit_(u.row, 'anomaly:' + field, store + '/' + b.id);
         return { ok: true };
@@ -2288,6 +2318,29 @@ function safeCell_(v) {
 // separate at six call sites, which is exactly how one gets missed
 function safeRow_(cols, row) {
   return cols.map(function (c) { return safeCell_(row[c] !== undefined && row[c] !== null ? row[c] : ''); });
+}
+// A81: the sheet's OWN header, which is the only thing a write may be aimed at.
+//
+// `cols` is what this file believes the columns are; the sheet is what they
+// actually are, and the two drift. v4.7.3 dropped `memberType` from
+// SHEETS.parties, ensureCols_ only ever APPENDS, so the live sheet kept the
+// column — and every position-based write after it landed one cell to the
+// left. Stamping pledgeOk wrote into memberType; stamping dupOk wrote into
+// pledgeOk; dupOk was never written at all. Reads are header-driven and were
+// always right, which is exactly why nobody saw it: the answer went in, came
+// back as nothing, and the 🩺 line could never be cleared.
+//
+// Unknown columns (a ghost like memberType) are preserved on update and left
+// empty on insert — a wipe would be a second bug fixing the first.
+function sheetHeader_(sh) {
+  var last = sh.getLastColumn();
+  return last ? sh.getRange(1, 1, 1, last).getValues()[0].map(String) : [];
+}
+function rowForSheet_(head, row, existing) {
+  return head.map(function (h, i) {
+    if (row[h] !== undefined && row[h] !== null) return safeCell_(row[h]);
+    return existing ? existing[i] : '';
+  });
 }
 function ensureCol_(sh, name) {
   var last = sh.getLastColumn();

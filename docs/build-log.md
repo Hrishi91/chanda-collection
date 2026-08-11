@@ -8388,3 +8388,56 @@ somebody has to be asked.
 
 Tests **1,400 → 1,421**. `CODE_SCHEMA` stays **5**; `dupOk` self-heals via
 `ensureCols_`, but Code.gs moved, so the stamp needs a redeploy to persist.
+
+## v4.23.1 — A81: a column the sheet had and this file did not
+
+Verifying A80 against the live server turned up a failure that had nothing to
+do with A80. Stamping "same phone, different shop is fine" reported success and
+cleared nothing. Read the row back:
+
+```
+push-এর পরে             {memberType:"", pledgeOk:"", dupOk:""}
+pledgeOk পতাকার পরে      {memberType:1,  pledgeOk:"", dupOk:""}   ← এক ঘর বাঁয়ে
+dupOk পতাকার পরে         {memberType:1,  pledgeOk:1,  dupOk:""}
+```
+
+**v4.7.3 removed `memberType` from `SHEETS.parties`. `ensureCols_` only ever
+APPENDS, so the live sheet kept the column** — and every write aimed by
+`cols.indexOf(...)` landed one cell to the left of its name. Reads go through
+the header and were always right, which is exactly why a year passed without
+anybody seeing it: the answer went in, came back as nothing, and the line could
+never be cleared.
+
+So **A61's "কথার চেয়ে বেশি জমা — ঠিক আছে" button has never once worked in
+production.** It has been writing into a dead column since v4.7.3.
+
+### The fix: the sheet's own header is the only thing a write may be aimed at
+
+`sheetHeader_` + `rowForSheet_`, and every write goes through them — `push`
+(insert, update and admin-reassign), `preserve`, `setAnomalyFlag`,
+`resolveCorrection` (its READ was position-based too, which is the same bug
+wearing the other half of the pair), and the void `appendRow`. Unknown columns
+are preserved on update and left empty on insert: wiping the ghost would be a
+second bug fixing the first.
+
+Scope, measured rather than assumed — every live sheet compared against its
+definition: **only `parties` has drifted, by exactly one name.** `USER_COLS` has
+only ever grown, checked through the git history, so Users is sound.
+
+And `setup()` now writes `schema:ghost` to the audit log when a sheet carries a
+column the file does not list, with the name. Drift nobody can see is drift
+nobody fixes.
+
+### Two harness lessons, and one of them is the reason this took an hour
+
+- The shim's `setValues` accepted **any** array size and quietly wrote it. Real
+  Sheets refuses a mismatch. So a write sized by the wrong array looked correct
+  here and would have thrown in production — a harness more forgiving than the
+  thing it stands in for hides exactly the bugs it exists to catch. It now
+  raises the same error, wording and all.
+- The first ghost-column test put an EMPTY column last, so a truncating insert
+  dropped only a blank and the test stayed green. The mutation proved the test
+  blind before it proved the code right. `phone` now sits last, carrying data.
+
+Every one of the six writes was reverted to its old form afterwards to confirm
+the suite goes red. Tests **1,421 → 1,436**.
