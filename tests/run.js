@@ -1596,7 +1596,11 @@ eq(reconcile(graphD).balanced, true, 'graph: and the invariant banner stays sile
     for (const k in sv) { const d = subsetEq(sv[k], (cl || {})[k], path + '.' + k); if (d) return d; }
     return null;
   };
-  ['overview', 'dues', 'inhand', 'collectors', 'expenses', 'daily'].forEach(function (id) {
+  // A82: `areas` was the one report of the seven never mirrored. Six checked and
+  // one not is this project's oldest shape — a rule stated for N and guarded for
+  // N−1 — and it is the report the committee reads by PARA, so a disagreement
+  // would show up as one neighbourhood's total differing by screen.
+  ['overview', 'dues', 'inhand', 'collectors', 'expenses', 'daily', 'areas'].forEach(function (id) {
     eq(subsetEq(g2.computeReport_(id, graphD), computeReport(id, graphD), id), null,
        'mirror: server report(' + id + ') agrees with the client on every shared field');
   });

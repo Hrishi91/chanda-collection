@@ -8462,3 +8462,26 @@ returns a numeric-looking phone as a **number**, and I compared it to a string
 with `===`. Same shape as this morning's hard-coded `inHand === 4000` — an
 assertion that pins the representation instead of the property. Compared
 through `normPhone` now, which is what the app itself uses.
+
+### A82 — the seventh report
+
+Asked whether anything else was left, I went looking rather than answering.
+`computeReport_` has seven reports; the client/server agreement test covered
+**six**. `areas` was the omission — and it is the one the committee reads by
+para, so a disagreement would have surfaced as one neighbourhood's total
+differing depending on which screen you opened.
+
+They agree today. The gap was in the guard, not the behaviour — which is the
+only reason it could sit there unnoticed. Confirmed load-bearing by dropping
+`paid` from the server's areas aggregation and watching it go red.
+
+Six checked and one not is this project's oldest shape: a rule stated for N and
+guarded for N−1 (A71, A68, A78, and now this).
+
+Also checked while I was there, and sound: `restoreBackup` writes the backup's
+whole grid back **including its header row**, so it is self-consistent and never
+had A81's alignment bug. It is in fact safer after A81 — restoring an older
+backup with fewer columns used to leave every later write misaligned, and now
+`ensureCols_` re-appends and the header-driven writes land correctly.
+
+Tests **1,436 → 1,437**.
