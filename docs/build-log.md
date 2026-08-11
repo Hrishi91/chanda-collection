@@ -8158,3 +8158,56 @@ Twenty-three behaviours confirmed on the deployed server against the real
 Sheet. Test accounts `zz_test_coll` / `zz_test_cash` are blocked; their two
 rows are the only residue, since 🧹 spares Users. Their transactional rows
 (`ZZ…`-prefixed) go with the wipe.
+
+### …and then Hrishi asked whether I had actually checked everything
+
+I had not, and I had been writing as though I had. Named honestly, what was
+missing: the 26 never-executed handlers I had promised to sweep and silently
+dropped, the client screens (verified only against a stubbed transport), and —
+the one that should have come first — **whether my live test had harmed the
+real book.**
+
+That last one first:
+
+```
+✅ no real user is standing down / blocked · exactly one admin, still Hrishi
+✅ cashier flags unchanged (yamini05 only) · my two test accounts blocked
+✅ Σ inHand === তোলা − খরচ, balanced   ✅ nothing on the 🩺 desk
+```
+
+Then a sweep of everything that could be run without destroying anything —
+**30 checks, 0 failures**: `reportList`, `myReport`, `pendingHandovers`,
+`notifications`, `pendingCorrections`, `getConfig`, `listBackups`, `cashiers`,
+`listSubjects`, `dump`, all seven `report:*`, subject add/edit/remove, list-item
+add/edit/remove, `backupNow`, `setReports`/`setAreas`.
+
+Six were deliberately NOT run, and the reason matters: `goLive`,
+`clearTraining`, `restoreBackup`, `rolloverYear`, `clearUserGrants`,
+`setConfig` are either one-way or reach every real user. `clearUserGrants` on
+the live sheet would have wiped twelve people's personal permissions. Full
+permission to test is not permission to destroy; those are Hrishi's buttons.
+
+**A live formula-injection probe, because reading the code is not proof.** All
+five shapes come back byte-identical on v4.21.2 — `=SUM(1,2)`, `-৫০০ বাকি`,
+`+919876543210`, `@কেউ`, `=IMPORTRANGE("x","y")`. Which settles a real find: a
+donor row on the live sheet is named `#ERROR!` — created 2026-07-29, the day
+A59 landed, so it predates the fix. It is unreadable, nobody can tell which
+shop it was, and 🧹 removes it.
+
+**Client screens, live server, no stub anywhere.** The A78c go-live warning
+fires against real data — *"🚪 ১ জন এখনও বিদায়ী অবস্থায়: ZZ_TEST_COLL"* — and
+the account picture renders both moments side by side with the donor list:
+
+```
+                সেদিন      আজ
+তোলা           ₹14,000   ₹15,000
+জমা দেওয়া      ₹6,000    ₹15,000
+হাতে           ₹8,000    ₹0
+তার বাকি       ₹14,000 (৪) ₹13,000 (৪)
+সেদিনের পর অন্যে তুলেছে ₹0 · সে নিজে ₹1,000
+```
+
+Still unverified, and stated rather than glossed: the stood-down member's own
+phone against the live server (their account is blocked now), offline /
+airplane mode (nobody but Hrishi can), and 🧹 / 🚀 themselves (one-way, his
+call). The admin session was removed from the browser afterwards.
