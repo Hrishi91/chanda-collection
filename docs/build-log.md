@@ -8044,3 +8044,40 @@ now run for real: practice rows gone, exit pictures gone, permissions intact,
 the committee's decision intact.
 
 Tests **1,365 → 1,376**. `CODE_SCHEMA` stays **5**.
+
+## v4.21.2 (tests) — 🧹 clearUserGrants, executed at last
+
+An analysis before go-live counted which of the 50 server handlers have ever
+been run by a test rather than matched by a regex: **23 (46%)**. The list of 27
+that had not included `clearUserGrants` — one-way, destructive, admin-only, and
+about to be pressed for real. Same gap A78c had just found in `goLive` and
+`clearTraining`, for the same reason: reading is not a test.
+
+Ten assertions now execute it. Six were confirmed load-bearing by removing the
+line each one stands over and watching the suite go red:
+
+```
+টাইপ-করা নিশ্চিতকরণ বাদ      লাল    admin-only বাদ            লাল
+admin-কে ছাড় দেওয়া বাদ       লাল    cashier flag মোছা বাদ     লাল
+entries মোছা বাদ            লাল    reports মোছা বাদ          লাল
+কার কী গেল সেই তালিকা বাদ    লাল    touchData_ বাদ            লাল
+```
+
+Two things worth recording.
+
+**One assertion could not fail.** The cashier-flag check was written against
+`kali`, whose flag is 0 before *and* after — the cashier in that fixture is
+`bimal`. It passed whatever the handler did. Found only by deleting the
+`setValue` and watching the suite stay green, which is the entire argument for
+running mutations rather than counting assertions.
+
+**And the button does not lie.** I had told Hrishi 🧹 "reports success and
+takes nothing" — wrong, and worth correcting in writing. It is labelled *"সবার
+**আলাদা** permission মুছে দাও"* with the hint *"অনুমতি **শুধু পদ থেকেই আসবে**"*, and
+the client already names everyone affected and separately warns about anyone
+whose post grants nothing, who would be left unable to work. The trap is real —
+a post with permissions keeps granting them, so a post's own permissions must
+be reduced FIRST — but that is the documented behaviour, not a broken promise.
+Both directions are now pinned so neither can move silently.
+
+Tests **1,376 → 1,385**.

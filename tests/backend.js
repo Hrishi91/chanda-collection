@@ -750,6 +750,62 @@ module.exports = function runBackendTests(eq) {
        'backend A78c/' + action + ': …and permissions survive, which is why the wipe spares Users in the first place');
   });
 
+  // ---- 🧹 clearUserGrants: one-way, destructive, never once EXECUTED ------
+  //
+  // Every assertion about this button was a regex over Code.gs until now, and
+  // it is about to be pressed for real on the eve of go-live. Same gap A78c
+  // found in goLive/clearTraining, and the same reason: reading is not a test.
+  {
+    const { b, tok } = book();
+    const uid = function (n) { return b.rows('Users').filter(function (x) { return x.username === n; })[0].id; };
+    const row = function (n) { return b.rows('Users').filter(function (x) { return x.username === n; })[0]; };
+    b.call('listItems', { token: tok.admin, kind: 'position' });
+    const post = b.rows('Lists').filter(function (r) { return r.kind === 'position'; })[0];
+    b.call('setPositionRules', { token: tok.admin, id: post.id, perms: ['shop', 'road', 'inhand'], maxCount: 20 });
+    b.call('setUserPosition', { token: tok.admin, userId: uid('ratan'), position: post.id });
+    b.call('setReports', { token: tok.admin, userId: uid('ratan'), reports: ['dues'] });
+
+    const refuses = function (f) { try { f(); return ''; } catch (e) { return e.message; } };
+    eq(refuses(function () { b.call('clearUserGrants', { token: tok.admin }); }), 'confirm-required',
+       'backend 🧹: a one-way action needs the typed confirmation to REACH the server — A52 shipped a confirmation the client threw away');
+    eq(refuses(function () { b.call('clearUserGrants', { token: tok.kali, confirm: 'CLEAR' }); }), 'not-admin',
+       'backend 🧹: …and only an admin may run it');
+
+    const ts = b.api.readConfig_().data_ts;
+    const out = b.call('clearUserGrants', { token: tok.admin, confirm: 'CLEAR' });
+    eq(out.cleared.slice().sort().join(','), 'bimal,kali,ratan',
+       'backend 🧹: it reports exactly who lost something — the admin screen shows this list back, so a wrong one is a wrong record of what happened');
+    // bimal, not kali — bimal is the one this book makes a cashier. Written
+    // against kali first, where the flag was 0 before AND after, so the
+    // assertion held no matter what the handler did: an assertion that cannot
+    // fail is not an assertion. Found by removing the setValue and watching the
+    // suite stay green.
+    eq(Number(row('bimal').cashier || 0), 0,
+       'backend 🧹: the cashier flag is cleared — the one grant that lets somebody confirm money they never received');
+    eq(String(row('ratan').entries) + '|' + String(row('ratan').reports), '|',
+       'backend 🧹: …and personal entries and reports with it');
+    eq(String(row('hrishi').role), 'admin',
+       'backend 🧹: an admin is skipped — the one account that must still be able to undo this');
+    eq(b.api.readConfig_().data_ts !== ts, true,
+       'backend 🧹: …and data_ts moves, or every phone answers idle:true and keeps its old permissions until something else happens to change');
+
+    // The trap, pinned in BOTH directions so it can never move silently. The
+    // button says "personal permissions" and the hint says access will come
+    // from the post alone — that is honest, and this is what it means: a post
+    // with perms keeps granting them to everybody holding it. Reducing a post's
+    // own permissions is a separate job, and it must be done FIRST.
+    b.api.resetRequestState();
+    eq(b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 'z1', year: 2026, type: 'shop', name: 'x', pledged: 100 }),
+    ] }).rejectedIds.length, 0,
+       'backend 🧹: somebody holding a post that grants shop CAN still add donors afterwards — 🧹 does not touch posts, by design');
+    b.api.resetRequestState();
+    eq(b.call('push', { token: tok.kali, epoch: '', records: [
+      rec('parties', { id: 'z2', year: 2026, type: 'shop', name: 'y', pledged: 100 }),
+    ] }).rejectedIds.length, 1,
+       'backend 🧹: …while somebody with no post is left with nothing, which is the whole point of the stranded warning on the admin screen');
+  }
+
   // ---- the version/schema handshake every client depends on ---------------
   {
     const { b, tok } = book();
