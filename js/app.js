@@ -3248,10 +3248,22 @@
     }
     return rows;
   }
+  // A78d: ONE predicate for "the committee has stood this person down", because
+  // the server's allow-list refuses five stores and the UI was offering three
+  // of them anyway. Found by walking the live app as one of them rather than by
+  // reading the code — every one of those buttons opened a form, took the
+  // typing, and had the row thrown away on arrival. That failure has its own
+  // name in this project by now, and the only defence that has ever worked is
+  // one predicate every screen asks, instead of a rule each screen remembers.
+  function amExiting() {
+    const u = Auth.current();
+    return !!u && String(u.access || '') === 'exiting';
+  }
   function canEditParty(p) {
     const u = Auth.current();
     if (!u || !p) return false;
     if (u.role === 'admin') return true;
+    if (amExiting()) return false; // push refuses `parties` for them
     const myId = Settings.get('collectorUsername') || u.username;
     return !!p.collectorId && p.collectorId === myId;
   }
@@ -3410,12 +3422,16 @@
         // say. Only the person who made it, and only these three stores — a
         // handover has two sides and is settled by confirming, not editing.
         const mineNow = (r.collectorId || r.collector) === meId;
-        const canEdit = isFlag && !isVoid && mineNow &&
+        // A78d: …and not while standing down. `daily` and `expenses` are refused
+        // outright for them, and a corrected `payments` row still has to pass
+        // the own-donor test — so the ✏️ that appears on an old round is a form
+        // that cannot be saved.
+        const canEdit = isFlag && !isVoid && mineNow && !amExiting() &&
           ['payments', 'daily', 'expenses'].indexOf(it.store) >= 0;
         const editBtn = canEdit
           ? '<button class="chip void-btn" data-ed="' + it.store + '|' + esc(r.id) + '">✏️ ' + esc(t('fix_btn')) + '</button>'
           : '';
-        const action = busReceipt + editBtn + ((isVoid || isFlag) ? '' :
+        const action = busReceipt + editBtn + ((isVoid || isFlag || amExiting()) ? '' :
           (canVoid(r) ? '<button class="chip void-btn" data-vd="' + it.store + '|' + esc(r.id) + '">' + esc(t('void_btn')) + '</button>'
                       : '<button class="chip void-btn" data-fl="' + it.store + '|' + esc(r.id) + '">' + esc(t('flag_btn')) + '</button>'));
         return '<div class="row' + (isVoid ? ' voided' : '') + '" style="cursor:default"><div style="flex:1 1 60%"><b>' +
@@ -4725,21 +4741,28 @@
         '<div class="hint" style="margin-bottom:8px">' + esc(t('msg_hint')) + '</div>' +
         '<div id="msg-list" class="msg-list">' + body + '</div>' +
         '<div id="msg-picker" class="chips" hidden></div>' +
-        '<div class="input-row msg-compose">' +
-          '<input id="msg-input" maxlength="500" enterkeyhint="send" placeholder="' + esc(t('msg_ph')) + '" autocomplete="off" value="' + esc(msgDraft) + '">' +
-          '<button id="msg-at" class="ghost">@</button>' +
-          '<button id="msg-send" class="primary">' + esc(t('msg_send')) + '</button>' +
-        '</div>';
+        // A78d: a stood-down member READS the chat — that is how they learn what
+        // the committee still wants from them — but the server refuses their
+        // messages, so the composer would have taken a sentence and dropped it.
+        (amExiting()
+          ? '<div class="perm-note">🚪 ' + esc(t('msg_exiting')) + '</div>'
+          : '<div class="input-row msg-compose">' +
+            '<input id="msg-input" maxlength="500" enterkeyhint="send" placeholder="' + esc(t('msg_ph')) + '" autocomplete="off" value="' + esc(msgDraft) + '">' +
+            '<button id="msg-at" class="ghost">@</button>' +
+            '<button id="msg-send" class="primary">' + esc(t('msg_send')) + '</button>' +
+          '</div>');
       const list = document.getElementById('msg-list');
       if (list) list.scrollTop = list.scrollHeight;
       // reading the screen IS the read receipt
       if (rows.length) msgMarkSeen(String(rows[rows.length - 1].createdAt || ''));
       updateBadge();
       const input = document.getElementById('msg-input');
-      input.oninput = function () { msgDraft = input.value; };
-      document.getElementById('msg-at').onclick = function () { toggleMentionPicker(input); };
-      document.getElementById('msg-send').onclick = function () { sendMessage(input); };
-      input.onkeydown = function (e) { if (e.key === 'Enter') sendMessage(input); };
+      if (input) {
+        input.oninput = function () { msgDraft = input.value; };
+        document.getElementById('msg-at').onclick = function () { toggleMentionPicker(input); };
+        document.getElementById('msg-send').onclick = function () { sendMessage(input); };
+        input.onkeydown = function (e) { if (e.key === 'Enter') sendMessage(input); };
+      }
     });
   }
   function highlightMentions(txt) {

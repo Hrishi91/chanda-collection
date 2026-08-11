@@ -8211,3 +8211,46 @@ Still unverified, and stated rather than glossed: the stood-down member's own
 phone against the live server (their account is blocked now), offline /
 airplane mode (nobody but Hrishi can), and 🧹 / 🚀 themselves (one-way, his
 call). The admin session was removed from the browser afterwards.
+
+## v4.21.3 — A78d: three buttons the server was always going to refuse
+
+Hrishi: *"do you think any functional gap, frontend gap, user-friendly and all
+scopes"*. Answering it properly meant opening my own test accounts and walking
+the LIVE app as a stood-down member, at 375px, instead of reading the code.
+Three controls were sitting right there, each one a form that would take the
+typing and have the row thrown away on arrival:
+
+| control | what push does |
+|---|---|
+| ✏️ তথ্য সংশোধন, under every donor they own | refuses `parties` |
+| ✏️ / ⚠️ chips on their own entries | refuses `daily`, `expenses`, `corrections` |
+| the chat composer, with its পাঠাও button | refuses `messages` |
+
+Proven, not inferred — the exact edit the ✏️ button sends came back
+`REJECTED`, while the payment beside it came back accepted.
+
+The fix is ONE predicate, `amExiting()`, asked at each site. Three separate
+rules would be three chances to forget the fourth, and this project has lost
+that bet several times (A19, A23, A31, A35, A45, A48, A60, A61, A68). The chat
+now says why instead of failing on send: *"বিদায়ী অবস্থায় বার্তা পাঠানো যায় না — পড়তে
+পারবেন।"* Reading stays open, because that is how they learn what is still
+wanted from them.
+
+Two harness lessons, both mine and both caught the same way:
+
+- The first mutation pass reported all four gates green. The runner writes
+  failures to **stderr**, and I was counting stdout. A mutation harness that
+  cannot see a failure certifies everything.
+- With that fixed, two of four still stayed green: the assertions were written
+  per REGION, and the entry region contains two of the four buttons — so
+  deleting either left the other behind and the check passed. **A slice that
+  can satisfy an assertion two ways only tests one of them.** Rewritten one
+  assertion per button; all four now go red when removed.
+
+Also confirmed live while walking it, none of them faults: the ledger shows a
+stood-down member exactly their own 4 donors out of 19 on the server; 💰 টাকা
+জমা is accepted; the reports screen says *"permission নেই"* rather than offering
+a dead button; and an admin password reset correctly forces
+*"নতুন পাসওয়ার্ড বসাও"* before anything else can be reached.
+
+Tests **1,385 → 1,390**. Client-only — no schema change, no redeploy.

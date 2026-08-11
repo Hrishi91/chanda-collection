@@ -2861,6 +2861,32 @@ try {
       eq(/holds-money:/.test(bu) && /block_holds_money/.test(bu), true,
          'A78: …and "they still hold ₹X" is put as the decision it is, not as an error code');
     }
+    // A78d: the server's allow-list refuses five stores for a stood-down
+    // member; the UI was offering three of them anyway — donor edit, entry
+    // edit/flag, and the chat composer — each one a form that took the typing
+    // and had the row thrown away on arrival. Found by walking the LIVE app as
+    // one of them, which is the only reason it was found at all.
+    //
+    // Pinned as ONE predicate with every site asking it, not as three separate
+    // checks: three rules are three chances to forget the fourth.
+    {
+      eq(/function amExiting\(\)/.test(appSrc), true,
+         'A78d: one predicate answers "is this person standing down"');
+      // One assertion per BUTTON, not per region. Written per-region first, and
+      // the entry region holds two of them — so deleting either one left the
+      // other behind and the check stayed green. A slice that can satisfy an
+      // assertion two ways only tests one of them.
+      const sites = [
+        ['canEditParty', /if \(amExiting\(\)\) return false;/],
+        ['the entry ✏️ chip', /mineNow && !amExiting\(\) &&/],
+        ['the flag chip', /\(isVoid \|\| isFlag \|\| amExiting\(\)\)/],
+        ['the chat composer', /\(amExiting\(\)\s*\n?\s*\? '<div class="perm-note">/],
+      ];
+      sites.forEach(function (s) {
+        eq(s[1].test(appSrc), true,
+           'A78d: …and ' + s[0] + ' asks it, so it cannot offer what push refuses');
+      });
+    }
     // A78: 💰 and 👑 are the two chips that hand back MORE than the block took,
     // and they sat on the same screen as the block itself. The server refuses
     // them now; the chips must not be drawn either, or the admin taps one and
