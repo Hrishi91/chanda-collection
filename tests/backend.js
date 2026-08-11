@@ -811,6 +811,28 @@ module.exports = function runBackendTests(eq) {
        'backend 🧹: …while somebody with no post is left with nothing, which is the whole point of the stranded warning on the admin screen');
   }
 
+  // ---- A79: the season target -------------------------------------------
+  // A config key, so it needs the same two things every other one does: only an
+  // admin may set it, and the whitelist must still refuse the keys that would
+  // be catastrophic. setConfig reaching live_mode or data_epoch is the failure
+  // the whitelist exists for, and adding a key is exactly when it gets widened
+  // by accident.
+  {
+    const { b, tok } = book();
+    const refuses = function (f) { try { f(); return ''; } catch (e) { return e.message; } };
+    eq(b.call('setConfig', { token: tok.admin, key: 'target_amount', value: '200000' }).applied.join(','),
+       'target_amount', 'backend A79: an admin can set the season target');
+    eq(b.call('getConfig', { token: tok.ratan }).config.target_amount, '200000',
+       'backend A79: …and every approved user can READ it — the bar is drawn on their own device');
+    eq(refuses(function () { b.call('setConfig', { token: tok.ratan, key: 'target_amount', value: '999' }); }),
+       'not-admin', 'backend A79: …but only an admin sets it');
+    eq(refuses(function () { b.call('setConfig', { token: tok.admin, key: 'live_mode', value: 'on' }); }),
+       'unknown-config-key', 'backend A79: …and the whitelist still refuses live_mode, which adding a key is the moment to break');
+    b.call('setConfig', { token: tok.admin, key: 'target_amount', value: '' });
+    eq(b.call('getConfig', { token: tok.ratan }).config.target_amount, '',
+       'backend A79: clearing it stores empty, so the bar disappears rather than showing a target of zero');
+  }
+
   // ---- the version/schema handshake every client depends on ---------------
   {
     const { b, tok } = book();

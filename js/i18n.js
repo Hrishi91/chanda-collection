@@ -296,6 +296,17 @@ const I18N = {
   access_exit_confirm: { bn: '{n}-কে বিদায়ী করবেন?\n\nপদ ও সব permission চলে যাবে। লগ-ইন খোলা থাকবে, যাতে হাতের টাকা জমা দিতে পারে আর নিজের তোলা চাঁদাদাতাদের বাকি নিতে পারে।',
                          en: 'Stand {n} down?\n\nTheir post and every permission go. The login stays open so they can hand in what they hold and collect the dues of donors they brought in.' },
   access_exit_done: { bn: 'বিদায়ী করা হল', en: 'Stood down' },
+  // A79 — the season target and the bar it draws.
+  target_title: { bn: 'এ বছরের লক্ষ্য', en: 'This year’s target' },
+  target_left:  { bn: 'আরও {amt} বাকি', en: '{amt} to go' },
+  target_done:  { bn: 'লক্ষ্য পূরণ 🎉', en: 'Target reached 🎉' },
+  target_btn:   { bn: 'এ বছরের লক্ষ্য', en: 'This year’s target' },
+  target_none:  { bn: 'ঠিক করা নেই', en: 'not set' },
+  target_prompt:{ bn: 'এ বছর কত টাকা তোলার লক্ষ্য?\n\nখালি রাখলে লক্ষ্য মুছে যাবে, হোমে দাগও দেখাবে না।',
+                  en: 'What is this year’s collection target?\n\nLeave empty to clear it — the bar disappears.' },
+  target_cleared:{ bn: 'লক্ষ্য মুছে দেওয়া হল', en: 'Target cleared' },
+  target_bad:   { bn: 'অঙ্কটা বুঝলাম না — সংখ্যা লেখো (যেমন 200000 বা "দুই লাখ")',
+                  en: 'Could not read that — type a number (e.g. 200000)' },
   // A78d: the composer is replaced by this, not left to fail on send.
   msg_exiting: { bn: 'বিদায়ী অবস্থায় বার্তা পাঠানো যায় না — পড়তে পারবেন। দরকার হলে admin-কে ফোন করুন।',
                  en: 'You cannot post while standing down — you can still read. Call the admin if you need to reach them.' },

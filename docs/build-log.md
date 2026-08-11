@@ -8286,3 +8286,50 @@ the slice is non-empty — an empty slice satisfies every "must not contain".
 Tests **1,390 → 1,391**. `CODE_SCHEMA` stays **5** — the contract is unchanged,
 the client already sent these rows — but Code.gs moved, so this one needs a
 redeploy.
+
+## v4.22.0 — A79: the question a committee asks every evening
+
+*"কত হল, আর কত বাকি"* — and the app could not answer it without opening a
+report. One config key (`target_amount`), one bar on the home screen.
+
+**Gated on the `overview` report, deliberately.** The season total sits behind
+that grant today; a bar on every home screen would hand it to everyone through
+a side door, and a permission model with one unguarded window is not a
+permission model. Proven from all four sides in the browser:
+
+```
+overview আছে         → বার দেখাচ্ছে · মোট অঙ্ক দৃশ্যমান
+শুধু dues আছে        → বার নেই · মোট অঙ্ক ফাঁস হয়নি
+কোনও report নেই      → বার নেই
+cashier (inhand পায়) → বার নেই     ← inhand is not overview
+```
+
+Widening it to everybody is a one-word change and a policy decision, so it is
+Hrishi's to make, not a thing to do quietly while building something else.
+
+No target set → nothing is drawn. A committee that has not agreed a number must
+not be shown one, and a bar against a made-up denominator is worse than no bar.
+The prompt reads through `NumParse.parseAmount`, so *"দুই লাখ"* and `200000`
+both land — the same parser every amount field already uses.
+
+### The harness bug this exposed — the third of the day, same shape
+
+Mutation-testing the config whitelist reported **green**. It was not: removing
+the key made `setConfig` throw `unknown-config-key`, that throw was uncaught
+inside `backend.js`, and the throw **killed the whole run** — no summary line,
+no FAIL, every later assertion silently gone. My harness read "no FAIL lines"
+as "passed" and reported the guard as absent.
+
+Two fixes, and the second matters more than today's feature:
+
+- the mutation harness now counts a **non-zero exit** as caught, not just FAIL
+  lines — the same lesson as this morning's stderr miss, and as "no output is
+  not passed" from months ago;
+- `require('./backend.js')(eq)` is now wrapped, so an unexpected throw is
+  **counted, named and printed** as a failure instead of vanishing. It still
+  cannot continue past the throw — those blocks share a book — but the run ends
+  with a summary that says so, and CI sees a failure rather than a crash.
+
+Tests **1,391 → 1,400**. `CODE_SCHEMA` stays **5**: the only contract change is
+one more accepted config key, and an old server simply refuses that one admin
+button rather than losing anything. Code.gs moved, so it wants a redeploy.

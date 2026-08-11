@@ -723,6 +723,26 @@ eq(homeTiles({ role: 'user', cashier: 0, entries: 'memberadmin' }).role, ['membe
    'A29: the register is its own grant, and carries nothing else with it');
 eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real permission key');
 
+// ---- A79: the season target, and the window it must not open ----------------
+// "কত হল, আর কত বাকি" is the question a committee asks every evening, and the
+// app could not answer it without opening a report. The bar answers it — but
+// the season total is behind the `overview` grant, so drawing it on every home
+// screen would hand that figure to everyone through a side door. A permission
+// model with one unguarded window is not a permission model.
+{
+  const appSrc = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const bar = appSrc.slice(appSrc.indexOf('function targetBar(data)'),
+                           appSrc.indexOf('function exitingCard()'));
+  eq(bar.length > 0, true, 'A79: targetBar exists');
+  eq(/allowedReports\(Auth\.current\(\)\)\.indexOf\('overview'\) < 0\) return ''/.test(bar), true,
+     'A79: the bar is drawn only for somebody who may already see the season total');
+  eq(/if \(!target \|\|/.test(bar), true,
+     'A79: …and only when a target has been agreed — a bar against a made-up denominator is worse than no bar');
+  // the same rule, from the other side: it must be reachable ONLY through that gate
+  eq((appSrc.match(/targetBar\(/g) || []).length, 2,
+     'A79: one definition, one call site — a second call site is a second place to forget the gate');
+}
+
 // ---- A78: what a stood-down member's own phone shows -------------------------
 // Their permission lists are empty, which is also what a brand-new approved
 // person looks like — so without its own branch this lands on "ask the admin
@@ -3815,7 +3835,24 @@ try {
 
 // A65 (audit 2.17): the backend, executed rather than grepped. Loaded last so
 // a shim problem cannot hide a failure in the pure-logic suite above.
-require('./backend.js')(eq);
+//
+// A79: wrapped, because every call in there is a REAL request and an
+// unexpected throw is exactly what a regression looks like. Unwrapped, the
+// first one killed the process — no summary, no exit-code-1 line anybody
+// reads, and every assertion after it silently gone. Found by mutation: taking
+// a key out of setConfig's whitelist made the suite CRASH, and a harness that
+// reads "no FAIL lines" as "passed" then reported the guard as absent.
+//
+// It still cannot continue past the throw — these blocks share a book and
+// carrying on would test nothing — but it is now counted, named and printed
+// like any other failure instead of vanishing.
+try {
+  require('./backend.js')(eq);
+} catch (e) {
+  fail++;
+  console.log('FAIL backend suite aborted on an unexpected throw → ' + (e && e.message || e));
+  console.log('      (everything after that point did not run — fix this first)');
+}
 
 console.log(pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

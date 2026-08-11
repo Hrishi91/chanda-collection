@@ -1969,6 +1969,7 @@
         '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
         '<div class="hero-sub">' + esc(Settings.get('collectorName')) + ' • ' + esc(t('my_today')) + ': <b>' + fmtMoney(myToday) + '</b></div>' +
         holdLine + '</div>' +
+        targetBar(data) +
         (partyTiles ? '<div class="section">' + esc(t('new_entry')) + '</div><div class="grid">' + partyTiles + '</div>' : '') +
         (dailyTiles ? '<div class="section">' + esc(t('today_daily')) + '</div><div class="grid">' + dailyTiles + '</div>' : '') +
         paymentTile +
@@ -1995,6 +1996,33 @@
       '</div>' +
       '<button id="ver-fix-card" class="primary big block" style="margin-top:8px">' +
         esc(t('ver_fix_btn')) + '</button></div>';
+  }
+  // A79: "কত হল, আর কত বাকি" — the one question a committee asks every evening,
+  // and the app could not answer it without opening a report.
+  //
+  // Gated on the `overview` report, deliberately. The season total is behind
+  // that grant today, and putting a bar on every home screen would hand it to
+  // everyone through a side door — a permission model with one unguarded
+  // window is not a permission model. Widening it is a policy decision and a
+  // one-word change; making it silently is not mine to make.
+  //
+  // No target set → nothing is drawn. A committee that has not agreed a number
+  // must not be shown one, and a bar against a made-up denominator is worse
+  // than no bar.
+  function targetBar(data) {
+    const target = Number((centralConfig || {}).target_amount) || 0;
+    if (!target || Aggregate.allowedReports(Auth.current()).indexOf('overview') < 0) return '';
+    const got = Aggregate.computeTotals(data).totalCollection;
+    const pct = Math.max(0, Math.min(100, Math.round(got / target * 100)));
+    const left = target - got;
+    return '<div class="card" style="padding:12px 14px">' +
+      '<div class="row" style="cursor:default;padding:0"><div style="flex:1"><b>🎯 ' + esc(t('target_title')) + '</b></div>' +
+        '<div class="row-sub">' + esc(toBengaliDigits(String(pct))) + '%</div></div>' +
+      '<div style="height:10px;border-radius:5px;background:#eee;overflow:hidden;margin:8px 0 6px">' +
+        '<div style="height:100%;width:' + pct + '%;background:' + (pct >= 100 ? '#2e7d32' : '#d9a441') + '"></div></div>' +
+      '<div class="row-sub">' + fmtMoney(got) + ' / ' + fmtMoney(target) +
+        (left > 0 ? ' · ' + esc(t('target_left')).replace('{amt}', fmtMoney(left))
+                  : ' · ' + esc(t('target_done'))) + '</div></div>';
   }
   // A78: what a stood-down member sees instead of "ask the admin for
   // permissions". They must not be sent to argue about a decision the committee
@@ -5859,6 +5887,10 @@
             esc(t('nav_messages')) + '</b><div class="row-sub" id="chat-load-line">—</div></div>' +
             '<button class="chip" id="chat-toggle">' +
               esc(chatOn() ? t('chat_stop_btn') : t('chat_restart_btn')) + '</button></div>' +
+          // A79: set once at the start of the season, read every evening.
+          '<button id="target-btn" class="ghost big block">🎯 ' + esc(t('target_btn')) + ' — ' +
+            esc(Number(centralConfig.target_amount) ? fmtMoney(Number(centralConfig.target_amount)) : t('target_none')) +
+          '</button>' +
           '<button id="audit-btn" class="ghost big block">' + esc(t('audit_btn')) + '</button>' +
           '<button id="backup-btn" class="ghost big block">' + esc(t('backup_now_btn')) + '</button>' +
           '<button id="restore-btn" class="ghost big block">' + esc(t('restore_btn')) + '</button>' +
@@ -6002,6 +6034,24 @@
           ' KB · ' + t('chat_per_day') + ' ' + l.perDay +
           (l.level === 'ok' ? '' : (l.level === 'high' ? '  🔴' : '  🟠'));
       }).catch(function () {});
+      // A79: parsed with the app's own number reader, so "দুই লাখ" and "200000"
+      // both land — the same parser every amount field uses. An empty answer
+      // clears the target rather than setting zero, and the bar disappears.
+      admEl('target-btn').onclick = function () {
+        const cur = Number(centralConfig.target_amount) || 0;
+        const raw = window.prompt(t('target_prompt'), cur ? String(cur) : '');
+        if (raw === null) return;
+        const txt = String(raw).trim();
+        // parseAmount returns NaN for anything it cannot read, so `> 0` is the
+        // whole test — it rejects NaN, 0 and negatives in one comparison.
+        const n = txt ? NumParse.parseAmount(txt) : 0;
+        if (txt && !(n > 0)) { toast(t('target_bad')); return; }
+        adminAction('setConfig', { key: 'target_amount', value: n ? String(n) : '' }, function () {
+          centralConfig = Object.assign({}, centralConfig, { target_amount: n ? String(n) : '' });
+          try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {}
+          toast(n ? '🎯 ' + fmtMoney(n) : t('target_cleared'));
+        });
+      };
       admEl('audit-btn').onclick = function () { navigate('audit'); };
       admEl('receipt-btn').onclick = function () { navigate('receiptcfg'); };
       // on-demand snapshot — the cheap insurance before anything one-way

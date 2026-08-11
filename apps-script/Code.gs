@@ -733,7 +733,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.21.4';
+var CODE_VERSION = 'chanda-v4.22.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1260,7 +1260,11 @@ var ACTIONS = {
     // live_mode, data_epoch, data_ts or a receiptSeq_ counter.
     var allow = { receipt_layout: 1, puja_name: 1, committee_name: 1, receipt_footer: 1,
                   receipt_color: 1, committee_logo: 1, receipt_digits: 1,
-                  chat_off: 1 }; // the chat kill switch — was missing, so the button did nothing
+                  chat_off: 1, // the chat kill switch — was missing, so the button did nothing
+                  // A79: this season's target, in rupees. '' or 0 = no target,
+                  // and the bar simply does not appear — a committee that has
+                  // not agreed a number must not be shown one.
+                  target_amount: 1 };
     // accept BOTH shapes: the receipt screen sends a whole {config:{…}} form,
     // the chat switch sends one {key,value}. Taking only the first made the
     // switch a no-op that still answered ok — the worst kind of failure.
