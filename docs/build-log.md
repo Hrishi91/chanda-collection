@@ -8099,3 +8099,62 @@ plain `-L` downgrades to GET and returns doGet's payload. Neither says anything
 about the handler. `doGet` carrying `codeVersion` exists precisely so this
 question needs one unauthenticated GET and nothing else; the version string and
 the handlers come out of the same file, so the version IS the proof.
+
+### A78 verified against the LIVE deployment
+
+Hrishi handed over an admin session token — training mode, nobody using the app
+— and asked for the whole flow run live rather than described. Seventeen checks
+against the real Apps Script and the real Sheet, all green:
+
+```
+— the cashier inbox —
+  ✅ a cashier with an unanswered parcel cannot be stood down   has-pending:1:3000
+— standing down —
+  ✅ one call clears post + entries + reports + cashier, and records the state
+  ✅ new donor ✗ · daily round ✗ · void own payment ✗ · someone else's donor ✗
+  ✅ own donor's balance ✓ · hand in what they hold ✓
+  ✅ a parcel addressed to them is refused
+— the guards —
+  ✅ cant-exit-self · is-exiting (cashier) · is-exiting (admin) · position-required
+```
+
+The script then stopped on `holds-money:4000`, which is the eighteenth pass
+wearing a failure's clothes: the final door refused because they were still
+holding cash, and named the figure — on the live server, with a real amount.
+
+**Four assertions failed, none of them the product's fault, and the cause is
+worth writing down.** The first run timed out after two minutes (≈40 round
+trips at ~3s each) but had already written rows, so the second run doubled
+every figure. My assertions pinned constants — `inHand === 4000`, `dues.length
+=== 2` — that assumed a fresh book. Recomputed from the live numbers, every one
+is internally consistent:
+
+```
+সেদিন  তোলা 14000 − জমা 6000  = হাতে 8000   ✅   বাকি 28000 − 14000 = 14000  ✅
+আজ     তোলা 15000 − জমা 11000 = হাতে 4000   ✅   বাকি 28000 − 15000 = 13000  ✅
+সংরক্ষিত 8000 বনাম আজকের 4000 — the record did not move          ✅
+```
+
+This is the fifth time in this project that **an assertion pinning the
+mechanism has failed correct behaviour**. The rule is already enforced in
+`tests/run.js`; I broke it myself writing a live script quickly. Pin the
+property, not the arithmetic of one fixture.
+
+Also learned: a live script against Apps Script must be idempotent from any
+prior state, because a timeout leaves half a run behind. The rewrite handles
+already-registered, already-stood-down and already-blocked accounts.
+
+Cleaning up proved the two paths the timeout had cut short, also live:
+
+```
+  ✅ a stood-down member can still hand in          …and their hands are now empty  ₹0
+  ✅ with empty hands the final block goes through
+  ✅ …while somebody still holding cash is refused, with the amount  holds-money:15000
+  ✅ …and the override records the amount, never zeroes it          ₹15000
+  ✅ both pictures saved for the stood-down member                  exit + block
+```
+
+Twenty-three behaviours confirmed on the deployed server against the real
+Sheet. Test accounts `zz_test_coll` / `zz_test_cash` are blocked; their two
+rows are the only residue, since 🧹 spares Users. Their transactional rows
+(`ZZ…`-prefixed) go with the wipe.
