@@ -815,6 +815,33 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
   const bb = css.slice(css.indexOf('button.back-bar'), css.indexOf('}', css.indexOf('button.back-bar')));
   eq(/min-height:\s*44px/.test(bb), true,
      'A83: the back button is at least 44px tall — the one control every drill-in screen has');
+
+  // A84: and the other four, found by walking every screen at 375px rather than
+  // reading the file. Measured in the browser at 44 / 47 / 57 / 40px afterwards.
+  // Pinned because "make it smaller, it looks tidier" is a change somebody makes
+  // in a quiet moment, and these are hit one-handed in a street.
+  [['.hero-hold', 'the home in-hand button'],
+   ['button.void-btn', 'the ⚠️ flag chips on my entries'],
+   ['.sum-more', 'the report’s working toggle']].forEach(function (r) {
+    const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
+    eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
+  });
+  const mini = css.slice(css.indexOf('.chip.mini'), css.indexOf('}', css.indexOf('.chip.mini')));
+  eq(/min-height:\s*40px/.test(mini) && /font-size:\s*13px/.test(mini), true,
+     'A84: the admin bulk chips are 40px/13px — smaller than a street control, because that screen is one person at a desk');
+  // Bengali conjuncts stop being legible below ~12px on a cheap screen held at
+  // arm's length. Scoped to what a user TAPS — status badges, hints, print
+  // meta and the like are legitimately small, and a blanket rule would have
+  // forced fifteen unrelated changes to satisfy an assertion I did not mean.
+  const tappable = [];
+  (css.match(/([^{}]+)\{([^}]*)\}/g) || []).forEach(function (rule) {
+    const sel = rule.slice(0, rule.indexOf('{'));
+    const f = /font-size:\s*(\d+(?:\.\d+)?)px/.exec(rule);
+    if (!f) return;
+    if (!/button|\.chip|\.row|input|select|\.tile|\[data-/.test(sel)) return;
+    if (parseFloat(f[1]) < 12) tappable.push(sel.trim().slice(0, 40) + ' @' + f[1] + 'px');
+  });
+  eq(tappable.join(' | '), '', 'A84: nothing a user taps is lettered below 12px');
 }
 
 // ---- A79: the season target, and the window it must not open ----------------

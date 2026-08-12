@@ -8531,3 +8531,51 @@ one was green at first and got its own assertion. Tests **1,437 → 1,445**.
 
 Left for Hrishi, because it is his words and not code: `receipt_footer` is
 empty on the live config, so the bottom line is the built-in thank-you.
+
+## v4.24.1 — A84: five controls a thumb could miss
+
+A walk through all 23 screens at 375px, as collector, cashier and admin, with
+the real live receipt config. Five things sat under the 44px a thumb reliably
+hits — found by measuring the rendered page, not by reading the stylesheet:
+
+```
+হোম     "💰 এখন আমার হিসাবে আছে ›"     39px → 44
+রিপোর্ট  "হিসাব দেখি ▾"                 42px → 47
+entry   "⚠️ ভুল বলে জানাও" ×5           12px লেখা → 13.5, 57px
+admin   "সব দাও"/"সব নাও" ×6            29px → 40px, 13px
+nav     হোম/খাতা/রিপোর্ট/বার্তা/সেটিংস  11px → 12px
+```
+
+The first three are held one-handed in a street. The admin chips are one person
+at a desk, so 40px is enough there — the rule is not "everything 44", it is
+"44 where a thumb is aiming while walking".
+
+The nav labels were checked at 375px afterwards: five labels, one line each,
+nothing clipped, buttons still 60px.
+
+### Two false alarms, both caught before they were reported
+
+- **"🤝 জমা দিলাম does nothing."** It does — it raises a toast: *"₹500 আগেই
+  পাঠানো, অনুমোদনের অপেক্ষায় — নতুন করে জমা দেওয়ার কিছু নেই"*, which correctly
+  separates "no money" from "money in transit". I was reading `#view` only, and
+  a toast lives outside it.
+- **"The cashier's confirm list shows 0."** That list comes from the SERVER
+  (`pendingHandovers`), and my stub had not answered it. With data it renders
+  the parcel, the cash/UPI split and ✅/❌; offline it says *"এটার জন্য internet
+  লাগবে"*, which is the honest answer for confirming receipt of money.
+
+### And a harness bug that had been silently wrong all day
+
+`Settings` reads **individual `ck_<name>` keys**; my browser stub had been
+writing one `ck_settings` JSON blob, which the app ignores entirely. Every
+browser check today ran with empty settings and survived only because the app
+falls back (`Settings.get('collectorUsername') || u.username`). No conclusion
+changed, but they were luckier than they looked.
+
+The blanket assertion I first wrote — "no font under 12.5px anywhere" — flagged
+fifteen rules, nearly all status badges, hints and print metadata that are
+legitimately small. Narrowed to what I actually claimed: **nothing a user taps**
+is lettered below 12px. An assertion that would force fifteen unrelated changes
+is not a standard, it is a tantrum.
+
+Tests **1,445 → 1,450**. CSS only — no schema, no redeploy; Pages picks it up.

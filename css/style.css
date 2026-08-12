@@ -43,7 +43,9 @@ nav#bottomnav {
 }
 /* five tabs on a 320px phone: let the labels shrink rather than wrap */
 #bottomnav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#bottomnav button span { font-size: 11px; font-weight: 600; }
+/* A84: 11px → 12px. Five labels every user reads all day, in Bengali, on a
+   cheap screen. Measured at 375px afterwards: still one line, no ellipsis. */
+#bottomnav button span { font-size: 12px; font-weight: 600; }
 #bottomnav button.on { color: var(--saffron); }
 .hero {
   background: linear-gradient(135deg, #fff4e2, #ffe9d2); border: 1px solid var(--line);
@@ -55,8 +57,14 @@ nav#bottomnav {
    money figure invites "made of what?" and আমার হিসাব answers exactly that.
    Styled as part of the hero rather than as a tile — it is a fact about the
    collector, not another thing to do. */
+/* A84: 44px is the smallest thing a thumb reliably hits, and these four sat
+   under it — found by walking every screen at 375px rather than reading the
+   CSS. Three of them are in a collector's hand in a street, one-handed, with a
+   bag in the other; the fourth is the admin's. Bengali conjuncts also need more
+   than 12px to stay legible on a cheap screen at arm's length.
+   min-height rather than more padding, so nothing moves on the page. */
 .hero-hold {
-  display: block; width: 100%; margin-top: 8px; padding: 8px 12px;
+  display: block; width: 100%; margin-top: 8px; padding: 8px 12px; min-height: 44px;
   background: rgba(255,255,255,.72); border: 1px solid var(--line);
   border-radius: 12px; font-family: inherit; font-size: 14px; font-weight: 600;
   color: var(--ink); text-align: left; cursor: pointer;
@@ -119,7 +127,7 @@ button.back-bar { margin: 0 0 12px; padding: 8px 14px; font-size: 14px; min-heig
 .help-p b { color: var(--ink); }
 .row.voided b { text-decoration: line-through; color: var(--sub); }
 .void-tag { color: var(--red); font-weight: 700; }
-button.void-btn { padding: 5px 10px; font-size: 12px; margin-left: 8px; border-color: var(--red); color: var(--red); }
+button.void-btn { padding: 7px 12px; font-size: 13.5px; min-height: 44px; margin-left: 8px; border-color: var(--red); color: var(--red); }
 #notif-banner:not(:empty) { margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
 button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 1px solid #f0c98a;
   color: var(--ink); border-radius: 12px; padding: 12px 14px; font-size: 14.5px; font-weight: 600; cursor: pointer; }
@@ -329,7 +337,7 @@ b.msg-at { color: var(--saffron); }
    border and the 🎖️ prefix, so the difference survives without a tooltip —
    which is the only thing a phone can rely on. */
 .chip.from-post { border-style: dashed; opacity: .85; cursor: not-allowed; }
-.chip.mini { padding: 4px 10px; font-size: 12px; }
+.chip.mini { padding: 8px 12px; font-size: 13px; min-height: 40px; }
 .perm-note { margin-top: 4px; font-size: 12px; color: var(--sub); opacity: .85; }
 .perm-warn { margin-top: 4px; font-size: 12.5px; font-weight: 700; color: #c62828; }
 /* the cashier's read-only position above the two amount boxes */
@@ -397,7 +405,7 @@ b.msg-at { color: var(--saffron); }
 .sum-hero .split b { color: var(--ink); font-weight: 700; }
 .sum-more {
   margin-top: 12px; width: 100%; border: 1px solid var(--line); background: var(--bg);
-  color: var(--sub); border-radius: 99px; padding: 10px; font-size: 13.5px;
+  color: var(--sub); border-radius: 99px; padding: 12px; font-size: 14px; min-height: 44px;
   font-weight: 700; cursor: pointer; font-family: inherit;
 }
 /* the strips sit OUTSIDE the arithmetic on purpose: money that is not in the
