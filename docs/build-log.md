@@ -9392,3 +9392,55 @@ are checked apart now.
 
 Twenty-four assertions, nine of them executing the real backend rather than
 grepping it. Tests **1,571 → 1,598**.
+
+## A102 — every search in the app, and what it actually matches on
+
+Hrishi asked which parameters each search uses, and to verify rather than read.
+Six boxes, run against the harness with donors built so each field is the ONLY
+thing that could produce a hit — an owner name nothing else carries, a phone
+nobody shares, an area label no donor name contains.
+
+| পর্দা | কীসের উপর মেলে | নিয়ম |
+|---|---|---|
+| 📒 খাতা | নাম · মালিক · ফোন · এলাকা · location | প্রতিটি শব্দ, যেকোনো ক্রমে |
+| 🔍 অন্য কারো দাতা | ঐ একই পাঁচটি | প্রতিটি শব্দ, যেকোনো ক্রমে |
+| 🤝 সদস্যের চাঁদা | নাম · ফোন · পদ | এক টুকরো, পাশাপাশি |
+| 👥 ইউজার (admin) | নাম · username · ফোন | এক টুকরো, পাশাপাশি |
+| 🏪🙍🎖️ তালিকা (admin) | বাংলা নাম + ইংরেজি নাম | এক টুকরো, পাশাপাশি |
+| 🧾 খরচের বিষয় (admin) | নাম | এক টুকরো, পাশাপাশি |
+
+All six share `normText`: NFC, lowercased, whitespace collapsed, and a match
+anywhere inside the field — "43216" finds a phone by its middle, "riverside"
+finds "নদীর ধার" through its English name while the app is in Bengali.
+
+**There are two rules, not one.** `matchParty` requires every WORD of the query
+to appear somewhere across the five fields, so "কমল মালদা" and "মালদা কমল" both
+find কমল স্টোর্স on মেন রোড — মালদার দিকে. The other four do one `indexOf` of
+the whole string, so "সুব্রত ঘোষ" works and "ঘোষ সুব্রত" finds nothing, and
+"শঙ্কর কোষাধ্যক্ষ" finds nobody even though both words are on the row.
+
+**Bengali digits never match.** `normText` folds case but not numerals, so ৯৮২৩
+finds nothing where 9823 finds the shop. Indian keyboards emit ASCII digits even
+on a Bengali layout, so this is a corner rather than a daily fault — but it is
+one line in `normText` to close, and it would close it for all six at once.
+
+Neither is being changed on my own: Hrishi asked what the parameters ARE.
+
+### The harness lied for an hour, twice
+
+The browser's session kept dropping on reload and it looked like the app
+clearing storage. It was `scripts/admin-harness.js`: a Python insertion had
+dropped a **second copy** of the fixture block INSIDE the request handler, so
+every request re-ran it — including its `login` as hrishi, which mints a new
+token and invalidates the one the browser is holding. One account, one active
+device, working exactly as designed, against me. The file now carries that
+warning at the top, and the destructive part is opt-in (`CK_OLDBOOK=1`).
+
+Before that, the tracing I added to diagnose it declared `var res` inside the
+HTTP handler and shadowed the response object, so the server crashed on the
+first traced request — and a crashed harness loses its in-memory book, which
+produces the very symptom I was chasing. Two harness faults wearing the same
+costume as an app bug. `docs/pending.md` and the memory note both already say
+it: before believing a browser symptom, ask what the harness is doing.
+
+Nothing shipped in this entry — it is a measurement, and the tidied harness.

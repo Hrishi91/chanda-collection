@@ -15,6 +15,11 @@
 // and money in several hands. That last part is the point - the bug this was
 // written to find (A99) was invisible on an empty book.
 'use strict';
+// NOTE, learned the hard way: every b.call('login', …) MINTS A NEW TOKEN and
+// invalidates the previous one — one account, one active device, by design. A
+// fixture that logs in while a browser is using the same account will drop that
+// browser's session on its next request, and it looks exactly like the app
+// clearing storage. Log in ONCE per account, before the browser does.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -86,9 +91,18 @@ console.log('seeded: ' + b.rows('Users').length + ' users, ' +
             b.rows('Parties').length + ' parties, ' + b.rows('Payments').length + ' payments');
 
 
-// A101 repro: make this look like a book created before the areas were seeded —
-// the rows gone and the marker never written. The screen must fill itself.
+// A101 repro, OPT-IN (CK_OLDBOOK=1): make this look like a book created before
+// the areas were seeded — the rows gone and the marker never written, so the
+// screen can be watched filling itself. Off by default, because a harness that
+// silently breaks its own fixture is a harness you stop trusting.
 (function () {
+  if (!process.env.CK_OLDBOOK) {
+    // the subjects are wanted either way — the search box only appears at 8
+    var t0 = b.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+    ['প্যান্ডেল', 'আলো', 'ঢাক', 'পুরোহিত', 'ফুল', 'প্রসাদ', 'মাইক', 'বিসর্জন', 'ছাপা', 'বিদ্যুৎ']
+      .forEach(function (n) { try { b.call('addSubject', { token: t0, name: n }); } catch (e) {} });
+    return;
+  }
   var g = b.env._sheets.Lists._grid;
   for (var i = g.length - 1; i >= 1; i--) if (String(g[i][1]) === 'area') g.splice(i, 1);
   var c = b.env._sheets.Config._grid;
@@ -103,13 +117,44 @@ console.log('seeded: ' + b.rows('Users').length + ' users, ' +
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
                '.json': 'application/json', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 
+
+// A102 search fixtures: donors whose fields differ, so a search can be shown to
+// match on THAT field and not by luck — an owner name nothing else carries, a
+// phone nobody shares, a member with a post, an area label no donor name holds.
+(function () {
+  var tok = b.call('login', { username: 'kali', password: 'secret1', year: 2026 }).token;
+  var rows = [
+    { id: 'sx-1', type: 'shop', name: 'কমল স্টোর্স', owner: 'রমেশ সাহা', phone: '9812345678',
+      side: 'main_malda', pledged: 2000, year: 2026, date: '2026-08-10' },
+    { id: 'sx-2', type: 'shop', name: 'নবীন বস্ত্রালয়', owner: 'দীননাথ পাল', phone: '9823456789',
+      side: 'harirampur', pledged: 3000, year: 2026, date: '2026-08-10' },
+    { id: 'sx-3', type: 'person', name: 'অনিমেষ রায়', phone: '9834567890',
+      side: 'singhadaha', pledged: 500, year: 2026, date: '2026-08-10' },
+    { id: 'sx-4', type: 'member', name: 'শঙ্কর দত্ত', phone: '9845678901', position: 'treasurer',
+      pledged: 1000, year: 2026, date: '2026-08-10' }
+  ];
+  try { b.call('push', { token: tok, year: 2026, records: rows.map(function (r) {
+    return { store: 'parties', row: r }; }) });
+    console.log('A102 search fixtures: ' + rows.length + ' donors added');
+  } catch (e) { console.error('fixture push failed: ' + e.message); }
+})();
+
 const PORT = Number(process.argv[2]) || 9050;
-http.createServer(function (req, res) {  if (req.method === 'POST') {
+http.createServer(function (req, res) {
+  if (req.method === 'POST') {
     let body = '';
     req.on('data', function (c) { body += c; });
     req.on('end', function () {
       let out;
-      try { out = b.api.doPost({ postData: { contents: body } }).getContent(); }
+      try {
+        out = b.api.doPost({ postData: { contents: body } }).getContent();
+        if (process.env.CK_TRACE) {
+          var req = {}; try { req = JSON.parse(body); } catch (e) {}
+          var parsed = {}; try { parsed = JSON.parse(out); } catch (e) {}
+          console.log('  [' + (req.action || '?') + '] token=' + String(req.token || '-').slice(0, 12) +
+                      ' -> ' + (parsed.ok ? 'ok' : 'ERROR ' + parsed.error));
+        }
+      }
       catch (e) { out = JSON.stringify({ ok: false, error: String(e && e.message || e) }); }
       res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       res.end(out);
@@ -123,20 +168,6 @@ http.createServer(function (req, res) {  if (req.method === 'POST') {
     res.writeHead(404); res.end('not found'); return;
   }
   
-// A101 repro: make this look like a book created before the areas were seeded —
-// the rows gone and the marker never written. The screen must fill itself.
-(function () {
-  var g = b.env._sheets.Lists._grid;
-  for (var i = g.length - 1; i >= 1; i--) if (String(g[i][1]) === 'area') g.splice(i, 1);
-  var c = b.env._sheets.Config._grid;
-  for (var j = c.length - 1; j >= 1; j--) if (String(c[j][0]) === 'lists_seeded') c.splice(j, 1);
-  // and enough expense subjects to bring the search box out (it appears at 8)
-  var subs = ['প্যান্ডেল', 'আলো', 'ঢাক', 'পুরোহিত', 'ফুল', 'প্রসাদ', 'মাইক', 'বিসর্জন', 'ছাপা', 'বিদ্যুৎ'];
-  var admTok = b.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
-  subs.forEach(function (n) { try { b.call('addSubject', { token: admTok, name: n }); } catch (e) {} });
-  console.log('A101 repro: areas removed, marker cleared, ' + subs.length + ' subjects added');
-})();
-
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
                  '.json': 'application/json', '.png': 'image/png',
                  '.webmanifest': 'application/manifest+json' };
