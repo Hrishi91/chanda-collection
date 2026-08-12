@@ -8889,3 +8889,50 @@ top-level field — I tested the wrong name twice and got a clean "no wipe" both
 times, which would have read as proof that there was no problem.
 
 Tests **1,495 → 1,499**.
+
+## A93 — the sync queue, run rather than read
+
+`js/sync.js` is 79 lines the suite had only ever read as text. Ran every path in
+a browser against a stubbed transport. **Nothing was wrong** — but nothing had
+been proved either, and this is the module that decides whether money reaches
+the book.
+
+```
+কিউ খালি                    sent: 0, কোনও request নয়        ✅
+৩টি সারি: ২ সংরক্ষিত, ১ খারিজ  saved→synced+রসিদ ০০০০৪২,
+                             খারিজ→queue ছাড়ে, আলাদা গোনা    ✅
+batch-এ epoch যায়            EPOCH-1                        ✅
+নেট মরে গেলে                 সারি অক্ষত, কিউতেই থাকে         ✅
+সার্ভার batch খারিজ করলে      একই — কিছু ছোঁয় না             ✅
+নেট ফিরলে                    সেই সারিই চলে যায়              ✅
+একসঙ্গে দুটো syncNow()        server call ১টা, দ্বিতীয়টা busy ✅
+push চলাকালীন Undo           সারি ফিরে আসে না                ✅
+```
+
+The last two are the ones that would cost money. Concurrent syncs sending the
+same batch twice would put a donation in the book twice; and resurrecting an
+undone row from the in-flight snapshot would put back money the collector had
+already cancelled. Both hold — the `inFlight` flag and the re-read before write
+do exactly what their comments claim.
+
+### The whole go-live chain, end to end
+
+The case A53 exists for: a collector who kept working **offline through 🚀**.
+
+```
+epoch TRAINING, ২টি সারি কিউতে
+  → push  → সার্ভার batch খারিজ করল (stale-epoch), সারি অক্ষত
+  → pull  → epoch LIVE, স্থানীয় বই মুছল
+  → সংগ্রাহক জানল: "২টি এন্ট্রি তখনো পাঠানো হয়নি — সেগুলো আর নেই"
+```
+
+Practice money never reaches the live book, the phone heals itself within a
+minute, and since A92 the collector is told rather than left to notice. That
+chain had never been run before today.
+
+Six properties pinned, each confirmed load-bearing by breaking it. One harness
+note: A69's pull backoff is real — after a few failed fetches the pull is
+deliberately skipped, and my first attempt at this scenario read as "the pull
+never fires". It fires; it was being throttled, correctly.
+
+Tests **1,499 → 1,505**.

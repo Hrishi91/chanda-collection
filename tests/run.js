@@ -832,6 +832,26 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A93: sync.js, 79 lines the suite had only ever read. Exercised for real in a
+  // browser; these pin the properties that run proved, so the module cannot lose
+  // them silently. Each one is a way money could go missing or double.
+  {
+    const sync = require('fs').readFileSync(__dirname + '/../js/sync.js', 'utf8');
+    eq(/if \(inFlight\) return Promise\.resolve\(\{ ok: false, reason: 'busy' \}\)/.test(sync), true,
+       'A93: two syncs at once send ONE batch — proved: 2 calls, 1 request, no double-send');
+    eq(/if \(!r\.synced && !r\.rejected\)/.test(sync), true,
+       'A93: a server-refused row leaves the queue for good instead of being re-refused for ever (A54)');
+    eq(/epoch: \(function \(\)/.test(sync), true,
+       'A93: the batch carries the epoch it was written under, so training money cannot pour into the live book (A53)');
+    eq(/DB\.get\(s, r\.id\)\.then\(function \(live\) \{[\s\S]{0,120}if \(!live\) return;/.test(sync), true,
+       'A93: a row deleted by Undo mid-flight is NOT resurrected from the stale snapshot');
+    eq(/receipts\[live\.id\]\) live\.receiptNo = receipts\[live\.id\]/.test(sync), true,
+       'A93: a saved payment adopts the serial the server minted for it');
+    // the failure paths: a lost network must never mark a row synced or rejected
+    const errBlock = sync.slice(sync.indexOf('.catch(function (e) {'));
+    eq(/inFlight = false;/.test(errBlock) && !/synced = 1/.test(errBlock), true,
+       'A93: a failed push clears the busy flag and touches no row — proved for a dead network AND a refused batch');
+  }
   // A92: the epoch wipe (🚀 Go Live, or a restore) discards this device's book,
   // and it was taking QUEUED entries with it in silence. Logout has refused to
   // strand unsynced rows since A74; this path — the more dangerous of the two,
