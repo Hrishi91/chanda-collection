@@ -832,6 +832,34 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A96: sw.js, exercised in a browser on a fresh port and then with the server
+  // killed. The shell cached and served offline in 53 ms — but CONFIG.SCRIPT_URL
+  // was GONE, because on the very first visit the page fetches config.js before
+  // the worker controls it, and the worker never precached it. The app then
+  // says "this phone was never paired with the central book" to a phone that
+  // is paired. Precaching is safe: the handler below is network-first/no-store,
+  // so a cached copy can only ever answer when there is no network to be stale
+  // against.
+  {
+    const swSrc = require('fs').readFileSync(__dirname + '/../sw.js', 'utf8');
+    const extras = swSrc.slice(swSrc.indexOf('const EXTRAS = ['),
+                               swSrc.indexOf('];', swSrc.indexOf('const EXTRAS = [')));
+    const shell = swSrc.slice(swSrc.indexOf('const SHELL = ['),
+                              swSrc.indexOf('];', swSrc.indexOf('const SHELL = [')));
+    eq(/'js\/config\.js'/.test(extras), true,
+       'A96: the backend URL is precached, so an offline reload after the first visit still knows where to sync');
+    // EXTRAS and not SHELL, and this must be asserted separately: SHELL is
+    // all-or-nothing, so a config.js that 404s there would cost the collector
+    // the whole offline app to protect sync they cannot use offline anyway.
+    eq(/'js\/config\.js'/.test(shell), false,
+       'A96: …from EXTRAS, so a config that will not download cannot abort the shell precache');
+    // the precache is only safe BECAUSE of these two, so they are pinned here
+    // next to it rather than trusted to stay put on their own
+    eq(/fetch\(e\.request, \{ cache: 'no-store' \}\)/.test(swSrc), true,
+       'A96: …and online the network still answers first, bypassing the HTTP cache — the copy can never go stale');
+    eq(/new Request\(u, \{ cache: 'reload' \}\)/.test(swSrc), true,
+       'A96: …while the install fetch itself comes from the origin, not a 10-minute-old disk copy (A28)');
+  }
   // A95: the pull side, run in a browser rather than read. These pin what that
   // run proved — the merge is upsert-by-id (a changed row must UPDATE, never
   // duplicate: two "দোকান খ" would double a pledge), and a chat-only delta must

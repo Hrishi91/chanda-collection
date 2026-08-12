@@ -361,6 +361,14 @@ give different numbers:
 
 ## Before go-live, still open
 
+- [ ] **Redeploy the client for A96** (Pages only — Code.gs is unchanged, no
+      Apps Script deploy needed). `sw.js` now precaches `js/config.js`, so a
+      phone that installs the app and reloads offline before its second online
+      load still knows the backend URL. Until this ships, that phone shows
+      "এই ফোন এখনো কেন্দ্রীয় খাতার সঙ্গে জোড়া হয়নি" — false, self-healing on the
+      next online load, but a phone call on puja evening. **Worth doing before
+      handing out the link**, since every collector's first day IS a first
+      install. See build-log "A96".
 - [ ] **Reports permission** — a DECISION, not a fix. Most collectors have an
       empty `reports` list and can open no central report at all, only their own
       summary. Intended, or grant some before the puja?

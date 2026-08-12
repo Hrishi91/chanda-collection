@@ -9006,3 +9006,66 @@ incoming one left the other matching and the check stayed green. Both are now
 named separately.
 
 Tests **1,509 → 1,516**.
+
+## A96 — sw.js, run rather than read: the app that forgot where to sync
+
+The last untested module, and the one `docs/residual-risks.md` says the whole
+offline story rests on. Exercised on a fresh port (a service worker caches too
+well to test twice on the same one), then with the server process killed.
+
+Most of it held. On a first-ever visit the shell cached and, with the server
+dead, served the app back in **60 ms** — the navigate handler answered in 20 ms
+because a refused connection fails fast, so A55's 4 s race never had to run.
+
+```
+প্রথম ভিজিট    → ক্যাশ chanda-v4.28.1, শেল ভরল, controlled ✅
+সার্ভার মৃত    → অ্যাপ অফলাইনে খুলল, লগইন পর্দা আঁকা হল      ✅
+                 কিন্তু CONFIG.SCRIPT_URL — নেই              ❌
+```
+
+**The backend URL was gone.** `config.js` was deliberately left out of the
+precache, on a comment's reasoning that a copy stored at install could go
+stale. It could not: the fetch handler serves that one file network-first with
+`no-store`, so while there is a network the cached copy is never the one that
+answers, and the install fetch uses `cache: 'reload'` anyway. The stale-copy it
+was protecting against cannot exist.
+
+What leaving it out did cost is the first visit. The page fetches `config.js`
+*before* the worker controls the page, so on a brand-new install nothing caches
+it — it only arrived on the *second* online load. A collector who installs the
+app, logs in, and then reloads offline before ever loading it online again gets
+an app with no backend URL, and the app tells them:
+
+> এই ফোন এখনো কেন্দ্রীয় খাতার সঙ্গে জোড়া হয়নি — admin-কে বলো।
+
+which is false, and on puja evening is a phone call. Their entries were safe in
+IndexedDB the whole time; it healed itself on the next online load. Nobody
+would have known that from the message.
+
+`js/config.js` now sits in EXTRAS — not SHELL, because SHELL is all-or-nothing
+and a config that will not download must not cost the collector the whole
+offline app to protect a sync they cannot use offline anyway. Re-run from a
+clean origin:
+
+```
+প্রথম ভিজিট    → ক্যাশ ১৭ → ১৮ এন্ট্রি, config প্রথমবারেই ঢুকল ✅
+সার্ভার মৃত    → প্রথম অফলাইন রিলোডেই SCRIPT_URL টিকে গেল     ✅
+                 config ক্যাশ থেকে ৮ ms, পুরো পাতা ৬০ ms      ✅
+```
+
+### The 16 seconds that were never there
+
+The first offline load looked like it took 16 s, and a 16-second white screen
+on a collector's phone would have been the finding of the day. It was my own
+measurement: wall-clock between setting a marker and my next call reaching the
+browser, which includes the round-trip of the tool itself. `PerformanceNavigationTiming`
+put the real figure at 53 ms. A harness that times *itself* and reports the app
+is the same family of error as one that reads its own stdout and calls a crash
+a pass — worth naming, because I nearly shipped a fix for a problem the app
+does not have.
+
+Four guards, each mutation-tested to a single named failure: removing
+`config.js` from EXTRAS, moving it into SHELL, dropping `no-store`, and
+dropping `cache: 'reload'`.
+
+Tests **1,516 → 1,520**.

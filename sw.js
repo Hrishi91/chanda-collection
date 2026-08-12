@@ -1,8 +1,5 @@
 // App-shell cache. Bump VERSION on every deploy that changes app files.
 const VERSION = 'chanda-v4.28.1';
-// config.js is intentionally NOT precached — it carries the live backend URL
-// and is served network-first (no-store) by the fetch handler so it can never
-// be stale. Precaching it here would risk baking in a stale copy at install.
 // A55: SHELL is what the app cannot run without. EXTRAS is everything else.
 //
 // They used to be one all-or-nothing list, and the two icons are 456 KB of it —
@@ -18,7 +15,24 @@ const SHELL = [
 const EXTRAS = ['manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
                 // A66: iOS fetches this at Add-to-Home-Screen time; caching it
                 // costs 48 KB and means the icon appears even on a bad line
-                'icons/apple-touch-icon.png'];
+                'icons/apple-touch-icon.png',
+                // A96: config.js used to be left out of the precache on the
+                // theory that a copy stored at install could go stale. It
+                // cannot — the fetch handler below serves it network-first with
+                // no-store, so while there is a network the cached copy is
+                // never the one that answers, and `cache: 'reload'` means the
+                // install fetch itself comes from the origin.
+                //
+                // What leaving it out actually cost: on the very FIRST visit
+                // the page fetches config.js BEFORE the worker controls the
+                // page, so nothing caches it. A collector who installs, logs
+                // in, then reloads offline before ever loading online again has
+                // an app with no SCRIPT_URL — and the app tells them "this
+                // phone was never paired with the central book, tell admin",
+                // which is both false and alarming. Their entries were safe the
+                // whole time. EXTRAS, not SHELL: a config that will not
+                // download must not cost them the offline app either.
+                'js/config.js'];
 
 // A28: `cache.addAll(urls)` fetches through the browser's HTTP cache, and
 // GitHub Pages says `max-age=600` on every file. So a phone that had opened the

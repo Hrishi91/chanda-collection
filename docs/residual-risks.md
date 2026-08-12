@@ -55,7 +55,7 @@ recovery for small accidents.
 | `rolloverYear` (2027 setup) | Only matters next year; refuses if the target year already has data. |
 | ~~`resetPassword` → forced change~~ | **Closed 2026-08-12 (A86).** Exercised end to end against the live server: an admin reset put the account into `mustChange`, and the app refused every other screen until a new password was set — the ledger could not even be opened. |
 | Voice entry (bn-IN) on a real phone | Never tested on hardware; needs mic permission + internet. Typing always works, so worst case is a disabled feature, not data loss. |
-| PWA install + offline reopen on a real phone | The offline story rests on this. Untested on an actual collector phone. |
+| PWA install + offline reopen on a real phone | The offline story rests on this. **Narrowed 2026-08-12 (A96):** `sw.js` has now been run rather than read — a first-ever visit on a clean origin, then the server killed. The shell cached and served the app back in 60 ms, and the A55 4 s navigate race was never needed because a refused connection fails fast. It also found a real hole: `config.js` was not precached, so a phone that installed and reloaded offline before its second online load had no backend URL and was told it "was never paired". Fixed. What is still untested is the *hardware* — a real Android's storage eviction, Add-to-Home-Screen, and a network that goes quiet rather than refusing (the case the 4 s race exists for, and the one a desktop cannot reproduce). |
 
 ## 3. Concurrency & quota edges
 
