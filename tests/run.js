@@ -777,6 +777,46 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
      'A80: …wired to parties.dupOk — the same field reconcile reads, or the answer never clears the line');
 }
 
+// ---- A83: the receipt says who took the money -------------------------------
+// The donor's copy is their only evidence, and it could not answer the one
+// question a dispute asks. Twelve people are collecting; the app has always
+// known which one, and the receipt simply never said.
+//
+// Both routes, because they are different documents: the IMAGE is what
+// WhatsApp carries, and over SMS there is no image at all — so the receipt
+// that cannot show a picture is exactly the one somebody will be holding.
+{
+  const appSrc = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const from = function (fn, to) { return appSrc.slice(appSrc.indexOf(fn), appSrc.indexOf(to, appSrc.indexOf(fn))); };
+  eq(/collector: pay\.collector \|\| pay\.collectorId/.test(from('function rcFromPayment', 'function rcFromDailyBus')), true,
+     'A83: a payment receipt carries the collector');
+  eq(/collector: d\.collector \|\| d\.collectorId/.test(from('function rcFromDailyBus', 'function receiptMessage')), true,
+     'A83: …and so does a bus receipt, which is a receipt somebody keeps too');
+  const msg = from('function receiptMessage', '// 📷 image receipt');
+  eq(/rc\.collector \? 'সংগ্রাহক/.test(msg), true,
+     'A83: …and the SMS body names them, because that route has no image to read it from');
+  const draw = appSrc.slice(appSrc.indexOf("const sy = H - 96;"), appSrc.indexOf("// ---- footer ----"));
+  eq(/if \(rc\.collector\)/.test(draw) && /সংগ্রাহক/.test(draw), true,
+     'A83: …and it is drawn on the image itself');
+  // guarded, not assumed: an old row with no collector must not print "undefined"
+  eq(/rc\.collector \|\| ''/.test(appSrc) || /collector: pay\.collector \|\| pay\.collectorId \|\| ''/.test(appSrc), true,
+     'A83: …and a row that predates this prints nothing rather than a blank label');
+  // the date a person reads, on the one document that leaves the app
+  eq(/fmtDateLong\(rc\.datetime \|\| rc\.date\)/.test(appSrc), true,
+     'A83: the receipt dates itself the way a person writes a date, not the way a machine sorts one');
+  eq(/function fmtDateTime/.test(appSrc), true,
+     'A83: …while screens keep the dense sortable form — a list you scan and a paper you keep want opposite things');
+
+  // 44px is the smallest thing a thumb hits reliably. ← পেছনে was 40 and it is
+  // on every drill-in screen, tapped by people standing in a street with one
+  // hand on a bag. Measured in the browser, then pinned here so a later tidy-up
+  // of the CSS cannot quietly take it back.
+  const css = require('fs').readFileSync(__dirname + '/../css/style.css', 'utf8');
+  const bb = css.slice(css.indexOf('button.back-bar'), css.indexOf('}', css.indexOf('button.back-bar')));
+  eq(/min-height:\s*44px/.test(bb), true,
+     'A83: the back button is at least 44px tall — the one control every drill-in screen has');
+}
+
 // ---- A79: the season target, and the window it must not open ----------------
 // "কত হল, আর কত বাকি" is the question a committee asks every evening, and the
 // app could not answer it without opening a report. The bar answers it — but

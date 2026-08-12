@@ -154,6 +154,29 @@
     const s = new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString();
     return s.slice(0, 10) + ' ' + s.slice(11, 16);
   }
+  // A83: the date as a person reads it, for the ONE document that leaves the
+  // app. `2026-08-12 01:56` is a machine's date; a donor holding a paper-shaped
+  // receipt reads "১২ অগস্ট ২০২৬". The time stays — it is what settles "I paid
+  // you that morning" — but it goes second, small, after the day.
+  //
+  // Screens keep fmtDateTime: sortable and dense is right for a list you scan,
+  // and wrong for a receipt somebody keeps.
+  const BN_MONTHS = ['জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন',
+                     'জুলাই', 'অগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'];
+  function fmtDateLong(v) {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return String(v);
+    const s = new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString();
+    const day = Number(s.slice(8, 10)), mon = Number(s.slice(5, 7)) - 1, yr = s.slice(0, 4);
+    // Bengali always, and NOT because the app is Bengali-first — because the
+    // receipt is. Every other word on it is hardcoded Bengali ('সাদরে গৃহীত হইল',
+    // 'প্রতিশ্রুত'), so following the language toggle here produced
+    // "12 Aug 2026, ০৭:২৬" — half of one language and half of the other on the
+    // one page a stranger reads. Written first that way, caught by running it.
+    return toBengaliDigits(String(day)) + ' ' + BN_MONTHS[mon] + ' ' + toBengaliDigits(yr) +
+           ', ' + toBengaliDigits(s.slice(11, 16));
+  }
   // Back button for drill-in screens (party/admin/cashier) that aren't a
   // bottom-nav tab, so users aren't stranded without an obvious way back.
   function backBar(toView, params) {
@@ -3042,7 +3065,15 @@
         // ---- date+time (left) + signatory block (right) ----
         const sy = H - 96;
         g.fillStyle = ink; g.font = '17px sans-serif';
-        g.fillText('তারিখ ও সময়: ' + toBengaliDigits(fmtDateTime(rc.datetime || rc.date)), lx, sy);
+        g.fillText('তারিখ: ' + fmtDateLong(rc.datetime || rc.date), lx, sy);
+        // A83: WHO took the money. The donor's copy is their only evidence, and
+        // without this it cannot answer the one question a dispute asks — twelve
+        // people are collecting. The app has known all along; the receipt just
+        // never said.
+        if (rc.collector) {
+          g.fillStyle = muted; g.font = '17px sans-serif';
+          g.fillText('সংগ্রাহক: ' + rc.collector, lx, sy + 24);
+        }
         g.textAlign = 'right';
         g.fillStyle = muted; g.font = '17px sans-serif';
         g.fillText(t('receipt_thanking'), W - 62, sy);
@@ -3090,13 +3121,15 @@
     return { donorLine: partyDonorLine(p), showTotals: true,
       date: pay.date || pay.createdAt, datetime: pay.createdAt || pay.date,
       amount: pay.amount, cashUpi: cashUpiNote(pay),
+      collector: pay.collector || pay.collectorId || '',
       paidTotal: paidTotal, pledged: p.pledged, due: due, receiptNo: pay.receiptNo || '' };
   }
   // Receipt for a daily bus collection (name + number, one-off → no totals).
   function rcFromDailyBus(d) {
     return { donorLine: (d.busName || t('type_bus')) + (d.busNumber ? ' (নং ' + d.busNumber + ')' : ''),
       showTotals: false, date: d.date || d.createdAt, datetime: d.createdAt || d.date,
-      amount: d.amount, cashUpi: cashUpiNote(d), receiptNo: d.receiptNo || '' };
+      amount: d.amount, cashUpi: cashUpiNote(d), collector: d.collector || d.collectorId || '',
+      receiptNo: d.receiptNo || '' };
   }
   // The words that go WITH a receipt, wherever it is sent. One function, so the
   // WhatsApp caption and the SMS body can never say different things.
@@ -3116,6 +3149,10 @@
       // that never says why.
       (rc.receiptNo ? t('receipt_no') + ' ' + rc.receiptNo : t('rcp_no_pending_stamp')) +
         (rc.date ? ' · ' + fmtDate(rc.date) : ''),
+      // A83: over SMS there is no image, so the collector's name has to be in
+      // the words too — the receipt that cannot show a picture is exactly the
+      // one a donor will be holding when they ask who took the cash.
+      (rc.collector ? 'সংগ্রাহক: ' + rc.collector : ''),
       cfg.footer,
     ].filter(function (x) { return x !== ''; }).join('\n');
   }

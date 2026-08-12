@@ -8485,3 +8485,49 @@ backup with fewer columns used to leave every later write misaligned, and now
 `ensureCols_` re-appends and the header-driven writes land correctly.
 
 Tests **1,436 → 1,437**.
+
+## v4.24.0 — A83: the receipt now says who took the money
+
+A UI pass, measured rather than eyeballed. The mechanics were sound: main
+buttons 56–59px tall at 17px, nothing under 13.5px, screens fit or scroll
+modestly. Core loops: **6 steps** for a new shop with its first payment,
+**5 taps** for a repeat instalment. No fat to cut.
+
+The receipt was good too — ॐ, logo, serial, donor and shop, ₹৫০০/- with the
+amount in words, pledged/paid/due, committee, and a **নমুনা · SAMPLE** watermark
+while in training.
+
+**But it never said who collected the money.** `rcFromPayment` had no such
+field, and neither did the SMS body. The donor's copy is their only evidence,
+and it could not answer the one question a dispute asks — with twelve people
+collecting. The app has always known; the receipt simply never said.
+
+Both routes, because they are different documents: the image is what WhatsApp
+carries, and over SMS **there is no image at all**, so the receipt that cannot
+show a picture is exactly the one somebody will be holding.
+
+```
+তারিখ: ১২ অগস্ট ২০২৬, ০৮:৫৫
+সংগ্রাহক: কালী দাস
+```
+
+…and the same line rides in the SMS text.
+
+**The date reads as a person writes one.** `2026-08-12 01:56` is a machine's
+date on a document a stranger keeps. Screens keep `fmtDateTime` — dense and
+sortable is right for a list you scan and wrong for paper.
+
+Written first to follow the language toggle, which produced
+**"12 Aug 2026, ০৭:২৬"** — half of one language and half of the other on the one
+page an outsider reads. Caught by running the function rather than reading it.
+The receipt is hardcoded Bengali throughout (*সাদরে গৃহীত হইল*, *প্রতিশ্রুত*), so
+its date is too.
+
+**← পেছনে went 40px → 44px.** The smallest target a thumb hits reliably, on the
+control every drill-in screen has, tapped by people standing in a street.
+
+All five changes reverted one at a time to confirm the suite goes red — the CSS
+one was green at first and got its own assertion. Tests **1,437 → 1,445**.
+
+Left for Hrishi, because it is his words and not code: `receipt_footer` is
+empty on the live config, so the bottom line is the built-in thank-you.

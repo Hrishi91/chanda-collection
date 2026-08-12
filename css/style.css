@@ -111,7 +111,10 @@ button.ghost {
 }
 button.big { padding: 15px 22px; font-size: 17px; }
 button.block { display: block; width: 100%; margin: 8px 0; }
-button.back-bar { margin: 0 0 12px; padding: 8px 14px; font-size: 14px; }
+/* A83: 44px is the smallest thing a thumb hits reliably, and ← পেছনে was 40 —
+   the one control on every drill-in screen, tapped by people standing in a
+   street. min-height rather than more padding, so the label does not move. */
+button.back-bar { margin: 0 0 12px; padding: 8px 14px; font-size: 14px; min-height: 44px; }
 .help-p { font-size: 14.5px; line-height: 1.65; color: var(--sub); margin: 8px 0; }
 .help-p b { color: var(--ink); }
 .row.voided b { text-decoration: line-through; color: var(--sub); }
