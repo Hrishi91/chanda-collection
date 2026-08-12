@@ -8793,3 +8793,47 @@ Two things noted and deliberately NOT done before go-live: converting px → rem
 (a whole-stylesheet refactor for a benefit no one has asked for), and adding a
 dark theme (new surface, new bugs, days before phones go out). Both belong
 after the puja if anyone wants them.
+
+## v4.27.0 — A91: the first screen, which nobody had ever opened
+
+Hrishi: *"how we are making the app first to user, have you seen that"*. No —
+and it is the one screen I could not have seen, because **every browser check
+in this project begins by injecting a session into localStorage.** Nobody had
+opened the app the way twelve collectors are about to.
+
+Wiped the phone completely and looked:
+
+**All five bottom tabs were showing, and not one of them did anything.**
+Tapping খাতা, রিপোর্ট, বার্তা or সেটিংস left the login screen exactly where it
+was. The sync badge (✅) sat in the header too, reporting on a sync that cannot
+happen. Five dead controls and a meaningless indicator, in the first ten seconds
+of a collector's first day — the failure this project has named nine times
+(A19, A23, A31, A35, A45, A48, A60, A61, A68) and had never looked for *here*.
+
+Both are now hidden until somebody is logged in, decided **before** the early
+return so the logged-out path is covered, with `nav#bottomnav[hidden]` to beat
+the `display: flex` rule that would otherwise have made the fix look applied
+while changing nothing.
+
+The rest of the first run is sound, and worth recording since it was never
+checked either: the register form explains every field in Bengali under the
+box; submitting says *"✅ নাম জমা পড়েছে! Admin approve করলে ঢুকতে পারবে"*; and
+logging in before approval gives *"Admin এখনো approve করেনি — admin-কে বলো"*,
+not a code.
+
+### Two false alarms, both mine
+
+- I stubbed the server to reject an unapproved login as `not-approved` and
+  reported a raw code on screen. **The real server throws `pending`**, which has
+  a Bengali message. I had invented the error I was testing.
+- The session kept vanishing on reload and I suspected the app of clearing
+  storage. It was clearing exactly `ck_token` and `ck_user` and nothing else —
+  because I had not set `ck_scriptUrl`, so the app called the **real live
+  server** with a fake token, got `bad-token`, and correctly dropped the
+  session. The app was right; the harness was wrong.
+
+And for the third time today I wrote `indexOf(end)` without searching from the
+start marker, which makes the slice backwards and fails an assertion for a
+reason that has nothing to do with the code. It is now commented at the site.
+
+Tests **1,491 → 1,495**.

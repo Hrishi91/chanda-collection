@@ -6395,6 +6395,16 @@
       if (k === 'messages') b.hidden = !chatOn();
       b.querySelector('span').textContent = t(k === 'list' ? 'khata' : (k === 'messages' ? 'nav_messages' : k));
     });
+    // A91: a logged-out phone showed all five tabs and the sync badge, and not
+    // one of them did anything — tapping any of them left the login screen
+    // exactly where it was. Five dead controls at the first moment somebody
+    // meets the app, which is the failure this project keeps naming and had
+    // never once looked for on THIS screen, because every check started by
+    // injecting a session.
+    const navBar = document.getElementById('bottomnav');
+    const syncBadge = document.getElementById('sync-badge');
+    if (navBar) navBar.hidden = !Auth.loggedIn();
+    if (syncBadge) syncBadge.hidden = !Auth.loggedIn();
     if (!Auth.loggedIn()) { renderAuth(); updateBadge(); return; }
     startNotifPolling();
     const user = Auth.current();

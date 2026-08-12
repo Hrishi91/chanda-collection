@@ -31,6 +31,10 @@ header {
    on the grey .empty text it sits inside, or it reads as decoration. */
 b.warn { color: var(--saffron-dark); }
 main { padding: 14px 14px 90px; max-width: 560px; margin: 0 auto; }
+/* A91: `hidden` must actually hide it — the rule below sets display:flex, which
+   beats the attribute's default styling. Without this the tabs stayed visible
+   on the login screen and the fix looked applied while changing nothing. */
+nav#bottomnav[hidden] { display: none; }
 nav#bottomnav {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
   display: flex; background: var(--card); border-top: 1px solid var(--line);

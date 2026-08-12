@@ -832,6 +832,29 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A91: the first screen anybody sees. A logged-out phone showed all five tabs
+  // and the sync badge, and not one of them did anything — tapping any left the
+  // login screen exactly where it was. Never found before because every browser
+  // check in this project starts by injecting a session, so nobody had opened
+  // the app the way twelve collectors are about to.
+  {
+    eq(/if \(navBar\) navBar\.hidden = !Auth\.loggedIn\(\);/.test(appSrc), true,
+       'A91: the bottom nav is hidden until somebody is logged in');
+    eq(/if \(syncBadge\) syncBadge\.hidden = !Auth\.loggedIn\(\);/.test(appSrc), true,
+       'A91: …and so is the sync badge, which means nothing to a logged-out phone');
+    // the attribute alone loses to display:flex — the fix would have looked
+    // applied while changing nothing
+    eq(/nav#bottomnav\[hidden\] \{ display: none; \}/.test(css), true,
+       'A91: …and `hidden` actually hides it, against the display:flex rule below');
+    // The end marker is searched FROM the start marker. Third time today I have
+    // written this without the offset; it makes the slice empty or backwards and
+    // the assertion fails for a reason unrelated to the code.
+    const rFrom = appSrc.indexOf('function render()');
+    const render = appSrc.slice(rFrom, appSrc.indexOf('startNotifPolling', rFrom));
+    const atNav = render.indexOf('navBar.hidden'), atRet = render.indexOf('if (!Auth.loggedIn())');
+    eq(atNav >= 0 && atRet > atNav, true,
+       'A91: …decided before the early return, so the logged-out path gets it too');
+  }
   // A89: the save button sticks only while there is something unsaved. One
   // helper drives BOTH admin save buttons — the user screen and the post screen
   // are the same shape, and a rule applied to one of a pair is this project's
