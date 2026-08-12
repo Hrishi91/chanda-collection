@@ -366,7 +366,14 @@ give different numbers:
       document, so it is Bengali whatever the collector set the app to. `tBn()`
       does that; the collector's own screens still follow the app language. See
       build-log "A98".
-- [ ] **Redeploy the client for A96 + A98** (Pages only — Code.gs is unchanged, no
+- [ ] **DECISION — should money show in the user LIST, not just per person?**
+      (A99) The account picture now works for everyone, but it is one tap per
+      collector: with 12 people that is 12 taps to answer "who is holding the
+      most?". Putting in-hand on each row would answer it at a glance — but
+      `listUsers` returns no money at all, so it needs a **Code.gs change and an
+      Apps Script redeploy**, and it makes every admin-panel load compute an
+      account picture per user. Not done on my own for that reason. Worth it?
+- [ ] **Redeploy the client for A96 + A98 + A99** (Pages only — Code.gs is unchanged, no
       Apps Script deploy needed). `sw.js` now precaches `js/config.js`, so a
       phone that installs the app and reloads offline before its second online
       load still knows the backend URL. Until this ships, that phone shows

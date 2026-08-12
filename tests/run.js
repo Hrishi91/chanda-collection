@@ -832,6 +832,70 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A99: the admin panel, run against a local stand-in that EXECUTES the real
+  // Code.gs, seeded with 12 collectors and money in several hands. Hrishi's
+  // report was "not able to see all the data" and it was literally true: the
+  // account picture — collected, received, handed, in-hand, dues — was offered
+  // only to people who had already left.
+  {
+    const appTxt99 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    const cssTxt99 = require('fs').readFileSync(__dirname + '/../css/style.css', 'utf8');
+
+    // 1 — the door. userSnapshot computes `live` for ANY user (verified against
+    // the real backend), so gating the chip on a SAVED snapshot hid today's
+    // figures for everyone still working.
+    eq(/if \(u\.status === 'approved' \|\| u\.status === 'blocked'\)\n\s*btns \+= '<button class="chip" data-act="snap"/.test(appTxt99), true,
+       'A99: the account picture is offered to anyone still working, not only the stood-down and the blocked');
+    eq(/data-act="snap"/.test(appTxt99) && !/u\.access === 'exiting' \|\| u\.status === 'blocked'\)\n\s*btns \+= '<button class="chip" data-act="snap"/.test(appTxt99), true,
+       'A99: …and the old exiting-or-blocked gate is gone');
+
+    // 2 — the room. The panes above it are a then/now table that only exists
+    // once somebody has been stood down; without this branch the screen said
+    // "no picture saved yet" and dropped everything the server had sent.
+    // Both ends checked, and checked as INDICES. A missing end anchor makes
+    // indexOf return -1, and slice(a, -1) hands back nearly the whole file —
+    // so a length test passes while every assertion below silently matches
+    // text from somewhere else entirely. This project has been bitten by an
+    // unanchored indexOf three times; a "was it found" guard that only counts
+    // characters is the same bug wearing a test's clothes.
+    const cut = function (from, to, label) {
+      const a = appTxt99.indexOf(from), b = appTxt99.indexOf(to, a < 0 ? 0 : a);
+      eq(a >= 0 && b > a, true, 'A99: (' + label + ' — both anchors found, in order)');
+      return a >= 0 && b > a ? appTxt99.slice(a, b) : '';
+    };
+    const snapFn = cut('function renderUserSnapshot', 'function auditLabel', 'renderUserSnapshot');
+    eq(/\(!saved\.exit && !saved\.block \? livePane\(\) : ''\)/.test(snapFn), true,
+       'A99: with no saved picture the screen shows what they hold TODAY…');
+    eq(/access_no_picture/.test(snapFn), false,
+       'A99: …instead of announcing that there is nothing to show');
+    ['access_collected', 'received_col', 'total_expense', 'access_handed', 'access_inhand',
+     'access_their_due'].forEach(function (k) {
+      eq(snapFn.indexOf("'" + k + "'") > 0, true, 'A99: …including ' + k);
+    });
+
+    // 3 — money already sent but unconfirmed is INSIDE in-hand. As its own row
+    // it reads as a second pile and an admin goes looking for cash that is
+    // sitting in a cashier's inbox. Proved on the stub: sender showed
+    // হাতে ₹3,000 with ↳ ₹1,500 unconfirmed; the cashier showed ₹4,600.
+    eq(/access_pending_out'\)\.replace\('\{amt\}', fmtMoney\(n\('pending'\)\)\)/.test(snapFn), true,
+       'A99: pending money is spelled out with its amount…');
+    eq(/liveRow\('[\w]*pending/.test(snapFn), false,
+       'A99: …and hangs off in-hand as a sub-line, never as a row of its own');
+
+    // 4 — the list. Measured at 375px: 11 of 12 rows read "version unknown",
+    // which is what every row says until its owner opens the app.
+    eq(/\(u\.access === 'exiting' \? ' 🚪' : ''\) \+ verMark\(u\) \+/.test(appTxt99), true,
+       'A99: the phone version rides on the name line…');
+    const rowFn = cut("const row = function (u) {\n          return '<button class=\"row\" data-adm-user=",
+                      'const grp = function (key, list)', 'the list row builder');
+    eq(/verLine/.test(rowFn), false, 'A99: …so the list row no longer spends a whole line on it');
+    eq(/verLine\(u\)/.test(appTxt99), true, 'A99: …while the DETAIL screen still prints it in full');
+    // silent when current: that is the state nobody is looking for
+    eq(/if \(u\.appVersion === Auth\.APP_VERSION\) return '';/.test(appTxt99), true,
+       'A99: an up-to-date phone gets no mark at all');
+    eq(/\.ver-mark \{/.test(cssTxt99) && /\.ver-mark\.warn \{/.test(cssTxt99), true,
+       'A99: …and the mark is styled as a footnote, with the stale one in red');
+  }
   // A98: the receipt is the DONOR's document. They never chose a language and
   // are not holding the phone, so it is Bengali whatever the collector set the
   // app to. 14 of its 17 strings were already hardcoded Bengali; the three that

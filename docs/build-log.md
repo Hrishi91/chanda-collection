@@ -9160,3 +9160,79 @@ the `// 📷 image receipt` comment (which the scope check cannot see) was caugh
 by the "were the three functions actually found" assertion, not by luck.
 
 Tests **1,528 → 1,536**.
+
+## A99 — "not able to see all the data": the admin could not ask about the nine people holding the money
+
+Hrishi opened the admin panel and said he could not see all the data. He was
+right, and more literally than it sounded.
+
+### The harness first, because the bug was invisible without it
+
+The admin screens are server-driven, so every previous UI pass had rendered
+them empty — the stub answered nothing and the screen showed a back button.
+`scripts/admin-harness.js` now serves the app's own files and answers its POSTs
+by running the REAL `Code.gs` through `tests/gas-shim.js`, seeded like the puja
+will actually look: 12 collectors, two cashiers, one stood down, one blocked,
+one waiting for approval, four areas, committee posts, and **money in several
+hands**. That last part is the whole point. On an empty book this bug does not
+exist.
+
+### The data that was not there
+
+`📄 হিসেবের ছবি` — collected, received, handed over, in-hand, and every donor
+still owing — was offered only to users who were `exiting` or `blocked`. So the
+nine people actually walking around with the committee's cash were the nine the
+admin could not ask about.
+
+The gate was written on the belief that the picture needs a SAVED snapshot. It
+does not: `userSnapshot` computes `live` from today's book for any user and only
+*adds* the saved figures when they exist. Verified against the real backend
+before touching the UI — সুব্রত, an ordinary collector, came back
+`collected 3800 · inHand 3800 · dues 5400 (4)`. The data had been one request
+away the whole time.
+
+Opening the door was not enough: `renderUserSnapshot` rendered only the saved
+panes, so with nothing saved it printed "এখনও কোনও ছবি সংরক্ষিত নেই" and a dues
+list, and dropped `live` on the floor. There is now a one-column **📊 এই মুহূর্তে**
+pane for everyone still working — no then/now, because with no exit there is no
+"then".
+
+One detail decided by looking at the numbers rather than the code: money already
+sent but not yet confirmed is counted INSIDE in-hand. As its own row it reads
+like a second pile, and an admin chasing ₹3,800 would go hunting for cash that
+is sitting in a cashier's unconfirmed inbox. It hangs off in-hand instead:
+
+```
+সুব্রত (পাঠিয়েছে)     তোলা ৩,৮০০ · জমা দেওয়া ৮০০ · হাতে ৩,০০০
+                       ↳ তার মধ্যে ₹১,৫০০ পাঠানো, confirm হয়নি   ✅
+বিমল (ক্যাশিয়ার)      তোলা ৩,৮০০ · জমা নিয়েছে ৮০০ · হাতে ৪,৬০০   ✅
+```
+
+Both halves of one handover, and the arithmetic reads off the screen.
+
+### And the screen itself
+
+Measured at 375×812 with 12 users: **317 px of chrome** before the first row,
+84 px per row, 5.2 rows visible. Of the twelve rows, **eleven** spent their
+third line on `❔ version জানা নেই` — which is what every row says until its
+owner has opened the app, so on the morning the links go out it is twelve
+identical lines pushing the real data down.
+
+The version now rides on the name: `❔` for never-opened, `⚠️ পিছিয়ে` in red for
+a stale phone, and **nothing at all** when the phone is current, because that is
+the state nobody is scanning for. The full string stays on the detail screen.
+Rows **84 → 63 px**, visible **5.2 → 6.9**, the list **1,693 → 1,444 px**.
+
+### The guard that was lying
+
+Mutation #7 — renaming the slice anchor — was caught by the scope check, not by
+my own "was the function found" assertion, so I tested that assertion alone:
+renamed `auditLabel` at its definition AND its call site, leaving valid code the
+scope check is happy with. The suite stayed green. `indexOf` returns **−1** when
+it misses, and `slice(a, −1)` hands back nearly the whole file — so a
+length-based guard passes while every assertion under it matches text from
+somewhere else entirely. This project has been bitten by an unanchored `indexOf`
+three times; a "was it found" check that only counts characters is the same bug
+wearing a test's clothes. Both anchors are now checked as indices, in order.
+
+Nineteen assertions. Tests **1,536 → 1,555**.

@@ -195,6 +195,11 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
   padding: 12px 14px; margin-bottom: 8px; cursor: pointer;
 }
 .row-sub { color: var(--sub); font-size: 12.5px; margin-top: 2px; }
+/* A99: the phone-version mark, inline on the name instead of a row of its own.
+   Normal weight and muted, so it reads as a footnote to the name and never
+   competes with it — the name is what the admin is scanning for. */
+.ver-mark { color: var(--sub); font-size: 12px; font-weight: 400; white-space: nowrap; }
+.ver-mark.warn { color: var(--red); font-weight: 600; }
 .row-right { text-align: right; font-size: 14px; font-weight: 600; }
 .due-chip { display: block; color: var(--red); font-size: 12px; }
 .ok-chip { display: block; font-size: 12px; }

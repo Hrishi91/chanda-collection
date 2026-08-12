@@ -5233,9 +5233,41 @@
               esc(t('access_written_off').replace('{amt}', fmtMoney(s.writtenOff))) + '</div>' : '') +
             '</div>';
         };
+        // A99: what somebody who is STILL WORKING is holding.
+        //
+        // The panes above are a then/now comparison, and `saved` only exists
+        // once a person has been stood down or blocked — so for everybody else
+        // this screen used to print "no picture saved yet" and a dues list, and
+        // dropped `live` on the floor. The server had already computed and sent
+        // collected / received / handed / in-hand; nothing showed them. One
+        // column, because with no exit there is no "then" to compare against.
+        const liveRow = function (labKey, v, strong) {
+          return '<div class="row" style="cursor:default"><div style="flex:1">' + esc(t(labKey)) + '</div>' +
+            '<div style="text-align:right">' + (strong ? '<b>' + money(v) + '</b>' : money(v)) + '</div></div>';
+        };
+        const livePane = function () {
+          const n = function (k) { return Number(live[k]) || 0; };
+          return '<div class="section">' + esc(t('access_today')) + '</div><div class="card">' +
+            liveRow('access_collected', n('collected')) +
+            // only a cashier is ever handed money by somebody else
+            (n('received') ? liveRow('received_col', n('received')) : '') +
+            (n('expenseTotal') ? liveRow('total_expense', n('expenseTotal')) : '') +
+            liveRow('access_handed', n('handedOver')) +
+            liveRow('access_inhand', n('inHand'), true) +
+            // …and the money already sent but unanswered is INSIDE that figure,
+            // so it hangs off it. On its own row it read like a second pile,
+            // and an admin chasing ₹3,800 would go looking for cash that is
+            // sitting in a cashier's unconfirmed inbox.
+            (n('pending') ? '<div class="row-sub" style="padding:0 12px 10px">' +
+              esc(t('access_pending_out').replace('{amt}', fmtMoney(n('pending')))) + '</div>' : '') +
+            '<div class="row" style="cursor:default"><div style="flex:1">' + esc(t('access_their_due')) + '</div>' +
+              '<div style="text-align:right">' + money(n('dueTotal')) + ' <span class="row-sub">(' +
+                esc(toBengaliDigits(String(n('dueCount')))) + ')</span></div></div>' +
+            '</div>';
+        };
         const dues = (live.dues || []);
         body.innerHTML = pane('exit', 'access_at_exit') + pane('block', 'access_at_block') +
-          (!saved.exit && !saved.block ? '<div class="empty">' + esc(t('access_no_picture')) + '</div>' : '') +
+          (!saved.exit && !saved.block ? livePane() : '') +
           '<div class="section">' + esc(t('access_open_dues')) + '</div>' +
           (dues.length ? '<div class="card">' + dues.map(function (d) {
             return '<div class="row" style="cursor:default"><div style="flex:1"><b>' + esc(d.name) + '</b>' +
@@ -5651,10 +5683,20 @@
             ? '<button class="chip" data-act="restore" data-id="' + u.id + '">' + esc(t('access_restore')) + '</button>'
             : '<button class="chip" data-act="exit" data-id="' + u.id + '">' + esc(t('access_exit')) + '</button>';
         }
-        // The account picture. Offered for anyone who has one — that is the
-        // stood-down and the blocked, and blocked is when you most want to know
-        // what they were holding.
-        if (u.access === 'exiting' || u.status === 'blocked')
+        // A99: the account picture, for anyone who could be holding something.
+        //
+        // It used to be offered only to the stood-down and the blocked, on the
+        // reasoning that they are the ones with a saved snapshot. But the
+        // server never needed one: userSnapshot computes `live` from today's
+        // book for ANY user and only ADDS the saved figures when they exist.
+        // So the nine people actually walking around with the committee's cash
+        // were the nine the admin could not ask about — no collected, no
+        // in-hand, no dues, anywhere in this panel. The data was there and the
+        // door was locked.
+        //
+        // Not offered to `pending`: no year approval means no entries, so the
+        // picture would be four zeroes and a button that teaches nothing.
+        if (u.status === 'approved' || u.status === 'blocked')
           btns += '<button class="chip" data-act="snap" data-id="' + u.id + '">' + esc(t('access_picture')) + '</button>';
         return btns;
       }
@@ -5889,6 +5931,18 @@
             (u.appVersion === Auth.APP_VERSION ? '' : ' — ' + t('ver_stale_short'))
           : '❔ ' + t('ver_unknown');
       };
+      // A99: the same fact, one line shorter, for the LIST. verLine spends a
+      // whole row-sub on it, and measured on this screen 11 of 12 rows read
+      // "❔ version জানা নেই" — which is what every row says until its owner has
+      // opened the app, so on the morning the links go out it is 12 identical
+      // lines pushing the real data down. Up-to-date says nothing at all,
+      // because that is the state you are not looking for; the two states you
+      // ARE looking for keep a mark.
+      const verMark = function (u) {
+        if (!u.appVersion) return ' <span class="ver-mark" title="' + esc(t('ver_unknown')) + '">❔</span>';
+        if (u.appVersion === Auth.APP_VERSION) return '';
+        return ' <span class="ver-mark warn">⚠️ ' + esc(t('ver_stale_short')) + '</span>';
+      };
 
       if (!admSection) {
         $view().innerHTML = head('admin_panel') + trainCard +
@@ -5907,9 +5961,8 @@
             esc([u.name, u.username, u.phone].filter(Boolean).join(' ')) + '" style="width:100%;text-align:left">' +
             '<div style="flex:1"><b>' + esc(u.name) + '</b>' +
             (u.role === 'admin' ? ' 👑' : '') + (u.cashier ? ' 💰' : '') +
-            (u.access === 'exiting' ? ' 🚪' : '') +
+            (u.access === 'exiting' ? ' 🚪' : '') + verMark(u) +
             '<div class="row-sub">' + esc(userSummary(u)) + '</div>' +
-            '<div class="row-sub">' + esc(verLine(u)) + '</div>' +
             '</div><span class="adm-caret">›</span></button>';
         };
         const grp = function (key, list) {

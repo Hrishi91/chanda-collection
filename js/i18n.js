@@ -356,6 +356,16 @@ const I18N = {
                   en: 'Since then, others collected {o} · they collected {h}' },
   access_open_dues: { bn: '🧾 এখনও বাকি — কার কাছে', en: '🧾 Still outstanding — from whom' },
   access_no_dues: { bn: 'কারও কাছে বাকি নেই ✅', en: 'Nothing outstanding ✅' },
+  // A99: the heading over the figures for somebody who is still working. The
+  // saved panes are a THEN/NOW comparison and only exist once a person has been
+  // stood down or blocked; this is the plain "where they stand" for everyone
+  // else, which is most of the committee for most of the season.
+  access_today: { bn: '📊 এই মুহূর্তে', en: '📊 Where they stand today' },
+  // A99: pending money is money they have SENT and no cashier has answered for
+  // yet — and the server still counts it inside `হাতে`. As its own row it reads
+  // like a separate pile; as a sub-line under হাতে it reads like what it is.
+  access_pending_out: { bn: '↳ তার মধ্যে {amt} পাঠানো, confirm হয়নি',
+                        en: '↳ including {amt} sent, not yet confirmed' },
   access_no_picture: { bn: 'এখনও কোনও ছবি সংরক্ষিত নেই।', en: 'No picture saved yet.' },
   access_of: { bn: '{p}-এর মধ্যে', en: 'of {p}' },
   // What the stood-down member sees on their own phone.
