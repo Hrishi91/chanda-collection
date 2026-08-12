@@ -8756,3 +8756,40 @@ in this project (A71, A68, A78, A82, A81's read-vs-write). Verified on both:
 static when clean, fixed when dirty, clear of the bottom nav either way.
 
 Tests **1,487 → 1,491**. CSS and markup only — no schema, no redeploy.
+
+## A90 — four more ways to look, and nothing to fix
+
+Asked again what was left, I went after the states nobody had put the UI into.
+This round found **nothing actionable**, which after a day where every round
+found something is worth writing down — so the next person does not re-check
+these blind.
+
+**Keyboard open, with the new sticky bar.** This was a risk I had just created:
+typing in `pos-max` on the post screen makes the page dirty, so A89's bar
+becomes `fixed` at exactly the moment the keyboard is up. Simulated the way
+Android does it, by shrinking the viewport to 320×380:
+
+```
+ঘর      ১৬৭–২১৩   পর্দায় আছে
+বার     ২১৭–২৭২   ঠিক নিচে — ঢাকে না
+নেভিগেশন           চাপে না
+```
+
+**Larger text.** The stylesheet has no `rem` anywhere — every size is px — so I
+expected trouble. At 130% on home, settings, the admin panel and a post screen:
+no clipping, no overflow, nothing off-screen. The page simply grows
+(1,052 → 1,741px). It does not *scale* with the system setting, but it does not
+*break* under one either, which is the part that matters.
+
+**Landscape (640×320).** Nothing clipped. The bottom nav eats 19% of the height,
+leaving 259px — tight, and nobody collects chanda sideways. Left alone.
+
+**Dark mode.** No `prefers-color-scheme` rule exists, so the app stays light on
+a dark phone. That is a preference not being honoured, not a fault: nothing
+becomes unreadable, because the colours are all set explicitly rather than
+inherited.
+
+Two things noted and deliberately NOT done before go-live: converting px → rem
+(a whole-stylesheet refactor for a benefit no one has asked for), and adding a
+dark theme (new surface, new bugs, days before phones go out). Both belong
+after the puja if anyone wants them.
