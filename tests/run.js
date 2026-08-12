@@ -832,6 +832,33 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A95: the pull side, run in a browser rather than read. These pin what that
+  // run proved — the merge is upsert-by-id (a changed row must UPDATE, never
+  // duplicate: two "দোকান খ" would double a pledge), and a chat-only delta must
+  // not rebuild a screen somebody is using.
+  {
+    const md = appSrc.slice(appSrc.indexOf('function mergeDelta'), appSrc.indexOf('// A69 (audit #2 P3)'));
+    // BOTH lines, named separately: the cached rows go in first, then the
+    // incoming ones overwrite by the same key. Written as one regex first, and
+    // breaking the incoming line left the cached one matching — an assertion two
+    // lines can satisfy tests neither.
+    eq((md.match(/byId\[r\.id\] = r;/g) || []).length, 2,
+       'A95: the delta upserts by id — cached rows keyed, then incoming rows overwrite the same keys');
+    eq(/incoming\.forEach\(function \(r\) \{ if \(r && r\.id != null\) byId\[r\.id\] = r; \}\);/.test(md), true,
+       'A95: …the INCOMING row keyed by its own id — proved: a renamed donor updated in place, 2 → 3 with no twin');
+    eq(/Object\.keys\(byId\)/.test(md), true, 'A95: …and the merged set is rebuilt from those keys');
+    eq(/if \(s !== 'messages'\) chatOnly = false;/.test(md), true,
+       'A95: …and a delta carrying only chat is marked as such');
+    eq(/if \(chatOnly\) \{ if \(current\.view === 'messages'\) renderMessages\(\); return; \}/.test(appSrc), true,
+       'A95: …so ten people talking cannot rebuild the ledger under a thumb (A70) — proved: the search input was the same DOM node afterwards');
+    eq(/if \(!changed \|\| flowState\) return;/.test(appSrc), true,
+       'A95: an idle poll re-renders nothing, and a half-typed entry is never interrupted');
+    // the cursor must move even on an idle poll, or the next delta asks for
+    // everything since the last CHANGE instead of the last CHECK
+    const idle = appSrc.slice(appSrc.indexOf('} else {', appSrc.indexOf("localStorage.setItem('ck_central', JSON.stringify(centralData))")));
+    eq(/ck_central_cursor/.test(idle.slice(0, 300)), true,
+       'A95: …but the cursor still advances on an idle poll');
+  }
   // A94: the rejection announcement fired BEFORE the row was written, so the
   // listener's own DB.rejectedCount() still said 0 and its `if (!n) return`
   // swallowed the toast. A54 exists to stop a refusal being silent, and it had

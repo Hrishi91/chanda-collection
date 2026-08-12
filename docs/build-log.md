@@ -8971,3 +8971,38 @@ timing artefact — an observer over the whole window is what turned "probably
 faded" into "never fired".
 
 Tests **1,505 → 1,509**.
+
+## A95 — the pull side, run rather than read
+
+The half of sync A93 never touched: the delta merge, the cursor, and A70's
+chat-only guard.
+
+```
+প্রথম pull (since: null)      → ২টি দোকান, cursor C1              ✅
+পরের pull (since: C1)         → "দোকান খ" আপডেট হল, "দোকান গ" যোগ
+                                 ২ → ৩, কোনও নকল নেই, cursor C2   ✅
+চ্যাট-only delta              → লেজার আঁকাই হল না
+                                 (search input হুবহু একই DOM node) ✅
+অন্য সংগ্রাহকের নতুন দোকান     → ছবিতে ঢুকল, পর্দায় দেখা গেল       ✅
+```
+
+The upsert is the one that would cost money: a changed donor arriving as a
+second row instead of an update would count the pledge twice for the rest of
+the season. It updates in place.
+
+### Two harness confusions, both mine, both worth recording
+
+- **A chat delta appeared to rebuild the ledger.** It did not — my trigger was
+  `window.dispatchEvent(new Event('focus'))`, and `onAppFocus` itself calls
+  `render()` at line 693. I was measuring the focus handler and blaming the
+  merge. Re-run through the post-push pull, the search box was the same node
+  before and after.
+- **A party delta appeared not to arrive.** `Sync.syncNow()` called directly
+  does not pull afterwards — `autoSync` does. The delta was never fetched.
+
+And for the second time today an assertion was satisfied two ways: `mergeDelta`
+has **two** `byId[r.id] = r;` lines (cached rows, then incoming), so breaking the
+incoming one left the other matching and the check stayed green. Both are now
+named separately.
+
+Tests **1,509 → 1,516**.
