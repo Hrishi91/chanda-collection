@@ -2992,9 +2992,11 @@
     const c = centralConfig || {};
     return {
       layout: c.receipt_layout || 'classic',
-      puja: c.puja_name || c.committee_name || t('app_title'), // top, big
-      committee: c.committee_name || '',                        // bottom, signatory
-      footer: c.receipt_footer || t('receipt_thanks'),
+      // A98: tBn, not t — these two are PRINTED on the donor's receipt, and a
+      // receipt is Bengali whatever the collector set the app to
+      puja: c.puja_name || c.committee_name || tBn('app_title'), // top, big
+      committee: c.committee_name || '',                         // bottom, signatory
+      footer: c.receipt_footer || tBn('receipt_thanks'),
       color: c.receipt_color || '#c0392b',
       logo: c.committee_logo || '',
     };
@@ -3062,14 +3064,14 @@
         // second line there printed straight through it. Verified by rendering
         // the canvas, which is the only way this kind of thing shows up.
         g.fillText(rc.receiptNo ? 'নং  ' + rc.receiptNo
-                                : 'নং  —  ' + t('rcp_no_pending_stamp'), W - 60, 258);
+                                : 'নং  —  ' + tBn('rcp_no_pending_stamp'), W - 60, 258);
         // A correction re-uses the ORIGINAL serial, so the donor gets a second
         // message carrying the same number. Without this stamp they would
         // reasonably think they had been counted twice — and it goes in the
         // IMAGE, because a caption is the part an app may throw away.
         if (rc.corrected) {
           g.textAlign = 'right'; g.fillStyle = '#c0201a'; g.font = 'bold 15px sans-serif';
-          g.fillText(t('rcp_corrected_stamp'), W - 60, 280);
+          g.fillText(tBn('rcp_corrected_stamp'), W - 60, 280);
         }
         g.textAlign = 'left';
         // ---- body: prose acknowledgement ----
@@ -3104,7 +3106,7 @@
         }
         g.textAlign = 'right';
         g.fillStyle = muted; g.font = '17px sans-serif';
-        g.fillText(t('receipt_thanking'), W - 62, sy);
+        g.fillText(tBn('receipt_thanking'), W - 62, sy);
         g.fillStyle = accent; g.font = 'bold 19px sans-serif';
         g.fillText(cfg.committee || cfg.puja, W - 62, sy + 26);
         g.textAlign = 'left';
@@ -3131,9 +3133,12 @@
         for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); res(new Blob([a], { type: 'image/png' })); }
     });
   }
+  // A98: this note is printed on the receipt image and nowhere else, so it is
+  // tBn — and rcpMoney, not fmtMoney: the receipt writes ₹৫০০ in Bengali digits
+  // everywhere else, and the split was arriving as "(নগদ ₹300 + UPI ₹200)".
   const cashUpiNote = function (r) {
     return (Number(r.upiAmount) > 0 && Number(r.cashAmount) > 0)
-      ? '(' + t('cash') + ' ' + fmtMoney(r.cashAmount) + ' + UPI ' + fmtMoney(r.upiAmount) + ')' : '';
+      ? '(' + tBn('cash') + ' ' + rcpMoney(r.cashAmount) + ' + UPI ' + rcpMoney(r.upiAmount) + ')' : '';
   };
   // Acknowledgement subject, by donor type:
   //  person/member → শ্রী/শ্রীমতী <name>
@@ -3154,7 +3159,7 @@
   }
   // Receipt for a daily bus collection (name + number, one-off → no totals).
   function rcFromDailyBus(d) {
-    return { donorLine: (d.busName || t('type_bus')) + (d.busNumber ? ' (নং ' + d.busNumber + ')' : ''),
+    return { donorLine: (d.busName || tBn('type_bus')) + (d.busNumber ? ' (নং ' + d.busNumber + ')' : ''),
       showTotals: false, date: d.date || d.createdAt, datetime: d.createdAt || d.date,
       amount: d.amount, cashUpi: cashUpiNote(d), collector: d.collector || d.collectorId || '',
       receiptNo: d.receiptNo || '' };
@@ -3165,17 +3170,17 @@
     const cfg = receiptConfig();
     return [
       '🙏 ' + cfg.committee,
-      t('rcp_msg_thanks'),
-      rc.corrected ? t('rcp_msg_corrected') : '',
+      tBn('rcp_msg_thanks'),
+      rc.corrected ? tBn('rcp_msg_corrected') : '',
       '',
       rc.donorLine,
-      t('receipt_amount') + ': ' + rcpMoney(rc.amount) + '/- (' + banglaNumWords(rc.amount) + ' টাকা মাত্র)',
-      (rc.showTotals ? t('paid') + ': ' + rcpMoney(rc.paidTotal) + '/' + rcpMoney(rc.pledged) +
-        '   ' + t('due') + ': ' + rcpMoney(rc.due) : ''),
+      tBn('receipt_amount') + ': ' + rcpMoney(rc.amount) + '/- (' + banglaNumWords(rc.amount) + ' টাকা মাত্র)',
+      (rc.showTotals ? tBn('paid') + ': ' + rcpMoney(rc.paidTotal) + '/' + rcpMoney(rc.pledged) +
+        '   ' + tBn('due') + ': ' + rcpMoney(rc.due) : ''),
       // A67: over SMS there IS no image, so the sentence has to be here too —
       // otherwise the one receipt that cannot show a number is also the one
       // that never says why.
-      (rc.receiptNo ? t('receipt_no') + ' ' + rc.receiptNo : t('rcp_no_pending_stamp')) +
+      (rc.receiptNo ? tBn('receipt_no') + ' ' + rc.receiptNo : tBn('rcp_no_pending_stamp')) +
         (rc.date ? ' · ' + fmtDate(rc.date) : ''),
       // A83: over SMS there is no image, so the collector's name has to be in
       // the words too — the receipt that cannot show a picture is exactly the
@@ -5343,8 +5348,10 @@
       const d = Math.min(9, Math.max(4, Number(form.receipt_digits) || 6));
       sampleRC.receiptNo = String(Settings.get('year') || '2026') + String(1).padStart(d, '0');
       buildReceiptCanvas(sampleRC, {
-        layout: form.receipt_layout, puja: form.puja_name || t('app_title'), committee: form.committee_name,
-        footer: form.receipt_footer || t('receipt_thanks'), color: form.receipt_color, logo: form.committee_logo,
+        // A98: the same fallbacks receiptConfig() uses, so the preview is the
+        // document that will actually be handed out — not a different one
+        layout: form.receipt_layout, puja: form.puja_name || tBn('app_title'), committee: form.committee_name,
+        footer: form.receipt_footer || tBn('receipt_thanks'), color: form.receipt_color, logo: form.committee_logo,
       }).then(function (cv) {
         const img = document.getElementById('rc-preview'); if (img) img.src = cv.toDataURL('image/png');
       });
@@ -5355,9 +5362,9 @@
         '<div class="card">' +
         '<div class="field"><label>' + esc(t('rl_layout')) + '</label><div class="chips">' +
           layouts.map(function (l) { return '<button class="chip' + (form.receipt_layout === l[0] ? ' on' : '') + '" data-rl="' + l[0] + '">' + esc(l[1]) + '</button>'; }).join('') + '</div></div>' +
-        '<div class="field"><label>' + esc(t('rc_puja')) + '</label><input id="rc-puja" value="' + esc(form.puja_name) + '" placeholder="' + esc(t('app_title')) + '"></div>' +
+        '<div class="field"><label>' + esc(t('rc_puja')) + '</label><input id="rc-puja" value="' + esc(form.puja_name) + '" placeholder="' + esc(tBn('app_title')) + '"></div>' +
         '<div class="field"><label>' + esc(t('rc_committee')) + '</label><input id="rc-name" value="' + esc(form.committee_name) + '"></div>' +
-        '<div class="field"><label>' + esc(t('rc_footer')) + '</label><input id="rc-footer" value="' + esc(form.receipt_footer) + '" placeholder="' + esc(t('receipt_thanks')) + '"></div>' +
+        '<div class="field"><label>' + esc(t('rc_footer')) + '</label><input id="rc-footer" value="' + esc(form.receipt_footer) + '" placeholder="' + esc(tBn('receipt_thanks')) + '"></div>' +
         '<div class="field"><label>' + esc(t('rc_color')) + '</label><div class="chips">' +
           colors.map(function (c) { return '<button class="chip' + (form.receipt_color === c ? ' on' : '') + '" data-rcol="' + c + '" style="background:' + c + ';color:#fff">●</button>'; }).join('') + '</div></div>' +
         '<div class="field"><label>' + esc(t('rc_logo')) + '</label>' +

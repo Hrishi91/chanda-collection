@@ -832,6 +832,47 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A98: the receipt is the DONOR's document. They never chose a language and
+  // are not holding the phone, so it is Bengali whatever the collector set the
+  // app to. 14 of its 17 strings were already hardcoded Bengali; the three that
+  // went through t() printed "Thanking you," inside an otherwise Bengali
+  // receipt. These pin the boundary in BOTH directions, because the mistake is
+  // as easy to make backwards — pinning a screen label to Bengali.
+  {
+    const appTxt98 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    const i18nTxt98 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+    eq(/function tBn\(key\) \{\n\s*const e = I18N\[key\];\n\s*return e \? \(e\.bn \|\| e\.en\) : key;/.test(i18nTxt98), true,
+       'A98: tBn reads the same dictionary but never asks what the app is set to');
+
+    // the receipt path — image, message, and the config both are built from
+    const slice = function (from, to) {
+      const a = appTxt98.indexOf(from), b = appTxt98.indexOf(to, a);
+      return a < 0 || b < 0 ? '' : appTxt98.slice(a, b);
+    };
+    const canvas = slice('function buildReceiptCanvas', 'function canvasToBlob');
+    const message = slice('function receiptMessage', '// 📷 image receipt');
+    const config = slice('function receiptConfig', 'function buildReceiptCanvas');
+    eq(canvas.length > 500 && message.length > 300 && config.length > 100, true,
+       'A98: …and the three receipt functions were actually found (a slice that misses reads as clean)');
+    [['the receipt image', canvas], ['the WhatsApp/SMS text', message], ['the receipt config', config]]
+      .forEach(function (r) {
+        // t( not preceded by B — tBn is the only allowed caller here
+        const leaks = (r[1].match(/[^A-Za-z]t\('[\w]+'\)/g) || [])
+          .filter(function (m) { return !/Settings|createElement|getContext/.test(m); });
+        eq(leaks.join(','), '', 'A98: nothing in ' + r[0] + ' follows the app language');
+      });
+    // the note printed under the amount, and the bus donor line, are receipt-only
+    eq(/tBn\('cash'\) \+ ' ' \+ rcpMoney\(r\.cashAmount\) \+ ' \+ UPI ' \+ rcpMoney\(r\.upiAmount\)/.test(appTxt98), true,
+       'A98: the cash/UPI split is Bengali AND in Bengali digits, like every other number on the receipt');
+    eq(/donorLine: \(d\.busName \|\| tBn\('type_bus'\)\)/.test(appTxt98), true,
+       'A98: …and a bus with no name is বাস on the receipt, not Bus');
+
+    // the other direction: these two are read by the COLLECTOR, on screen, and
+    // must keep following the app language. Pinning them to Bengali is the same
+    // bug facing the other way, and it would look like a fix.
+    eq((appTxt98.match(/\? t\('receipt_no'\) \+ ' ' \+ [pr]\.receiptNo \+ ' · '/g) || []).length, 2,
+       'A98: the duplicate warning and the audit list stay translated — they are screen text, not a receipt');
+  }
   // A97: the dictionary itself, audited rather than assumed. 705 strings had
   // never been checked as a SET — only individual keys, one at a time, by
   // whoever added them. t() returns the KEY when it misses, so every gap here
@@ -3816,14 +3857,14 @@ try {
   // the donor walks away holding a receipt with no number and no reason, and
   // that number is the only thing either side can quote later.
   eq(i18n.indexOf('  rcp_no_pending_stamp:') >= 0, true, 'A67: there is a sentence for it');
-  eq(/'নং  —  ' \+ t\('rcp_no_pending_stamp'\)/.test(app), true,
+  eq(/'নং  —  ' \+ tBn\('rcp_no_pending_stamp'\)/.test(app), true,
      'A67: …drawn INSIDE the image, where the corrected stamp already goes');
   // one line, not two — 278 is where the donor sentence starts, and a second
   // line there printed straight through it. Found by rendering the canvas.
   eq(/g\.fillText\(t\('rcp_no_pending_stamp'\), W - 60, 278\)/.test(app), false,
      'A67: …on ONE line, because the second one collided with the donor sentence');
   // and over SMS there is no image at all, so the sentence has to be there too
-  eq(/\(rc\.receiptNo \? t\('receipt_no'\) \+ ' ' \+ rc\.receiptNo : t\('rcp_no_pending_stamp'\)\)/.test(app), true,
+  eq(/\(rc\.receiptNo \? tBn\('receipt_no'\) \+ ' ' \+ rc\.receiptNo : tBn\('rcp_no_pending_stamp'\)\)/.test(app), true,
      'A67: …and in the text receipt, which travels without the picture');
   // the on-screen hint stays: it is for the collector, who can act on it
   eq(/receipt_no_pending/.test(app), true,

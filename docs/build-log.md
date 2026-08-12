@@ -9121,3 +9121,42 @@ the honest version fetches the served `js/app.js` and reads the line.
 
 Eight guards, each mutation-tested to its own named failure.
 Tests **1,520 → 1,528**.
+
+## A98 — the receipt is the donor's document, so it is Bengali
+
+Hrishi's call on the decision A97 raised: option (a). The app language is the
+**collector's** preference; the receipt is handed to a **donor** who never chose
+a language and is not holding the phone. The code already read that way in 14 of
+17 places — this closes the other three, and the message beside them.
+
+`tBn(key)` reads the same dictionary and never asks what the app is set to. It
+is for text that lands on a receipt; everything the collector reads on screen
+stays `t()`.
+
+Moved to `tBn`: the image's `receipt_thanking`, `rcp_no_pending_stamp`,
+`rcp_corrected_stamp`; the config's `app_title` and `receipt_thanks` fallbacks;
+and in the WhatsApp/SMS text `rcp_msg_thanks`, `rcp_msg_corrected`,
+`receipt_amount`, `paid`, `due`, `receipt_no`.
+
+Two more that turned up on the way, both receipt-only:
+
+- the cash/UPI split under the amount used `fmtMoney`, so a receipt that writes
+  ₹৫০০ everywhere else printed `(নগদ ₹300 + UPI ₹200)`. Now `rcpMoney`.
+- a bus with no name fell back to `t('type_bus')` — "Bus" on the donor's copy.
+
+And the admin preview: its two form placeholders showed the *English* fallback
+while the receipt would print the Bengali one. A preview that shows a different
+document than the one handed out is the whole reason that screen exists.
+
+Verified in English mode on a fresh port — the receipt image came out entirely
+Bengali (চাঁদা খাতা · ধন্যবাদান্তে, · আপনার সহযোগিতার জন্য ধন্যবাদ) while the
+collector's own chrome stayed English (Layout · Puja name · Home / Ledger /
+Report / Chat / Settings). That contrast, in one screenshot, IS the boundary.
+
+Eight guards, pinned in **both** directions — the mistake is as easy to make
+backwards, and pinning a screen label to Bengali would look like a fix. Two of
+them exist only because a slice that misses its anchor reads as clean: breaking
+the `// 📷 image receipt` comment (which the scope check cannot see) was caught
+by the "were the three functions actually found" assertion, not by luck.
+
+Tests **1,528 → 1,536**.

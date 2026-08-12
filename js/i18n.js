@@ -846,6 +846,20 @@ function t(key) {
   const e = I18N[key];
   return e ? (e[lang] || e.bn) : key;
 }
+// A98: the same dictionary, pinned to Bengali whatever the app is set to.
+//
+// The app language is the COLLECTOR's preference. The receipt is the DONOR's
+// document — they never chose a language and are not holding the phone. It was
+// already written that way in 14 of 17 places (প্রাপ্তি রসিদ · সাদরে গৃহীত
+// হইল। · সংগ্রাহক:), hardcoded; the three that went through t() turned a
+// Bengali receipt into one with "Thanking you," printed inside it.
+//
+// Use this ONLY for text that lands on a receipt — image or message. Anything
+// the collector reads on screen stays t().
+function tBn(key) {
+  const e = I18N[key];
+  return e ? (e.bn || e.en) : key;
+}
 function fmtMoney(n) {
   n = Number(n || 0);
   // "−₹80", not "₹-80" — negatives only appear when the books over-drain
