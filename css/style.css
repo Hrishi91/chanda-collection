@@ -158,6 +158,20 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
   margin: 6px 0 10px; text-align: left; line-height: 1.4;
 }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 12px; }
+/* A87: the ledger's filter row scrolls sideways instead of wrapping. Measured
+   on a 320px phone it was three lines and 154px — 59% of the screen spent
+   before the first donor, two donors visible. One line gives that back without
+   shrinking a single tap target. `scroll-padding` and the fading right edge are
+   what tell a thumb there is more to the right. */
+.chips.tabs {
+  flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch; scroll-snap-type: x proximity;
+  padding-right: 18px; margin-bottom: 10px;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+          mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+}
+.chips.tabs::-webkit-scrollbar { display: none; }
+.chips.tabs .chip { flex: 0 0 auto; scroll-snap-align: start; }
 .chips.center { justify-content: center; }
 .chip {
   border: 1.5px solid var(--line); background: var(--card); color: var(--ink);
@@ -248,6 +262,20 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
 
 /* ---- report print / save-as-PDF ---- */
 #print-area { display: none; }
+/* A87: the app had NO responsive rules at all — one padding, one type scale,
+   from a 320px Android to a tablet. On the cheap phones this is actually used
+   on, the ledger spent 59% of the screen before the first donor. The scrolling
+   filter row took most of that back; this takes the rest, and only where it is
+   needed. Nothing here shrinks a tap target — only the chrome around them. */
+@media (max-width: 360px) {
+  header { padding: 10px 12px; font-size: 16.5px; }
+  header { padding-top: calc(10px + env(safe-area-inset-top)); }
+  main { padding: 10px 10px 86px; }
+  .hero { padding: 12px; }
+  .row { padding: 10px 12px; }
+  .section { margin: 10px 0 6px; }
+}
+
 @media print {
   body > *:not(#print-area) { display: none !important; }
   #print-area { display: block; padding: 6mm; color: #000; background: #fff; }

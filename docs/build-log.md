@@ -8654,3 +8654,44 @@ was written, and now pinned by a test, because a sentence in a build log is
 weaker than an assertion.
 
 Tests **1,480 → 1,483**.
+
+## v4.25.0 — A87: the app had never been looked at on a small phone
+
+Hrishi: *"different mobiles through browsers … user should not be
+suffocating"*. He was right, and I had not: every UI check this week was at
+375×812. The phones this is actually used on in a village are **320–360px**.
+
+Measured at 320×640, on the ledger:
+
+```
+                        আগে      পরে
+চিপের সারি              ৩        ১
+চিপে খরচ                ১৫৪px    ৪৬px
+শিরোনাম                 ৮৫px     ৭০px
+প্রথম দোকানের আগে        ৫৯%      ৩৯%
+দৃশ্যমান দোকান            ২        ৩
+```
+
+**Fifty-nine per cent of the screen was gone before the first donor appeared.**
+That is the suffocating he meant, and it does not show up in any of the checks
+I had been running — no clipping, no overflow, every assertion green.
+
+Two changes, neither of which shrinks anything a thumb aims at:
+
+- The ledger's filter row is **one line that scrolls sideways** instead of three
+  that wrap. The type chips and the "শুধু বাকি" toggle were two stacked `.chips`
+  blocks; they are now one `.chips.tabs` row with a fading right edge so a thumb
+  can see there is more. Chips stay 46px, before and after.
+- **The app's first responsive rule.** It had none — one padding and one type
+  scale from a 320px Android to a tablet. At ≤360px the header, page padding
+  and row padding tighten. A test asserts that block contains no `min-height`,
+  so it can never start shrinking targets.
+
+At 412×915 nothing changed: header 57px on one line, 26% before the first
+donor, four donors visible.
+
+Also found and left alone: at 320px the puja name takes two header lines. That
+is the committee's own name and it is worth its space; and the training banner
+above it goes away at go-live, which returns another ~85px for the season.
+
+Tests **1,483 → 1,486**. CSS and markup only — no schema, no redeploy.

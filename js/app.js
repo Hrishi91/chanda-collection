@@ -2167,17 +2167,26 @@
       .concat(withBus ? [['bus', t('daily_bus')]] : []);
     const tabs = [['all', t('all')]].concat(kinds.filter(function (k) { return canEntry(k[0]); }));
     const valid = tabs.some(function (tb) { return tb[0] === current; }) ? current : 'all';
-    return { valid: valid, html: '<div class="chips tabs">' + tabs.map(function (tb) {
+    // A87: buttons only. The row they sit in is built by filterBar(), because
+    // the type filter and the "শুধু বাকি" toggle used to be two stacked .chips
+    // blocks — three wrapped lines and 154px on a 320px phone, which is 59% of
+    // the screen gone before the first donor appears.
+    return { valid: valid, buttons: tabs.map(function (tb) {
       return '<button class="chip' + (valid === tb[0] ? ' on' : '') + '" data-f="' + tb[0] + '">' + esc(tb[1]) + '</button>';
-    }).join('') + '</div>' };
+    }).join('') };
   }
   // "শুধু বাকি" is a TOGGLE, not one more category — otherwise picking বাকি
   // threw away the category filter and every type came back mixed together.
   // Now দোকান + শুধু বাকি, ব্যক্তি + শুধু বাকি … all work.
   function dueChip(on) {
-    return '<div class="chips" style="margin:-4px 0 10px"><button class="chip' + (on ? ' on' : '') +
-      '" data-duetoggle="1">' + (on ? '🔴 ' : '') + esc(t('dues_only')) + '</button></div>';
+    return '<button class="chip' + (on ? ' on' : '') +
+      '" data-duetoggle="1">' + (on ? '🔴 ' : '') + esc(t('dues_only')) + '</button>';
   }
+  // A87: one line that scrolls sideways, instead of three that wrap. The tap
+  // targets stay the size they were — it is the ROW that changes, not the
+  // buttons — and on a small phone this hands ~100px back to the list, which is
+  // the difference between two donors visible and four.
+  function filterBar(buttons) { return '<div class="chips tabs">' + buttons + '</div>'; }
   let listDueOnly = false, findFilter = 'all', findDueOnly = false;
   function drawList(data, paidBy) {
       const chips = typeChips(listFilter, true);
@@ -2213,7 +2222,7 @@
       $view().innerHTML =
         (canEntry('otherdonor') ? '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' : '') +
         '<input id="search" class="search" enterkeyhint="search" placeholder="' + esc(t('search')) + '" value="' + esc(listQuery) + '">' +
-        chips.html + (busRows ? '' : dueChip(listDueOnly)) +
+        filterBar(chips.buttons + (busRows ? '' : dueChip(listDueOnly))) +
         '<div id="list-body">' + buildBody() + '</div>';
       const wireRows = function () {
         document.querySelectorAll('.row[data-id]').forEach(function (r) {
@@ -2693,7 +2702,7 @@
     $view().innerHTML = backBar('list') + '<div class="flow-title">' + esc(t('find_party_title')) + '</div>' +
       '<div class="hint" style="margin-bottom:8px">' + esc(t('find_party_hint')) + '</div>' +
       '<input id="fp-search" class="search" enterkeyhint="search" placeholder="' + esc(t('search')) + '" value="' + esc(findQuery) + '">' +
-      chips.html + dueChip(findDueOnly) +
+      filterBar(chips.buttons + dueChip(findDueOnly)) +
       '<div id="fp-results"><div class="empty">' + esc(t('loading')) + '</div></div>';
     document.getElementById('fp-search').oninput = function (e) { findQuery = e.target.value; renderFPResults(); };
     document.querySelectorAll('[data-f]').forEach(function (c) {

@@ -826,6 +826,21 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A87: the filter row scrolls sideways instead of wrapping, and the app has
+  // its first responsive rule. Measured on a 320px phone: the ledger spent 59%
+  // of the screen before the first donor and showed two; it now spends 39% and
+  // shows three. Tap targets are untouched — 46px before and after. Pinned
+  // because "flex-wrap: wrap looks tidier" is exactly the change that undoes it.
+  {
+    const tabs = css.slice(css.indexOf('.chips.tabs {'), css.indexOf('}', css.indexOf('.chips.tabs {')));
+    eq(/flex-wrap:\s*nowrap/.test(tabs) && /overflow-x:\s*auto/.test(tabs), true,
+       'A87: the ledger filter row is one scrolling line, not three wrapped ones');
+    eq(/@media \(max-width: 360px\)/.test(css), true,
+       'A87: …and the app has a small-screen rule at all — it had none, from a 320px Android to a tablet');
+    const small = css.slice(css.indexOf('@media (max-width: 360px)'), css.indexOf('@media print'));
+    eq(/min-height/.test(small), false,
+       'A87: …and that rule shrinks only chrome, never a tap target');
+  }
   const mini = css.slice(css.indexOf('.chip.mini'), css.indexOf('}', css.indexOf('.chip.mini')));
   eq(/min-height:\s*40px/.test(mini) && /font-size:\s*13px/.test(mini), true,
      'A84: the admin bulk chips are 40px/13px — smaller than a street control, because that screen is one person at a desk');
