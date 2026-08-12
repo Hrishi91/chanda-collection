@@ -287,7 +287,17 @@
     }).filter(function (e) { return e.total > 0 || e.pending > 0; })
       .sort(function (a, b) { return (b.total + b.pending) - (a.total + a.pending); });
     const expenseTotal = myExp.reduce(function (a, e) { return a + (Number(e.amount) || 0); }, 0);
-    const expenses = myExp.map(function (e) { return { date: e.date, desc: e.desc, amount: Number(e.amount) || 0 }; })
+    // A106: `subject` travels with the row. It is what an expense IS — আলো,
+    // প্যান্ডেল, ঢাক — and the comment beside it is optional for every subject
+    // but "অন্য কিছু". Dropping it here left 🧾 আমার খরচ with nothing to print
+    // but a date and an amount whenever somebody skipped the comment.
+    //
+    // Code.gs mirrors this function and still projects {date, desc, amount}.
+    // Harmless today: the only thing that ships it is the `myReport` action,
+    // which no client calls (the app computes this from its own snapshot). Worth
+    // matching the next time Code.gs is redeployed for a reason of its own.
+    const expenses = myExp.map(function (e) {
+      return { date: e.date, subject: e.subject, desc: e.desc, amount: Number(e.amount) || 0 }; })
       .sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
     return { collected: collected, cash: cash, upi: upi, dailyByType: dailyByType,
              received: received, handedOver: handedOver, pending: pending, handedTo: handedTo,

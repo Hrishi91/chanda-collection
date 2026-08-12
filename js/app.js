@@ -2858,6 +2858,19 @@
   // ARGUMENT — drawParty is a top-level function, not a closure inside
   // renderParty. The first version of this fix read `params` in here and threw
   // ReferenceError on every 👁 দেখো, with the whole suite green.
+  // A106: what an expense is CALLED, in one place. Three renderers each had
+  // their own version of this rule and a fourth had none, which is how 🧾 আমার
+  // খরচ ended up printing a bare date and an amount.
+  //
+  // The subject, or the comment if there is no subject, or the word খরচ. And
+  // 'Other' is a stored MARKER, not a name — expenseFlow writes it for the
+  // "➕ অন্য কিছু" choice, so it has to be translated on the way out or a
+  // Bengali screen reads "Other".
+  function expenseTitle(e) {
+    const raw = String((e && e.subject) || '');
+    const subj = (raw === 'Other' || raw === OTHER_SUBJECT) ? t('subject_other') : raw;
+    return subj || (e && e.desc) || t('expense');
+  }
   function drawParty(p, pays, central, voidedOf, from) {
     voidedOf = voidedOf || {};
     from = from || '';
@@ -3460,7 +3473,7 @@
     const amt = fmtMoney(r.amount);
     if (store === 'payments') return (r.partyName || '?') + ' — ' + amt;
     if (store === 'daily') return t('type_' + r.type) + ' — ' + amt;
-    if (store === 'expenses') return (r.subject || r.desc || t('expense')) + ' — ' + amt;
+    if (store === 'expenses') return expenseTitle(r) + ' — ' + amt;
     if (store === 'handovers') return t('handover') + ' → ' + (r.to || '?') + ' — ' + amt;
     return amt;
   }
@@ -3874,9 +3887,21 @@
         (m.expenses.length ?
           '<div class="card" style="margin-top:12px"><div class="card-title">' + esc(t('my_expenses')) +
           ' — ' + fmtMoney(m.tillNow.expenseTotal) + '</div>' +
+          // A106: an expense is named by its SUBJECT — the comment is optional
+          // for every subject except "অন্য কিছু", so this row printed an empty
+          // bold name and a date whenever somebody skipped it. "12/08/2026 ·
+          // ₹300" is not an account of anything, and the subject was sitting in
+          // the row the whole time.
+          //
+          // The same rule already existed in three other places: ✏️ আমার entry
+          // (`r.subject || r.desc || t('expense')`), the central expenses list,
+          // and the CSV export. Stated four times, guarded three.
           m.expenses.map(function (e) {
-            return '<div class="row" style="cursor:default"><div><b>' + esc(e.desc) + '</b><div class="row-sub">' +
-              esc(fmtDate(e.date)) + '</div></div><b>' + fmtMoney(e.amount) + '</b></div>';
+            return '<div class="row" style="cursor:default"><div><b>' +
+              esc(expenseTitle(e)) + '</b>' +
+              (e.subject && e.desc ? ' <span class="row-sub">— ' + esc(e.desc) + '</span>' : '') +
+              '<div class="row-sub">' + esc(fmtDate(e.date)) + '</div></div><b>' +
+              fmtMoney(e.amount) + '</b></div>';
           }).join('') + '</div>' : '') +
       '</div>';
   }
@@ -3915,7 +3940,7 @@
         }).join('') : '') + '</div>' +
       '<div class="card"><div class="card-title">' + esc(t('entries')) + '</div>' +
       (rows.length ? rows.map(function (r) {
-        return '<div class="row" style="cursor:default"><div><b>' + esc(r.subject || '—') + '</b>' +
+        return '<div class="row" style="cursor:default"><div><b>' + esc(expenseTitle(r)) + '</b>' +
           (r.desc ? ' <span class="row-sub">— ' + esc(r.desc) + '</span>' : '') +
           '<div class="row-sub">' + esc(fmtDate(r.date)) + (r.spentBy ? ' • ' + esc(r.spentBy) : '') +
           (r.source === 'collection' ? ' • ' + esc(t('coll_expense')) : '') +

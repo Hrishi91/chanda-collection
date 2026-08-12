@@ -832,6 +832,30 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A106: a sweep of every routed screen turned up one more nameless row —
+  // 🧾 আমার খরচ printed `e.desc` alone, and the comment is OPTIONAL for every
+  // subject but "অন্য কিছু". Skip it and the row says "12/08/2026 · ₹300",
+  // which is not an account of anything.
+  {
+    const app106 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    const agg106 = require('fs').readFileSync(__dirname + '/../js/aggregate.js', 'utf8');
+    // the subject has to survive the projection to be printable at all
+    eq(/return \{ date: e\.date, subject: e\.subject, desc: e\.desc, amount: Number\(e\.amount\) \|\| 0 \};/.test(agg106), true,
+       'A106: personalSummary carries the expense SUBJECT, not just its comment');
+    // one rule, used by every renderer — three of them each had their own and a
+    // fourth had none
+    eq(/function expenseTitle\(e\) \{/.test(app106), true, 'A106: what an expense is called lives in one function');
+    eq((app106.match(/expenseTitle\(/g) || []).length, 4,
+       'A106: …defined once and used by all three renderers');
+    eq(/const subj = \(raw === 'Other' \|\| raw === OTHER_SUBJECT\) \? t\('subject_other'\) : raw;/.test(app106), true,
+       'A106: …and “Other” is a stored marker, translated on the way out');
+    eq(/return subj \|\| \(e && e\.desc\) \|\| t\('expense'\);/.test(app106), true,
+       'A106: …falling back to the comment, then to the word খরচ — never to nothing');
+    // the old per-renderer versions must be gone, or one screen keeps its own rule
+    eq(/esc\(r\.subject \|\| '—'\)/.test(app106), false, 'A106: the central list no longer has its own version');
+    eq(/\(r\.subject \|\| r\.desc \|\| t\('expense'\)\)/.test(app106), false, 'A106: …nor does ✏️ আমার entry');
+    eq(/<b>' \+ esc\(e\.desc\) \+ '<\/b>/.test(app106), false, 'A106: …and নাম-হীন খরচের সারিটা ফাইল থেকে গেছে');
+  }
   // A105: ← পেছনে from a screen with two doors. 🩺's 👁 দেখো landed on the donor
   // and ← went to 📒 খাতা, so the desk you were working down was gone — and on a
   // desk whose whole job is "work through this list", losing your place is the

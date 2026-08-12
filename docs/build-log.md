@@ -9663,3 +9663,56 @@ SCOPE PROBLEMS:
 
 Seven assertions for the behaviour, plus the scope check for the class. Tests
 **1,614 → 1,621**. Client-only.
+
+## A106 — a sweep of every screen, and the expense that had no name
+
+"check the other screens also". Every routed view opened in the harness with
+real data — home, খাতা, রিপোর্ট, সেটিংস, ক্যাশিয়ার, জমা-খাতা, বার্তা, আমার entry,
+🩺, সদস্য, সদস্য-admin, খুঁজি, review, help — measured for horizontal overflow at
+375 px, near-empty screens, console errors, and rows whose name cell is blank.
+
+One thing fell out: **📊 রিপোর্ট → 🧾 আমার খরচ had a row reading only
+"12/08/2026 · ₹300"**.
+
+It printed `e.desc` — the COMMENT — as the name. The comment is `optional: true`
+for every subject except "➕ অন্য কিছু", so skipping it left an empty bold cell.
+The subject, which is the whole point (আলো · প্যান্ডেল · ঢাক), was never shown.
+
+Two things were needed. `personalSummary` projected expenses as
+`{date, desc, amount}` and dropped the subject before the UI ever saw it. And
+the renderer had no fallback.
+
+### Four renderers, three rules, and one that had none
+
+```
+✏️ আমার entry      r.subject || r.desc || t('expense')     ← right
+কেন্দ্রীয় খরচ       r.subject || '—'                        ← half right
+CSV export         r.subject || '', r.desc || ''           ← right
+🧾 আমার খরচ        r.desc                                  ← nothing
+```
+
+Now one `expenseTitle(e)` for all of them: the subject, or the comment if there
+is no subject, or the word খরচ — never nothing. It also translates `'Other'`,
+which is a stored MARKER rather than a name (`expenseFlow` writes it for the
+"➕ অন্য কিছু" choice), so a Bengali screen no longer reads "Other".
+
+```
+আলো                          2026-08-12   ₹300     ← মন্তব্য ছাড়া, আগে ফাঁকা ছিল
+প্যান্ডেল — বাঁশ ও কাপড়        2026-08-12   ₹1,500
+➕ অন্য কিছু — ঢাকির যাতায়াত   2026-08-12   ₹400     ← আগে "Other"
+```
+
+Client-only: `Code.gs` mirrors `personalSummary_` and still projects
+`{date, desc, amount}`, which is harmless because the only thing that ships it
+is the `myReport` action and no client calls it — the app computes this from its
+own snapshot. Written down rather than fixed, to be matched the next time
+Code.gs is redeployed for a reason of its own.
+
+Eight assertions, each mutation-tested. Tests **1,621 → 1,629**.
+
+### What the sweep did NOT find
+
+No horizontal overflow on any screen at 375 px, no console errors, no other
+blank-name rows, and every screen with content had content. The three screens
+this session had already fixed — 🩺's back button, the handover subtotal, home's
+money — stayed fixed.
