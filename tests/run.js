@@ -844,6 +844,48 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
   eq(tappable.join(' | '), '', 'A84: nothing a user taps is lettered below 12px');
 }
 
+// ---- A85: a feature nobody explained ----------------------------------------
+// Four things shipped this week and not one appeared in the in-app guide or the
+// collector guide — the sheet of paper Hrishi hands to twelve people. A feature
+// a user meets without warning is a feature they phone the admin about, and the
+// admin is one person.
+//
+// Pinned by SUBJECT, not by wording: the guides may be rewritten freely, but a
+// stood-down collector, the duplicate-donor line and the target bar have to
+// stay explained somewhere a user will look.
+{
+  const fs = require('fs');
+  global.window = global.window || {};
+  delete require.cache[require.resolve('../js/help.js')];
+  require('../js/help.js');
+  const help = global.window.HELP;
+  eq(Array.isArray(help) && help.length > 10, true, 'A85: the in-app guide loads');
+  help.forEach(function (h, i) {
+    eq(!!(h.title && h.title.bn && h.title.en && h.body && h.body.bn.length && h.body.en.length), true,
+       'A85: guide section ' + i + ' (' + h.icon + ') is complete in both languages');
+  });
+  const allHelp = JSON.stringify(help);
+  const guide = fs.readFileSync(__dirname + '/../docs/user-guide/collector-guide.md', 'utf8');
+  // Each topic is two words that must BOTH appear — the subject and where the
+  // user meets it — rather than one exact phrase. Written as a phrase first,
+  // and it failed because the guide says "ফোন নম্বর মিলে গেলে" while the in-app
+  // text says "একই ফোন নম্বরে": the same subject, different sentences, which is
+  // exactly what a rewrite should be free to do.
+  [[['বিদায়ী', 'জমা'], 'a collector the committee has stood down'],
+   [['ফোন নম্বর', '🩺'], 'two donors on one phone number, and the desk that raises it'],
+   [['লক্ষ্য', 'রিপোর্ট'], 'the season target bar and who may see it']].forEach(function (topic) {
+    topic[0].forEach(function (word) {
+      eq(allHelp.indexOf(word) >= 0, true, 'A85: the in-app guide explains ' + topic[1] + ' [' + word + ']');
+      eq(guide.indexOf(word) >= 0, true, 'A85: …and so does the collector guide — ' + topic[1] + ' [' + word + ']');
+    });
+  });
+  // A83 made an old promise true: the guide had said the receipt carries the
+  // collector's name since long before it did.
+  eq(/তোমার নাম/.test(guide) && /collector: pay\.collector/.test(
+       fs.readFileSync(__dirname + '/../js/app.js', 'utf8')), true,
+     'A85: the guide promises the collector’s name on the receipt, and the receipt now actually carries it');
+}
+
 // ---- A79: the season target, and the window it must not open ----------------
 // "কত হল, আর কত বাকি" is the question a committee asks every evening, and the
 // app could not answer it without opening a report. The bar answers it — but

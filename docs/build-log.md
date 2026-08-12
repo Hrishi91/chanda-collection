@@ -8579,3 +8579,34 @@ is lettered below 12px. An assertion that would force fifteen unrelated changes
 is not a standard, it is a tantrum.
 
 Tests **1,445 → 1,450**. CSS only — no schema, no redeploy; Pages picks it up.
+
+## A85 — four features nobody had explained
+
+Everything built this week — বিদায়ী, the season target, duplicate donors by
+phone, the collector's name on the receipt — shipped with **no mention in
+either guide**. Not the in-app help, not `collector-guide.md`, which is the
+sheet Hrishi hands to twelve people. A feature a user meets without warning is
+a feature they phone the admin about, and the admin is one person.
+
+Three sections added to both, in the voice already there. The one that matters
+most is the duplicate-donor note, because it explains **why the phone number is
+worth asking for** — names cannot be matched, three shops can share one, and
+the number is what lets the 🩺 desk catch what two offline collectors could not
+see.
+
+While writing it I found the collector guide had said, for a long time, that
+the receipt carries *"তোমার নাম"*. It did not — until A83 yesterday. The
+documentation had been describing a field that was never drawn. Now it is true,
+and a test ties the sentence to the code so they cannot drift apart again.
+
+Pinned by **subject, not wording**: each topic must appear in both guides as two
+words — the thing and where the user meets it. Written as one exact phrase
+first, and it failed because the guide says *"ফোন নম্বর মিলে গেলে"* while the
+in-app text says *"একই ফোন নম্বরে"* — the same subject in different sentences,
+which is precisely what a rewrite should stay free to do.
+
+The mutation pass was wrong before it was right, again: deleting only a section
+TITLE left the word in the body, so three of four came back green. Deleting the
+whole section catches all five.
+
+Tests **1,450 → 1,480**.

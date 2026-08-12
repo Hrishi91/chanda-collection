@@ -217,6 +217,65 @@ window.HELP = [
     },
   },
   {
+    // A85: four things shipped this week and none of them was explained
+    // anywhere — not here, not in the collector guide. A feature a user meets
+    // without warning is a feature they phone the admin about.
+    icon: '🚪',
+    title: { bn: 'বিদায়ী — কমিটি কাউকে বসিয়ে দিলে', en: 'Standing down' },
+    body: {
+      bn: [
+        'কমিটি কাউকে কাজ থেকে সরালে তাঁর অ্যাকাউন্ট <b>বিদায়ী</b> হয় — পদ আর সব permission চলে যায়।',
+        '<b>লগ-ইন কিন্তু খোলা থাকে</b>, আর সেটা ইচ্ছাকৃত: যিনি ঢুকতেই পারেন না, তিনি হাতের টাকা ফেরতও দিতে পারেন না।',
+        'তিনি তখন <b>দুটো</b> জিনিস পারেন — হাতে যা আছে <b>জমা দেওয়া</b>, আর <b>নিজের তোলা</b> চাঁদাদাতাদের বাকি নেওয়া। নতুন দোকান, রোড/টোটো, রিপোর্ট, চ্যাট — সব বন্ধ।',
+        'নিজের এন্ট্রিতে ভুল দেখলে <b>⚠️ ভুল বলে জানাতে</b> পারেন — ঠিক করবেন cashier।',
+        'সব টাকা জমা হয়ে গেলে তবেই অ্যাকাউন্ট <b>চূড়ান্ত বন্ধ</b> করা যায়। হাতে টাকা থাকলে অ্যাপ আটকে দেয় আর অঙ্কটা বলে দেয়।',
+        'ফেরাতে হলে admin একটা <b>পদ</b> দিয়ে ফেরাবেন — পদ ছাড়া ফেরানো যায় না।',
+      ],
+      en: [
+        'When the committee stands somebody down, their account becomes <b>বিদায়ী</b> — post and every permission go.',
+        '<b>The login stays open on purpose</b>: a person who cannot log in cannot hand the money back.',
+        'They can do exactly <b>two</b> things — hand in what they hold, and collect the balance of donors <b>they themselves brought in</b>. New donors, daily rounds, reports and chat are closed.',
+        'They can still flag a mistake in their own entry with <b>⚠️</b> — a cashier decides.',
+        'The account can only be <b>closed for good</b> once the money is in; while they still hold cash the app refuses and names the amount.',
+        'Bringing them back requires giving them a <b>post</b>.',
+      ],
+    },
+  },
+  {
+    icon: '🎯',
+    title: { bn: 'এ বছরের লক্ষ্য', en: 'This year’s target' },
+    body: {
+      bn: [
+        'Admin একটা লক্ষ্য বসালে হোমে একটা দাগ দেখায় — <b>কত উঠেছে, কত বাকি</b>।',
+        'সবাই দেখতে পান না — যাঁদের <b>সারসংক্ষেপ (overview) রিপোর্ট</b> দেখার অনুমতি আছে, শুধু তাঁরাই। মোট টাকার অঙ্ক ওই অনুমতির পিছনেই থাকে।',
+        'লক্ষ্য বসানো না থাকলে দাগটা দেখায়ই না।',
+      ],
+      en: [
+        'If the admin sets a target, the home screen shows a bar — <b>how much is in, how much to go</b>.',
+        'Only people who may see the <b>overview report</b> get it; the season total sits behind that grant.',
+        'No target set, no bar.',
+      ],
+    },
+  },
+  {
+    icon: '👥',
+    title: { bn: 'একই চাঁদাদাতা দুবার উঠে গেলে', en: 'The same donor entered twice' },
+    body: {
+      bn: [
+        'নতুন দোকান তোলার সময় <b>ফোন নম্বর</b> মিলে গেলে অ্যাপ সঙ্গে সঙ্গে বলে দেয় — কোন দোকান, কার তোলা, কত প্রতিশ্রুতি। আটকায় না, জিজ্ঞেস করে।',
+        'কিন্তু দুজন <b>অফলাইনে</b> একই রাস্তায় থাকলে কেউ কারওটা দেখতে পান না। তাই sync হয়ে যাওয়ার পর <b>🩺 অসঙ্গতি</b> পর্দায় লাইনটা ওঠে — একই ফোন নম্বরে দুটো নাম, দুজন সংগ্রাহকের নাম সমেত।',
+        'একজনের সত্যিই দুটো দোকান থাকতে পারে — তখন <b>"আলাদা দোকান, ঠিক আছে"</b> চেপে লাইনটা বন্ধ করে দিন।',
+        '<b>তাই ফোন নম্বরটা নেওয়া জরুরি</b> — নাম দিয়ে মেলানো যায় না, একই নামের তিনটে দোকান থাকতেই পারে।',
+      ],
+      en: [
+        'While adding a shop, a matching <b>phone number</b> raises a warning naming the existing donor, who wrote it and what was pledged. It asks; it does not block.',
+        'But two people working <b>offline</b> on one street cannot see each other. So after everything syncs, the <b>🩺 anomalies</b> screen raises it — two names on one number, with both collectors named.',
+        'One owner can genuinely have two shops — clear it with <b>“different shops, fine”</b>.',
+        '<b>This is why the phone number matters</b>: names cannot be matched, three shops can share one.',
+      ],
+    },
+  },
+  {
     icon: '🔔',
     title: { bn: 'নোটিফিকেশন — সরাসরি কাজ সারো', en: 'Notifications — act right there' },
     body: {
