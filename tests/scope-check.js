@@ -19,7 +19,7 @@ function strip(src) {
 }
 
 // every name any file exposes at its own top level, plus browser globals
-const globals = new Set(['if','for','while','switch','catch','return','typeof','new','do','else','function',
+const globals = new Set(['if','for','while','switch','catch','return','typeof','new','do','else','function','this',
   'Promise','Object','Array','String','Number','Boolean','Math','JSON','Date','Error','Set','Map','RegExp',
   'parseInt','parseFloat','isNaN','isFinite','encodeURIComponent','decodeURIComponent','setTimeout',
   'clearTimeout','setInterval','clearInterval','fetch','alert','confirm','prompt','console','document',
@@ -29,8 +29,25 @@ const globals = new Set(['if','for','while','switch','catch','return','typeof','
 FILES.forEach(f => {
   const s = strip(fs.readFileSync(DIR + f, 'utf8'));
   let m;
-  const decl = /^\s{0,2}(?:function\s+|(?:const|let|var)\s+)([A-Za-z_$][A-Za-z0-9_$]*)/gm;
-  while ((m = decl.exec(s))) globals.add(m[1]);
+  // A105: `let a = '', b = 0;` at module level declares BOTH — capturing only
+  // the first is the same bug the in-function scan below already had fixed, and
+  // it left admDraft/admPosDraft/listQuery looking undeclared.
+  const decl = /^\s{0,2}(?:function\s+([A-Za-z_$][A-Za-z0-9_$]*)|(?:const|let|var)\s+([^;\n]+))/gm;
+  while ((m = decl.exec(s))) {
+    if (m[1]) { globals.add(m[1]); continue; }
+    m[2].split(',').forEach(function (part) {
+      const n = part.trim().split(/[\s=({[]/)[0];
+      if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(n)) globals.add(n);
+    });
+  }
+  // A105: the modules announce themselves by assigning to window —
+  // `window.Lists = (function () {…` at the start of a line, and
+  // `else window.Aggregate = api;` in the middle of one for the two that also
+  // support module.exports. Neither shape is a declaration, so the scan above
+  // cannot see them, and every one is read as `Lists.` / `Aggregate.` from a
+  // dozen functions — the read check below would have reported the whole app.
+  const win = /window\.([A-Za-z_$][A-Za-z0-9_$]*)\s*=/g;
+  while ((m = win.exec(s))) globals.add(m[1]);
 });
 
 const src = strip(fs.readFileSync(DIR + 'app.js', 'utf8'));
@@ -73,6 +90,21 @@ fns.forEach(f => {
   let c;
   while ((c = calls.exec(f.body))) {
     if (!seen.has(c[1])) problems.push(f.name + '() calls ' + c[1] + '() — declared in no reachable scope');
+  }
+
+  // A105: the same class one step sideways — READING a name from a scope that
+  // does not have it. `drawParty` is a top-level function, not a closure inside
+  // renderParty, and a fix that reached for `params.from` in there threw
+  // ReferenceError on every 👁 দেখো while 1,614 assertions stayed green: the
+  // call check above only ever looked at `name(`, never at `name.`.
+  //
+  // Property reads only (`name.`), because a bare identifier appears in far too
+  // many innocent shapes to tell apart with a regex — and a check that cries
+  // wolf is a check people switch off.
+  const reads = /(?<![A-Za-z0-9_$.])([A-Za-z_$][A-Za-z0-9_$]*)\s*\./g;
+  let r;
+  while ((r = reads.exec(f.body))) {
+    if (!seen.has(r[1])) problems.push(f.name + '() reads ' + r[1] + '.… — declared in no reachable scope');
   }
 });
 

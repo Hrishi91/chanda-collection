@@ -9603,3 +9603,63 @@ Nine assertions, each mutation-tested — including one mutation that had to be
 re-aimed: `viewData().then(function (data) {` occurs 35 times, so replacing the
 first occurrence was editing a different screen and the suite was right to stay
 green. Tests **1,606 → 1,614**. Client-only.
+
+## A105 — ← পেছনে from a screen with two doors
+
+Hrishi: in 🩺 the duplicates are listed, 👁 দেখো opens the donor, and ← does not
+come back to 🩺.
+
+← is wired to a FIXED parent per screen, which is right when a screen has one
+way in. The donor screen has two — 📒 খাতা and the anomaly desk — and the fixed
+parent won: you landed on the donor, pressed ←, and were in the ledger with the
+desk gone. On a desk whose whole job is "work down this list", losing your place
+IS the failure: nothing tells you which rows you had already looked at.
+
+`params.from` now carries the door. Threaded rather than guessed —
+`history.back()` would also work here and would be wrong the first time somebody
+lands mid-flow, and the app already threads `origin` through the payment flow
+for the same reason. Default stays `list`, so every existing route is unchanged.
+
+Both routes out of 🩺 verified, and the old one too:
+
+```
+🩺 → 👁 দেখো → ←            বিমল স্টোর্স 1 → 🩺 অসঙ্গতি পরীক্ষা          ✅
+🩺 → ✏️ ঠিক করি → ← → ←     সংশোধন → বিমল স্টোর্স 1 → 🩺 অসঙ্গতি পরীক্ষা ✅
+📒 খাতা → দাতা → ←          অনিমেষ রায় → 📒 খাতা                       ✅
+```
+
+### Two ways the first attempt was wrong, and only the browser said so
+
+**`drawParty` is a top-level function, not a closure inside `renderParty`.**
+Reading `params.from` in there threw `ReferenceError: params is not defined` on
+every single 👁 দেখো — and `node tests/run.js` printed **1,614 passed, 0 failed**
+while it did. The origin has to be an argument.
+
+**The edit form draws its back bar TWICE** — once beside the loading
+placeholder, once in `paint()` when the donor arrives. Threading the door
+through only the first one means it is thrown away a heartbeat later, which is
+exactly why the first fix passed 👁 দেখো and still failed ✏️ ঠিক করি. A rule
+applied in one of the two places it was true for, again.
+
+### The check that should have caught it
+
+`tests/scope-check.js` exists for precisely this family — its own header says
+"throws only when a user taps the button". It looks for `name(` where `name` is
+in no reachable scope. It never looked at `name.`, so reading a variable out of
+scope walked straight past it.
+
+It now checks property reads too. Getting there needed the scanner taught two
+things it had been guessing at: the modules announce themselves as
+`window.Lists = …` and `else window.Aggregate = api;` rather than declarations,
+and `let a = '', b = 0;` at module level declares BOTH names — the same
+comma-list bug the in-function scan had already fixed and the global scan had
+not. Without those it reported the entire app. With them, the file is clean —
+and reinstating today's bug makes it say:
+
+```
+SCOPE PROBLEMS:
+  drawParty() reads params.… — declared in no reachable scope
+```
+
+Seven assertions for the behaviour, plus the scope check for the class. Tests
+**1,614 → 1,621**. Client-only.

@@ -2635,12 +2635,17 @@
   // The audit trail for a donor is a different thing from the audit trail for
   // money, and conflating them would cost the money one.
   function renderPartyForm(params) {
-    const id = (params && params.id) || '';
-    $view().innerHTML = backBar('party', { id: id }) + '<div class="empty">' + esc(t('loading')) + '</div>';
+    params = params || {};
+    const id = params.id || '';
+    // A105: ← goes back to the donor, and the donor is told which door BOTH of
+    // them came in by — otherwise editing a pledge from 🩺 walks you out to
+    // 📒 খাতা two screens later.
+    const from = params.from || '';
+    $view().innerHTML = backBar('party', { id: id, from: from }) + '<div class="empty">' + esc(t('loading')) + '</div>';
     let form = null, orig = null, livePays = 0;
     viewData().then(function (data) {
       const p = liveParties(data).filter(function (x) { return x.id === id; })[0];
-      if (!p || !canEditParty(p)) { navigate(p ? 'party' : 'list', { id: id }); return; }
+      if (!p || !canEditParty(p)) { navigate(p ? 'party' : 'list', { id: id, from: from }); return; }
       const v = Aggregate.voidedIds(data);
       livePays = (data.payments || []).filter(function (x) { return x.partyId === id && !v[x.id]; }).length;
       orig = p;
@@ -2657,7 +2662,12 @@
             esc(Lists.labelOf(kind, o.id)) + '</option>';
         }).join('');
       };
-      $view().innerHTML = backBar('party', { id: id }) +
+      // A105: `from` here too — this is the back bar that SURVIVES. The one
+      // above it is drawn with the loading placeholder and replaced the moment
+      // the donor loads, so a door threaded only there is thrown away a
+      // heartbeat later, which is exactly how the first fix passed one path and
+      // failed the other.
+      $view().innerHTML = backBar('party', { id: id, from: from }) +
         '<div class="flow-title">✏️ ' + esc(t('party_edit_title')) + '</div>' +
         '<div class="card">' +
           '<div class="field"><label>' + esc(t(isShop ? 'party_f_shop' : 'party_f_person')) + '</label>' +
@@ -2728,7 +2738,7 @@
                                String(orig.phone || '') !== String(row.phone || '') ||
                                Number(orig.pledged || 0) !== Number(row.pledged || 0));
         if (clash && !window.confirm(t('party_clash').replace('{name}', row.name || '?'))) {
-          navigate('party', { id: id }); return;
+          navigate('party', { id: id, from: from }); return;
         }
         row.name = name;
         row.phone = phone;
@@ -2737,7 +2747,7 @@
         else if (document.getElementById('pf-loc')) row.location = val('pf-loc');
         row.synced = 0;
         return DB.put('parties', row).then(function () {
-          toast(t('saved')); updateBadge(); autoSync(); navigate('party', { id: id });
+          toast(t('saved')); updateBadge(); autoSync(); navigate('party', { id: id, from: from });
         });
       });
     }).catch(function (e) { toast(errMsg(e)); });
@@ -2807,7 +2817,20 @@
     });
   }
 
+  // A105: `params.from` — the door this screen was entered by.
+  //
+  // ← পেছনে is wired to a FIXED parent per screen, which is right for a screen
+  // with one way in. 🩺-র anomaly desk gives a party two ways in, and the fixed
+  // parent won: 👁 দেখো landed on the donor, ← went to 📒 খাতা, and the desk you
+  // were working through was gone. On a desk whose whole job is "work down this
+  // list", losing your place is the failure — you cannot tell which ones you
+  // have already looked at.
+  //
+  // Threaded rather than guessed: history.back() would also work here and would
+  // be wrong the first time somebody deep-links or lands mid-flow, and the app
+  // already carries `origin` through the payment flow for the same reason.
   function renderParty(params) {
+    params = params || {};
     viewData().then(function (data) {                    // central snapshot (+ own), instant
       const p = liveParties(data).filter(function (x) { return x.id === params.id; })[0];
       if (!p) { navigate('list'); return; }
@@ -2826,13 +2849,18 @@
         voidedOf[v.targetId] = { reason: v.reason || '', by: v.collector || '', at: v.createdAt || '' };
       });
       const pays = (data.payments || []).filter(function (x) { return x.partyId === p.id; });
-      drawParty(p, pays, true, voidedOf);
+      drawParty(p, pays, true, voidedOf, params.from);
     });
   }
   // Renders a party card + a per-collector breakdown + the payment history.
   // `pays` is device-local (central=false) or all-collector (central=true).
-  function drawParty(p, pays, central, voidedOf) {
+  // A105: `from` is the door renderParty was entered by, and it has to be an
+  // ARGUMENT — drawParty is a top-level function, not a closure inside
+  // renderParty. The first version of this fix read `params` in here and threw
+  // ReferenceError on every 👁 দেখো, with the whole suite green.
+  function drawParty(p, pays, central, voidedOf, from) {
     voidedOf = voidedOf || {};
+    from = from || '';
     const live = pays.filter(function (x) { return voidedOf[x.id] === undefined; });
     const paid = live.reduce(function (a, x) { return a + (Number(x.amount) || 0); }, 0);
     const due = (Number(p.pledged) || 0) - paid;
@@ -2840,7 +2868,7 @@
     live.forEach(function (x) { const k = x.collectorId || x.collector || '?'; byC[k] = (byC[k] || 0) + (Number(x.amount) || 0); nameByC[k] = x.collector || k; });
     const keys = Object.keys(byC).sort(function (a, b) { return byC[b] - byC[a]; });
     const sorted = pays.slice().sort(function (a, b) { return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
-    $view().innerHTML = backBar('list') +
+    $view().innerHTML = backBar(from || 'list') +
       '<div class="card"><div class="card-title">' + esc(p.name) + '</div>' +
       '<div class="row-sub">' + esc(t('type_' + p.type)) +
       (p.side ? ' • ' + esc(Lists.labelOf('area', p.side)) : '') +
@@ -2880,7 +2908,7 @@
     const payBtn = document.getElementById('pay-btn');
     if (payBtn) payBtn.onclick = function () { startFlow(paymentFlow(p, 'list')); };
     const editParty = document.getElementById('edit-party-btn');
-    if (editParty) editParty.onclick = function () { navigate('partyform', { id: p.id }); };
+    if (editParty) editParty.onclick = function () { navigate('partyform', { id: p.id, from: from }); };
     const remindBtn = document.getElementById('remind-btn');
     if (remindBtn) remindBtn.onclick = function () {
       // opens WhatsApp with a pre-filled reminder — the collector still taps
@@ -2891,7 +2919,7 @@
       window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
     };
     document.querySelectorAll('[data-void]').forEach(function (b) {
-      b.onclick = function () { renderVoidReason('payments', b.dataset.void, function () { navigate('party', { id: p.id }); }); };
+      b.onclick = function () { renderVoidReason('payments', b.dataset.void, function () { navigate('party', { id: p.id, from: from }); }); };
     });
     document.querySelectorAll('[data-receipt]').forEach(function (b) {
       b.onclick = function () { navigate('receipt', { partyId: p.id, payId: b.dataset.receipt }); };
@@ -4394,7 +4422,7 @@
         (rows.length ? rows.join('') : '<div class="empty">' + esc(t('anom_none')) + '</div>');
       wireNav();
       document.querySelectorAll('[data-goparty]').forEach(function (b) {
-        b.onclick = function () { navigate('party', { id: b.dataset.goparty }); };
+        b.onclick = function () { navigate('party', { id: b.dataset.goparty, from: 'anomalies' }); };
       });
       document.querySelectorAll('[data-dupvoid]').forEach(function (b) {
         b.onclick = function () { renderVoidReason('payments', b.dataset.dupvoid, function () { navigate('anomalies'); }); };
@@ -4470,7 +4498,7 @@
         };
       });
       document.querySelectorAll('[data-pledgefix]').forEach(function (b) {
-        b.onclick = function () { navigate('partyform', { id: b.dataset.pledgefix }); };
+        b.onclick = function () { navigate('partyform', { id: b.dataset.pledgefix, from: 'anomalies' }); };
       });
     }).catch(function () {
       $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('fetch_fail')) + '</div>';

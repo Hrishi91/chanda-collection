@@ -832,6 +832,33 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A105: ← পেছনে from a screen with two doors. 🩺's 👁 দেখো landed on the donor
+  // and ← went to 📒 খাতা, so the desk you were working down was gone — and on a
+  // desk whose whole job is "work through this list", losing your place is the
+  // failure: you cannot tell which rows you have already looked at.
+  {
+    const app105 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    // the door is remembered, not guessed
+    eq(/navigate\('party', \{ id: b\.dataset\.goparty, from: 'anomalies' \}\)/.test(app105), true,
+       'A105: 🩺 tells the donor screen which door it came in by');
+    eq(/navigate\('partyform', \{ id: b\.dataset\.pledgefix, from: 'anomalies' \}\)/.test(app105), true,
+       'A105: …and so does the ✏️ fix-the-pledge route');
+    eq(/backBar\(from \|\| 'list'\)/.test(app105), true,
+       'A105: the donor screen goes back the way it was entered, 📒 খাতা by default');
+    // drawParty is a TOP-LEVEL function; the origin has to arrive as an
+    // argument. Reading `params` in there threw on every 👁 দেখো.
+    eq(/function drawParty\(p, pays, central, voidedOf, from\)/.test(app105), true,
+       'A105: …taking the door as an ARGUMENT, because drawParty is not nested in renderParty');
+    eq(/drawParty\(p, pays, true, voidedOf, params\.from\)/.test(app105), true,
+       'A105: …and renderParty hands it over');
+    // BOTH back bars in the edit form carry it: the first is replaced the
+    // moment the donor loads, so threading only that one loses the door a
+    // heartbeat later — which is how the first version passed 👁 and failed ✏️
+    eq((app105.match(/backBar\('party', \{ id: id, from: from \}\)/g) || []).length, 2,
+       'A105: both of the edit form’s back bars carry the door — the second one is the one that survives');
+    eq(/backBar\('party', \{ id: id \}\)/.test(app105), false,
+       'A105: …neither is left without it');
+  }
   // A104: the handover sheet's group subtotal. Hrishi sent a screenshot of it:
   // one shop, ₹100, and under it a SECOND row with no name at all showing the
   // same ₹100. It was the group subtotal — printed even when the group had one
