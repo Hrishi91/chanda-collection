@@ -38,6 +38,17 @@ const Sync = (function () {
           const rejectedIds = {};
           (resp.rejectedIds || []).forEach(function (id) { rejectedIds[id] = 1; });
           const receipts = resp.receipts || {}; // paymentId → server-assigned serial
+          // A94: counted here and announced AFTER every write has landed.
+          //
+          // A54 fired `ck-rejected` the moment the flag was set on the in-memory
+          // row — before DB.put resolved. The listener answers by reading
+          // DB.rejectedCount(), which still said 0, and its own `if (!n) return`
+          // swallowed the toast. So the one thing A54 exists for — telling the
+          // collector AT THE MOMENT it happens, while they can still do
+          // something — never happened once. The badge hid it: updateBadge runs
+          // later, off autoSync's callback, by which time the write has landed,
+          // so 🚫 1 appeared and the silence looked intentional.
+          let rejectedNow = 0;
           const updates = [];
           DB.STORES.forEach(function (s) {
             data[s].forEach(function (r) {
@@ -57,14 +68,17 @@ const Sync = (function () {
                   // would have to notice a small tag inside ✏️ আমার entry, which
                   // nobody opens unless something already looks wrong.
                   live.rejected = 1;
-                  try { window.dispatchEvent(new CustomEvent('ck-rejected')); } catch (e) {}
+                  rejectedNow++;
                 }
                 return DB.put(s, live);
               }));
             });
           });
           return Promise.all(updates).then(function () {
-            inFlight = false; return { ok: true, sent: (resp.savedIds || []).length };
+            inFlight = false;
+            // after the writes, so the listener's own count agrees with the book
+            if (rejectedNow) { try { window.dispatchEvent(new CustomEvent('ck-rejected')); } catch (e) {} }
+            return { ok: true, sent: (resp.savedIds || []).length };
           });
         });
     }).catch(function (e) {

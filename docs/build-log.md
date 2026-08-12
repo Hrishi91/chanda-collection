@@ -8936,3 +8936,38 @@ deliberately skipped, and my first attempt at this scenario read as "the pull
 never fires". It fires; it was being throttled, correctly.
 
 Tests **1,499 → 1,505**.
+
+## v4.28.1 — A94: A54 has been silent since the day it shipped
+
+"So everything about sync is done!!!!!!" — no. A93 tested `syncNow()`'s
+insides; it never tested what the app does with the answer.
+
+`ck-rejected` was dispatched the instant the flag was set on the in-memory row —
+**before `DB.put` resolved.** The listener answers by reading
+`DB.rejectedCount()`, which still said 0, and its own `if (!n) return` swallowed
+the toast. Watched with a MutationObserver across the whole window: **not one
+toast, ever.**
+
+A54's comment states the purpose plainly — *"out of the queue, but NOT silent.
+This is the moment the collector can still do something about it — later they
+would have to notice a small tag inside ✏️ আমার entry, which nobody opens unless
+something already looks wrong."* That moment never arrived. A refused entry is
+money a donor has a numbered receipt for and no book contains.
+
+**The badge is why nobody noticed.** `updateBadge()` runs later, from
+`autoSync`'s callback, by which time the write has landed — so 🚫 1 appeared
+correctly and the missing toast looked like a deliberate choice.
+
+Counted where the refusal is found, announced once after every write:
+
+```
+আগে   badge 🚫 1 · toast কিছুই না
+পরে   badge 🚫 1 · toast "🚫 1টি entry সার্ভার নেয়নি — ✏️ আমার entry-তে দেখো,
+                          ওগুলো কোনো খাতায় নেই"
+```
+
+Found only because a single sample showed no toast and I refused to call it a
+timing artefact — an observer over the whole window is what turned "probably
+faded" into "never fired".
+
+Tests **1,505 → 1,509**.

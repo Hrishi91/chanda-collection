@@ -832,6 +832,27 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A94: the rejection announcement fired BEFORE the row was written, so the
+  // listener's own DB.rejectedCount() still said 0 and its `if (!n) return`
+  // swallowed the toast. A54 exists to stop a refusal being silent, and it had
+  // been silent since the day it shipped. The badge hid it — updateBadge runs
+  // later, off autoSync, by which time the write has landed.
+  {
+    const sync = require('fs').readFileSync(__dirname + '/../js/sync.js', 'utf8');
+    const at = function (needle) { return sync.indexOf(needle); };
+    eq(at('rejectedNow++') > 0 && at('rejectedNow++') < at('return DB.put(s, live)'), true,
+       'A94: a refusal is COUNTED where it is found…');
+    eq(at('dispatchEvent(new CustomEvent(\'ck-rejected\'))') > at('Promise.all(updates)'), true,
+       'A94: …and announced only after every write has landed, so the listener can see it');
+    eq(/if \(rejectedNow\) \{ try \{ window\.dispatchEvent/.test(sync), true,
+       'A94: …and stays quiet when nothing was refused');
+    // the listener is the other half of the pair: it must still bail on zero,
+    // or an unrelated dispatch would toast about nothing
+    const appSrc2 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    const lis = appSrc2.slice(appSrc2.indexOf("addEventListener('ck-rejected'"), appSrc2.indexOf("addEventListener('ck-auth-invalid'"));
+    eq(/if \(!n\) return;/.test(lis) && /toast\(/.test(lis), true,
+       'A94: the listener still ignores a zero count, and toasts when there is one');
+  }
   // A93: sync.js, 79 lines the suite had only ever read. Exercised for real in a
   // browser; these pin the properties that run proved, so the module cannot lose
   // them silently. Each one is a way money could go missing or double.
