@@ -1108,6 +1108,17 @@
         return '<span class="cat-split">💵' + fmtMoney(o.cash) + ' · 📱' + fmtMoney(o.upi) + '</span>' +
                '<b class="cat-tot">' + fmtMoney(o.cash + o.upi) + '</b>';
       };
+      // A104: a group's subtotal, but only when there is something to sub-total.
+      //
+      // With one category the subtotal repeated that single row's figures under
+      // a BLANK name, so a collector handing in ₹100 from one shop saw the same
+      // ₹100 twice, unlabelled, and read it as two entries — or as ₹200. And
+      // even with several rows the line had no name at all, which is the one
+      // thing a total must have.
+      const subRow = function (o) {
+        return '<div class="sh-row ro sub"><span class="cat-name">' + esc(t('total')) + '</span>' +
+          money(o) + '</div>';
+      };
       const group = function (labelKey, cats) {
         if (!cats.length) return '';
         const sub = cats.reduce(function (a, c) { return { cash: a.cash + c.cash, upi: a.upi + c.upi }; }, { cash: 0, upi: 0 });
@@ -1115,7 +1126,7 @@
           cats.map(function (c) {
             return '<div class="sh-row ro"><span class="cat-name">' + esc(t(c.labelKey)) + '</span>' + money(c) + '</div>';
           }).join('') +
-          '<div class="sh-row ro sub"><span class="cat-name"></span>' + money(sub) + '</div></div>';
+          (cats.length > 1 ? subRow(sub) : '') + '</div>';
       };
       const inGrp = function (keys) { return s.cats.filter(function (c) { return keys.indexOf(c.key) >= 0; }); };
       html += group('grp_entry', inGrp(['shop', 'person', 'member', 'payment', 'bus'])) +
@@ -1124,7 +1135,9 @@
           v.byGiver.map(function (g) {
             return '<div class="sh-row ro"><span class="cat-name">🧑 ' + esc(g.name) + '</span>' + money(g) + '</div>';
           }).join('') +
-          '<div class="sh-row ro sub"><span class="cat-name"></span>' + money(v.received) + '</div></div>' : '') +
+          // A104: same rule for the people who handed money in — one giver
+          // needs no total under them
+          (v.byGiver.length > 1 ? subRow(v.received) : '') + '</div>' : '') +
         '<div class="cat-group tot-group">' +
           '<div class="sh-row ro"><span class="cat-name">' + esc(t('cs_total_in')) + '</span>' + money(v.totalIn) + '</div>' +
           '<div class="sh-row ro"><span class="cat-name">' + esc(t('cs_spent')) + '</span>' + money(v.spent) + '</div>' +
@@ -1897,7 +1910,23 @@
     }).catch(function () { dotsBusy = false; });
   }
   function renderHome() {
-    DB.allData().then(function (data) {
+    // A104: viewData(), not DB.allData(). The comment under `inHandNow` says
+    // home "cannot disagree with the report" because both call myAvailable —
+    // but they were not called on the same book. The report reads the merged
+    // view (central snapshot + this device's unsynced rows); home read this
+    // device's IndexedDB alone.
+    //
+    // On a phone that has always been used normally those are the same rows, so
+    // nothing showed. They come apart the moment IndexedDB is empty while the
+    // central book is not — a replacement phone, a reinstalled PWA, or the
+    // epoch wipe, which A92 performs on 🚀 Go Live AND on a restore. Measured
+    // on one device at one moment: home said ₹0 and রিপোর্ট said ₹3,800, under
+    // the same words, "এখন আমার হিসাবে আছে".
+    //
+    // 34 screens already read viewData(); the three other DB.allData() callers
+    // want local-only on purpose (viewData itself, "এই মোবাইলের হিসাব", and the
+    // backup export). Home was the one that did not mean to.
+    viewData().then(function (data) {
       const today = todayISO();
       const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
       const myToday = data.payments.concat(data.daily).filter(function (r) {

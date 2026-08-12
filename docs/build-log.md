@@ -9531,3 +9531,75 @@ with a 302, and curl downgrades a redirected POST to a GET unless told not to �
 and even `--post302` did not settle it here. The browser, which follows the
 redirect the way the app does, got JSON first time. A dead-looking endpoint is
 worth a second opinion from a different client before it is reported dead.
+
+## A104 — the nameless row on the handover sheet, and what it led to
+
+Hrishi sent a screenshot of 🤝 জমা দিলাম: one shop, ₹100 — and under it a second
+row with **no name at all**, showing the same ₹100. Two lines, one sum, and at a
+glance it reads as two entries or as ₹200.
+
+It was the group's subtotal. The row was drawn unconditionally, with a
+deliberately empty name cell:
+
+```js
+'<div class="sh-row ro sub"><span class="cat-name"></span>' + money(sub) + '</div>'
+```
+
+With several categories in a group a subtotal earns its place — but it still had
+no label, which is the one thing a total must have. With ONE category it is the
+row above it, said again, anonymously.
+
+Now: no subtotal below a single row, and when it is shown it says **মোট**. Same
+rule for the 🤝 group listing who handed money in. Verified on the cashier's
+sheet:
+
+```
+📥 নতুন এন্ট্রি   দোকান ₹2,600                          ← কোনো নামহীন সারি নেই ✅
+🛣️ রোড / টোটো    রোড ₹1,200 · টোটো ₹900 · মোট ₹2,100   ← নাম নিয়ে উপমোট ✅
+                 মোট এসেছে ₹4,700 · হাতে আছে ₹4,700
+```
+
+₹2,600 + ₹2,100 = ₹4,700, and now that reads off the screen.
+
+### The bigger thing the screenshot led to
+
+Chasing it needed a collector holding money, and that is when হোম and রিপোর্ট
+were caught disagreeing **on the same device at the same moment, under the same
+words**:
+
+```
+হোম     💰 এখন আমার হিসাবে আছে: ₹0
+রিপোর্ট  💰 এখন আমার হিসাবে আছে: ₹3,800
+```
+
+`renderHome` read `DB.allData()` — this device's IndexedDB alone — while the
+report and 34 other screens read `viewData()`, the central snapshot merged with
+this device's unsynced rows. The comment above the home figure says the two
+"cannot disagree… which is the only reason it is safe to put a money figure on a
+screen this often re-rendered". They call the same function; they were not
+called on the same book.
+
+On a phone that has always been used normally the two sets of rows are
+identical, so nothing showed. They come apart the moment IndexedDB is empty
+while the central book is not: a replacement phone, a reinstalled PWA, or the
+**epoch wipe** — which A92 performs on 🚀 Go Live *and on a restore*. A
+collector in that state is told they are holding nothing while the committee's
+report says otherwise, which is exactly when somebody stops handing money in.
+
+Home now reads `viewData()`. The three remaining `DB.allData()` callers want
+local-only on purpose: `viewData` itself, "এই মোবাইলের হিসাব", and the backup
+export.
+
+### An assertion that pinned the wrong thing
+
+Changing that line broke `A30: renderHome never calls syncDots`, which was
+asserted as `/function renderHome\(\) \{\n    DB\.allData/` — the data-source
+line standing in for a re-entrancy property it has nothing to do with. It now
+slices the function and checks that `syncDots(` does not appear inside it, with
+both slice anchors verified in order. A test that pins an unrelated line will
+fail the day somebody fixes something else, and teach them to loosen the test.
+
+Nine assertions, each mutation-tested — including one mutation that had to be
+re-aimed: `viewData().then(function (data) {` occurs 35 times, so replacing the
+first occurrence was editing a different screen and the suite was right to stay
+green. Tests **1,606 → 1,614**. Client-only.

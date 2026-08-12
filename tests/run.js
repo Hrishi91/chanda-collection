@@ -832,6 +832,22 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A104: the handover sheet's group subtotal. Hrishi sent a screenshot of it:
+  // one shop, ₹100, and under it a SECOND row with no name at all showing the
+  // same ₹100. It was the group subtotal — printed even when the group had one
+  // row, and never carrying a label.
+  {
+    const app104 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    eq(/\(cats\.length > 1 \? subRow\(sub\) : ''\)/.test(app104), true,
+       'A104: a group of one shows no subtotal — a total of one row IS that row');
+    eq(/\(v\.byGiver\.length > 1 \? subRow\(v\.received\) : ''\)/.test(app104), true,
+       'A104: …and the same for the people who handed money in');
+    eq(/const subRow = function \(o\) \{[\s\S]{0,200}esc\(t\('total'\)\)/.test(app104), true,
+       'A104: …and when it IS shown it says what it is, instead of a blank name');
+    // the blank-name span is the thing that shipped; it must not come back
+    eq(/sh-row ro sub"><span class="cat-name"><\/span>/.test(app104), false,
+       'A104: the nameless subtotal row is gone from the file');
+  }
   // A103: one search rule, six boxes. Four of them did a single indexOf of the
   // whole query, so "ঘোষ সুব্রত" found nobody while "সুব্রত ঘোষ" worked — and a
   // collector who learnt "type any two words" in 📒 খাতা read that emptiness as
@@ -2530,8 +2546,25 @@ eq(a25App.indexOf('JSON.stringify(dotState) !== dotsDrawn') >= 0, true,
    'A26/A30: repaint compares against what is ON SCREEN, not a pre-async snapshot');
 eq(a25App.indexOf('if (dotsBusy) return;') >= 0, true,
    'A30: one dot refresh at a time — overlapping ones cannot each decide "it changed"');
-eq(/function renderHome\(\) \{\n    DB\.allData/.test(a25App), true,
-   'A30: renderHome never calls syncDots — the renderer cannot re-enter itself');
+// A104: this used to pin `function renderHome() {\n    DB.allData`, which is
+// not what it is about — it read the data-source line as a stand-in for "does
+// not call syncDots", so changing the data source broke a re-entrancy test.
+// Assert the property itself, over the function's real body.
+{
+  const s = a25App.indexOf('function renderHome() {');
+  const e = a25App.indexOf('\n  function ', s + 10);
+  eq(s >= 0 && e > s, true, 'A30: (renderHome found, both anchors in order)');
+  const body = s >= 0 && e > s ? a25App.slice(s, e) : '';
+  eq(/syncDots\s*\(/.test(body), false,
+     'A30: renderHome never calls syncDots — the renderer cannot re-enter itself');
+  eq(/\bsyncDots\(\);/.test(a25App), true,
+     'A30: …the router calls it instead, once, after the paint');
+  // A104: and home reads the same book the report does
+  eq(/function renderHome\(\) \{[\s\S]{0,1400}?\n    viewData\(\)\.then/.test(a25App), true,
+     'A104: home reads the merged view, so it cannot disagree with রিপোর্ট about money');
+  eq(/function renderHome\(\) \{[\s\S]{0,1400}?\n    DB\.allData\(\)/.test(a25App), false,
+     'A104: …and no longer reads this device’s IndexedDB alone');
+}
 eq(a25App.indexOf("sessionStorage.getItem('ck_swReload')") >= 0, true,
    'A30: at most ONE automatic service-worker reload per tab session');
 eq(a25App.indexOf('const dotMark = function (k)') >= 0, true,
