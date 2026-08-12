@@ -2302,7 +2302,10 @@
       const q = normText(memberQuery);
       const list = liveParties(data).filter(function (p) { return p.type === 'member'; })
         .filter(function (p) {
-          return !q || normText([p.name, p.phone, p.position ? Lists.labelOf('position', p.position) : ''].join(' ')).indexOf(q) >= 0;
+          // A103: the same rule as everywhere else — "শঙ্কর কোষাধ্যক্ষ" used to
+          // find nobody, with both words on the row
+          return matchWords([p.name, p.phone,
+            p.position ? Lists.labelOf('position', p.position) : ''].join(' '), q);
         })
         .sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'bn'); });
       if (!el.isConnected) return;
@@ -2894,13 +2897,30 @@
   // trim, collapse spaces, and lowercase (English). Bengali has no case, so
   // this works for both scripts.
   function normText(s) { return String(s == null ? '' : s).normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim(); }
-  // A party matches if EVERY word in the query appears somewhere across its
-  // name, owner, phone, area and location — so "কমল মালদা" or "9998 malda" work.
-  function matchParty(p, query) {
+  // A103: ONE search rule, for all six boxes. Every word of the query has to
+  // appear somewhere in the haystack — order does not matter, and neither does
+  // whether the words are next to each other.
+  //
+  // Four of the six used to do a single indexOf of the whole query instead, so
+  // a collector who had learnt "type any two words" in 📒 খাতা — the screen they
+  // live in — typed "শঙ্কর কোষাধ্যক্ষ" on the member screen and got NOTHING,
+  // with both those words on the row in front of them. An empty result does not
+  // read as "not phrased that way", it reads as "this person is not here", and
+  // on puja night that is a member turned away or entered twice.
+  //
+  // Widening only: any query that matched a contiguous substring has all its
+  // words present too, so nothing that worked before can stop working.
+  function matchWords(hay, query) {
     const q = normText(query); if (!q) return true;
-    const hay = normText([p.name, p.owner, p.phone,
-      p.side ? Lists.labelOf('area', p.side) : '', p.location ? Lists.labelOf('location', p.location) : ''].join(' '));
-    return q.split(' ').every(function (w) { return hay.indexOf(w) >= 0; });
+    const h = normText(hay);
+    return q.split(' ').every(function (w) { return h.indexOf(w) >= 0; });
+  }
+  // A party matches on its name, owner, phone, area and location — so
+  // "কমল মালদা" or "9998 malda" work.
+  function matchParty(p, query) {
+    return matchWords([p.name, p.owner, p.phone,
+      p.side ? Lists.labelOf('area', p.side) : '',
+      p.location ? Lists.labelOf('location', p.location) : ''].join(' '), query);
   }
   // Which things this user may collect (admin sets it per user; empty = all, so
   // nobody is accidentally locked out). Keys are the six collection categories
@@ -5614,7 +5634,9 @@
       const q = normText(box.value);
       let shown = 0;
       document.querySelectorAll(rowSel).forEach(function (r) {
-        const hit = !q || normText(r.dataset.q || r.textContent).indexOf(q) >= 0;
+        // A103: matchWords, not indexOf — the same rule 📒 খাতা uses, so
+        // "সুব্রত ঘোষ" and "ঘোষ সুব্রত" both find him
+        const hit = matchWords(r.dataset.q || r.textContent, q);
         r.style.display = hit ? '' : 'none';
         if (hit) shown++;
       });

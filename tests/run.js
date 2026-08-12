@@ -832,6 +832,34 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A103: one search rule, six boxes. Four of them did a single indexOf of the
+  // whole query, so "ঘোষ সুব্রত" found nobody while "সুব্রত ঘোষ" worked — and a
+  // collector who learnt "type any two words" in 📒 খাতা read that emptiness as
+  // "this person is not here". Verified in a browser across all six.
+  {
+    const app103 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    eq(/function matchWords\(hay, query\) \{[\s\S]{0,260}q\.split\(' '\)\.every\(function \(w\) \{ return h\.indexOf\(w\) >= 0; \}\);/.test(app103), true,
+       'A103: one rule — every word of the query, anywhere in the haystack');
+    // all three callers go through it; a fourth matcher appearing is the
+    // N-places-guarded-for-N-minus-1 pattern starting over
+    eq((app103.match(/matchWords\(/g) || []).length, 4,
+       'A103: …defined once and used by exactly three callers (party · admin rows · members)');
+    eq(/return matchWords\(\[p\.name, p\.owner, p\.phone,/.test(app103), true,
+       'A103: …the ledger and find-donor searches (name · owner · phone · area · location)');
+    eq(/const hit = matchWords\(r\.dataset\.q \|\| r\.textContent, q\);/.test(app103), true,
+       'A103: …the four admin filters');
+    eq(/return matchWords\(\[p\.name, p\.phone,\n\s*p\.position \? Lists\.labelOf\('position', p\.position\) : ''\]\.join\(' '\), q\);/.test(app103), true,
+       'A103: …and the member picker');
+    // the old rule must be gone from all of them, or one screen keeps lying
+    eq(/normText\(\[p\.name, p\.phone[\s\S]{0,120}\]\.join\(' '\)\)\.indexOf\(q\)/.test(app103), false,
+       'A103: the member picker no longer does a whole-string indexOf');
+    eq(/normText\(r\.dataset\.q \|\| r\.textContent\)\.indexOf\(q\)/.test(app103), false,
+       'A103: …and neither do the admin filters');
+    // an empty query still shows everything — the guard that makes the box
+    // harmless until somebody types
+    eq(/const q = normText\(query\); if \(!q\) return true;/.test(app103), true,
+       'A103: an empty query matches everything, so the box costs nothing until it is used');
+  }
   // A101: the master lists. Hrishi opened 🧾 রসিদ ও তালিকা and দোকানের এলাকা was
   // empty — while the app was using those four areas on every donor row and
   // every receipt. Reproduced against the real Code.gs before touching it.
@@ -3136,8 +3164,8 @@ try {
      'A41: it hides rows in place…');
   eq(/paintAdmin|renderAdmin/.test(fn), false,
      'A41: …and never repaints, or typing would lose the focus after one letter');
-  eq(/normText\(r\.dataset\.q \|\| r\.textContent\)/.test(fn), true,
-     'A41: rows carry what they are searchable by');
+  eq(/matchWords\(r\.dataset\.q \|\| r\.textContent, q\)/.test(fn), true,
+     'A41: rows carry what they are searchable by — matched by the shared rule (A103)');
   eq(/data-q="' \+\s*esc\(\[u\.name, u\.username, u\.phone\]/.test(app), true,
      'A41: a person is found by name, username or phone');
   eq(/admWireFilter\('adm-fu', '\[data-adm-user\]'\)/.test(app), true, 'A41: wired on the people list');

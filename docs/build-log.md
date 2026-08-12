@@ -9444,3 +9444,61 @@ costume as an app bug. `docs/pending.md` and the memory note both already say
 it: before believing a browser symptom, ask what the harness is doing.
 
 Nothing shipped in this entry — it is a measurement, and the tidied harness.
+
+## A103 — one search rule, six boxes
+
+A102 measured six searches and found two rules. 📒 খাতা and 🔍 অন্য কারো দাতা
+required every WORD of the query somewhere across the row; the other four did a
+single `indexOf` of the whole string. So a collector who had learnt "type any
+two words" on the screen they live in typed **"শঙ্কর কোষাধ্যক্ষ"** on the member
+screen and got nothing back, with both of those words on the row in front of
+them.
+
+An empty result does not read as "not phrased that way". It reads as **"this
+person is not here"** — and on puja night that is a member turned away, or
+entered a second time.
+
+`matchWords(hay, query)` is now the one rule, with three callers: the party
+search (name · owner · phone · area · location), the four admin filters
+(whatever the row's `data-q` carries), and the member picker (name · phone ·
+post). The old two-rule split is gone from all of them.
+
+**Widening only, so nothing that worked can stop working:** any query that
+matched as a contiguous substring necessarily has all of its words present. A
+test pins the caller count at three, because a fourth matcher appearing
+somewhere is this project's oldest pattern starting over — a rule stated for N
+places and guarded for N−1.
+
+Re-run in a browser on the exact queries that used to fail:
+
+```
+🤝 সদস্য   "শঙ্কর কোষাধ্যক্ষ" → শঙ্কর দত্ত     (আগে: শূন্য)   ✅
+           "কোষাধ্যক্ষ শঙ্কর" → শঙ্কর দত্ত                   ✅
+           "শঙ্কর সম্পাদক"   → শূন্য  ← ভুল জোড়া, বেশি মেলায় না ✅
+👥 ইউজার   "ঘোষ সুব্রত"      → সুব্রত ঘোষ      (আগে: শূন্য)   ✅
+           "bimal সরকার"     → বিমল চন্দ্র সরকার ← username + বাংলা নাম ✅
+           "সুব্রত সরকার"    → শূন্য                          ✅
+```
+
+### The Bengali-digit change, dropped
+
+A102 also offered to fold ০-৯ into 0-9 in `normText`. Hrishi's answer was that
+number fields open the numeric keyboard, which emits ASCII — and he was right,
+so the fold buys nothing. Verified by DRIVING the entry flow rather than reading
+it, because the keyboard is chosen by a branch that could be wrong:
+
+| ঘর | keyboard | placeholder |
+|---|---|---|
+| দোকান/মালিকের নাম | text | — |
+| ফোন নম্বর | `inputmode="tel"` | `9xxxxxxxxx` |
+| প্রতিশ্রুত টাকা | `inputmode="numeric"` | `৫০০` |
+| নগদ কত / UPI কত | `inputmode="numeric"` | — |
+| বাসের নম্বর | text | — ("WB 65 AB 1234" has letters) |
+
+Every field that takes a number opens a number pad. The one oddity is that the
+amount placeholder is written in Bengali digits (৫০০) while the phone one is in
+ASCII (9xxxxxxxxx) — the keyboard produces ASCII in both cases. Left alone: a
+placeholder shows magnitude, it is not something anybody copies.
+
+Nine assertions, each mutation-tested. Tests **1,598 → 1,606**. Client-only, so
+it rides the redeploy already pending for A100 + A101.
