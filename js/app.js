@@ -5626,7 +5626,10 @@
     if (admCache && !force) { paintAdmin(admCache); return; }
     $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(t('loading')) + '</div>';
     Promise.all([
-      Auth.call('listUsers', { token: Auth.token() }),
+      // A100: the year is what asks the server for each person's money. The
+      // other two listUsers callers deliberately do not send it — they show no
+      // money and must not pay for the read.
+      Auth.call('listUsers', { token: Auth.token(), year: Settings.get('year') }),
       Auth.call('listSubjects', { token: Auth.token() }).catch(function () { return { subjects: [] }; }),
       Auth.call('listItems', { token: Auth.token() }).catch(function () { return { items: [] }; }),
     ]).then(function (res) { admCache = res; paintAdmin(res); })
@@ -5710,9 +5713,16 @@
         if (u.access === 'exiting') return t('access_exiting_sum');
         if (u.role === 'admin') return t('sum_admin_all');
         const ent = String(u.entries || '').split(',').filter(Boolean);
+        // A100: `type_` and not CAT_LABEL_KEYS. This is a one-line SUMMARY on a
+        // 375px row, and CAT_LABEL_KEYS spells the daily ones out in full —
+        // "রোড কালেকশন, টোটো কালেকশন" wrapped eight of twelve rows onto a
+        // second line, 86px instead of 63px each. The same categories already
+        // have short names the app uses everywhere else: রোড · টোটো · বাস. The
+        // permission CHIPS keep the long form, where there is room and the
+        // wording has to be unambiguous.
         const entTxt = !ent.length ? '⚠️ ' + t('sum_none')
           : ent.filter(function (k) { return Aggregate.ENTRY_KINDS.indexOf(k) >= 0; })
-               .map(function (k) { return t(CAT_LABEL_KEYS[k] || k); }).join(', ') || '⚠️ ' + t('sum_none');
+               .map(function (k) { return t('type_' + k); }).join(', ') || '⚠️ ' + t('sum_none');
         const reps = String(u.reports || '').split(',').filter(Boolean).length + (u.cashier ? 1 : 0);
         const ars = String(u.areas || '').split(',').filter(Boolean).length;
         return [entTxt,
@@ -5963,7 +5973,22 @@
             (u.role === 'admin' ? ' 👑' : '') + (u.cashier ? ' 💰' : '') +
             (u.access === 'exiting' ? ' 🚪' : '') + verMark(u) +
             '<div class="row-sub">' + esc(userSummary(u)) + '</div>' +
-            '</div><span class="adm-caret">›</span></button>';
+            '</div>' +
+            // A100: the figure an admin is actually chasing. Not shown for
+            // `pending` — no year approval means no entries, so "₹0 হাতে"
+            // there would be a fact about nothing.
+            //
+            // The ⏳ is one character doing the job A99 needed a whole sub-line
+            // for on the detail screen: some of this sum has been sent and no
+            // cashier has answered for it, and it is still counted here. A list
+            // that hides that sends somebody looking for cash in the wrong
+            // pocket.
+            (u.money && u.status !== 'pending'
+              ? '<div class="row-right">' + esc(fmtMoney(u.money.inHand)) +
+                  (Number(u.money.pending) ? ' <span class="row-sub">⏳</span>' : '') +
+                  '<div class="row-sub">' + esc(t('access_inhand')) + '</div></div>'
+              : '') +
+            '<span class="adm-caret">›</span></button>';
         };
         const grp = function (key, list) {
           return '<div class="section">' + esc(t(key)) + ' (' + list.length + ')</div>' +

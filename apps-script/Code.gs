@@ -752,7 +752,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.28.1';
+var CODE_VERSION = 'chanda-v4.29.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1874,6 +1874,24 @@ var ACTIONS = {
         var row = {};
         USER_COLS.forEach(function (c, j) { row[c] = v[j]; });
         users.push(publicUser_(row));
+      });
+    }
+    // A100: what each person is holding, so the list answers "who has the
+    // committee's money" without opening twelve people one at a time.
+    //
+    // Only when the client asks with a year. Three screens call listUsers and
+    // just one of them shows money; the other two must not pay for a full
+    // readAll_ they will throw away. An older build sends no year and gets
+    // exactly the response it always got.
+    //
+    // personalSummary_, not accountPicture_: the picture also builds a
+    // per-donor dues list, and doing that twelve times to print one number per
+    // row is work nobody asked for.
+    if (b.year) {
+      var d = readAll_(Number(b.year));
+      users.forEach(function (u) {
+        var s = personalSummary_(d, String(u.username));
+        u.money = { collected: s.collected, inHand: s.inHand, pending: s.pending };
       });
     }
     return { ok: true, users: users };

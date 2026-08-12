@@ -9236,3 +9236,66 @@ three times; a "was it found" check that only counts characters is the same bug
 wearing a test's clothes. Both anchors are now checked as indices, in order.
 
 Nineteen assertions. Tests **1,536 → 1,555**.
+
+## v4.29.0 — A100: the money moved onto the list
+
+A99 opened the account picture for everyone, but it is one tap per person —
+twelve taps to answer "who is holding the most?". `listUsers` returned no money
+at all, so this one needed the server, which is why it is the first change in a
+while that costs an Apps Script redeploy.
+
+`listUsers` now attaches `{collected, inHand, pending}` per user — **only when
+the client sends a year**. That gate is not decoration: three screens call
+`listUsers` and one of them shows money; the other two must not pay for a
+`readAll_` they will throw away. An older build sends no year and gets exactly
+the response it always got. Proved against the real backend: no year → 0 users
+carry `money`, with a year → 12 do.
+
+`personalSummary_`, not `accountPicture_`. The picture also builds a per-donor
+dues list, and doing that twelve times to print one number a row is work nobody
+asked for.
+
+On the row, in-hand sits right-aligned — never for a `pending` account, where no
+year approval means no entries and "₹0 হাতে" would be a fact about nothing. And
+a **⏳** when some of that sum has been sent and no cashier has answered: one
+character doing the job A99 needed a whole sub-line for on the detail screen,
+because that money is counted INSIDE the figure and a list that hides it sends
+somebody looking in the wrong pocket.
+
+Read straight off the screen, both halves of one handover:
+
+```
+কালী দাস 💰      দোকান, ব্যক্তি, রোড, টোটো · 1 রিপোর্ট · 2 এলাকা   ₹3,800  হাতে
+বিমল চন্দ্র 💰    দোকান, ব্যক্তি, রোড, টোটো · 1 রিপোর্ট · 2 এলাকা   ₹4,600  হাতে
+সুব্রত ঘোষ       দোকান, ব্যক্তি, রোড, টোটো · রিপোর্ট নেই · 2 এলাকা  ₹3,000 ⏳ হাতে
+```
+
+বিমল = ৩,৮০০ তোলা + ৮০০ পাওয়া. সুব্রত = ৩,৮০০ − ৮০০ confirmed, ১,৫০০ still
+unanswered — hence the ⏳.
+
+### The line that had to get shorter first
+
+Adding a money column squeezed the permission summary and wrapped **eight of
+twelve rows** onto a second line, 86 px each. The summary was spelling the daily
+categories out in full — "রোড কালেকশন, টোটো কালেকশন" — when the same categories
+already have short names the app uses everywhere else. `type_` instead of
+`CAT_LABEL_KEYS` in the summary only; the permission CHIPS keep the long form,
+where there is room and the wording has to be unambiguous.
+
+Wrapped rows **8 → 1**, average row **79 → 68 px**, list **1,445 → 1,312 px**.
+Measured across A99 and A100 together, from where this started: rows
+**84 → 67 px**, visible **5.2 → 6.4**, list **1,693 → 1,312 px** — with a figure
+on every row that was not there before.
+
+### An assertion that read my own prose
+
+The first draft of "…uses personalSummary_, not accountPicture_" failed, and it
+was right to: the slice it searched included the COMMENT explaining why
+`accountPicture_` is not used. The check was reading my justification and
+reporting on the code. Comments are stripped from that slice now. Same family as
+the A99 anchor: a test that matches text has to be told which text.
+
+Fifteen assertions, each mutation-tested. Tests **1,555 → 1,571**.
+
+**This one needs a redeploy** — `CODE_VERSION`, `sw.js` and `APP_VERSION` all
+move to `chanda-v4.29.0` together.

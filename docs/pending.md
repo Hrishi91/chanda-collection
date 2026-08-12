@@ -366,14 +366,16 @@ give different numbers:
       document, so it is Bengali whatever the collector set the app to. `tBn()`
       does that; the collector's own screens still follow the app language. See
       build-log "A98".
-- [ ] **DECISION — should money show in the user LIST, not just per person?**
-      (A99) The account picture now works for everyone, but it is one tap per
-      collector: with 12 people that is 12 taps to answer "who is holding the
-      most?". Putting in-hand on each row would answer it at a glance — but
-      `listUsers` returns no money at all, so it needs a **Code.gs change and an
-      Apps Script redeploy**, and it makes every admin-panel load compute an
-      account picture per user. Not done on my own for that reason. Worth it?
-- [ ] **Redeploy the client for A96 + A98 + A99** (Pages only — Code.gs is unchanged, no
+- [x] ~~**DECISION — money in the user LIST?**~~ **Yes (Hrishi, 2026-08-12),
+      shipped as A100.** In-hand on every row, gated on the year so the two
+      other `listUsers` callers stay cheap. See build-log "v4.29.0 — A100".
+- [ ] **⚠️ REDEPLOY — this one needs Apps Script, not just Pages.** A96/A98/A99
+      were client-only; **A100 changes `Code.gs`** (`listUsers` now returns
+      money when asked). All three versions moved to `chanda-v4.29.0` together,
+      so until Code.gs is redeployed the app will show the red 🛠️ bar saying
+      the server is behind. Order: paste `apps-script/Code.gs` → **New
+      deployment** (never "New version" — it has never repointed on this
+      account) → rebake `js/config.js` with the new `/exec` URL → push. (Pages only — Code.gs is unchanged, no
       Apps Script deploy needed). `sw.js` now precaches `js/config.js`, so a
       phone that installs the app and reloads offline before its second online
       load still knows the backend URL. Until this ships, that phone shows

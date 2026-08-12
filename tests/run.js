@@ -832,6 +832,54 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A100: money in the user LIST. A99 opened the account picture for everyone,
+  // but that is one tap per person — twelve taps to answer "who is holding the
+  // most?". listUsers carried no money at all, so this needed the server.
+  {
+    const gs = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+    const app100 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    const lu = (function () {
+      const a = gs.indexOf('listUsers: function'), b = gs.indexOf('setStatus: function', a);
+      eq(a >= 0 && b > a, true, 'A100: (listUsers was found, both anchors in order)');
+      // comments stripped: the first draft of the check below matched the word
+      // "accountPicture_" in the comment explaining why it is NOT used, so the
+      // assertion was reading my own prose and reporting on the code
+      return a >= 0 && b > a
+        ? gs.slice(a, b).split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n')
+        : '';
+    })();
+    // gated on the year, and that is not decoration: three screens call
+    // listUsers and only one shows money. Proved against the real backend —
+    // no year → 0 users carry `money`; with year → 12 do.
+    eq(/if \(b\.year\) \{/.test(lu), true,
+       'A100: the server computes money only when the client asks with a year…');
+    eq(/var d = readAll_\(Number\(b\.year\)\);/.test(lu) && /personalSummary_\(d, String\(u\.username\)\)/.test(lu), true,
+       'A100: …reading the book ONCE and summarising per user');
+    eq(/accountPicture_/.test(lu), false,
+       'A100: …with personalSummary_, not the picture — the per-donor dues list is work nobody asked for here');
+    // the two cheap callers must stay cheap; the admin one must ask
+    eq((app100.match(/Auth\.call\('listUsers', \{ token: Auth\.token\(\) \}\)/g) || []).length, 2,
+       'A100: the two screens that show no money still send no year');
+    eq(/Auth\.call\('listUsers', \{ token: Auth\.token\(\), year: Settings\.get\('year'\) \}\)/.test(app100), true,
+       'A100: …and the admin panel is the one that asks');
+    // the row: in-hand, never for a pending account, and the ⏳ that stops the
+    // same misreading A99 needed a whole sub-line for
+    eq(/u\.money && u\.status !== 'pending'/.test(app100), true,
+       'A100: a pending account shows no figure — no year approval means no entries');
+    eq(/Number\(u\.money\.pending\) \? ' <span class="row-sub">⏳<\/span>' : ''/.test(app100), true,
+       'A100: …and money already sent but unconfirmed is flagged, because it is counted INSIDE this number');
+    // the summary line: short names, or eight of twelve rows wrap
+    eq(/\.map\(function \(k\) \{ return t\('type_' \+ k\); \}\)\.join\(', '\)/.test(app100), true,
+       'A100: the list summary uses the short category names (রোড, not রোড কালেকশন)');
+    eq(/CAT_LABEL_KEYS\[k\] \|\| k/.test(app100), false,
+       'A100: …the long ones are gone from the summary, and stay on the permission chips');
+    // every category the summary can print must have a short name, or a row
+    // renders the raw key
+    ENTRY_KINDS.forEach(function (k) {
+      eq(require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8').indexOf('  type_' + k + ':') > 0, true,
+         'A100: …and type_' + k + ' exists for it');
+    });
+  }
   // A99: the admin panel, run against a local stand-in that EXECUTES the real
   // Code.gs, seeded with 12 collectors and money in several hands. Hrishi's
   // report was "not able to see all the data" and it was literally true: the
