@@ -323,9 +323,28 @@
         // already in flight held a PRE-clear response, resolved after the wipe,
         // and wrote pre-epoch training rows straight back into the live book —
         // the exact thing the epoch bump exists to prevent.
-        return DB.clearAll().then(function () {
-          pullBusy = false;
-          return pullCentral({ force: true }); // clean full pull
+        // A92: say what is being thrown away. The wipe itself is right — after
+        // 🚀 or a restore the server has a different book and this device's
+        // pre-epoch rows do not belong in it — but it took queued entries with
+        // it and said NOTHING. Logout has guarded exactly this since A74
+        // ("১টা এন্ট্রি এখনো পাঠানো হয়নি"); this path never learned the same
+        // manners, and it is the more dangerous of the two, because a mid-season
+        // restore also bumps the epoch and the collector is not even present.
+        //
+        // It cannot refuse — refusing would leave the phone reading a book the
+        // server has discarded, which is worse. So it counts first and tells the
+        // person afterwards, by name and number, instead of leaving them to
+        // notice a missing ₹800 next week.
+        return DB.unsyncedCount().then(function (lost) {
+          return DB.clearAll().then(function () {
+            if (lost > 0) {
+              // alert, not toast: 2.2s is not long enough to read something you
+              // may have to report to the cashier
+              try { window.alert(t('epoch_wiped_unsynced').replace('{n}', toBengaliDigits(String(lost)))); } catch (e) {}
+            }
+            pullBusy = false;
+            return pullCentral({ force: true }); // clean full pull
+          });
         });
       }
       resetPullBackoff(); // it got through: forget any earlier failures

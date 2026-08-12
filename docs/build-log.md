@@ -8837,3 +8837,55 @@ start marker, which makes the slice backwards and fails an assertion for a
 reason that has nothing to do with the code. It is now commented at the site.
 
 Tests **1,491 → 1,495**.
+
+## v4.28.0 — A92: the local book, and the wipe that took money quietly
+
+`js/db.js` is 151 lines and the suite only ever read it as **text**. Ran it for
+real in a browser instead. Most of it holds:
+
+```
+newRow            uuid, year, synced:0        ✅
+put → get         round trip                  ✅
+unsyncedCount     counts pending, ignores rejected (A54)  ✅
+sync              marks the row, does NOT delete it        ✅
+reload            rows and counters survive                ✅
+clearAll          all eight stores emptied                 ✅
+logout, queued    REFUSED — "১টা এন্ট্রি এখনো পাঠানো হয়নি"  ✅
+logout, clean     local book, snapshot and token all gone   ✅
+```
+
+The A74 logout guard is exactly as advertised: with one unsynced ₹500 on the
+phone it refuses and says so; once synced it clears everything.
+
+**The `data_epoch` path had no such manners.** When 🚀 Go Live or a restore
+gives the phone a new epoch, `pullCentral` calls `DB.clearAll()`
+unconditionally. Proved it:
+
+```
+আগে   ২টি সারি, ২টি অসংরক্ষিত (₹৮০০)
+পরে   ০টি সারি, ০টি অসংরক্ষিত
+বলা হল  কিছুই না
+```
+
+`residual-risks.md` has always listed this for go-live — *"unsynced rows on any
+phone at that moment are lost"* — but **restore bumps the epoch too**, and a
+mid-season restore fires it while the collector is not even holding the phone.
+Silent either way.
+
+It still wipes, and should: a phone left reading a book the server has discarded
+is worse than one that lost two rows. But it now **counts first and says what it
+took**, by number, in an alert rather than a toast — 2.2 seconds is not long
+enough to read something you may have to report to the cashier:
+
+> ⚠️ কেন্দ্রীয় খাতা নতুন করে শুরু হয়েছে (Live/restore)। তোমার ফোনে ২টি এন্ট্রি
+> তখনো পাঠানো হয়নি — সেগুলো আর নেই। ওই entry-গুলো মনে থাকলে আবার তুলে দাও, আর
+> ক্যাশিয়ারকে জানিয়ে রাখো।
+
+Silent when nothing was queued — verified both ways.
+
+Two harness notes: `focus` is the event that drives a pull, not `online` or
+`visibilitychange`; and the epoch arrives as **`resp.config.data_epoch`**, not a
+top-level field — I tested the wrong name twice and got a clean "no wipe" both
+times, which would have read as proof that there was no problem.
+
+Tests **1,495 → 1,499**.

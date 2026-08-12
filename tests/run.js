@@ -832,6 +832,26 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A92: the epoch wipe (🚀 Go Live, or a restore) discards this device's book,
+  // and it was taking QUEUED entries with it in silence. Logout has refused to
+  // strand unsynced rows since A74; this path — the more dangerous of the two,
+  // because a mid-season restore fires it while the collector is not even
+  // holding the phone — never learned the same manners.
+  //
+  // It must not refuse: a phone left reading a book the server has discarded is
+  // worse. So it counts first, wipes, and then says what it took.
+  {
+    const from = appSrc.indexOf('const newEpoch =');
+    const blk = appSrc.slice(from, appSrc.indexOf('resetPullBackoff()', from));
+    eq(/DB\.unsyncedCount\(\)\.then\(function \(lost\)/.test(blk), true,
+       'A92: the wipe counts what is queued BEFORE clearing it');
+    eq(blk.indexOf('DB.unsyncedCount()') < blk.indexOf('DB.clearAll()'), true,
+       'A92: …in that order, or the count is always zero');
+    eq(/if \(lost > 0\)/.test(blk) && /epoch_wiped_unsynced/.test(blk), true,
+       'A92: …and tells the collector, by number, so a missing ₹800 is not found next week');
+    eq(/window\.alert\(/.test(blk), true,
+       'A92: …with an alert, not a toast — 2.2s is not long enough to read something you must report');
+  }
   // A91: the first screen anybody sees. A logged-out phone showed all five tabs
   // and the sync badge, and not one of them did anything — tapping any left the
   // login screen exactly where it was. Never found before because every browser
