@@ -267,6 +267,21 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
    on, the ledger spent 59% of the screen before the first donor. The scrolling
    filter row took most of that back; this takes the rest, and only where it is
    needed. Nothing here shrinks a tap target — only the chrome around them. */
+/* A89: the save button sticks above the bottom nav while there is something
+   unsaved, and only then. A permission screen is 2.8 screens on a 320px phone;
+   💾 sat below all of it. `bottom` clears the nav plus the home-indicator inset
+   so it never lands under either. */
+button.adm-stick {
+  position: fixed; left: 12px; right: 12px; z-index: 20;
+  bottom: calc(74px + env(safe-area-inset-bottom) + 26px);
+  width: auto; box-shadow: 0 6px 20px rgba(0,0,0,.22);
+}
+.hint.adm-stick-hint {
+  position: fixed; left: 12px; right: 12px; z-index: 20;
+  bottom: calc(74px + env(safe-area-inset-bottom) + 4px);
+  background: var(--bg); padding: 3px 0; border-radius: 8px;
+}
+
 @media (max-width: 360px) {
   header { padding: 10px 12px; font-size: 16.5px; }
   header { padding-top: calc(10px + env(safe-area-inset-top)); }

@@ -832,6 +832,21 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A89: the save button sticks only while there is something unsaved. One
+  // helper drives BOTH admin save buttons — the user screen and the post screen
+  // are the same shape, and a rule applied to one of a pair is this project's
+  // oldest bug (A71, A68, A78, A82).
+  {
+    eq(/function admStick\(btn, hint, n\)/.test(appSrc), true, 'A89: one helper owns the sticky save');
+    eq((appSrc.match(/admStick\(/g) || []).length >= 4, true,
+       'A89: …and every save path goes through it — user screen, post screen, and both live updates');
+    const st = css.slice(css.indexOf('button.adm-stick'), css.indexOf('}', css.indexOf('button.adm-stick')));
+    eq(/position:\s*fixed/.test(st) && /bottom:\s*calc\(74px/.test(st), true,
+       'A89: …it is fixed above the bottom nav, not under it');
+    const helper = appSrc.slice(appSrc.indexOf('function admStick'), appSrc.indexOf('function admLeaveOk'));
+    eq(/classList\.toggle\('adm-stick', !!n\)/.test(helper), true,
+       'A89: …and it lets go when clean — a bar that is always there costs a strip of screen on every visit that never edits');
+  }
   // A87: the filter row scrolls sideways instead of wrapping, and the app has
   // its first responsive rule. Measured on a 320px phone: the ledger spent 59%
   // of the screen before the first donor and showed two; it now spends 39% and

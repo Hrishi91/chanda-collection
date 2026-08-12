@@ -5428,6 +5428,28 @@
         alert('⚠️ setPositionRules\n\n' + errMsg(e));
       });
   }
+  // A89: when there is something unsaved, the save button leaves the flow and
+  // sticks above the bottom nav. A user's permission screen is 2.8 screens on a
+  // 320px phone — thirty chips — and 💾 sat at ~1,200px, so a tick made at the
+  // top was saved a long scroll later, or forgotten.
+  //
+  // It only sticks while DIRTY. A bar that is always there costs everyone a
+  // strip of screen for a button most visits never press, and this screen is
+  // read far more often than it is edited.
+  //
+  // One helper for both save buttons: the user screen and the post screen have
+  // the same shape, and a rule applied to one of a pair is this project's
+  // oldest bug.
+  function admStick(btn, hint, n) {
+    if (!btn) return;
+    btn.disabled = !n;
+    btn.style.opacity = n ? '' : '.5';
+    btn.classList.toggle('adm-stick', !!n);
+    if (hint) {
+      hint.textContent = n ? t('adm_dirty_n').replace('{n}', n) : t('adm_saved_all');
+      hint.classList.toggle('adm-stick-hint', !!n);
+    }
+  }
   function admLeaveOk() {
     const n = admDirty() + admPosDirty();
     return !n || window.confirm(t('adm_unsaved').replace('{n}', n));
@@ -6031,27 +6053,17 @@
       const pmax = document.getElementById('pos-max');
       if (pmax) pmax.oninput = function () {
         admPosDraft.max = Math.max(0, Math.floor(Number(pmax.value) || 0));
-        const pd = document.getElementById('adm-pos-dirty');
-        const pb = document.getElementById('adm-pos-save');
-        const n = admPosDirty();
-        if (pd) pd.textContent = n ? t('adm_dirty_n').replace('{n}', n) : t('adm_saved_all');
-        if (pb) { pb.disabled = !n; pb.style.opacity = n ? '' : '.5'; }
+        admStick(document.getElementById('adm-pos-save'),
+                 document.getElementById('adm-pos-dirty'), admPosDirty());
       };
       const psave = document.getElementById('adm-pos-save');
       if (psave) {
-        const pn = admPosDirty();
-        psave.disabled = !pn; psave.style.opacity = pn ? '' : '.5';
-        const pd = document.getElementById('adm-pos-dirty');
-        if (pd) pd.textContent = pn ? t('adm_dirty_n').replace('{n}', pn) : t('adm_saved_all');
+        admStick(psave, document.getElementById('adm-pos-dirty'), admPosDirty());
         psave.onclick = admPosSave;
       }
       const saveBtn = document.getElementById('adm-save');
       if (saveBtn) {
-        const dirtyN = admDirty();
-        saveBtn.disabled = !dirtyN;
-        saveBtn.style.opacity = dirtyN ? '' : '.5';
-        const dl = document.getElementById('adm-dirty');
-        if (dl) dl.textContent = dirtyN ? t('adm_dirty_n').replace('{n}', dirtyN) : t('adm_saved_all');
+        admStick(saveBtn, document.getElementById('adm-dirty'), admDirty());
         saveBtn.onclick = function () {
           admSave(resp.users.filter(function (x) { return x.id === admUserId; })[0]);
         };

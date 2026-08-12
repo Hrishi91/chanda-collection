@@ -8730,3 +8730,29 @@ first block at 71px. A sticky save bar would fix the scroll; it is a layout
 change rather than a size tweak, so it is not something to slip in unasked.
 
 Tests **1,486 → 1,487**.
+
+## v4.26.0 — A89: 💾 comes to the thumb
+
+A user's permission screen is 2.8 screens on a 320px phone — thirty chips — and
+💾 সেভ করো sat at ~1,371px. Tick something at the top and the way to keep it was
+a long scroll away, or forgotten.
+
+The button now leaves the flow and fixes itself above the bottom nav **while
+there is something unsaved**, with the count beneath it:
+
+```
+পরিষ্কার   position: static   ১,৩৭১px নিচে
+টিক দিলে   position: fixed    পর্দায় ৪৭৭px — "১টি বদল এখনো সেভ হয়নি"
+টিক ফেরালে  position: static   "সব সেভ করা আছে"
+```
+
+**Only while dirty**, deliberately. A bar that is always present costs everyone
+a strip of screen for a button most visits never press, and this screen is read
+far more often than it is edited.
+
+One helper drives **both** admin save buttons. The user screen and the post
+screen are the same shape, and a rule applied to one of a pair is the oldest bug
+in this project (A71, A68, A78, A82, A81's read-vs-write). Verified on both:
+static when clean, fixed when dirty, clear of the bottom nav either way.
+
+Tests **1,487 → 1,491**. CSS and markup only — no schema, no redeploy.
