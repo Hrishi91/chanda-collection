@@ -954,6 +954,33 @@ module.exports = function runBackendTests(eq) {
     eq(cashId.length > 0, true, 'backend A80: (fixture sanity)');
   }
 
+  // ---- A86: report grants shape the screen, they do not hide anything ----
+  //
+  // `docs/residual-risks.md` has always said so, and I briefly wrote the
+  // opposite in the A79 note — that gating the target bar closed a leak. It
+  // does not. A future reader acting on that sentence would have believed the
+  // reports are confidential and, say, put a donor's phone behind a report
+  // grant. This test states the truth so the belief cannot form again.
+  {
+    const { b, tok } = book();
+    const uid = b.rows('Users').filter(function (u) { return u.username === 'kali'; })[0].id;
+    b.call('setReports', { token: tok.admin, userId: uid, reports: [] });
+    b.api.resetRequestState();
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 's1', year: 2026, type: 'shop', name: 'দোকান', pledged: 9000, phone: '9000011111' }),
+      rec('payments', { id: 'p1', year: 2026, partyId: 's1', amount: 5000, cashAmount: 5000, upiAmount: 0, date: '2026-09-01' }),
+    ] });
+    b.api.resetRequestState();
+    let denied = '';
+    try { b.call('report', { token: tok.kali, id: 'overview', year: 2026 }); } catch (e) { denied = e.message; }
+    eq(denied, 'no-report-access', 'backend A86: a user with no grant cannot open the overview REPORT');
+    const d = b.call('pull', { token: tok.kali, year: 2026 }).data;
+    eq(d.payments.length, 1,
+       'backend A86: …but pull still hands them every payment — the grant shapes the screen, it does not hide the data');
+    eq(String(d.parties[0].phone), '9000011111',
+       'backend A86: …donor phone numbers included. Anything that must be SECRET cannot be solved with a report grant');
+  }
+
   // ---- A79: the season target -------------------------------------------
   // A config key, so it needs the same two things every other one does: only an
   // admin may set it, and the whitelist must still refuse the keys that would

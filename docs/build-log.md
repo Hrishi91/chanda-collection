@@ -8293,9 +8293,18 @@ redeploy.
 report. One config key (`target_amount`), one bar on the home screen.
 
 **Gated on the `overview` report, deliberately.** The season total sits behind
-that grant today; a bar on every home screen would hand it to everyone through
-a side door, and a permission model with one unguarded window is not a
-permission model. Proven from all four sides in the browser:
+that grant on screen, so a bar on every home screen would put it in front of
+people the reports do not.
+
+**Correction (A86).** I wrote here that this closes a leak — "a permission model
+with one unguarded window is not a permission model". That is wrong, and worth
+correcting where it was said: `pull` already hands every approved user the whole
+year, donor phone numbers included. `report` is gated; the DATA is not. So the
+bar is a matter of showing each person what their grants say they see — UI
+consistency, not secrecy — and anyone reading the old sentence would have
+believed the reports are confidential. They are not, and
+`docs/residual-risks.md` has always said so. Proven from all four sides in the
+browser:
 
 ```
 overview আছে         → বার দেখাচ্ছে · মোট অঙ্ক দৃশ্যমান
@@ -8610,3 +8619,38 @@ TITLE left the word in the body, so three of four came back green. Deleting the
 whole section catches all five.
 
 Tests **1,450 → 1,480**.
+
+## A86 — reading the risk register, and correcting myself in it
+
+Asked again what was left, I opened `docs/residual-risks.md` — a file I had not
+looked at once all week. It is well kept, and three of its claims had gone
+stale, all in the direction of understating what is now true:
+
+- **"`Go Live`'s Drive backup is best-effort"** — it has not been since A52. It
+  throws `backup-failed` and stops rather than proceeding without a snapshot.
+- **"Nobody has ever executed it"** — nobody has executed it *live*, which
+  stands. But since A78c both it and `clearTraining` are executed by the suite;
+  the shim had no `deleteRows`, so the two most destructive actions in the file
+  had never once been run anywhere.
+- **"`resetPassword` → forced change: never exercised end-to-end"** — it was,
+  yesterday, against the live server. An admin reset put the account into
+  `mustChange` and the app refused every other screen until a new password was
+  set. Closed.
+
+### And one claim of mine that was wrong
+
+The register says, and has always said: **report permissions are UI shaping,
+not secrecy — `pull` gives every approved user the whole year.** Re-proved it:
+a user with no grants is refused `report` and handed every payment and every
+donor phone by `pull` in the same breath.
+
+Which makes the A79 note wrong where I wrote that gating the target bar closes
+a leak — *"a permission model with one unguarded window is not a permission
+model"*. It closes nothing; the figure is already on their phone. The gate is
+still right — each person should see what their grants say they see — but the
+reason I recorded was not, and a future reader could have acted on it by
+putting something genuinely private behind a report grant. Corrected where it
+was written, and now pinned by a test, because a sentence in a build log is
+weaker than an assertion.
+
+Tests **1,480 → 1,483**.

@@ -51,9 +51,9 @@ recovery for small accidents.
 
 | Flow | Risk |
 |---|---|
-| `🚀 Go Live` | One-way, wipes every transactional sheet. Its Drive backup is best-effort. Nobody has ever executed it. Highest-stakes single action in the app. |
+| `🚀 Go Live` | One-way, wipes every transactional sheet. Highest-stakes single action in the app. **Updated 2026-08-12 (A86):** the Drive backup is no longer best-effort — since A52 it throws `backup-failed` and stops rather than proceeding without a snapshot. And since A78c both it and `clearTraining` are EXECUTED by the suite, not just read: the shim had no `deleteRows`, so the two most destructive actions in the file had never once been run. Still never run **live** — that stays Hrishi's call. |
 | `rolloverYear` (2027 setup) | Only matters next year; refuses if the target year already has data. |
-| `resetPassword` → forced change | Server code reviewed, never exercised end-to-end with a real user. |
+| ~~`resetPassword` → forced change~~ | **Closed 2026-08-12 (A86).** Exercised end to end against the live server: an admin reset put the account into `mustChange`, and the app refused every other screen until a new password was set — the ledger could not even be opened. |
 | Voice entry (bn-IN) on a real phone | Never tested on hardware; needs mic permission + internet. Typing always works, so worst case is a disabled feature, not data loss. |
 | PWA install + offline reopen on a real phone | The offline story rests on this. Untested on an actual collector phone. |
 
@@ -78,7 +78,11 @@ recovery for small accidents.
   by `partyId`, so it is corrected in place by its creator or an admin. Voiding
   and replacing one would orphan every rupee collected against it.
 - **Report permissions are UI shaping, not secrecy** — `pull` gives every
-  approved user the whole year's data.
+  approved user the whole year's data, donor phone numbers included. `report`
+  is gated; the data behind it is not. Re-proven 2026-08-12 (A86) and now
+  pinned by a test, because I briefly wrote the opposite in the A79 note and a
+  future reader could reasonably have believed reports are confidential.
+  Anything that must be secret cannot be solved by a report grant.
 - **Token in localStorage**, no CSP (static Pages hosting).
 - **UPI to personal numbers** counts as in-hand until handover.
 - Telegram alerts: deferred long ago, still deferred.
@@ -88,7 +92,11 @@ recovery for small accidents.
 1. ⚠️ Confirm the `dailyBackup` trigger exists (§1).
 2. Approve/reject the pending registration(s) sitting in the admin panel.
 3. Set Yamini's (and each collector's) entries / reports / cashier / areas.
-4. Rotate the session tokens shared during the audits (just re-login).
+4. Rotate the session tokens shared during the audits (just re-login) —
+   including the admin token shared on 2026-08-11/12 for the live A78–A84 runs.
+9. Delete the leftover test accounts from the Users sheet: `টেস্ট`
+   (`@testuser1`), `zz_test_coll`, `zz_test_cash`. 🧹 spares Users by design, so
+   they survive the wipe.
 5. Revoke the GitHub PAT shared in chat on 2026-07-23.
 6. Finalize master data (areas, expense subjects, receipt design, puja name,
    serial digit width) **before** Go Live — serial width locks in at go-live.
