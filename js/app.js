@@ -5308,8 +5308,13 @@
     const layouts = [['classic', t('rl_classic')], ['festive', t('rl_festive')], ['minimal', t('rl_minimal')]];
     const colors = ['#c0392b', '#7b1113', '#1e7d3a', '#2a4d9b', '#8a5a00'];
     const digitOpts = ['4', '5', '6', '7'];
+    // A88: the sample carries a collector, because A83 put that line on every
+    // real receipt and a preview that omits it is a preview of a different
+    // document. The admin is choosing a layout by looking at this; it has to be
+    // the thing they will actually hand out.
     const sampleRC = { donorLine: 'শ্রী/শ্রীমতী রমেশ সাহা, কমল স্টোর্স', showTotals: true,
       date: todayISO(), datetime: new Date().toISOString(),
+      collector: Settings.get('collectorName') || 'কালী দাস',
       amount: 500, cashUpi: '', paidTotal: 500, pledged: 1000, due: 500, receiptNo: '' };
     function drawPreview() {
       const d = Math.min(9, Math.max(4, Number(form.receipt_digits) || 6));

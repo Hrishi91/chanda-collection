@@ -8695,3 +8695,38 @@ is the committee's own name and it is worth its space; and the training banner
 above it goes away at go-live, which returns another ~85px for the season.
 
 Tests **1,483 → 1,486**. CSS and markup only — no schema, no redeploy.
+
+## v4.25.1 — A88: the admin screens, walked at 320px
+
+Every admin screen at 320×640, with awkward data on purpose — a five-word
+Bengali name, a post carrying sixteen permissions, a pending registration and a
+stood-down member:
+
+```
+⚙️ সেটিংস              2.4 পর্দা   ✅
+👑 Admin প্যানেল        1.6        ✅
+👥 ইউজার তালিকা         1.5        ✅
+🎖️ পদের তালিকা / একটি পদ 1.4        ✅
+🧾 রসিদ ও তালিকা         1.4        ✅
+🗂️ ডেটা ও হিসাব রক্ষা    1.4        ✅
+🧾 রসিদের ডিজাইন         2.2        ✅
+👤 একজন ইউজার           2.8        ← the outlier
+```
+
+Nothing clipped, nothing overflowed, no control under 40px anywhere. The
+receipt-design screen renders its live preview correctly at 320px.
+
+**One thing fixed.** The design preview did not draw the collector line, which
+A83 put on every real receipt — so an admin choosing a layout was looking at a
+document the app does not produce. Now `সংগ্রাহক:` appears in the preview too,
+and a test ties the sample object to it.
+
+**One thing found and left for Hrishi to decide.** A single user's permission
+screen is 2.8 screens on a 320px phone — 30 chips — and 💾 সেভ করো sits at
+~1,200px, so a tick made at the top is saved a long scroll later. The screen
+itself is sound (it was rebuilt in A38 precisely to stop being one enormous
+page), and on go-live day the job is mostly **assigning a post**, which is the
+first block at 71px. A sticky save bar would fix the scroll; it is a layout
+change rather than a size tweak, so it is not something to slip in unasked.
+
+Tests **1,486 → 1,487**.

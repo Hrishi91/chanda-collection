@@ -806,6 +806,12 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
      'A83: the receipt dates itself the way a person writes a date, not the way a machine sorts one');
   eq(/function fmtDateTime/.test(appSrc), true,
      'A83: …while screens keep the dense sortable form — a list you scan and a paper you keep want opposite things');
+  // A88: and the admin's preview carries it too. A preview that leaves out a
+  // line the real receipt has is a preview of a different document, and the
+  // layout is chosen by looking at it.
+  const sample = appSrc.slice(appSrc.indexOf('const sampleRC ='), appSrc.indexOf('function drawPreview'));
+  eq(/collector:/.test(sample), true,
+     'A88: the receipt-design preview shows the collector line the real receipt draws');
 
   // 44px is the smallest thing a thumb hits reliably. ← পেছনে was 40 and it is
   // on every drill-in screen, tapped by people standing in a street with one
