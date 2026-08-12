@@ -327,7 +327,7 @@ const I18N = {
   golive_still_exiting: { bn: '{n} জন এখনও বিদায়ী অবস্থায়: {names}। ডেটা মুছলেও এটা থাকবে — কমিটির সিদ্ধান্ত, তাই নিজে থেকে মুছি না। Live করার আগে দেখে নিন।',
                           en: '{n} still standing down: {names}. This survives the wipe — it is a committee decision, so it is not cleared automatically. Check before going live.' },
   access_has_pending: { bn: 'এখনও {n}টি পার্সেল ({amt}) তাঁর দিকে আসছে, তিনি এখনও উত্তর দেননি।\n\nবিদায়ী করলে তিনি আর কোষাধ্যক্ষ থাকবেন না, তাই ওগুলো তিনিও মেটাতে পারবেন না, অন্য কোষাধ্যক্ষও পারবেন না — শুধু admin পারবে।\n\nআগে তাঁকে দিয়ে "পেয়েছি / পাইনি" করিয়ে নিন, তারপর বিদায়ী করুন।',
-                        en: '{n} parcel(s) ({amt}) are still on their way to them, unanswered.\n\nStanding them down removes the cashier flag, so neither they nor any other cashier can settle those — only an admin.\n\nHave them answer "পেয়েছি / পাইনি" first, then stand them down.' },
+                        en: '{n} parcel(s) ({amt}) are still on their way to them, unanswered.\n\nStanding them down removes the cashier flag, so neither they nor any other cashier can settle those — only an admin.\n\nHave them answer "Received / Didn\'t receive" first, then stand them down.' },
   access_exit_note: { bn: 'বিদায়ী। পদ ও permission নেই। লগ-ইন খোলা — শুধু হাতের টাকা জমা দিতে ও নিজের তোলা চাঁদাদাতাদের বাকি নিতে পারবে। ফেরাতে গেলে একটা পদ দিতে হবে।',
                       en: 'Standing down. No post, no permissions. The login stays open — they may only hand in what they hold and collect the dues of donors they brought in. Bringing them back needs a post.' },
   access_restore_pick: { bn: '{n}-কে ফেরাতে একটা পদ বেছে নিন — নম্বর লিখুন:',

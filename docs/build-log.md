@@ -9069,3 +9069,55 @@ Four guards, each mutation-tested to a single named failure: removing
 dropping `cache: 'reload'`.
 
 Tests **1,516 → 1,520**.
+
+## A97 — the dictionary, audited as a set rather than one key at a time
+
+705 strings, added over four months, each one checked by whoever wrote it and
+never checked together. Six ways a bilingual UI leaks, run against the whole
+dictionary at once.
+
+**Sound:** every key has both languages, non-empty. Every `t('literal')` in the
+app resolves. Every key the app *builds* at runtime resolves too —
+`type_`/`daily_`/`new_`/`report_`/`anom_`, enumerated from the code rather than
+guessed, because `t()` returns the KEY when it misses and a new anomaly code
+would print `anom_foo_t` on the audit screen. The bottom nav looked hardcoded
+in `index.html` and is not — `render()` overwrites all five labels through
+`t()`; verified in English: Home / Ledger / Report / Chat / Settings.
+
+**Two real leaks, both English-only:**
+
+`block_holds_money` names the sum **twice** in English — "holding ₹1,200 …
+record {amt} as unrecovered" — and the call site used a one-shot
+`String.replace`, which fills only the first. An English admin was being asked
+to sign off on a literal `{amt}`. `tMoney` had solved this properly for
+`sheet_over_cash`/`sheet_over_upi` by splitting on the placeholder; this call
+site never got the same treatment. Now `.split().join()`.
+
+`access_has_pending` told an English admin to have the cashier answer
+`"পেয়েছি / পাইনি"` — quoting the Bengali labels of buttons that, in English,
+read `✅ Received` / `Didn't receive`. An instruction naming a control that is
+not on the screen.
+
+### The receipt speaks two languages at once — a DECISION, not a fix
+
+The receipt is 14 hardcoded Bengali lines (প্রাপ্তি রসিদ · সাদরে গৃহীত হইল। ·
+সংগ্রাহক:) plus three strings that follow the app language. Drawn live in
+English mode, the donor's copy comes out Bengali with **"Thanking you,"** in
+it; `rcp_no_pending_stamp` and `rcp_corrected_stamp` would do the same. The
+WhatsApp/SMS text leans the other way — mostly `t()`, with `টাকা মাত্র` and
+`সংগ্রাহক:` hardcoded — so the two halves of one receipt disagree.
+
+Left alone deliberately: it changes what a donor is handed, and the two
+readings (receipt always Bengali vs receipt follows the app) are materially
+different work. Raised in `docs/pending.md`.
+
+### Two harness lies, same day
+
+The first live check "passed" while the service worker was serving a **stale**
+`i18n.js` — the fix under test was not the code running. Re-run on a fresh
+port. Worse, that same check filled the placeholder with `split/join` written
+*in the check*, so it proved the dictionary and nothing about the call site;
+the honest version fetches the served `js/app.js` and reads the line.
+
+Eight guards, each mutation-tested to its own named failure.
+Tests **1,520 → 1,528**.

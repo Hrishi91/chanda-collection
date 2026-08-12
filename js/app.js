@@ -5173,7 +5173,11 @@
         const m = String(e && e.message || '');
         if (m.indexOf('holds-money:') !== 0) { alert('⚠️ setStatus\n\n' + errMsg(e)); return; }
         const amt = m.slice('holds-money:'.length);
-        if (!window.confirm(t('block_holds_money').replace('{amt}', fmtMoney(Number(amt))))) return;
+        // A97: a one-shot String.replace fills only the FIRST {amt}. The English
+        // sentence names the sum twice — "holding ₹1,200 … record {amt} as
+        // unrecovered" — so an English admin was asked to sign off on a literal
+        // placeholder. Split/join fills every one, in any language.
+        if (!window.confirm(t('block_holds_money').split('{amt}').join(fmtMoney(Number(amt))))) return;
         adminAction('setStatus', { userId: id, status: 'blocked', year: Settings.get('year'), override: 1 },
           function () { toast('🚫 ' + t('access_written_off').replace('{amt}', fmtMoney(Number(amt)))); });
       });

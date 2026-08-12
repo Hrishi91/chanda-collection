@@ -832,6 +832,84 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A97: the dictionary itself, audited rather than assumed. 705 strings had
+  // never been checked as a SET — only individual keys, one at a time, by
+  // whoever added them. t() returns the KEY when it misses, so every gap here
+  // ships as machine text in front of a donor.
+  {
+    const vm = require('vm');
+    const i18nSrc = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+    const c = vm.createContext({});
+    vm.runInContext(i18nSrc + ';globalThis.__D = I18N;', c);
+    const D = c.__D;
+    const BN = /[ঀ-৿]/;
+
+    // half-translated: a key with one language filled in and the other empty
+    const half = Object.keys(D).filter(function (k) {
+      const e = D[k] || {};
+      return !String(e.bn || '').trim() || !String(e.en || '').trim();
+    });
+    eq(half.join(','), '', 'A97: every string exists in BOTH languages, non-empty');
+
+    // an "English" string that is still Bengali. Exactly two are deliberate —
+    // the language switch has to name each language in its own script.
+    const leak = Object.keys(D).filter(function (k) { return BN.test(String(D[k].en || '')); }).sort();
+    eq(leak.join(','), 'choose_lang,language',
+       'A97: no English string carries Bengali except the two language labels');
+
+    // both languages must carry the same placeholders, or one of them silently
+    // drops the number. Compared as SETS: block_holds_money names the sum twice
+    // in English and once in Bengali, which is fine — see the call-site check.
+    const phs = function (s) {
+      return [...new Set(String(s || '').match(/\{\w+\}/g) || [])].sort().join(',');
+    };
+    const mism = Object.keys(D).filter(function (k) { return phs(D[k].bn) !== phs(D[k].en); });
+    eq(mism.join(','), '',
+       'A97: both languages carry the same placeholders — neither can silently drop a number');
+
+    // a REPEATED placeholder needs a filler that fills them all. One-shot
+    // String.replace fills only the first, and the rest reach the screen as
+    // "{amt}". These three are the only strings that repeat one, and each is
+    // pinned to the call site that handles it.
+    const repeats = Object.keys(D).filter(function (k) {
+      return ['bn', 'en'].some(function (L) {
+        const m = String(D[k][L] || '').match(/\{\w+\}/g) || [];
+        return m.length !== new Set(m).size;
+      });
+    }).sort();
+    eq(repeats.join(','), 'block_holds_money,sheet_over_cash,sheet_over_upi',
+       'A97: only three strings repeat a placeholder — a new one must pick a filler that fills them all');
+    const appTxt = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    eq(/t\('block_holds_money'\)\.split\('\{amt\}'\)\.join\(/.test(appTxt), true,
+       'A97: …and the block warning fills EVERY {amt} — an English admin was signing off on a literal placeholder');
+    eq(/const parts = esc\(t\(key\)\)\.split\('\{n\}'\);/.test(appTxt), true,
+       'A97: …while tMoney fills every {n}, which is what the other two rely on');
+
+    // every t('literal') must resolve. The regex requires the closing paren, so
+    // t('anom_' + code) is excluded on purpose — those are checked below by
+    // enumerating what `code` can actually be.
+    const usedKeys = new Set();
+    ['js/app.js', 'js/lists.js', 'js/help.js', 'js/voice.js', 'js/auth.js', 'js/sync.js'].forEach(function (f) {
+      const s = require('fs').readFileSync(__dirname + '/../' + f, 'utf8');
+      (s.match(/\bt\('[^']+'\)/g) || []).forEach(function (m) { usedKeys.add(m.slice(3, -2)); });
+    });
+    const ghost = [...usedKeys].filter(function (k) { return !(k in D); }).sort();
+    eq(ghost.join(','), '', 'A97: every t(\'key\') in the app resolves — a miss renders the key itself');
+
+    // the built keys: type_/daily_/new_/report_/anom_. A new report id or a new
+    // anomaly code with no string shows up as "anom_foo_t" on the audit screen.
+    const built = ['shop', 'person', 'member', 'road', 'toto', 'bus'].map(function (x) { return 'type_' + x; })
+      .concat(['road', 'toto', 'bus'].map(function (x) { return 'daily_' + x; }))
+      .concat(['shop', 'person', 'member'].map(function (x) { return 'new_' + x; }))
+      .concat(REPORT_IDS.map(function (r) { return 'report_' + r; }))
+      .concat(['unbalanced', 'orphan_payment', 'split_mismatch', 'breakdown_mismatch',
+               'possible_duplicate_payment', 'possible_duplicate_daily', 'possible_duplicate_party',
+               'overpaid', 'negative_inhand', 'position_over_max', 'duplicate_id']
+              .map(function (a) { return 'anom_' + a + '_t'; }))
+      .concat(['nav_messages']);
+    eq(built.filter(function (k) { return !(k in D); }).join(','), '',
+       'A97: every key the app BUILDS at runtime exists — type_/daily_/new_/report_/anom_');
+  }
   // A96: sw.js, exercised in a browser on a fresh port and then with the server
   // killed. The shell cached and served offline in 53 ms — but CONFIG.SCRIPT_URL
   // was GONE, because on the very first visit the page fetches config.js before

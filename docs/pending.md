@@ -361,6 +361,20 @@ give different numbers:
 
 ## Before go-live, still open
 
+- [ ] **DECISION — what language is a receipt?** (A97) Today it is mixed. The
+      image is 14 hardcoded Bengali lines plus three that follow the app
+      language, so a collector in English mode hands the donor a Bengali
+      receipt with "Thanking you," inside it. The WhatsApp/SMS text leans the
+      other way: mostly translated, with `টাকা মাত্র` and `সংগ্রাহক:` fixed in
+      Bengali. Two readings:
+      **(a)** the receipt is a document for a Bengali donor, so it is ALWAYS
+      Bengali whatever the collector set the app to — pin the three stragglers
+      and the message strings to `bn`; or
+      **(b)** the receipt follows the app language — translate all 16 hardcoded
+      Bengali lines, including the amount-in-words.
+      Recommendation: **(a)**. The app language is the collector's preference;
+      the receipt is the donor's document, and the code already reads that way
+      in 14 of 17 places. ~3 lines for the image, ~2 for the message.
 - [ ] **Redeploy the client for A96** (Pages only — Code.gs is unchanged, no
       Apps Script deploy needed). `sw.js` now precaches `js/config.js`, so a
       phone that installs the app and reloads offline before its second online
