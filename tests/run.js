@@ -832,6 +832,56 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A101: the master lists. Hrishi opened 🧾 রসিদ ও তালিকা and দোকানের এলাকা was
+  // empty — while the app was using those four areas on every donor row and
+  // every receipt. Reproduced against the real Code.gs before touching it.
+  {
+    const gs101 = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+    const lists101 = require('fs').readFileSync(__dirname + '/../js/lists.js', 'utf8');
+
+    // 1 — the areas exist server-side, with the SAME ids the client seeds, or a
+    // row storing `main_malda` names something the sheet never heard of.
+    eq(/var AREA_SEED = \[/.test(gs101), true, 'A101: the four shop areas are a named seed on the server');
+    ['main_malda', 'main_balurghat', 'harirampur', 'singhadaha'].forEach(function (id) {
+      eq(gs101.indexOf("'" + id + "'") > 0 && lists101.indexOf("'" + id + "'") > 0, true,
+         'A101: …and ' + id + ' is the same id on both sides');
+    });
+    // 2 — and they heal on READ, like the posts always did. This is the whole
+    // bug: setup() runs once, by hand, so a book made before that block existed
+    // never got them and never would.
+    eq(/if \(!kinds\.area\) AREA_SEED\.forEach/.test(gs101), true,
+       'A101: an old book heals its areas on the next listItems, without setup()');
+    eq(/function seedLists_\(sh\)/.test(gs101) && /seedLists_\(sh\);/.test(gs101), true,
+       'A101: …through one seeder that does posts AND areas');
+    // the second copy of the area list inside setup() is gone — two lists that
+    // must agree stop agreeing
+    const setupFn = (function () {
+      const a = gs101.indexOf('function setup('), b = gs101.indexOf('function makeAdmin', a);
+      eq(a >= 0 && b > a, true, 'A101: (setup was found, both anchors in order)');
+      return a >= 0 && b > a ? gs101.slice(a, b) : '';
+    })();
+    eq(/main_malda/.test(setupFn), false,
+       'A101: …and setup() no longer keeps its own copy of the same four areas');
+
+    // 3 — seeding happens ONCE. The old rule re-added any missing seed id on
+    // every listItems, so removeItem deleted the row, answered ok, wrote an
+    // audit line, and the next refresh brought it straight back. Proved against
+    // the real backend: delete a post AND an area, both stay deleted.
+    eq(/if \(String\(readConfig_\(\)\.lists_seeded \|\| ''\)\) return false;/.test(gs101), true,
+       'A101: the seeder refuses to run twice…');
+    eq(/setConfig_\('lists_seeded', '1'\);/.test(gs101), true,
+       'A101: …and records that it ran');
+    eq(/var needSeed = !String\(readConfig_\(\)\.lists_seeded \|\| ''\);/.test(gs101), true,
+       'A101: …so a delete is not undone by the very next read');
+    // a KIND is seeded only when entirely absent: three posts means somebody
+    // deleted the fourth
+    eq(/if \(!kinds\.position\) POSITION_SEED\.forEach/.test(gs101), true,
+       'A101: …and a half-empty kind is left alone, because that is a deletion');
+    // lists_seeded must never be settable through the admin config door
+    const allowBlock = gs101.slice(gs101.indexOf('var allow = {'), gs101.indexOf('var patch = b.config'));
+    eq(allowBlock.length > 100 && allowBlock.indexOf('lists_seeded') < 0, true,
+       'A101: …and no admin can clear the marker through setConfig');
+  }
   // A100: money in the user LIST. A99 opened the account picture for everyone,
   // but that is one tap per person — twelve taps to answer "who is holding the
   // most?". listUsers carried no money at all, so this needed the server.
@@ -2628,7 +2678,7 @@ try {
   ['president', 'secretary', 'treasurer', 'member'].forEach(function (id) {
     eq(gs.indexOf("'" + id + "'") >= 0, true, 'A32: server seeds the ' + id + ' post');
   });
-  eq(/function seedPositions_/.test(gs) && /seedPositions_\(sh\)/.test(gs), true,
+  eq(/function seedLists_/.test(gs) && /seedLists_\(sh\)/.test(gs), true,
      'A32: …and seeds them on read too, so an old book heals without setup()');
   eq(/ensureCols_\(sh, \['maxCount', 'perms'\]\)/.test(gs), true,
      'A32: Lists columns are appended at the END, so an old sheet keeps working');
@@ -2637,7 +2687,7 @@ try {
   // it MUST lock when there is, or ten phones each append their own four posts.
   eq(/if \(!needCols && !needSeed\) return;/.test(gs), true,
      'A32: healing returns without a lock when nothing is missing');
-  eq(/if \(!needCols && !needSeed\) return;[\s\S]{0,240}getScriptLock\(\)[\s\S]{0,200}seedPositions_/.test(gs), true,
+  eq(/if \(!needCols && !needSeed\) return;[\s\S]{0,240}getScriptLock\(\)[\s\S]{0,200}seedLists_/.test(gs), true,
      'A32: …and takes the script lock before it writes, like every other writer here');
   eq(/pos_none_server/.test(app) && /pos_none_server:/.test(i18n), true,
      'A32: an empty post card explains itself instead of looking broken before the redeploy');
@@ -3091,7 +3141,28 @@ try {
   eq(/data-q="' \+\s*esc\(\[u\.name, u\.username, u\.phone\]/.test(app), true,
      'A41: a person is found by name, username or phone');
   eq(/admWireFilter\('adm-fu', '\[data-adm-user\]'\)/.test(app), true, 'A41: wired on the people list');
-  eq(/\['area', 'location', 'position'\]\.forEach/.test(app), true, 'A41: …and on all three master lists');
+  // A101: FOUR. খরচের বিষয় was the one list on this screen without a search
+  // box, and the one a season grows fastest — a new subject every time somebody
+  // spends on something new. The old assertion pinned the number three, so it
+  // guarded the gap instead of catching it.
+  eq(/\['area', 'location', 'position', 'subject'\]\.forEach/.test(app), true,
+     'A41: …and on all four master lists');
+  // Every card that renders a filter box must have rows the filter can reach,
+  // or the box is a control that does nothing.
+  //
+  // Written first as `sharedBuilder || ownLiteral` for all four kinds, which
+  // was green with the subject box DELETED: the shared builder exists for the
+  // other three, so the `||` answered for subject too. An assertion two things
+  // can satisfy tests neither — the same trap as the two `byId[r.id] = r` lines
+  // in A95. area/location/position go through one builder; subject has its own
+  // card, so they are checked apart.
+  eq(/admFilterBox\('adm-f-' \+ kind, list\.length\)/.test(app), true,
+     'A101: the three bilingual lists get their box from the shared builder');
+  eq(/li-row-' \+ kind/.test(app), true, 'A101: …and its rows carry the class that box filters on');
+  eq(app.indexOf("admFilterBox('adm-f-subject', subjects.length)") > 0, true,
+     'A101: the expense-subject card offers a search box of its own');
+  eq(/<div class="row li-row-subject" data-q="' \+ esc\(s\.name\)/.test(app), true,
+     'A101: …on rows that carry the class AND the name to search by');
   eq(/id \+ '-none'/.test(app) && /adm_filter_none:/.test(i18n), true,
      'A41: matching nothing says so, instead of showing a blank screen');
   eq(i18n.indexOf('  adm_filter_ph:') >= 0, true, 'A41: the placeholder is bilingual');

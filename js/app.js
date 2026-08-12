@@ -5875,8 +5875,14 @@
       const subjectsCard = '<div class="card"><div class="card-title">' + esc(t('manage_subjects')) + '</div>' +
         '<div class="input-row"><input id="subj-input" placeholder="' + esc(t('add_subject_ph')) + '" autocomplete="off">' +
         '<button id="subj-add" class="primary">' + esc(t('add_btn')) + '</button></div>' +
+        // A101: the same search every other list on this screen has had since
+        // A41, and the only one that was missing it — on the list most likely
+        // to grow, because a season adds an expense subject every time somebody
+        // spends on something new. Appears at 8 items, like the others.
+        admFilterBox('adm-f-subject', subjects.length) +
         (subjects.length ? subjects.map(function (s) {
-          return '<div class="row" style="cursor:default"><div><b>' + esc(s.name) + '</b></div><div class="chips" style="margin:0">' +
+          return '<div class="row li-row-subject" data-q="' + esc(s.name) +
+            '" style="cursor:default"><div><b>' + esc(s.name) + '</b></div><div class="chips" style="margin:0">' +
             '<button class="chip" data-subj-edit="' + esc(s.id) + '">' + esc(t('edit_btn')) + '</button>' +
             '<button class="chip" data-subj-del="' + esc(s.id) + '">' + esc(t('del_btn')) + '</button></div></div>';
         }).join('') : '<div class="empty">' + esc(t('no_subjects')) + '</div>') + '</div>';
@@ -6144,7 +6150,7 @@
         b.onclick = function () { admGo('users', b.dataset.admUser); };
       });
       admWireFilter('adm-fu', '[data-adm-user]');
-      ['area', 'location', 'position'].forEach(function (k) {
+      ['area', 'location', 'position', 'subject'].forEach(function (k) {
         admWireFilter('adm-f-' + k, '.li-row-' + k);
       });
       document.querySelectorAll('[data-adm-pos]').forEach(function (b) {

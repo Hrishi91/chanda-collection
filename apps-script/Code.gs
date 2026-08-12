@@ -223,19 +223,10 @@ function setup() {
   // master lists (areas, person locations) — bilingual, admin-editable
   var ls = ss.getSheetByName('Lists') || ss.insertSheet('Lists');
   if (ls.getLastRow() === 0) { ls.appendRow(['id', 'kind', 'nameBn', 'nameEn', 'order', 'createdAt']); ls.setFrozenRows(1); }
-  ensureListCols_(ls); // maxCount + perms + the four posts — append-only, old sheets heal
-  var hasArea = false;
-  if (ls.getLastRow() > 1) {
-    ls.getRange(2, 2, ls.getLastRow() - 1, 1).getValues().forEach(function (r) { if (String(r[0]) === 'area') hasArea = true; });
-  }
-  if (!hasArea) { // seed the 4 default shop areas (ids match the old hardcoded enum)
-    [['main_malda', 'মেন রোড — মালদার দিকে', 'Main Rd — Malda side'],
-     ['main_balurghat', 'মেন রোড — বালুরঘাটের দিকে', 'Main Rd — Balurghat side'],
-     ['harirampur', 'হরিরামপুর রোড', 'Harirampur Road'],
-     ['singhadaha', 'সিংহদহ রোড', 'Singhadaha Road']].forEach(function (a, i) {
-      ls.appendRow([a[0], 'area', a[1], a[2], i, new Date().toISOString()]);
-    });
-  }
+  // A101: posts AND areas, from the one seed that listItems also uses. The four
+  // areas used to be written out again right here — a second copy of the same
+  // list, which is how two lists that must agree stop agreeing.
+  ensureListCols_(ls);
   // automatic daily backup — no longer a manual editor step to remember
   var trig = ensureBackupTrigger_();
   Logger.log('setup complete · daily backup trigger: ' + trig);
@@ -622,6 +613,16 @@ var POSITION_SEED = [['president', 'সভাপতি', 'President', 1],
                      ['secretary', 'সম্পাদক', 'Secretary', 1],
                      ['treasurer', 'কোষাধ্যক্ষ', 'Treasurer', 1],
                      ['member', 'সদস্য', 'Member', 0]];
+// A101: the four shop areas. Ids match js/lists.js SEED.area exactly — the app
+// has always shown these four from the client, and a row that stores an id the
+// sheet has never heard of cannot be renamed, cannot be deleted, and answers
+// 'not-found' to every edit. They lived inline in setup() until now, which is
+// the whole bug: setup() runs once, by hand, and a book made before that block
+// existed never got them.
+var AREA_SEED = [['main_malda', 'মেন রোড — মালদার দিকে', 'Main Rd — Malda side'],
+                 ['main_balurghat', 'মেন রোড — বালুরঘাটের দিকে', 'Main Rd — Balurghat side'],
+                 ['harirampur', 'হরিরামপুর রোড', 'Harirampur Road'],
+                 ['singhadaha', 'সিংহদহ রোড', 'Singhadaha Road']];
 
 // Which permission key a row needs, from the row itself. null = common.
 function permForRow_(store, row) {
@@ -2280,34 +2281,56 @@ function ensureListCols_(sh) {
       if (String(r[1]) === 'position') seen[String(r[0])] = true;
     });
   }
-  var needSeed = POSITION_SEED.filter(function (p) { return !seen[p[0]]; }).length > 0;
+  // A101: seeding is now a ONE-TIME event recorded in Config, not "put back
+  // whatever is missing". The old rule ran on every listItems and re-added any
+  // POSITION_SEED id it could not see — so removeItem deleted the row, answered
+  // ok, wrote an audit line, and the next screen refresh brought the post
+  // straight back. Deleting সভাপতি was a button that reported success and did
+  // nothing, which is the failure this project keeps finding.
+  var needSeed = !String(readConfig_().lists_seeded || '');
   if (!needCols && !needSeed) return; // the normal case: read-only, no lock
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     ensureCols_(sh, ['maxCount', 'perms']);
-    seedPositions_(sh); // re-reads the ids itself, so the second check is real
+    seedLists_(sh); // re-reads the sheet itself, so the second check is real
   } finally { lock.releaseLock(); }
 }
-// Put the four committee posts in the sheet if they are not there. Idempotent —
-// keyed on the ids, so renaming সম্পাদক in the admin panel never resurrects it.
-function seedPositions_(sh) {
-  var have = {};
+// A101: the built-in lists, put in ONCE. Areas were seeded only inside setup(),
+// which runs by hand — so a book made before that block existed showed the four
+// client-side areas everywhere in the app while the sheet held none, and the
+// one screen for managing them sat empty saying "এখনো কিছু যোগ করোনি" about
+// four areas that were in daily use. Positions already healed here; areas never
+// did. The same sentence, guarded in one of the two places it was true for.
+//
+// A whole KIND is seeded only when it is entirely absent. Three posts means
+// somebody deleted the fourth, and putting it back would be the delete button
+// lying again — this time in the other direction.
+function seedLists_(sh) {
+  if (String(readConfig_().lists_seeded || '')) return false;
+  var kinds = {};
   if (sh.getLastRow() > 1) {
     sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(function (r) {
-      if (String(r[1]) === 'position') have[String(r[0])] = true;
+      kinds[String(r[1])] = true;
     });
   }
   var mx = ensureCol_(sh, 'maxCount');
-  POSITION_SEED.forEach(function (p, i) {
-    if (have[p[0]]) return;
-    // perms deliberately EMPTY: seeding permissions would hand out power nobody
-    // asked for. A new post grants nothing until the admin ticks the boxes.
-    var row = [p[0], 'position', p[1], p[2], i, new Date().toISOString()];
-    while (row.length < mx - 1) row.push('');
-    row[mx - 1] = p[3];
+  var wide = Math.max(6, mx);
+  var add = function (id, kind, bn, en, i, maxCount) {
+    var row = [];
+    for (var c = 0; c < wide; c++) row.push('');
+    row[0] = id; row[1] = kind; row[2] = bn; row[3] = en; row[4] = i;
+    row[5] = new Date().toISOString();
+    if (mx) row[mx - 1] = maxCount;
     sh.appendRow(row);
-  });
+  };
+  // perms stay EMPTY on purpose — a post grants nothing until an admin ticks
+  // the boxes. Seeding power nobody asked for is how "why can he do that?"
+  // becomes unanswerable.
+  if (!kinds.position) POSITION_SEED.forEach(function (p, i) { add(p[0], 'position', p[1], p[2], i, p[3]); });
+  if (!kinds.area) AREA_SEED.forEach(function (a, i) { add(a[0], 'area', a[1], a[2], i, ''); });
+  setConfig_('lists_seeded', '1');
+  return true;
 }
 // A59 (audit 2.7): setValues/appendRow PARSE a leading '=' as a formula. So a
 // donor named "=সুমন" — or, far likelier, a note somebody typed starting with

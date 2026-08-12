@@ -370,7 +370,7 @@ give different numbers:
       shipped as A100.** In-hand on every row, gated on the year so the two
       other `listUsers` callers stay cheap. See build-log "v4.29.0 — A100".
 - [ ] **⚠️ REDEPLOY — this one needs Apps Script, not just Pages.** A96/A98/A99
-      were client-only; **A100 changes `Code.gs`** (`listUsers` now returns
+      were client-only; **A100 and A101 change `Code.gs`** (`listUsers` now returns
       money when asked). All three versions moved to `chanda-v4.29.0` together,
       so until Code.gs is redeployed the app will show the red 🛠️ bar saying
       the server is behind. Order: paste `apps-script/Code.gs` → **New

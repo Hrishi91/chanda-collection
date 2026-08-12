@@ -85,6 +85,21 @@ NAMES.slice(1, 10).forEach(function (u, i) {
 console.log('seeded: ' + b.rows('Users').length + ' users, ' +
             b.rows('Parties').length + ' parties, ' + b.rows('Payments').length + ' payments');
 
+
+// A101 repro: make this look like a book created before the areas were seeded —
+// the rows gone and the marker never written. The screen must fill itself.
+(function () {
+  var g = b.env._sheets.Lists._grid;
+  for (var i = g.length - 1; i >= 1; i--) if (String(g[i][1]) === 'area') g.splice(i, 1);
+  var c = b.env._sheets.Config._grid;
+  for (var j = c.length - 1; j >= 1; j--) if (String(c[j][0]) === 'lists_seeded') c.splice(j, 1);
+  // and enough expense subjects to bring the search box out (it appears at 8)
+  var subs = ['প্যান্ডেল', 'আলো', 'ঢাক', 'পুরোহিত', 'ফুল', 'প্রসাদ', 'মাইক', 'বিসর্জন', 'ছাপা', 'বিদ্যুৎ'];
+  var admTok = b.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+  subs.forEach(function (n) { try { b.call('addSubject', { token: admTok, name: n }); } catch (e) {} });
+  console.log('A101 repro: areas removed, marker cleared, ' + subs.length + ' subjects added');
+})();
+
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
                '.json': 'application/json', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 
@@ -107,7 +122,22 @@ http.createServer(function (req, res) {  if (req.method === 'POST') {
   if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
     res.writeHead(404); res.end('not found'); return;
   }
-  const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+  
+// A101 repro: make this look like a book created before the areas were seeded —
+// the rows gone and the marker never written. The screen must fill itself.
+(function () {
+  var g = b.env._sheets.Lists._grid;
+  for (var i = g.length - 1; i >= 1; i--) if (String(g[i][1]) === 'area') g.splice(i, 1);
+  var c = b.env._sheets.Config._grid;
+  for (var j = c.length - 1; j >= 1; j--) if (String(c[j][0]) === 'lists_seeded') c.splice(j, 1);
+  // and enough expense subjects to bring the search box out (it appears at 8)
+  var subs = ['প্যান্ডেল', 'আলো', 'ঢাক', 'পুরোহিত', 'ফুল', 'প্রসাদ', 'মাইক', 'বিসর্জন', 'ছাপা', 'বিদ্যুৎ'];
+  var admTok = b.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+  subs.forEach(function (n) { try { b.call('addSubject', { token: admTok, name: n }); } catch (e) {} });
+  console.log('A101 repro: areas removed, marker cleared, ' + subs.length + ' subjects added');
+})();
+
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
                  '.json': 'application/json', '.png': 'image/png',
                  '.webmanifest': 'application/manifest+json' };
   res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',

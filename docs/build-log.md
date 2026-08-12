@@ -9299,3 +9299,96 @@ Fifteen assertions, each mutation-tested. Tests **1,555 → 1,571**.
 
 **This one needs a redeploy** — `CODE_VERSION`, `sw.js` and `APP_VERSION` all
 move to `chanda-v4.29.0` together.
+
+## A101 — দোকানের এলাকা was empty about four areas in daily use
+
+Hrishi: "দোকানের এলাকা / ব্যক্তির এলাকা — these are not showing the data". Three
+different answers, and only one of them was a bug.
+
+### দোকানের এলাকা — a real bug, and an old one
+
+The four shop areas live in `js/lists.js` as a client-side SEED, and the app has
+always used them: every donor row, every receipt, every permission chip. The
+sheet is a different story — areas were written there only inside `setup()`,
+which runs once, by hand, from the editor. A book made before that block existed
+never got them and never would.
+
+So the four areas were everywhere in the app and nowhere in the sheet, and the
+one screen for managing them sat empty saying **"এখনো কিছু যোগ করোনি"** about
+four areas in daily use. Renaming or deleting one would have answered
+`not-found`.
+
+Posts had exactly this problem and it was fixed for them — `listItems` heals
+them on every read, with a comment saying why:
+
+> *"Heal + seed here, not only in setup(): a book created before posts existed
+> would otherwise show the client's four seeded positions while the sheet held
+> none, and every edit would answer 'not-found'."*
+
+Word for word true of areas. Guarded for one of the two. `js/lists.js` even says
+*"Same four ids are seeded server-side … so these rows are editable"* — about
+positions, in a file whose other seed was not.
+
+### The half of the fix that was easy to get wrong
+
+Making areas heal the same way would have copied the posts' *other* bug. The old
+rule re-added any seed id it could not see, on every `listItems` — so
+`removeItem` deleted the row, answered `ok`, wrote an audit line, and the next
+screen refresh brought the post straight back. Deleting সভাপতি was a button that
+reported success and did nothing. Verified against the real backend before
+changing anything.
+
+Seeding is now a **one-time** event recorded as `lists_seeded` in Config, and a
+whole KIND is seeded only when it is entirely absent — three posts means
+somebody deleted the fourth, and putting it back would be the delete button
+lying in the other direction. `lists_seeded` is not in `setConfig`'s whitelist,
+so no admin can clear it and resurrect everything.
+
+Run against the real `Code.gs`, three states:
+
+```
+নতুন বই                → area=4 · position=4                       ✅
+পুরনো বই (এলাকা নেই)     → পরের listItems-এই area=4, setup() ছাড়াই   ✅
+একটা পদ + একটা এলাকা মুছে → 3 এবং 3, যত বারই পড়া হোক                ✅
+```
+
+`setup()` no longer keeps its own copy of the area list. Two lists that must
+agree were written out in two places, which is how they stop agreeing.
+
+### ব্যক্তির এলাকা — not a bug
+
+`SEED.location` is `[]` and nothing is seeded server-side. It is empty because
+nobody has added one, and "এখনো কিছু যোগ করোনি" is the truth. After this change
+areas show four and locations show none, which is now an honest difference
+instead of two identical-looking empty cards.
+
+### খরচের বিষয় — the missing search box
+
+On "these lists could be big": A41 already decided this, and against an inner
+scroll box —
+
+> *"Nested scrolling on a phone is a fight — you drag the page instead of the
+> list, the inner scrollbar is invisible so you cannot tell how much is left,
+> and it breaks the browser's own momentum … And it does not answer the actual
+> question, which is 'where is this one row'."*
+
+— in favour of a search box that appears at 8 items. Areas, locations and posts
+all had one. **খরচের বিষয় did not**, and it is the list a season grows fastest,
+because every new kind of spending adds one. It has one now. Verified with ten
+subjects: 10 → 1 on "ঢাক" → 10 again, and the focus survives the second letter,
+which is the whole reason A41 filters in place instead of repainting.
+
+The old assertion read `['area', 'location', 'position'].forEach` — it pinned
+the number three, so it was guarding the gap rather than catching it.
+
+### An assertion satisfiable two ways, again
+
+The first version of the new check was
+`admFilterBox('adm-f-<kind>') || admFilterBox('adm-f-' + kind)` for all four
+kinds — green with the subject box **deleted**, because the shared builder
+exists for the other three and the `||` answered for subject too. Same family as
+the two `byId[r.id] = r` lines in A95. The shared builder and the subject card
+are checked apart now.
+
+Twenty-four assertions, nine of them executing the real backend rather than
+grepping it. Tests **1,571 → 1,598**.

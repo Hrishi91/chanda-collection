@@ -1003,6 +1003,53 @@ module.exports = function runBackendTests(eq) {
        'backend A79: clearing it stores empty, so the bar disappears rather than showing a target of zero');
   }
 
+  // ---- A101: the master lists, EXECUTED rather than grepped ---------------
+  // Hrishi opened the admin panel and দোকানের এলাকা was empty, while every
+  // donor row and every receipt was using those same four areas. The regex
+  // checks in run.js pin the shape; these pin the behaviour, because the shape
+  // was right for posts and wrong for areas for months.
+  {
+    const { b, tok } = book();
+    const refuses = function (f) { try { f(); return ''; } catch (e) { return e.message; } };
+    const kinds = function () {
+      const it = b.call('listItems', { token: tok.admin }).items;
+      const n = {};
+      ['area', 'location', 'position'].forEach(function (k) {
+        n[k] = it.filter(function (i) { return i.kind === k; }).length;
+      });
+      return n;
+    };
+    eq(kinds().area, 4, 'backend A101: a fresh book has the four shop areas IN THE SHEET, not only in the client');
+    eq(kinds().position, 4, 'backend A101: …and the four committee posts');
+
+    // Hrishi's book: made before areas were seeded, so the rows are missing and
+    // the marker was never written. It must heal on the next read — setup() is
+    // run by hand and nobody was going to run it again.
+    const grid = b.env._sheets.Lists._grid;
+    for (let i = grid.length - 1; i >= 1; i--) if (String(grid[i][1]) === 'area') grid.splice(i, 1);
+    const cfg = b.env._sheets.Config._grid;
+    for (let i = cfg.length - 1; i >= 1; i--) if (String(cfg[i][0]) === 'lists_seeded') cfg.splice(i, 1);
+    eq(kinds().area, 4, 'backend A101: an old book heals its areas on the next listItems, with no setup() run');
+    eq(kinds().position, 4, 'backend A101: …without duplicating the posts it already had');
+
+    // …and a delete STAYS deleted. This was the other half: the seeder used to
+    // re-add any id it could not see, so removeItem answered ok, logged an
+    // audit line, and the next refresh put the row back.
+    b.call('removeItem', { token: tok.admin, id: 'president' });
+    b.call('removeItem', { token: tok.admin, id: 'singhadaha' });
+    eq(kinds().position, 3, 'backend A101: deleting a post deletes it…');
+    eq(kinds().area, 3, 'backend A101: …deleting an area deletes it…');
+    eq(kinds().position + kinds().area, 6,
+       'backend A101: …and neither comes back on the next read, however many reads follow');
+    eq(b.call('listItems', { token: tok.admin }).items.filter(function (i) {
+      return i.id === 'president' || i.id === 'singhadaha';
+    }).length, 0, 'backend A101: …by id, not by count');
+
+    // the marker is not reachable through the admin config door
+    eq(refuses(function () { b.call('setConfig', { token: tok.admin, key: 'lists_seeded', value: '' }); }),
+       'unknown-config-key', 'backend A101: an admin cannot clear the seed marker and resurrect everything');
+  }
+
   // ---- the version/schema handshake every client depends on ---------------
   {
     const { b, tok } = book();
