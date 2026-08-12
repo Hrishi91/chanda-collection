@@ -9502,3 +9502,32 @@ placeholder shows magnitude, it is not something anybody copies.
 
 Nine assertions, each mutation-tested. Tests **1,598 → 1,606**. Client-only, so
 it rides the redeploy already pending for A100 + A101.
+
+## v4.29.0 deployed — and the deployment that was not
+
+`js/config.js` rebaked for the new `/exec`. Server now answers
+**`chanda-v4.29.0`**, so A100 (money on the user list) and A101 (areas that heal
+themselves, deletes that stick) are finally reachable.
+
+Worth writing down, because it cost a round trip: the FIRST new deployment
+answered `chanda-v4.23.1` — byte-identical in version to the deployment it was
+meant to replace. A "New deployment" had been created, but against an old entry
+in its **Version** dropdown, so it published a months-old snapshot under a
+brand-new URL. Nothing about the URL says so. The only thing that does is asking
+the server what it is running, which is now the step before the rebake rather
+than after it.
+
+The damage had been bounded, and measuring that mattered more than reacting to
+it: `CODE_SCHEMA` was 5 on both sides, so no phone would have been entry-locked
+— it would only have shown the red 🛠️ bar. Ten commits had touched `Code.gs`
+since v4.23.1, but the diff was 70 lines and nearly all of the commits were the
+version bump this repo requires on every release. The real server work missing
+was exactly two changes, A100 and A101. And A81 — the column-offset corruption
+that had been live for a year — shipped IN v4.23.1, so it was never at risk.
+
+One tooling note. `curl` reported "Page not found" for every `/exec`, including
+deployments that turned out to be perfectly alive: Apps Script answers a POST
+with a 302, and curl downgrades a redirected POST to a GET unless told not to —
+and even `--post302` did not settle it here. The browser, which follows the
+redirect the way the app does, got JSON first time. A dead-looking endpoint is
+worth a second opinion from a different client before it is reported dead.
