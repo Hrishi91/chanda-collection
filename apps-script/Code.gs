@@ -409,6 +409,51 @@ function applyPosition_(u, want, required) {
 // purpose. A wipe must not quietly reverse something the committee decided; the
 // 🚀 screen names anyone still standing down instead, so it is a choice rather
 // than an accident.
+// A109: at go-live, take the grants off every BLOCKED account.
+//
+// Hrishi's rule, and it is the right boundary: a blocked person's entry rights,
+// reports, cashier flag, areas and committee post are training-era grants to
+// somebody the committee has already shut out. goLive empties the eight
+// transactional sheets but deliberately keeps Users — otherwise twelve accounts
+// would have to be set up again on the morning of the puja — so those grants
+// ride into the live season untouched, and one tap on 🔓 restores cashier
+// rights with no confirmation anywhere.
+//
+// It also frees a post nobody could otherwise reclaim. applyPosition_ counts
+// the cap over EVERY row holding that position, blocked included, so a blocked
+// কোষাধ্যক্ষ owns the only treasurer slot for ever — measured: setUserPosition
+// answered `position-full:manik` before this, and after go-live it still did.
+//
+// Only at the cutover, and only for `blocked`. Ordinary block/unblock during
+// the season is untouched: the grants stay, because an accidental block must
+// not cost somebody's whole setup, and goLive writes a full Drive snapshot
+// before any of this runs.
+//
+// admin rows are skipped, like clearUserGrants — locking the last admin out of
+// their own book is not a thing this should be able to do.
+function clearBlockedGrants_() {
+  var sh = usersSheet_();
+  if (!sh || sh.getLastRow() < 2) return 0;
+  var n = sh.getLastRow() - 1, wide = sh.getLastColumn();
+  var head = sh.getRange(1, 1, 1, wide).getValues()[0].map(String);
+  var iStatus = head.indexOf('status'), iRole = head.indexOf('role');
+  if (iStatus < 0) return 0;
+  var cols = ['entries', 'reports', 'areas', 'position'].map(function (c) { return head.indexOf(c); });
+  var iCash = head.indexOf('cashier');
+  var vals = sh.getRange(2, 1, n, wide).getValues();
+  var touched = 0;
+  vals.forEach(function (r, i) {
+    if (String(r[iStatus]) !== 'blocked') return;
+    if (iRole >= 0 && String(r[iRole]) === 'admin') return;
+    var had = false;
+    cols.forEach(function (c) {
+      if (c >= 0 && String(r[c] || '')) { sh.getRange(i + 2, c + 1).setValue(''); had = true; }
+    });
+    if (iCash >= 0 && Number(r[iCash]) === 1) { sh.getRange(i + 2, iCash + 1).setValue(0); had = true; }
+    if (had) touched++;
+  });
+  return touched;
+}
 function clearExitSnaps_() {
   var sh = usersSheet_();
   if (!sh || sh.getLastRow() < 2) return 0;
@@ -753,7 +798,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.29.0';
+var CODE_VERSION = 'chanda-v4.30.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1401,11 +1446,13 @@ var ACTIONS = {
         }
       }
       var snaps = clearExitSnaps_(); // A78c: same reasoning as the serial counters above
+      var stripped = clearBlockedGrants_(); // A109: a shut-out account enters live with nothing
       setConfig_('receipt_digits', digits);
       setConfig_('live_mode', 'on');
       setConfig_('data_epoch', String(Date.now()));
       touchData_(); // the sheets are now empty — no device may fast-path past that
       logAudit_(me.row, 'went-live', 'training data cleared; exit pictures=' + snaps +
+        '; blocked accounts stripped=' + stripped +
         '; digits=' + digits + '; backup=' + backupFile);
       return { ok: true, backup: backupFile };
     } finally { lock.releaseLock(); }

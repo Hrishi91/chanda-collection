@@ -369,7 +369,10 @@ give different numbers:
 - [x] ~~**DECISION — money in the user LIST?**~~ **Yes (Hrishi, 2026-08-12),
       shipped as A100.** In-hand on every row, gated on the year so the two
       other `listUsers` callers stay cheap. See build-log "v4.29.0 — A100".
-- [ ] **⚠️ REDEPLOY — this one needs Apps Script, not just Pages.** A96/A98/A99
+- [ ] **⚠️ REDEPLOY for A109 (v4.30.0)** — goLive now strips a blocked
+      account's grants at the cutover. Code.gs changed, so this needs a **New
+      deployment** (Version: `New version`), then the `/exec` URL rebaked.
+- [x] ~~**⚠️ REDEPLOY — this one needs Apps Script, not just Pages.**~~ Done 2026-08-13 (v4.29.0). A96/A98/A99
       were client-only; **A100 and A101 change `Code.gs`** (`listUsers` now returns
       money when asked). All three versions moved to `chanda-v4.29.0` together,
       so until Code.gs is redeployed the app will show the red 🛠️ bar saying

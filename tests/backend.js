@@ -1050,6 +1050,70 @@ module.exports = function runBackendTests(eq) {
        'unknown-config-key', 'backend A101: an admin cannot clear the seed marker and resurrect everything');
   }
 
+  // ---- A109: go-live strips a blocked account, and nothing else ----------
+  // Hrishi's rule. goLive keeps Users on purpose — twelve accounts cannot be
+  // rebuilt on the morning of the puja — so a shut-out person's training-era
+  // grants used to ride into the live season, where one tap on 🔓 handed the
+  // cashier flag back with no confirmation anywhere.
+  {
+    const { b, tok } = book();
+    const refuses = function (f) { try { f(); return ''; } catch (e) { return e.message; } };
+    const row = function (u) { return b.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    b.call('setUserPosition', { token: tok.admin, userId: row('kali').id, position: 'treasurer' });
+    b.call('setAreas', { token: tok.admin, userId: row('kali').id, areas: ['main_malda'] });
+    b.call('setReports', { token: tok.admin, userId: row('kali').id, reports: ['dues'] });
+    b.call('setCashier', { token: tok.admin, userId: row('kali').id, cashier: 1 });
+    b.call('setStatus', { token: tok.admin, userId: row('kali').id, status: 'blocked', override: 1 });
+
+    // the cap counts every holder regardless of status, so a blocked office
+    // holder owns the post until something takes it off them
+    eq(refuses(function () {
+      b.call('setUserPosition', { token: tok.admin, userId: row('bimal').id, position: 'treasurer' });
+    }), 'position-full:kali', 'backend A109: a blocked কোষাধ্যক্ষ owns the only treasurer slot…');
+
+    const before = row('bimal');
+    b.call('goLive', { token: tok.admin, confirm: 'LIVE', digits: 6 });
+    const k = row('kali'), bm = row('bimal');
+
+    eq([k.entries, k.reports, k.areas, k.position].map(String).join('|'), '|||',
+       'backend A109: go-live takes entry rights, reports, areas and the post off a blocked account');
+    eq(Number(k.cashier), 0, 'backend A109: …and the cashier flag with them');
+    eq(String(k.status), 'blocked', 'backend A109: …while the account itself stays blocked');
+    eq(refuses(function () { b.call('login', { username: 'kali', password: 'secret2', year: 2026 }); }),
+       'blocked', 'backend A109: …and still cannot log in');
+
+    // …and NOTHING else moves. This is the half that matters: an approved
+    // collector must wake up on go-live morning exactly as they were.
+    eq([bm.entries, bm.reports, bm.areas, bm.position, bm.cashier].map(String).join('|'),
+       [before.entries, before.reports, before.areas, before.position, before.cashier].map(String).join('|'),
+       'backend A109: an approved collector is untouched by it');
+
+    eq(refuses(function () {
+      b.call('setUserPosition', { token: tok.admin, userId: row('bimal').id, position: 'treasurer' });
+    }), '', 'backend A109: …and the post the blocked account was holding is free again');
+    const line = b.rows('Audit').filter(function (a) { return a.action === 'went-live'; })[0] || {};
+    eq(/blocked accounts stripped=1/.test(String(line.detail || '')), true,
+       'backend A109: the audit line says how many were stripped');
+  }
+
+  // A109: …and a blocked ADMIN is left alone, like clearUserGrants leaves one.
+  // Written because removing that skip did NOT turn the suite red — the first
+  // block above has no blocked admin in it, so the branch never ran. An
+  // untested branch is an unguarded one.
+  {
+    const { b, tok } = book();
+    const refuses = function (f) { try { f(); return ''; } catch (e) { return e.message; } };
+    const row = function (u) { return b.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    b.call('setRole', { token: tok.admin, userId: row('ratan').id, role: 'admin' });
+    b.call('setUserPosition', { token: tok.admin, userId: row('ratan').id, position: 'secretary' });
+    eq(String(row('ratan').role), 'admin', 'backend A109: (a second admin exists to block)');
+    b.call('setStatus', { token: tok.admin, userId: row('ratan').id, status: 'blocked', override: 1 });
+    b.call('goLive', { token: tok.admin, confirm: 'LIVE', digits: 6 });
+    eq(String(row('ratan').position), 'secretary',
+       'backend A109: a blocked admin keeps their row — the strip skips admins, as clearUserGrants does');
+    eq(refuses(function () { return null; }), '', 'backend A109: (sanity)');
+  }
+
   // ---- the version/schema handshake every client depends on ---------------
   {
     const { b, tok } = book();

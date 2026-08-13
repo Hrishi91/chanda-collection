@@ -9853,3 +9853,66 @@ Six screens swept in live mode (home · খাতা · রিপোর্ট ·
 "প্রশিক্ষণ" or "SAMPLE" text left anywhere.
 
 Docs only.
+
+## v4.30.0 — A109: go-live takes the keys off a blocked account
+
+Hrishi: *"only for blocked users I am saying, not all the users — when we will
+go to live. after live as usual."* Exactly the right boundary, and it fixes
+something nobody had noticed.
+
+goLive empties the eight transactional sheets but **deliberately keeps Users** —
+otherwise twelve accounts, their posts, permissions and areas would have to be
+rebuilt on the morning of the puja. So a blocked person's training-era grants
+rode straight into the live season: entry rights, reports, cashier flag, areas
+and committee post, all intact behind a locked door. Measured, after go-live:
+
+```
+মানিক (blocked)  entries="shop,person,road,toto"  reports="dues,inhand"
+                 cashier=1  areas="main_malda,harirampur"  pos="treasurer"
+```
+
+Harmless while the door stays shut — login answers `blocked`, the token is
+cleared at the moment of blocking. It becomes live the instant somebody taps
+🔓, which takes **one tap and asks nothing**, where blocking them took two
+confirmations.
+
+### The part neither of us was looking for
+
+`applyPosition_` counts a post's cap over **every row holding it, whatever their
+status**. So a blocked কোষাধ্যক্ষ owns the only treasurer slot — for ever:
+
+```
+মানিককে block করার পর  → setUserPosition(kali, treasurer) = position-full:manik
+🚀 গো-লাইভের পরেও      → position-full:manik
+```
+
+The committee could not appoint a treasurer for the live season because a shut-
+out account was still holding the title. Now the post is free.
+
+### What it does, and what it deliberately does not
+
+At the cutover only, and only for `status === 'blocked'`: entries, reports,
+areas, position cleared and the cashier flag dropped. The account **stays
+blocked** and still cannot log in. `admin` rows are skipped, exactly as
+`clearUserGrants` skips them.
+
+Ordinary block/unblock during the season is **untouched** — the grants stay,
+because an accidental block must not cost somebody their whole setup, and A78
+solved that same problem for বিদায়ী by saving a picture rather than trusting
+anyone's memory. goLive also writes a full Drive snapshot before any of this
+runs, so the old values are recoverable.
+
+The audit line now reads `…; blocked accounts stripped=N; …`.
+
+### A branch that was not being tested
+
+Removing the admin skip did **not** turn the suite red: the first test block has
+no blocked admin in it, so that line never ran. A second block now makes one —
+`setRole` → admin, give them a post, block them, go live — and asserts the row
+survives. An untested branch is an unguarded one, whatever the count says.
+
+Nine assertions, all executing the real `Code.gs`; each mutation-tested. Tests
+**1,650 → 1,661**.
+
+**⚠️ Needs an Apps Script redeploy** — `CODE_VERSION`, `sw.js` and
+`APP_VERSION` all move to `chanda-v4.30.0`.
