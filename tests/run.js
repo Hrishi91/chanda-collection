@@ -903,6 +903,22 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     eq(/Auth\.call\('listItems', \{ token: Auth\.token\(\) \}\)\.catch\(function \(\) \{ return \{ items: \[\] \}; \}\)/.test(app107), true,
        'A107: …and so does listItems');
   }
+  // A111: the pre-puja sweep. Thirteen screens in two languages and three
+  // roles turned up one message that was false: a cashier WITHOUT the 🛠️ grant
+  // was told "you are not a cashier". canReview() is two conditions and the
+  // message named one — and A110 had just added a third way in, since the
+  // freeze closes canEntry('review') too.
+  {
+    const app111 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    const i18n111 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+    eq(/const why = !Auth\.isCashier\(\) \? 'not_cashier' : frozen\(\) \? 'freeze_bar' : 'no_review_grant';/.test(app111), true,
+       'A111: the review desk names which of the three reasons actually applies');
+    eq(/  no_review_grant: \{/.test(i18n111), true, 'A111: …and the third reason has words of its own');
+    // the OTHER two uses of not_cashier are gated on isCashier alone, where the
+    // sentence is true — they must not be swept up in the fix
+    eq((app111.match(/if \(!Auth\.isCashier\(\)\) \{ \$view\(\)\.innerHTML = backBar\('(home|report)'\) \+ '<div class="empty">' \+ esc\(t\('not_cashier'\)\)/g) || []).length, 2,
+       'A111: …while the two screens that really do mean "not a cashier" keep saying so');
+  }
   // A110: the freeze on the CLIENT — the half the server cannot enforce, which
   // is that a collector must never be shown a button the server will hold.
   {

@@ -501,6 +501,11 @@ const I18N = {
   // A110: what the ADMIN sees. frozen() exempts them from the block, which is
   // right for writing and wrong for knowing — an emergency stop nobody can see
   // is one that gets left on overnight.
+  // A111: a cashier WITHOUT the corrections-review grant used to be told
+  // "you are not a cashier" — false, and it sends them to the admin arguing
+  // about the wrong thing. The condition is two halves; the message was one.
+  no_review_grant: { bn: '🛠️ সংশোধন review-এর অনুমতি তোমার নেই — admin-কে বলো',
+                     en: '🛠️ You do not have the corrections-review permission — ask the admin' },
   freeze_bar_admin: { bn: '🛑 আপনি সবার entry থামিয়ে রেখেছেন',
                       en: '🛑 You have entries paused for everyone' },
   freeze_bar_admin_sub: { bn: 'admin প্যানেল → 🗂️ ডেটা → ▶️ আবার চালু করো',

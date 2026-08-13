@@ -10012,3 +10012,56 @@ months-old snapshot under a brand-new URL.
 
 A109 (blocked accounts stripped at go-live) and A110 (the emergency stop) are
 both live in this one deployment.
+
+## A111 — the pre-puja sweep
+
+Hrishi: *"check once whole application — for the last time, it's before puja
+trial."* Every layer, run rather than read.
+
+**Sound.** 1,688 assertions and the scope check green; every `js/*.js`, `sw.js`
+and `Code.gs` parses; all three versions read `chanda-v4.31.0` and the deployed
+server agrees; nothing uncommitted or unpushed.
+
+**The money model, walked end to end** on a fresh book through the real
+`Code.gs`, with the invariant checked after every step:
+
+```
+কালী তুলল ৩৫০০              Σ হাতে 3500 == আদায় 3500 − খরচ 0   ✅
+→ বিমলকে ২০০০ পাঠাল (unconfirmed)  কালীর হাতেই থাকল             ✅
+→ বিমল confirm করল           1500 + 2000                        ✅
+→ বিমল ৩০০ খরচ করল           1500 + 1700 == 3500 − 300          ✅
+→ ভুল ৫০০ কিস্তি বাতিল        1000 + 1700 == 3000 − 300          ✅
+রসিদ: 2026000001, …002, …003 — ক্রমিক
+```
+
+`reconcile` reported zero anomalies at every step. Un-confirmed money staying
+with the sender is the case worth naming: it is the one a committee argues about,
+and the book is right.
+
+**A109 + A110 in one sequence** — freeze thrown mid-collection, a new entry held
+while chat still went through, a cashier-treasurer blocked, freeze lifted and the
+held row going in by itself, then go-live: the blocked account stripped, the
+approved one untouched, the treasurer post free, and the first live receipt
+`2026000001`.
+
+### The one thing it found
+
+Thirteen screens, and one message was **false**. `renderReviewCorrections` gates
+on `canReview()` — `isCashier() && canEntry('review')` — and answered every
+failure with *"তুমি ক্যাশিয়ার নও"*. A cashier who simply lacks the 🛠️ grant was
+told she is not a cashier, which sends her to the admin to argue about the wrong
+thing.
+
+A110 had quietly added a third way in a day earlier: the freeze closes
+`canEntry('review')` too, so a frozen cashier would have got the same false
+sentence.
+
+Three conditions, three sentences now — and the two other screens that gate on
+`isCashier()` alone, where the words are true, are left alone. Verified by
+walking all three: cashier-without-grant, cashier-during-freeze, and somebody who
+really is not a cashier.
+
+**Not found:** no blank-name rows, no horizontal overflow at 375 px, no raw keys
+or `undefined`/`NaN` on any screen, no console errors.
+
+Tests **1,688 → 1,691**. Client-only — no redeploy.

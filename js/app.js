@@ -3692,7 +3692,16 @@
   }
   // Cashier/admin: review collectors' correction flags → approve (void) / reject.
   function renderReviewCorrections() {
-    if (!canReview()) { $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
+    // A111: canReview() is TWO conditions and this said only one of them, so a
+    // cashier who simply lacks the 🛠️ grant was told they are not a cashier —
+    // false, and it sends them to argue about the wrong thing. A110 added a
+    // third way in: the freeze also closes canEntry('review'), and answering
+    // that with "no permission" would be the same lie in a new costume.
+    if (!canReview()) {
+      const why = !Auth.isCashier() ? 'not_cashier' : frozen() ? 'freeze_bar' : 'no_review_grant';
+      $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t(why)) + '</div>';
+      return;
+    }
     $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('loading')) + '</div>';
     Promise.all([
       Auth.call('pendingCorrections', { token: Auth.token(), year: Settings.get('year') }),
