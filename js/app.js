@@ -1944,6 +1944,7 @@
       const plan = Aggregate.homeTiles(Auth.current(), {
         holding: (avail.cash + avail.upi) > 0,
         staleVersion: Auth.schemaCmp() === -1,
+        frozen: frozen(), // A110: admin paused entries for everyone
       });
       const ICON = { shop: ['🏪', 'new_shop'], person: ['🙍', 'new_person'], member: ['🤝', 'new_member'],
                      bus: ['🚌', 'daily_bus'], road: ['🛣️', 'daily_road'], toto: ['🛺', 'daily_toto'],
@@ -1996,7 +1997,7 @@
             '<div id="notif-banner"></div>' +
             '<div class="hero"><div>🙏 ' + esc(pujaName()) + ' ' + Settings.get('year') + '</div>' +
             '<div class="hero-sub">' + esc(Settings.get('collectorName')) + '</div></div>' +
-            (plan.blocked ? staleVersionCard() : plan.exiting ? exitingCard() : noGrantCard()) +
+            (plan.blocked ? staleVersionCard() : plan.frozen ? frozenCard() : plan.exiting ? exitingCard() : noGrantCard()) +
             // …and if there is money in hand, the way to hand it in comes with
             // it. 💰 চাঁদা নেওয়া has its own wide tile above — ICON has no
             // 'payments' entry, so drawTile would render the bare key, which is
@@ -2100,6 +2101,12 @@
   // permissions". They must not be sent to argue about a decision the committee
   // already took — and they must be told the one thing that is still theirs to
   // do, which is hand in what they are holding.
+  function frozenCard() {
+    return '<div class="card" style="border:1.5px solid #c0392b;background:#fdecea">' +
+      '<b>' + esc(t('freeze_bar')) + '</b>' +
+      '<div class="row-sub" style="margin-top:4px">' + esc(t('freeze_bar_sub')) + '</div>' +
+      adminContactHTML() + '</div>';
+  }
   function exitingCard() {
     return '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
       '<b>🚪 ' + esc(t('home_exiting_title')) + '</b>' +
@@ -3003,6 +3010,10 @@
   // no permission key), and that is deliberate: see Aggregate.homeTiles.
   function canEntry(key) {
     if (key && Auth.schemaCmp() === -1) return false;
+    // A110: the freeze rides the same choke point as the stale-version lock —
+    // every entry tile and every entry route already asks this one question, so
+    // there is no screen left where a button appears that the server will hold.
+    if (key && frozen()) return false;
     return Aggregate.permAllowed(Auth.current(), key);
   }
   // The cashier's correction desk is now its own grant. Base requirement is
@@ -3053,6 +3064,23 @@
     //   · it CANNOT be dismissed, and the fix is a button inside it. "Go to
     //     Settings and scroll down" is a three-step errand, and errands get put
     //     off — which is exactly how a warning becomes wallpaper.
+    // A110: the freeze outranks the training notice, and sits just under the
+    // version lock. Ordered by what stops you working RIGHT NOW: a phone that
+    // is behind cannot write at all, a freeze means nobody can, and training is
+    // a standing condition. Same slot as the training strip, so it appears on
+    // every screen and no re-render can drop it.
+    // A110: the admin is exempt from the BLOCK, not from the news. Same strip,
+    // different sentence — theirs says how to lift it, because the person who
+    // can undo it is the only one for whom that is useful.
+    if (freezeOn()) {
+      const mine = Auth.isAdmin();
+      el.style.cssText = 'display:block;background:#c0392b;color:#fff;text-align:center;' +
+        'font-weight:bold;font-size:14px;padding:8px 12px;border-bottom:2px solid #7d2418;line-height:1.35';
+      el.innerHTML = esc(t(mine ? 'freeze_bar_admin' : 'freeze_bar')) +
+        '<div style="font-weight:400;font-size:12.5px;opacity:.92;margin-top:2px">' +
+        esc(t(mine ? 'freeze_bar_admin_sub' : 'freeze_bar_sub')) + '</div>';
+      return;
+    }
     const cmp = Auth.schemaCmp();
     if (cmp === -1) {
       el.style.cssText = 'display:block;background:#c0392b;color:#fff;text-align:center;' +
@@ -4941,6 +4969,11 @@
   // The admin can switch the chat off (Config `chat_off`). The nav tab, the
   // route and the send button all read this one answer.
   function chatOn() { return String((centralConfig || {}).chat_off || '') !== 'on'; }
+  // A110: the emergency freeze. Admin exempt — they are the one fixing whatever
+  // caused it. Reading is untouched; this only ever answers "may I write money".
+  function frozen() {
+    return !!String((centralConfig || {}).freeze_at || '') && !Auth.isAdmin();
+  }
 
   // ---------- committee chat ----------
   // One window, everybody in it. Messages are just another store, so they ride
@@ -5288,6 +5321,31 @@
         adminAction('setStatus', { userId: id, status: 'blocked', year: Settings.get('year'), override: 1 },
           function () { toast('🚫 ' + t('access_written_off').replace('{amt}', fmtMoney(Number(amt)))); });
       });
+  }
+  // A110: is the freeze on? Asked WITHOUT the admin exemption that frozen()
+  // applies — the button has to show the state of the switch, not whether it
+  // happens to bind the person looking at it.
+  function freezeOn() { return !!String((centralConfig || {}).freeze_at || ''); }
+  // Turning it on takes two questions, the second carrying the headcount,
+  // because "everyone stops now" should be felt before it is done. Turning it
+  // off takes one: the safe direction never earns ceremony.
+  function toggleFreeze(users) {
+    const on = freezeOn();
+    if (on) {
+      if (!window.confirm(t('freeze_off_confirm'))) return;
+      adminAction('setFreeze', { on: '0' }, function () {
+        toast(t('freeze_off_done')); renderAdmin(true);
+      });
+      return;
+    }
+    if (!window.confirm(t('freeze_c1'))) return;
+    const n = (users || []).filter(function (u) {
+      return String(u.status) === 'approved' && String(u.role) !== 'admin';
+    }).length;
+    if (!window.confirm(t('freeze_c2').replace('{n}', toBengaliDigits(String(n))))) return;
+    adminAction('setFreeze', { on: '1', confirm: 'FREEZE' }, function () {
+      toast(t('freeze_on_done')); renderAdmin(true);
+    });
   }
   function showSnapshot(u) { if (u) navigate('usersnap', { userId: u.id, name: u.name }); }
   // Saved beside live, because after the exit these two stop moving together
@@ -6240,6 +6298,13 @@
           '<button id="target-btn" class="ghost big block">🎯 ' + esc(t('target_btn')) + ' — ' +
             esc(Number(centralConfig.target_amount) ? fmtMoney(Number(centralConfig.target_amount)) : t('target_none')) +
           '</button>' +
+          // A110: the emergency stop. Above the audit log because in the moment
+          // you need it you are not scrolling — and NOT down in the ⚠️ danger
+          // block with 🧹, because unlike those this one is meant to be used and
+          // undone, not feared.
+          '<button id="freeze-btn" class="ghost big block"' +
+            (freezeOn() ? ' style="background:#c0392b;color:#fff;border-color:#7d2418"' : '') + '>' +
+            esc(freezeOn() ? t('freeze_btn_off') : t('freeze_btn_on')) + '</button>' +
           '<button id="audit-btn" class="ghost big block">' + esc(t('audit_btn')) + '</button>' +
           '<button id="backup-btn" class="ghost big block">' + esc(t('backup_now_btn')) + '</button>' +
           '<button id="restore-btn" class="ghost big block">' + esc(t('restore_btn')) + '</button>' +
@@ -6391,6 +6456,7 @@
           toast(n ? '🎯 ' + fmtMoney(n) : t('target_cleared'));
         });
       };
+      admEl('freeze-btn').onclick = function () { toggleFreeze(resp.users || []); };
       admEl('audit-btn').onclick = function () { navigate('audit'); };
       admEl('receipt-btn').onclick = function () { navigate('receiptcfg'); };
       // on-demand snapshot — the cheap insurance before anything one-way

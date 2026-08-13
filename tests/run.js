@@ -903,6 +903,39 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     eq(/Auth\.call\('listItems', \{ token: Auth\.token\(\) \}\)\.catch\(function \(\) \{ return \{ items: \[\] \}; \}\)/.test(app107), true,
        'A107: …and so does listItems');
   }
+  // A110: the freeze on the CLIENT — the half the server cannot enforce, which
+  // is that a collector must never be shown a button the server will hold.
+  {
+    const app110 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    const agg110 = require('fs').readFileSync(__dirname + '/../js/aggregate.js', 'utf8');
+    // one predicate, admin exempt — modelled on chatOn() next door
+    eq(/function frozen\(\) \{[\s\S]{0,160}freeze_at[\s\S]{0,80}!Auth\.isAdmin\(\)/.test(app110), true,
+       'A110: one predicate for "may I write money", and the admin is exempt');
+    // …and a second one WITHOUT the exemption, because the button and the
+    // banner must show the state of the switch, not who is looking at it
+    eq(/function freezeOn\(\) \{ return !!String\(\(centralConfig \|\| \{\}\)\.freeze_at \|\| ''\); \}/.test(app110), true,
+       'A110: …and a separate one for "is it on", used by the button and the strip');
+    // the entry gate rides the existing choke point
+    eq(/if \(key && frozen\(\)\) return false;/.test(app110), true,
+       'A110: canEntry — the same choke point the stale-version lock uses');
+    // tiles come from homeTiles, not canEntry: a flag has to reach it too, or
+    // the buttons stay on a screen the server will hold
+    eq(/if \(opts\.frozen\) \{[\s\S]{0,120}out\.frozen = true;[\s\S]{0,80}out\.common = \['hbook'\];/.test(agg110), true,
+       'A110: home shows only the read-only handover book while paused');
+    eq(/frozen: frozen\(\), \/\/ A110/.test(app110), true, 'A110: …and renderHome passes the flag in');
+    // its own card: reusing `blocked` would have said "your phone is behind"
+    eq(/plan\.frozen \? frozenCard\(\)/.test(app110) && /function frozenCard\(\)/.test(app110), true,
+       'A110: …with its own card, not the stale-version one');
+    // the strip, on every screen, and the admin gets a different sentence
+    eq(/if \(freezeOn\(\)\) \{[\s\S]{0,400}freeze_bar_admin' : 'freeze_bar'/.test(app110), true,
+       'A110: the strip shows for everyone, and tells the admin how to lift it');
+    // two questions to stop, one to resume
+    eq(/window\.confirm\(t\('freeze_c1'\)\)[\s\S]{0,400}window\.confirm\(t\('freeze_c2'\)/.test(app110), true,
+       'A110: pausing asks twice, the second time with the headcount');
+    eq(/if \(!window\.confirm\(t\('freeze_off_confirm'\)\)\) return;/.test(app110), true,
+       'A110: …and resuming asks once — the safe direction earns no ceremony');
+    eq(/confirm: 'FREEZE'/.test(app110), true, 'A110: …and sends the word the server demands');
+  }
   // A106: a sweep of every routed screen turned up one more nameless row —
   // 🧾 আমার খরচ printed `e.desc` alone, and the comment is OPTIONAL for every
   // subject but "অন্য কিছু". Skip it and the row says "12/08/2026 · ₹300",
@@ -3166,10 +3199,21 @@ try {
   // A78 added a third (stood down), and this assertion pinned the exact TEXT of
   // a two-way ternary — so a correct third card failed it. Pin the property:
   // every wall has its own card, and each is reachable from that one branch.
-  ['staleVersionCard()', 'exitingCard()', 'noGrantCard()'].forEach(function (c) {
-    eq(app.indexOf('plan.blocked ? staleVersionCard() : plan.exiting ? exitingCard() : noGrantCard()') >= 0
-       && app.indexOf('function ' + c.replace('()', '(')) >= 0, true,
-       'A36/A78: ' + c + ' is a card of its own, chosen by its own branch');
+  // A110: …and the fix pinned the exact text of a THREE-way ternary, so the
+  // fourth wall (the admin freeze) failed it exactly as the third had. The
+  // property is per-card: a flag, its own branch, and a function behind it.
+  // Written this way a fifth costs nothing, and a card losing its branch still
+  // fails.
+  [['blocked', 'staleVersionCard'], ['frozen', 'frozenCard'],
+   ['exiting', 'exitingCard']].forEach(function (p) {
+    eq(new RegExp('plan\\.' + p[0] + ' \\? ' + p[1] + '\\(\\)').test(app), true,
+       'A36/A78/A110: plan.' + p[0] + ' reaches ' + p[1] + '() by its own branch');
+    eq(app.indexOf('function ' + p[1] + '(') >= 0, true,
+       'A36/A78/A110: …and ' + p[1] + '() is a card of its own');
+  });
+  ['noGrantCard()'].forEach(function (c) {
+    eq(/: noGrantCard\(\)/.test(app) && app.indexOf('function noGrantCard(') >= 0, true,
+       'A36/A78: ' + c + ' is the fallback when no wall applies');
   });
   eq(/vf\.onclick = function \(\) \{ runUpdate\(vf\); \}/.test(app), true,
      'A36: …and the blocked card carries the fix, like the bar does');
@@ -3269,10 +3313,21 @@ try {
   eq(/document\.getElementById\('adm-refresh'\)\.onclick/.test(app), false,
      'A38: …and no per-screen control is looked up unguarded');
 
-  // the destructive one moved off the daily path
-  const dataScreen = app.slice(app.indexOf("head('adm_data', 'admin')"), app.indexOf("head('adm_data', 'admin')") + 1600);
+  // the destructive one moved off the daily path.
+  //
+  // A110: these two used to slice a FIXED 1600 / 900 characters from the screen
+  // and look inside. Adding one button to the data screen pushed 🧹 out of the
+  // window and the assertion failed — not because anything moved, but because
+  // the window was measuring length rather than the screen. Cut to the real end
+  // of each block, and check both anchors are in order.
+  const screenOf = function (headCall, endMark, label) {
+    const a = app.indexOf(headCall), b = app.indexOf(endMark, a < 0 ? 0 : a);
+    eq(a >= 0 && b > a, true, 'A38: (' + label + ' screen found, both anchors in order)');
+    return a >= 0 && b > a ? app.slice(a, b) : '';
+  };
+  const dataScreen = screenOf("head('adm_data', 'admin')", '// All five screens live under one view id', 'data');
   eq(/clear-grants/.test(dataScreen), true, 'A38: 🧹 sits with restore and rollover…');
-  const usersScreen = app.slice(app.indexOf("head('adm_users', 'admin')"), app.indexOf("head('adm_users', 'admin')") + 900);
+  const usersScreen = screenOf("head('adm_users', 'admin')", "} else if (admSection === 'users')", 'users');
   eq(/clear-grants/.test(usersScreen), false, 'A38: …not on top of the daily approve job');
   ['adm_sub_users', 'adm_sub_positions', 'adm_sub_lists', 'adm_sub_data', 'adm_danger',
    'adm_other_actions', 'adm_saved_all', 'saving'].forEach(function (k) {

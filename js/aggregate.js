@@ -850,7 +850,7 @@
   // COLLECTING, which is exactly what they may no longer do.
   function homeTiles(user, opts) {
     opts = opts || {};
-    const out = { entry: [], daily: [], common: [], role: [], setUp: false, blocked: false, exiting: false };
+    const out = { entry: [], daily: [], common: [], role: [], setUp: false, blocked: false, exiting: false, frozen: false };
     if (!user) return out;
     const granted = function (k) { return permAllowed(user, k); };
     // Behind the server: no new entries by anybody, admin included — a stale
@@ -859,6 +859,20 @@
     if (opts.staleVersion) {
       out.blocked = true;
       if (opts.holding) out.common = ['handover', 'hbook'];
+      return out;
+    }
+    // A110: the admin has paused entries for everybody. Its own flag rather
+    // than reusing `blocked`, because that one draws "your phone is behind,
+    // update it" — a true sentence about a different problem, and the fastest
+    // way to send twelve people chasing an update that will not help.
+    //
+    // 🤝 জমা দেওয়াও থামে: handing cash to a cashier is money moving, and the
+    // server holds those rows like any other. A tile that survives a rule the
+    // server enforces is the dead-button failure this project keeps naming.
+    // 📗 জমা-খাতা stays — it only reads.
+    if (opts.frozen) {
+      out.frozen = true;
+      out.common = ['hbook'];
       return out;
     }
     // A78: the committee stood this person down. Their permission lists are

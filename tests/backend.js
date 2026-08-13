@@ -1114,6 +1114,65 @@ module.exports = function runBackendTests(eq) {
     eq(refuses(function () { return null; }), '', 'backend A109: (sanity)');
   }
 
+  // ---- A110: the emergency freeze, run rather than read --------------------
+  // Hrishi: "temporary blocking — no money entry … after revoking, everything
+  // as it was." One config key, nothing written per user, so there is no
+  // restore to get wrong.
+  {
+    const { b, tok } = book();
+    const refuses = function (f) { try { f(); return ''; } catch (e) { return e.message; } };
+    const P = function (id, at) {
+      return { store: 'payments', row: { id: id, partyId: 'p1', amount: 100, mode: 'cash',
+                                         year: 2026, date: '2026-07-29', createdAt: at } };
+    };
+    b.call('push', { token: tok.ratan, year: 2026, records: [{ store: 'parties', row: {
+      id: 'p1', type: 'shop', name: 'কমল', side: 'main_malda', pledged: 2000,
+      year: 2026, date: '2026-07-29', createdAt: '2026-07-29T04:00:00.000Z' } }] });
+
+    eq(refuses(function () { b.call('setFreeze', { token: tok.admin, on: '1' }); }),
+       'confirm-required', 'backend A110: pausing everyone has to be typed');
+    eq(refuses(function () { b.call('setFreeze', { token: tok.ratan, on: '1', confirm: 'FREEZE' }); }),
+       'not-admin', 'backend A110: …and only an admin may');
+
+    const f = b.call('setFreeze', { token: tok.admin, on: '1', confirm: 'FREEZE' });
+    eq(!!f.freezeAt, true, 'backend A110: the switch records the MOMENT, not a flag');
+
+    const r = b.call('push', { token: tok.ratan, year: 2026, records: [
+      P('written-before', '2026-07-29T05:00:00.000Z'),
+      P('typed-after', '2026-07-29T07:00:00.000Z'),
+      { store: 'messages', row: { id: 'm1', text: 'সবাই থামো', year: 2026,
+                                  date: '2026-07-29', createdAt: '2026-07-29T07:00:00.000Z' } } ] });
+    // the offline backlog is money that physically exists; refusing it would
+    // leave cash with no record anywhere
+    eq((r.savedIds || []).indexOf('written-before') >= 0, true,
+       'backend A110: anything written BEFORE the freeze still goes in');
+    eq((r.savedIds || []).indexOf('m1') >= 0, true,
+       'backend A110: …and chat stays open, because the stop has to be explainable');
+    eq((r.heldIds || []).join(','), 'typed-after',
+       'backend A110: …while what was typed after waits');
+    // held, NOT rejected: A54 takes a refused row out of the queue for good,
+    // and this block is temporary by definition
+    eq((r.rejectedIds || []).length, 0,
+       'backend A110: …and is not refused, so the phone keeps it queued');
+
+    // the admin can still work — they are the one fixing whatever caused it
+    eq((b.call('push', { token: tok.admin, year: 2026,
+                         records: [P('admin-row', '2026-07-29T08:00:00.000Z')] }).savedIds || []).length, 1,
+       'backend A110: the admin is exempt — a locked-out fixer helps nobody');
+
+    // lifting it needs no ceremony, and the backlog goes in by itself
+    b.call('setFreeze', { token: tok.admin, on: '0' });
+    eq((b.call('push', { token: tok.ratan, year: 2026,
+                         records: [P('typed-after', '2026-07-29T07:00:00.000Z')] }).savedIds || []).join(','),
+       'typed-after', 'backend A110: lifting it lets the waiting rows through, untouched');
+    eq(String(b.api.readConfig_().freeze_at || ''), '',
+       'backend A110: …and the key is cleared, so nothing is left to remember');
+
+    const acts = b.rows('Audit').filter(function (a) { return String(a.action).indexOf('freeze') === 0; })
+      .map(function (a) { return a.action; }).join(',');
+    eq(acts, 'freeze:on,freeze:off', 'backend A110: both directions are in the audit log');
+  }
+
   // ---- the version/schema handshake every client depends on ---------------
   {
     const { b, tok } = book();

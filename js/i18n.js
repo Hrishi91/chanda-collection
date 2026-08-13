@@ -491,6 +491,31 @@ const I18N = {
   // A108: shown only when the money request failed and the panel fell back to
   // the plain user list (A107). Without it, "opened fine" and "opened without
   // the figures" are the same screen.
+  // A110: the emergency freeze — money entries stopped for everyone, reading
+  // untouched. Said on every screen, because a collector who cannot find the
+  // দোকান button must not have to guess why.
+  freeze_bar: { bn: '🛑 সব entry সাময়িক বন্ধ — admin থামিয়েছেন',
+                en: '🛑 Entries paused by the admin' },
+  freeze_bar_sub: { bn: 'দেখা-শোনা সব খোলা। যা লিখেছ ফোনেই আছে — খুললেই চলে যাবে।',
+                    en: 'Viewing still works. Anything you wrote is safe on your phone and will go when it reopens.' },
+  // A110: what the ADMIN sees. frozen() exempts them from the block, which is
+  // right for writing and wrong for knowing — an emergency stop nobody can see
+  // is one that gets left on overnight.
+  freeze_bar_admin: { bn: '🛑 আপনি সবার entry থামিয়ে রেখেছেন',
+                      en: '🛑 You have entries paused for everyone' },
+  freeze_bar_admin_sub: { bn: 'admin প্যানেল → 🗂️ ডেটা → ▶️ আবার চালু করো',
+                          en: 'Admin panel → 🗂️ Data → ▶️ Resume entries' },
+  freeze_btn_on: { bn: '🛑 সব entry থামাও', en: '🛑 Pause all entries' },
+  freeze_btn_off: { bn: '▶️ আবার চালু করো', en: '▶️ Resume entries' },
+  freeze_c1: { bn: '🛑 সবার টাকার entry থামাবেন?\n\nসবাই দেখতে পাবে, কিন্তু কেউ নতুন চাঁদা, জমা বা খরচ লিখতে পারবে না। চ্যাট খোলা থাকবে।\n\nআপনি নিজে entry করতে পারবেন।',
+               en: '🛑 Pause money entry for everyone?\n\nThey can still see everything, but nobody can record a donation, handover or expense. Chat stays open.\n\nYou can still make entries yourself.' },
+  freeze_c2: { bn: '⚠️ শেষ প্রশ্ন — {n} জন এখনই থেমে যাবে।\n\nএখন যা অফলাইনে লেখা আছে সেগুলো ঢুকবে; তার পরের লেখা অপেক্ষা করবে, হারাবে না।\n\nথামাব?',
+               en: '⚠️ Last check — {n} people stop right now.\n\nAnything already written offline still goes in; anything typed after this waits, and is not lost.\n\nPause?' },
+  freeze_on_done: { bn: '🛑 সব entry থামানো হল', en: '🛑 Entries paused' },
+  freeze_off_confirm: { bn: '▶️ আবার চালু করবেন? যা অপেক্ষা করছে সব ঢুকে যাবে।',
+                        en: '▶️ Resume? Everything waiting will go through.' },
+  freeze_off_done: { bn: '▶️ আবার চালু — অপেক্ষমাণ entry ঢুকছে', en: '▶️ Resumed — queued entries are going in' },
+  freeze_entry_toast: { bn: '🛑 admin সব entry থামিয়েছেন', en: '🛑 The admin has paused entries' },
   adm_money_off: { bn: '⚠️ হাতের টাকার হিসাব আনা গেল না — বাকি সব কাজ করছে। 🔄 নতুন করে আনো চেপে দেখো।',
                    en: '⚠️ Could not load who is holding what — everything else works. Try 🔄 Refresh.' },
   adm_sub_users: { bn: '{n} জন approved · {p} জন অপেক্ষায় · {s} জনের ফোন পিছিয়ে', en: '{n} approved · {p} waiting · {s} phones behind' },

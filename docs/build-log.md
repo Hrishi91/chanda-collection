@@ -9916,3 +9916,89 @@ Nine assertions, all executing the real `Code.gs`; each mutation-tested. Tests
 
 **⚠️ Needs an Apps Script redeploy** — `CODE_VERSION`, `sw.js` and
 `APP_VERSION` all move to `chanda-v4.30.0`.
+
+## v4.31.0 — A110: the emergency stop
+
+Hrishi: *"admin needs one emergency block button … no users will do money entry
+related things … who was blocked he will remain blocked, who was in which
+permissions he will have same permission … after revoking, everything will be as
+same as it was … only views."*
+
+### One key, not twelve blocked rows
+
+Mass-blocking would have to remember who was `approved`, who `pending`, who
+বিদায়ী, and put each back. **A restore that depends on remembering is a restore
+that fails on the night it is needed** — and A109, an hour earlier, was already
+about user rows carrying state across a boundary.
+
+So: one Config key, `freeze_at`. Nothing per-user is written, which means "as it
+was" is not a promise to keep — it is the absence of anything to undo. And
+`blocked` was the wrong verb anyway: it stops login, where Hrishi asked for
+*"only views"*.
+
+### The value is a MOMENT, not a flag
+
+A collector offline when the switch is thrown keeps everything already written —
+that is money which physically exists, and refusing it would leave cash with no
+record anywhere. Only what they type *after* waits. That comparison needs a
+timestamp, so the key holds one.
+
+### Held, not refused — and that fell out of what already existed
+
+`sync.js` ignores any row in neither `savedIds` nor `rejectedIds`: still queued,
+retried next push. So the server just **omits** frozen rows and the backlog goes
+in by itself when the freeze lifts. Refusing would have been wrong twice — A54
+takes a refused row out of the queue for good, and this block is temporary by
+definition.
+
+```
+freeze স্ট্যাম্প 06:00
+  05:00-এ লেখা (অফলাইন)  → saved      ✅
+  07:00-এ টাইপ করা        → held       ✅
+  চ্যাট                   → saved      ✅
+  admin-এর নিজের entry     → saved      ✅
+▶️ খোলার পর ওই held সারি  → saved      ✅  (নিজে থেকেই)
+```
+
+### What a collector sees
+
+A red strip on **every** screen, the entry tiles gone, and a card carrying the
+admin's phone and WhatsApp so they can ask why. Only 📗 জমা-খাতা survives, and it
+only reads. Chat stays open — whatever stopped the collection has to be
+explainable to twelve people, and 💬 বার্তা is the one way to reach them at once.
+
+Its own `frozen` flag through `homeTiles`, not a reuse of `blocked`: that one
+draws *"your phone is behind, update it"* — a true sentence about a different
+problem, and the fastest way to send twelve people chasing an update that will
+not help.
+
+🤝 জমা দেওয়াও থামে. Handing cash to a cashier is money moving and the server holds
+those rows like any other; a tile that survives a rule the server enforces is the
+dead-button failure this project keeps naming.
+
+**The admin sees it too**, with their own sentence — *"আপনি সবার entry থামিয়ে
+রেখেছেন"* and where to lift it. They are exempt from the block, not from the
+news: an emergency stop nobody can see is one that gets left on overnight.
+
+Two confirmations to pause, the second carrying the headcount; one to resume.
+The safe direction earns no ceremony.
+
+### Two assertions that were measuring bytes, not properties
+
+`A38` sliced a fixed **1600 characters** from the data screen and looked for 🧹.
+One new button pushed it out of the window — nothing had moved, the window was
+just measuring length. Now cut to the real end of the screen, both anchors
+checked in order.
+
+`A36/A78` pinned the exact text of the card ternary. Its own comment says A78
+broke it by adding a third card and that the fix was to "pin the property" — and
+then it pinned the exact text of a *three*-way ternary, so the fourth card broke
+it the same way. Now one assertion per card: a flag, its own branch, a function
+behind it. A fifth costs nothing.
+
+Nineteen assertions, eleven executing the real `Code.gs`; each mutation-tested.
+Tests **1,661 → 1,688**.
+
+**⚠️ Needs an Apps Script redeploy** — all three versions move to
+`chanda-v4.31.0`. A109 has not been deployed yet either; both go in one
+deployment.

@@ -798,7 +798,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.30.0';
+var CODE_VERSION = 'chanda-v4.31.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -906,6 +906,7 @@ var ACTIONS = {
       var ss = SpreadsheetApp.getActive();
       var savedIds = [];
       var rejectedIds = []; // permission-blocked rows (UI never sends these; tampering does)
+      var heldIds = [];     // A110: frozen — neither saved nor refused, so they stay queued
       var reassigned = {};  // username → rows an admin filed under someone else
       var receipts = {}; // paymentId → assigned serial, so the client can adopt it
       // server-side mirror of the client's gating — the UI hides what a user may
@@ -914,6 +915,16 @@ var ACTIONS = {
       // store yet are separate permissions.
       var isCashier = isCashier_(user.row);
       var chatOff = String(readConfig_().chat_off || '') === 'on';
+      // A110: frozen rows are HELD, not refused. A row in neither savedIds nor
+      // rejectedIds is left untouched by sync.js — still queued, retried on the
+      // next push — so lifting the freeze lets the backlog through by itself.
+      // Refusing them would have been wrong twice: A54 takes a refused row out
+      // of the queue for good, and this block is temporary by definition.
+      //
+      // The admin is exempt: they are the person expected to be fixing whatever
+      // caused the freeze, and a locked-out fixer helps nobody.
+      var freezeAt = String(readConfig_().freeze_at || '');
+      var frozen = !!freezeAt && String(user.row.role) !== 'admin';
       var byStore = {};
       // A59: every row in this batch is known to the owner index BEFORE the
       // gate runs, so a void can find a target that is arriving alongside it.
@@ -923,6 +934,16 @@ var ACTIONS = {
       var exiting = isExiting_(user.row);
       (b.records || []).forEach(function (r) {
         if (!SHEETS[r.store] || !r.row || !r.row.id) return;
+        // A110: money is frozen; talking is not. Whatever stopped the
+        // collection has to be explainable to twelve people, and 💬 বার্তা is
+        // the only way to reach them all at once.
+        //
+        // `>=` against the stamp, so a row written in the same second as the
+        // freeze is held rather than let through — when the two cannot be
+        // ordered, the safe reading wins.
+        if (frozen && r.store !== 'messages' && String(r.row.createdAt || '') >= freezeAt) {
+          heldIds.push(r.row.id); return;
+        }
         // A78: the access-block, and it is an ALLOW-LIST on purpose. Taking the
         // post and both permission lists away — which setAccess does — stops
         // donors, daily rounds and expenses, because those carry a permission
@@ -1168,6 +1189,7 @@ var ACTIONS = {
       });
       if (savedIds.length) touchData_(); // AFTER the rows, so the stamp is never behind them
       return { ok: true, savedIds: savedIds, receipts: receipts, rejectedIds: rejectedIds,
+               heldIds: heldIds, frozen: !!freezeAt,
                reassigned: reassigned };
     } finally { lock.releaseLock(); }
   },
@@ -1456,6 +1478,33 @@ var ACTIONS = {
         '; digits=' + digits + '; backup=' + backupFile);
       return { ok: true, backup: backupFile };
     } finally { lock.releaseLock(); }
+  },
+
+  // A110: the emergency freeze. Hrishi: "temporary blocking — no users will do
+  // money entry related things … after revoking the temporary block everything
+  // will be as same as it was."
+  //
+  // ONE config key, not twelve blocked rows. Mass-blocking would have to
+  // remember who was approved, who pending, who বিদায়ী, and put each back —
+  // and a restore that depends on remembering is a restore that fails on the
+  // night it is needed. Nothing per-user is written here, so "as it was" is not
+  // a promise to keep; it is the absence of any change to undo.
+  //
+  // The value is the MOMENT, not a flag. A collector who was offline when it
+  // was thrown keeps everything they had already written — those rows are money
+  // that physically exists and refusing them would leave cash with no record —
+  // and only what they type AFTER it waits. That comparison needs a timestamp.
+  setFreeze: function (b) {
+    var me = requireAdmin_(b.token);
+    var on = String(b.on) === '1';
+    // turning it ON is the dangerous direction, so that is the one that must be
+    // typed. Lifting it needs no ceremony — the safe direction never should.
+    if (on && String(b.confirm) !== 'FREEZE') throw new Error('confirm-required');
+    var at = on ? new Date().toISOString() : '';
+    setConfig_('freeze_at', at);
+    touchData_(); // every phone learns on its next poll, not its next entry
+    logAudit_(me.row, on ? 'freeze:on' : 'freeze:off', at || '-');
+    return { ok: true, freezeAt: at };
   },
 
   // ---------- backup / restore (admin) ----------
