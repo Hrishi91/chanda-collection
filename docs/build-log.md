@@ -10002,3 +10002,13 @@ Tests **1,661 → 1,688**.
 **⚠️ Needs an Apps Script redeploy** — all three versions move to
 `chanda-v4.31.0`. A109 has not been deployed yet either; both go in one
 deployment.
+
+## v4.31.0 deployed
+
+`js/config.js` rebaked. Server answers **`chanda-v4.31.0`** on both `doGet` and
+`doPost`, verified before baking rather than after — the habit A109's predecessor
+earned, when a New deployment created against an old dropdown entry served a
+months-old snapshot under a brand-new URL.
+
+A109 (blocked accounts stripped at go-live) and A110 (the emergency stop) are
+both live in this one deployment.
