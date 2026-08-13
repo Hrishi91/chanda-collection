@@ -9716,3 +9716,55 @@ No horizontal overflow on any screen at 375 px, no console errors, no other
 blank-name rows, and every screen with content had content. The three screens
 this session had already fixed — 🩺's back button, the handover subtotal, home's
 money — stayed fixed.
+
+## A107 — the admin panel would not open
+
+"admin panel is having issue — Try again". That wording is `err_network`:
+*Internet/সার্ভার সমস্যা — আবার চেষ্টা করো*.
+
+Three requests sit behind that screen, and two of them already degrade
+gracefully — `listSubjects` and `listItems` each `.catch()` into an empty list.
+`listUsers` had no fallback, and **A100 had just made it the heaviest of the
+three**: sending the year makes the server read the whole year's book and
+summarise every user, where the plain call reads one sheet.
+
+So anything that upsets the money computation — a slow book, a timeout, an
+Apps Script error page instead of JSON — took the entire panel down. No
+approvals, no lists, no way in. The figures are a convenience; the panel is not.
+
+`listUsers` now falls back to the plain call if the money one fails. The column
+disappears, the screen opens. `bad-token` / `blocked` / `pending` are re-thrown
+rather than retried: those mean the session is gone, `Auth.call` has already
+cleared it, and a second attempt would only hide the reason.
+
+Proved both ways against a harness switch that answers the money request with a
+non-JSON body, the way a timeout does:
+
+```
+CK_FAILMONEY=1   প্যানেল খুলল · ১২ জন ইউজার · approve-এর পথ খোলা · টাকার কলাম নেই ✅
+স্বাভাবিক        প্যানেল খুলল · ১২ জন ইউজার · কালী দাস … ₹3,800 হাতে              ✅
+```
+
+**Honest about what this is:** a mitigation, not a diagnosis. I have not
+reproduced the underlying failure — the harness runs the real `Code.gs` and
+`listUsers` with a year answers in 2 ms on a 460-donor book, and `readAll_` is
+the same read `pull` performs on every app open. What I can say is that the
+panel had a single point of failure it did not need, and no longer has one. If
+it recurs, the next thing to look at is what the request actually returns —
+which needs one look at the browser console on the phone that fails.
+
+### Two assertions that were measuring the wrong thing
+
+`A100: the two screens that show no money still send no year` counted plain
+`listUsers` calls and expected **2**. The retry made it 3 — so the assertion was
+measuring "how many places happen to look like this", not the property. It now
+pins the real one: exactly ONE request asks for money.
+
+And the new slice ran **backwards**: `listSubjects` appears earlier in the file
+too (`expenseFlow` fetches it), so `indexOf` without a start offset found that
+one, `slice(a, b)` with `b < a` returned empty, and four assertions passed over
+nothing. Fifth time this project has been bitten by an unanchored `indexOf`; A99
+wrote a helper for exactly this and I did not use it. Both ends are now checked
+in order.
+
+Seven assertions. Tests **1,629 → 1,636**. Client-only — no redeploy.

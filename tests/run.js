@@ -832,6 +832,38 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A107: the admin panel would not open — "আবার চেষ্টা করো". Of the three
+  // requests behind that screen, listUsers is the only one with no fallback,
+  // and A100 had just made it the heaviest: sending the year makes the server
+  // read the whole year's book and summarise every user. Anything that upsets
+  // that took the entire panel down — no approvals, no lists, no way in.
+  {
+    const app107 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    // Anchored, and the end searched FROM the start — `listSubjects` appears
+    // earlier in the file too (expenseFlow fetches it), so a bare indexOf for
+    // the end ran backwards and handed back an empty slice that quietly failed
+    // every assertion under it. Fifth time this project has been bitten by an
+    // unanchored indexOf; A99 wrote a helper for exactly this and I did not use
+    // it.
+    const s107 = app107.indexOf("Auth.call('listUsers', { token: Auth.token(), year:");
+    const e107 = app107.indexOf("Auth.call('listSubjects'", s107 < 0 ? 0 : s107);
+    eq(s107 >= 0 && e107 > s107, true, 'A107: (the listUsers call and its catch were found, in order)');
+    const call = s107 >= 0 && e107 > s107 ? app107.slice(s107, e107) : '';
+    eq(/\.catch\(function \(e\) \{/.test(call), true,
+       'A107: the money request has a fallback…');
+    eq(/return Auth\.call\('listUsers', \{ token: Auth\.token\(\) \}\);/.test(call), true,
+       'A107: …which asks again without the year, so the panel opens without the column');
+    // a dead session must NOT be retried: Auth.call has already cleared it, and
+    // a second attempt only hides why
+    eq(/if \(m === 'bad-token' \|\| m === 'blocked' \|\| m === 'pending'\) throw e;/.test(call), true,
+       'A107: …but never retries a session that is gone');
+    // the other two already degrade to an empty list; that is what made
+    // listUsers the single point of failure
+    eq(/Auth\.call\('listSubjects', \{ token: Auth\.token\(\) \}\)\.catch\(function \(\) \{ return \{ subjects: \[\] \}; \}\)/.test(app107), true,
+       'A107: …listSubjects still degrades to an empty list');
+    eq(/Auth\.call\('listItems', \{ token: Auth\.token\(\) \}\)\.catch\(function \(\) \{ return \{ items: \[\] \}; \}\)/.test(app107), true,
+       'A107: …and so does listItems');
+  }
   // A106: a sweep of every routed screen turned up one more nameless row —
   // 🧾 আমার খরচ printed `e.desc` alone, and the comment is OPTIONAL for every
   // subject but "অন্য কিছু". Skip it and the row says "12/08/2026 · ₹300",
@@ -1003,8 +1035,14 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     eq(/accountPicture_/.test(lu), false,
        'A100: …with personalSummary_, not the picture — the per-donor dues list is work nobody asked for here');
     // the two cheap callers must stay cheap; the admin one must ask
-    eq((app100.match(/Auth\.call\('listUsers', \{ token: Auth\.token\(\) \}\)/g) || []).length, 2,
-       'A100: the two screens that show no money still send no year');
+    // A107: this counted the plain calls and expected 2. The retry added a
+    // third, so the count was measuring "how many places happen to look like
+    // this" rather than the property. The property is: exactly ONE request asks
+    // for money, and it is the admin panel's.
+    eq((app100.match(/Auth\.call\('listUsers', \{ token: Auth\.token\(\), year:/g) || []).length, 1,
+       'A100: exactly one listUsers call asks for the money');
+    eq((app100.match(/Auth\.call\('listUsers', \{ token: Auth\.token\(\) \}\)/g) || []).length, 3,
+       'A100: …the two screens that show none still send no year, and the retry joins them');
     eq(/Auth\.call\('listUsers', \{ token: Auth\.token\(\), year: Settings\.get\('year'\) \}\)/.test(app100), true,
        'A100: …and the admin panel is the one that asks');
     // the row: in-hand, never for a pending account, and the ⏳ that stops the

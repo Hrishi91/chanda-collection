@@ -147,6 +147,14 @@ http.createServer(function (req, res) {
     req.on('end', function () {
       let out;
       try {
+        // CK_FAILMONEY=1: make listUsers-with-a-year fail the way a timeout
+        // does — a non-JSON body, which is what turns into "আবার চেষ্টা করো".
+        var req0 = {}; try { req0 = JSON.parse(body); } catch (e) {}
+        if (process.env.CK_FAILMONEY && req0.action === 'listUsers' && req0.year) {
+          res.writeHead(200, { 'Content-Type': 'text/html', 'Access-Control-Allow-Origin': '*' });
+          res.end('<!DOCTYPE html><html><title>Error</title></html>');
+          return;
+        }
         out = b.api.doPost({ postData: { contents: body } }).getContent();
         if (process.env.CK_TRACE) {
           var req = {}; try { req = JSON.parse(body); } catch (e) {}

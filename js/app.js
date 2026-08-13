@@ -5733,7 +5733,27 @@
       // A100: the year is what asks the server for each person's money. The
       // other two listUsers callers deliberately do not send it — they show no
       // money and must not pay for the read.
-      Auth.call('listUsers', { token: Auth.token(), year: Settings.get('year') }),
+      //
+      // A107: …and if that heavier call fails, ask again WITHOUT it. Sending the
+      // year makes the server read the whole year's book and summarise every
+      // user; the plain call reads one sheet. Of the three requests behind this
+      // screen, listUsers is the only one with no fallback — listSubjects and
+      // listItems each degrade to an empty list — so anything that upsets the
+      // money computation took the entire admin panel down to "আবার চেষ্টা করো"
+      // and left Hrishi with no way to approve a user or fix a list.
+      //
+      // The figures are a convenience; the panel is not. Losing the column is a
+      // fair price for a screen that opens.
+      //
+      // bad-token and blocked are re-thrown, never retried: those mean the
+      // session is gone, Auth.call has already cleared it, and a second attempt
+      // would only fail the same way while hiding the reason.
+      Auth.call('listUsers', { token: Auth.token(), year: Settings.get('year') })
+        .catch(function (e) {
+          const m = String((e && e.message) || '');
+          if (m === 'bad-token' || m === 'blocked' || m === 'pending') throw e;
+          return Auth.call('listUsers', { token: Auth.token() });
+        }),
       Auth.call('listSubjects', { token: Auth.token() }).catch(function () { return { subjects: [] }; }),
       Auth.call('listItems', { token: Auth.token() }).catch(function () { return { items: [] }; }),
     ]).then(function (res) { admCache = res; paintAdmin(res); })
