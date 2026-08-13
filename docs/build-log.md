@@ -9768,3 +9768,64 @@ wrote a helper for exactly this and I did not use it. Both ends are now checked
 in order.
 
 Seven assertions. Tests **1,629 → 1,636**. Client-only — no redeploy.
+
+## A108 — the leftovers, decided
+
+Hrishi on the five open questions: *"do as you decides"*. Four changed, two
+deliberately did not, and one thing that was not on the list mattered more than
+any of them.
+
+### The one that mattered: A107's fallback was silent
+
+"I think it is ok now" is not something the app let anyone check. When the money
+request fails, A107 quietly asks again without it — so **"the panel opened" and
+"the panel opened without the figures" were the same screen**, and which of the
+two happened is exactly the fact that says whether the failure behind A107 is
+still there.
+
+The panel now says so, once, under the users row:
+
+> ⚠️ হাতের টাকার হিসাব আনা গেল না — বাকি সব কাজ করছে। 🔄 নতুন করে আনো চেপে দেখো।
+
+The flag resets at the start of every fetch, so a good load cannot inherit a bad
+one. Verified both ways against the `CK_FAILMONEY` switch: with it on the note
+appears and the panel works; with it off there is no note and the ₹ column is
+back.
+
+### Decided and changed
+
+**Seven labels that stayed English in Bengali mode.** `🚫 বন্ধ করো` ·
+`🔄 নতুন করে আনো` · `অনুমোদিত` · `বন্ধ করা` · `সিঙ্ক গোপন-কোড` ·
+`সিঙ্ক URL (Apps Script)`. **Approve** survives as a loan word, because the app
+already treats it as one — the heading beside it has always read
+"Approve-এর অপেক্ষায়", and translating the button while leaving the heading
+would have made the pair worse, not better. The four group headings now read as
+one family: Approve-এর অপেক্ষায় · অনুমোদিত · বিদায়ী · বন্ধ করা.
+
+**The browser tab title** was baked into `index.html`, so it stayed Bengali in
+an English app and never showed the committee's own puja name.
+Now `দৌলতপুর সার্বজনীন গণেশ পূজা — চাঁদা খাতা`, and `… — Chanda Khata` in
+English. `pujaName()` falls back to the app title when no puja name is set, so
+it is compared before joining — "চাঁদা খাতা — চাঁদা খাতা" is not a title.
+
+**The amount placeholder** read `৫০০` while the box it sits in opens a NUMBER
+PAD, which emits ASCII — and every on-screen amount in the app is ASCII anyway
+(Bengali digits belong to the receipt). Now `500`.
+
+### Decided and NOT changed
+
+**Sorting the user list by in-hand.** It would answer "who is holding the most"
+at a glance, and cost the thing that list is used for far more often: finding
+one person by name to approve them or fix their permissions. The figure is on
+every row now, and there is a search box above them.
+
+**Who sees the 🎯 target bar.** Already answered by the code — it is gated on
+the `overview` report permission, so it follows a decision the admin has already
+made per person rather than inventing a second rule beside it.
+
+**The receipt footer.** The default is
+"আপনার সহযোগিতার জন্য ধন্যবাদ 🙏", which is the committee's voice to a donor.
+Not mine to write; the field is there when Hrishi wants different words.
+
+Fourteen assertions, each mutation-tested. Tests **1,636 → 1,650**.
+Client-only — no redeploy.

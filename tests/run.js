@@ -832,6 +832,45 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const block = css.slice(css.indexOf(r[0]), css.indexOf('}', css.indexOf(r[0])));
     eq(/min-height:\s*44px/.test(block), true, 'A84: ' + r[1] + ' is at least 44px');
   });
+  // A108: the small things left over, decided rather than left hanging — plus
+  // the one that mattered: A107's fallback was SILENT, so "the panel opened"
+  // and "the panel opened without the money" were the same screen, and which of
+  // those happened is the fact that says whether the failure is still there.
+  {
+    const app108 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    const vm108 = require('vm');
+    const c108 = vm108.createContext({});
+    vm108.runInContext(require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8') + ';globalThis.__D = I18N;', c108);
+    const D108 = c108.__D;
+    const BN108 = /[ঀ-৿]/;
+
+    // the fallback says so
+    eq(/admMoneyFailed = true;/.test(app108), true, 'A108: the money fallback records that it fired');
+    eq(/admMoneyFailed = false; \/\/ a fresh fetch decides this again/.test(app108), true,
+       'A108: …and a fresh fetch clears it, so a good load cannot inherit a bad one');
+    eq(/admMoneyFailed \? '<div class="perm-note">' \+ esc\(t\('adm_money_off'\)\)/.test(app108), true,
+       'A108: …and the panel says which of the two screens you are looking at');
+    eq(BN108.test(D108.adm_money_off.bn) && !BN108.test(D108.adm_money_off.en), true,
+       'A108: …in both languages');
+
+    // seven labels that stayed English in Bengali mode. "Approve" survives as a
+    // loan word because the app already uses it that way in pending_users.
+    [['block', 'বন্ধ'], ['refresh', 'নতুন'], ['approved_users', 'অনুমোদিত'],
+     ['blocked_users', 'বন্ধ'], ['secret', 'সিঙ্ক'], ['script_url', 'সিঙ্ক']].forEach(function (p) {
+      eq(BN108.test(D108[p[0]].bn), true, 'A108: ' + p[0] + ' reads in Bengali now');
+    });
+    eq(D108.approve.bn.indexOf('Approve') >= 0 && BN108.test(D108.approve.bn), true,
+       'A108: …and Approve stays the loan word it already is in “Approve-এর অপেক্ষায়”');
+
+    // the tab title followed nothing at all — it was baked into index.html
+    eq(/document\.title = pn === t\('app_title'\) \? pn : pn \+ ' — ' \+ t\('app_title'\);/.test(app108), true,
+       'A108: the browser tab carries the puja name and the app language, without repeating itself');
+
+    // the amount box opens a number pad, which emits ASCII — so did the example
+    eq(/placeholder="500"/.test(app108), true,
+       'A108: the amount placeholder is written in the digits its own keyboard produces');
+    eq(/placeholder="৫০০"/.test(app108), false, 'A108: …not the ones it cannot');
+  }
   // A107: the admin panel would not open — "আবার চেষ্টা করো". Of the three
   // requests behind that screen, listUsers is the only one with no fallback,
   // and A100 had just made it the heaviest: sending the year makes the server

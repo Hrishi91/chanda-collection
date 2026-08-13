@@ -1163,7 +1163,7 @@
       // `numeric`, not `text`, on amounts. Words like "পাঁচশো" still parse and
       // are still the point of the mic button beside the box; they were never
       // really typed. Anyone who wants to type one can still switch keyboards.
-      const kb = s.kind === 'amount' ? 'inputmode="numeric" enterkeyhint="next" placeholder="৫০০"'
+      const kb = s.kind === 'amount' ? 'inputmode="numeric" enterkeyhint="next" placeholder="500"'
         : s.key === 'phone' ? 'inputmode="tel" enterkeyhint="next" placeholder="9xxxxxxxxx"'
         : 'enterkeyhint="next"';
       html += '<div class="input-row">' +
@@ -5545,6 +5545,7 @@
   // edit a DRAFT and one 💾 saves the lot: before this, granting eleven people
   // was ~88 taps × 4 server calls ≈ 350 calls.
   let admCache = null, admSection = '', admUserId = '', admDraft = null;
+  let admMoneyFailed = false; // A108: did the A107 fallback fire on this load?
   let admPosId = '', admPosDraft = null;
   function admDirty() {
     if (!admDraft || !admCache) return 0;
@@ -5728,6 +5729,7 @@
   }
   function renderAdmin(force) {
     if (admCache && !force) { paintAdmin(admCache); return; }
+    admMoneyFailed = false; // a fresh fetch decides this again
     $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(t('loading')) + '</div>';
     Promise.all([
       // A100: the year is what asks the server for each person's money. The
@@ -5752,6 +5754,11 @@
         .catch(function (e) {
           const m = String((e && e.message) || '');
           if (m === 'bad-token' || m === 'blocked' || m === 'pending') throw e;
+          // A108: say so. A silent fallback means "the panel opened" and "the
+          // panel opened WITHOUT the money" look identical — and which of the
+          // two happened is exactly the fact that says whether the failure
+          // behind A107 is still there.
+          admMoneyFailed = true;
           return Auth.call('listUsers', { token: Auth.token() });
         }),
       Auth.call('listSubjects', { token: Auth.token() }).catch(function () { return { subjects: [] }; }),
@@ -6091,6 +6098,7 @@
             t('adm_sub_users').replace('{n}', groups.approved.length)
               .replace('{p}', groups.pending.length).replace('{s}', staleN),
             groups.pending.length || '') +
+          (admMoneyFailed ? '<div class="perm-note">' + esc(t('adm_money_off')) + '</div>' : '') +
           menuRow('positions', '🎖️', 'list_position',
             t('adm_sub_positions').replace('{n}', positions.length), '') +
           menuRow('lists', '🧾', 'adm_lists', t('adm_sub_lists'), '') +
@@ -6626,6 +6634,14 @@
   }
   function render() {
     document.getElementById('app-title').textContent = '🙏 ' + pujaName();
+    // A108: the tab title was baked into index.html, so it stayed Bengali in an
+    // English app and never picked up the committee's own puja name either.
+    // pujaName() falls back to app_title when the committee has not set one,
+    // and "চাঁদা খাতা — চাঁদা খাতা" is not a title
+    try {
+      const pn = pujaName();
+      document.title = pn === t('app_title') ? pn : pn + ' — ' + t('app_title');
+    } catch (e) {}
     updateTrainingBar(); // version bar / training strip + header title, every screen
     document.querySelectorAll('#bottomnav button').forEach(function (b) {
       b.classList.toggle('on', b.dataset.nav === current.view);

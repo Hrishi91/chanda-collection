@@ -248,8 +248,8 @@ const I18N = {
   sync_not_configured: { bn: 'এই ফোন এখনো কেন্দ্রীয় খাতার সঙ্গে জোড়া হয়নি — admin-কে বলো। যা লিখবে ফোনেই থাকবে।', en: 'This phone is not connected to the central book yet — tell the admin. Anything you record stays safely on the phone.' },
   collector_name: { bn: 'তোমার নাম (সংগ্রাহক)', en: 'Your name (collector)' },
   language: { bn: 'ভাষা / Language', en: 'Language / ভাষা' },
-  script_url: { bn: 'Sync URL (Apps Script)', en: 'Sync URL (Apps Script)' },
-  secret: { bn: 'Sync secret', en: 'Sync secret' },
+  script_url: { bn: 'সিঙ্ক URL (Apps Script)', en: 'Sync URL (Apps Script)' },
+  secret: { bn: 'সিঙ্ক গোপন-কোড', en: 'Sync secret' },
   year: { bn: 'বছর', en: 'Year' },
   export_backup: { bn: '⬇️ Backup ফাইল নামাও (JSON)', en: '⬇️ Export backup (JSON)' },
   import_backup: { bn: '⬆️ Backup ফাইল ফেরত আনো', en: '⬆️ Import backup' },
@@ -288,8 +288,8 @@ const I18N = {
   must_change_msg: { bn: 'সাময়িক পাসওয়ার্ডে ঢুকেছ — আগে নিজের পাসওয়ার্ড বসাও', en: 'You used a temporary password — set your own first' },
   admin_panel: { bn: '👑 Admin প্যানেল', en: '👑 Admin panel' },
   pending_users: { bn: 'Approve-এর অপেক্ষায়', en: 'Awaiting approval' },
-  approved_users: { bn: 'Approved', en: 'Approved' },
-  blocked_users: { bn: 'Blocked', en: 'Blocked' },
+  approved_users: { bn: 'অনুমোদিত', en: 'Approved' },
+  blocked_users: { bn: 'বন্ধ করা', en: 'Blocked' },
   // A78 — the committee's access door. Deliberately worded so it can never be
   // read as the security block: this person is leaving the work, not suspected
   // of anything, and the login stays open until the money is in.
@@ -372,8 +372,8 @@ const I18N = {
   home_exiting_title: { bn: 'আপনি এখন বিদায়ী', en: 'You are standing down' },
   home_exiting_body: { bn: 'কমিটির সিদ্ধান্তে নতুন এন্ট্রি ও রিপোর্ট বন্ধ। হাতে যা আছে জমা দিন, আর আপনার তোলা চাঁদাদাতাদের বাকি নিতে পারবেন। সব জমা হয়ে গেলে অ্যাকাউন্ট বন্ধ হবে।',
                        en: 'By committee decision, new entries and reports are closed. Hand in what you hold; you may still collect from the donors you brought in. The account closes once everything is in.' },
-  approve: { bn: '✅ Approve', en: '✅ Approve' },
-  block: { bn: '🚫 Block', en: '🚫 Block' },
+  approve: { bn: '✅ Approve করো', en: '✅ Approve' },
+  block: { bn: '🚫 বন্ধ করো', en: '🚫 Block' },
   unblock: { bn: 'ফিরিয়ে নাও', en: 'Unblock' },
   cashier: { bn: 'ক্যাশিয়ার', en: 'Cashier' },
   make_cashier: { bn: '💰 ক্যাশিয়ার করো', en: '💰 Make cashier' },
@@ -455,7 +455,7 @@ const I18N = {
   temp_pw_is: { bn: 'সাময়িক পাসওয়ার্ড (ওকে মুখে বলে দাও)', en: 'Temporary password (tell them verbally)' },
   give_year_access: { bn: 'এ বছরের access দাও', en: 'Give this year access' },
   none_here: { bn: 'কেউ নেই', en: 'Nobody here' },
-  refresh: { bn: '🔄 Refresh', en: '🔄 Refresh' },
+  refresh: { bn: '🔄 নতুন করে আনো', en: '🔄 Refresh' },
   err_bad_login: { bn: 'ভুল username বা পাসওয়ার্ড', en: 'Wrong username or password' },
   err_pending: { bn: 'Admin এখনো approve করেনি — admin-কে বলো', en: 'Not approved yet — contact the admin' },
   err_blocked: { bn: 'তোমার access বন্ধ করা হয়েছে — admin-কে বলো', en: 'Your access is blocked — contact the admin' },
@@ -488,6 +488,11 @@ const I18N = {
   err_server: { bn: '⚠️ সার্ভার বলছে', en: '⚠️ Server says' },
   adm_filter_ph: { bn: '🔍 খুঁজি… ({n}টির মধ্যে)', en: '🔍 Search… (of {n})' },
   adm_filter_none: { bn: 'এই নামে কিছু পেলাম না', en: 'Nothing matches' },
+  // A108: shown only when the money request failed and the panel fell back to
+  // the plain user list (A107). Without it, "opened fine" and "opened without
+  // the figures" are the same screen.
+  adm_money_off: { bn: '⚠️ হাতের টাকার হিসাব আনা গেল না — বাকি সব কাজ করছে। 🔄 নতুন করে আনো চেপে দেখো।',
+                   en: '⚠️ Could not load who is holding what — everything else works. Try 🔄 Refresh.' },
   adm_sub_users: { bn: '{n} জন approved · {p} জন অপেক্ষায় · {s} জনের ফোন পিছিয়ে', en: '{n} approved · {p} waiting · {s} phones behind' },
   adm_sub_positions: { bn: '{n}টি পদ — কোন পদে কী করা যাবে', en: '{n} posts — what each one may do' },
   adm_sub_lists: { bn: 'রসিদের নকশা · খরচের বিষয় · এলাকা · location', en: 'Receipt design · expense subjects · areas · locations' },
