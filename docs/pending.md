@@ -407,8 +407,64 @@ below done first (goLive wipes it anyway, but cleaner to not rely on that).
 
 **→ `docs/residual-risks.md`** — what is built-but-never-run, out of scope
 by design, and the operational steps only Hrishi can do (incl. ⚠️ confirming
-the `dailyBackup` trigger actually exists, and that there is **no restore
-path** — Sheets version history is the realistic recovery route).
+the `dailyBackup` trigger actually exists).
+
+> **Correction, 2026-08-13.** The line here used to say there is *"no restore
+> path — Sheets version history is the realistic recovery route"*. That has been
+> false since A52/A73: `restoreBackup` exists in `Code.gs`, `listBackups` feeds
+> it, and 🗂️ ফিরিয়ে আনো is wired in the admin panel. Leaving a stale claim next
+> to the most destructive button in the app is exactly the sentence somebody
+> reads on the day it matters.
+
+### 🚀 Go Live — what it actually does (run against the real Code.gs, 2026-08-13)
+
+Not read: executed through `tests/gas-shim.js`, diffing the whole book before
+and after.
+
+**Wiped — eight transactional sheets, header kept:** Parties · Payments ·
+DailyCollections · Expenses · Handovers · Voids · Messages · Corrections.
+Chat history goes with them.
+
+**Survives:** Users (accounts, roles, permissions, areas, posts) · Lists (areas,
+locations, committee posts) · ExpenseSubjects · Config (puja name, receipt
+design, colour, logo) · Audit — which is append-only and *gains* the
+`went-live` line.
+
+**Reset:** every `receiptSeq_*` counter, so numbering restarts — measured
+`2026000002` before → `2026000001` after. `receipt_digits` is **locked in** at
+this moment. `live_mode=on` and a fresh `data_epoch` are stamped.
+
+**Guards, each one tried:**
+
+| চেষ্টা | উত্তর |
+|---|---|
+| confirm ছাড়া | `confirm-required` |
+| `confirm: 'live'` (ছোট হাতে) | `confirm-required` |
+| collector-এর token দিয়ে | `not-admin` |
+| দ্বিতীয়বার goLive | `already-live` |
+| পুরনো epoch নিয়ে ফোনের push | `stale-epoch` |
+
+A Drive snapshot is written **before** the first row is deleted, and a failure
+to write it aborts the whole thing (`backup-failed`) rather than proceeding.
+
+**On every phone:** the new `data_epoch` arrives with the next pull, the device
+wipes its local book and re-pulls. A92 makes it count anything still queued and
+say so by number first — but a collector who is offline at that moment keeps
+their queue until they come back, and it is refused with `stale-epoch` if it was
+minted before the cutover. **So: everyone syncs to zero BEFORE the button.**
+
+**⚠️ The one that will surprise you.** A 🚪 বিদায়ী member stays বিদায়ী through
+go-live — verified, the flag survives — but their **exit picture is deleted**
+(280 chars → 0). They walk into the live season with no post, no permissions and
+a working login, and the record explaining why is gone. Check the বিদায়ী list
+before pressing; the admin panel already warns about this in the training strip.
+
+**The way back — honest status.** `restoreBackup` exists, is admin-only, needs
+`confirm: 'RESTORE'`, refuses any file that is not one of our own snapshots, and
+resolves every key before the first `clear()` so a throw cannot leave the book
+half-and-half. It could **not** be exercised here: the shim's DriveApp cannot
+list files. So the restore drill stays a real pre-flight item, and it is worth
+doing BEFORE go-live rather than discovering it under pressure after.
 
 **→ Full final-stage audit: `docs/final-audit.md` (2026-07-25).** All six
 findings (A1 undo-vs-sync race HIGH, A2 rejectedIds MED, A3 dup-check MED,
