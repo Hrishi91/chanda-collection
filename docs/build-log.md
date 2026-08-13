@@ -9829,3 +9829,27 @@ Not mine to write; the field is there when Hrishi wants different words.
 
 Fourteen assertions, each mutation-tested. Tests **1,636 → 1,650**.
 Client-only — no redeploy.
+
+## Live mode, looked at for the first time (2026-08-13)
+
+Everything this project has ever been checked in was **training** mode. The app
+has a second mode nobody had opened. Ran `goLive` in the harness — never on the
+live book — and walked the screens.
+
+**The receipt's নমুনা · SAMPLE watermark is not a bug.** Hrishi asked for it to
+be removed; the condition is `if (!isLive())`, so it is the thing that stops a
+practice receipt from being indistinguishable from a real one. Screenshotted
+either side of `goLive`: watermark and yellow training strip present before,
+both gone after, receipt number `2026000001`. Nothing to change — removing it
+would take away the only mark separating a rehearsal from money.
+
+**No button that lies.** After go-live the admin panel drops the training card,
+🚀 Live শুরু করো and 🧹 প্র্যাকটিসের ডেটা মুছে ফেলো — the two the server would
+now refuse with `already-live`. The UI stops offering what the backend has
+stopped allowing, which is the failure this project keeps finding elsewhere.
+
+Six screens swept in live mode (home · খাতা · রিপোর্ট · সেটিংস · আমার entry ·
+🩺): no horizontal overflow at 375 px, no blank-name rows, and no stray
+"প্রশিক্ষণ" or "SAMPLE" text left anywhere.
+
+Docs only.
