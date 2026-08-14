@@ -10124,3 +10124,51 @@ but not guessable, so it is now a numbered step in the collector guide rather
 than a change to the code.
 
 Ten assertions, each mutation-tested. Tests **1,691 → 1,701**. Client-only.
+
+## A113 — the negative hand was pointing the wrong way
+
+Hrishi asked what happens when a donor pays more than pledged, and when somebody
+hands the cashier more than they are holding. Both were run before answering.
+
+### Overpayment — already right, nothing changed
+
+```
+কথা ছিল ₹২,০০০ · দিল ₹২,৫০০
+এন্ট্রি     পুরো ₹২,৫০০ নেওয়া হল
+🩺          "কমল স্টোর্স — কথা ছিল ₹2,000, জমা হয়েছে ₹2,500। বেশি জমা, নাকি ভুল entry?"
+বোতাম       ✓ ঠিক আছে, বেশিই দিয়েছেন   ✏️ কথার অঙ্ক ঠিক করো
+```
+
+The money is never trimmed to the pledge, and the desk **asks which it was**
+instead of guessing. Left alone.
+
+### Handing over more than you hold — accepted on purpose, explained wrongly
+
+The UI caps it (*"সর্বোচ্চ ₹২,৫০০ দেওয়া যাবে"*), but a stale screen, an offline
+queue or two handovers racing get past that, and the server takes it:
+
+```
+হাতে ₹২,৫০০, পাঠাল ₹৫,০০০ → saved
+confirm-এর পরে → কালী −₹২,৫০০ · বিমল ₹৫,০০০
+```
+
+**Accepting is correct.** The cash physically moved; refusing the record would
+leave money changing hands with nothing written down. And the model stays whole:
+−2500 + 5000 = 2500 = collected.
+
+The fault was the sentence. It read *"খরচ বা জমা তোলার চেয়ে বেশি লেখা হয়েছে"* —
+"more was spent or handed over than collected". True, and it reads as **"he
+handed over too much"**, so a cashier goes and checks the handover. In practice a
+negative hand almost always means the opposite: the handover is right and the
+**collection was never entered**. Two readings, two completely different jobs.
+
+Now:
+
+> কালী দাস-এর হাতে −₹5,200 — **সম্ভবত কিছু আদায় এখনো লেখা হয়নি। বাকি entry তুলতে
+> বলুন**; নাহলে জমা/খরচের অঙ্ক মিলিয়ে নিন।
+
+Hedged on purpose. An over-recorded expense or a duplicated handover can produce
+the same figure, and a card that overstates its certainty is ignored the first
+time it is wrong — so the likely cause leads and the other stays as the fallback.
+
+Six assertions, mutation-tested. Tests **1,701 → 1,707**. Client-only.

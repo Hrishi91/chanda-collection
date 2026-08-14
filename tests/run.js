@@ -903,6 +903,32 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     eq(/Auth\.call\('listItems', \{ token: Auth\.token\(\) \}\)\.catch\(function \(\) \{ return \{ items: \[\] \}; \}\)/.test(app107), true,
        'A107: …and so does listItems');
   }
+  // A113: negative in-hand pointed the wrong way. "More was spent or handed
+  // over than collected" is true and reads as "he handed over too much", so a
+  // cashier goes to check the handover — when in practice the handover is right
+  // and the COLLECTION is what is missing from the book. Two readings, two
+  // different jobs.
+  {
+    const vm113 = require('vm'), c113 = vm113.createContext({});
+    vm113.runInContext(require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8') +
+                       ';globalThis.__D = I18N;', c113);
+    const neg = c113.__D.anom_negative;
+    eq(/আদায়[^]{0,20}লেখা হয়নি/.test(neg.bn), true,
+       'A113: the negative-hand card names the likely cause — an entry that was never made');
+    eq(/collection has not been recorded/.test(neg.en), true, 'A113: …in both languages');
+    // hedged, because an over-recorded expense or a duplicated handover can do
+    // it too — and a card that overstates its certainty gets ignored the first
+    // time it is wrong
+    eq(/সম্ভবত/.test(neg.bn) && /most likely/.test(neg.en), true,
+       'A113: …as the LIKELY cause, not a verdict');
+    eq(/জমা\/খরচের অঙ্ক/.test(neg.bn) && /handover and expense/.test(neg.en), true,
+       'A113: …with the other possibility kept as the fallback');
+    eq(/খরচ বা জমা তোলার চেয়ে বেশি লেখা হয়েছে/.test(neg.bn), false,
+       'A113: …and the sentence that sent people to the wrong place is gone');
+    // the overpaid card already asked the right question — left alone on purpose
+    eq(/বেশি জমা, নাকি ভুল entry\?/.test(c113.__D.anom_overpaid.bn), true,
+       'A113: the overpaid card still ASKS which it was rather than guessing');
+  }
   // A112: the two things the book was BALANCED about and silent on. Both were
   // found by asking "what could go wrong that reconcile cannot see?" — and the
   // answer both times was: anything the arithmetic agrees with.

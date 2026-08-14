@@ -739,8 +739,17 @@ const I18N = {
   anom_orphan: { bn: '{n} জমা আছে, কিন্তু দাতার সারি নেই — দাতা বাতিল হয়েছিল?',
                  en: '{n} is recorded but its donor row is missing — was the donor voided?' },
   anom_negative_inhand_t: { bn: 'হাতে ঋণাত্মক টাকা', en: 'Negative cash in hand' },
-  anom_negative: { bn: '{who}-এর হাতে {n} — খরচ বা জমা তোলার চেয়ে বেশি লেখা হয়েছে।',
-                   en: '{who} holds {n} — more was spent or handed over than collected.' },
+  // A113: this used to read "more was spent or handed over than collected" —
+  // true, and it points the wrong way. A cashier reads it as "he handed over
+  // too much" and goes to check the handover. In practice a negative hand
+  // almost always means the opposite: money was taken and the ENTRY for it is
+  // missing. The handover is right; the collection is not written down.
+  //
+  // Two different jobs follow from the two readings, so the sentence names the
+  // likely cause first and keeps the other as the fallback — "সম্ভবত", because
+  // an over-recorded expense or a duplicated handover can do it too.
+  anom_negative: { bn: '{who}-এর হাতে {n} — সম্ভবত কিছু আদায় এখনো লেখা হয়নি। বাকি entry তুলতে বলুন; নাহলে জমা/খরচের অঙ্ক মিলিয়ে নিন।',
+                   en: '{who} holds {n} — most likely some collection has not been recorded yet. Ask them to enter the rest; if not that, check the handover and expense amounts.' },
   anom_duplicate_id_t: { bn: 'একই id দুবার', en: 'Duplicate id' },
   anom_dupid: { bn: '{store}-এ একই id-তে দুটো সারি — sync-এ গোলমাল, admin দেখুন।',
                 en: 'Two rows share one id in {store} — a sync problem; needs an admin.' },
