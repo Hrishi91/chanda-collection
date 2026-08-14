@@ -4367,6 +4367,11 @@
   // was pinning its contents, which made it worse than useless: it looked like
   // coverage of a rule no code obeyed. The three branches in renderAnomalies
   // ARE the rule; there is no second copy left to disagree with them.
+  // A112: over this much in one person's hands, 🩺 says so and the admin list
+  // turns the figure red. Hrishi's number. Hardcoded rather than admin-settable
+  // on purpose for now: a Config key would need a Code.gs redeploy, and this
+  // had to land before the trial. Change it here.
+  const HIGH_INHAND = 10000;
   function renderAnomalies() {
     if (!Auth.isCashier()) { $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
     $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('loading')) + '</div>';
@@ -4480,8 +4485,49 @@
           (a.partyId ? '<div class="chips" style="margin-top:8px"><button class="chip" data-goparty="' +
             esc(a.partyId) + '">👁 ' + esc(t('view')) + '</button></div>' : '') + '</div>';
       });
+      // A112: two things the arithmetic cannot complain about, so they sit
+      // above the anomalies rather than inside them — reconcile is for "the
+      // book disagrees with itself", and neither of these does.
+      const payById = {}; (data.payments || []).forEach(function (p) { payById[p.id] = p; });
+      const dailyById2 = {}; (data.daily || []).forEach(function (d) { dailyById2[d.id] = d; });
+      const voids = (data.voids || []).slice()
+        .sort(function (a, c) { return String(c.createdAt || '').localeCompare(String(a.createdAt || '')); });
+      const voidAmt = function (v) {
+        const t = v.targetStore === 'daily' ? dailyById2[v.targetId] : payById[v.targetId];
+        return Number((t || {}).amount) || 0;
+      };
+      const voidTotal = voids.reduce(function (a, v) { return a + voidAmt(v); }, 0);
+      const voidCard = !voids.length ? '' :
+        '<div class="card"><div class="card-title">' + esc(t('anom_voids_t')) + '</div>' +
+        '<div class="row-sub">' + esc(t('anom_voids_sub').replace('{n}', toBengaliDigits(String(voids.length)))
+          .replace('{amt}', fmtMoney(voidTotal))) + '</div>' +
+        voids.slice(0, 15).map(function (v) {
+          return '<div class="row" style="cursor:default"><div><b>' + esc(fmtMoney(voidAmt(v))) + '</b>' +
+            (v.reason ? ' <span class="row-sub">— ' + esc(v.reason) + '</span>' : '') +
+            '<div class="row-sub">' + esc(v.collector || v.collectorId || '?') + ' · ' +
+            esc(v.createdAt ? fmtDateTime(v.createdAt) : '') + '</div></div></div>';
+        }).join('') +
+        (voids.length > 15 ? '<div class="row-sub" style="padding:6px 12px">…' +
+          esc(toBengaliDigits(String(voids.length - 15))) + '</div>' : '') + '</div>';
+      // who is carrying too much right now
+      const holders = {};
+      liveParties(data).forEach(function (p) { holders[p.collectorId || p.collector] = 1; });
+      (data.payments || []).forEach(function (p) { holders[p.collectorId || p.collector] = 1; });
+      (data.daily || []).forEach(function (d) { holders[d.collectorId || d.collector] = 1; });
+      const heavy = Object.keys(holders).filter(Boolean).map(function (id) {
+        return { id: id, inHand: Aggregate.personalSummary(data, id).inHand };
+      }).filter(function (h) { return h.inHand > HIGH_INHAND; })
+        .sort(function (a, c) { return c.inHand - a.inHand; });
+      const heavyCard = !heavy.length ? '' :
+        '<div class="card"><div class="card-title">' + esc(t('anom_highinhand_t')) + '</div>' +
+        '<div class="row-sub">' + esc(t('anom_highinhand_sub').replace('{amt}', fmtMoney(HIGH_INHAND))) + '</div>' +
+        heavy.map(function (h) {
+          return '<div class="row" style="cursor:default"><div><b>' + esc(h.id) + '</b></div>' +
+            '<div class="row-right" style="color:var(--red)">' + esc(fmtMoney(h.inHand)) + '</div></div>';
+        }).join('') + '</div>';
       $view().innerHTML = backBar('report') + '<div class="flow-title">🩺 ' + esc(t('anom_title')) + '</div>' +
-        (rows.length ? rows.join('') : '<div class="empty">' + esc(t('anom_none')) + '</div>');
+        heavyCard + voidCard +
+        (rows.length ? rows.join('') : (heavyCard || voidCard ? '' : '<div class="empty">' + esc(t('anom_none')) + '</div>'));
       wireNav();
       document.querySelectorAll('[data-goparty]').forEach(function (b) {
         b.onclick = function () { navigate('party', { id: b.dataset.goparty, from: 'anomalies' }); };
@@ -6189,7 +6235,8 @@
             // that hides that sends somebody looking for cash in the wrong
             // pocket.
             (u.money && u.status !== 'pending'
-              ? '<div class="row-right">' + esc(fmtMoney(u.money.inHand)) +
+              ? '<div class="row-right"' + (Number(u.money.inHand) > HIGH_INHAND
+                    ? ' style="color:var(--red)"' : '') + '>' + esc(fmtMoney(u.money.inHand)) +
                   (Number(u.money.pending) ? ' <span class="row-sub">⏳</span>' : '') +
                   '<div class="row-sub">' + esc(t('access_inhand')) + '</div></div>'
               : '') +

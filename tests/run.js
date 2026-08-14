@@ -903,6 +903,43 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     eq(/Auth\.call\('listItems', \{ token: Auth\.token\(\) \}\)\.catch\(function \(\) \{ return \{ items: \[\] \}; \}\)/.test(app107), true,
        'A107: …and so does listItems');
   }
+  // A112: the two things the book was BALANCED about and silent on. Both were
+  // found by asking "what could go wrong that reconcile cannot see?" — and the
+  // answer both times was: anything the arithmetic agrees with.
+  {
+    const app112 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    const i18n112 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+
+    // 1 — a void keeps the books perfect. Collection drops, that person's
+    // in-hand drops by the same amount, reconcile is happy, and money has left
+    // the book with one line in an audit sheet nobody is told to read.
+    eq(/const voidCard = !voids\.length \? '' :/.test(app112), true,
+       'A112: cancelled entries are surfaced where a cashier will see them');
+    eq(/const voidTotal = voids\.reduce/.test(app112), true,
+       'A112: …with the total, because one ₹3,000 void reads differently from three ₹100 ones');
+    eq(/anom_voids_t:/.test(i18n112) && /anom_voids_sub:/.test(i18n112), true,
+       'A112: …and it says why they are worth looking at');
+    // the amount has to be looked up on the TARGET — a void row carries no money
+    eq(/const t = v\.targetStore === 'daily' \? dailyById2\[v\.targetId\] : payById\[v\.targetId\];/.test(app112), true,
+       'A112: …reading the amount off the row that was cancelled, since the void carries none');
+
+    // 2 — cash piling up in one pair of hands. Not wrongdoing; the ordinary
+    // thing that happens when nobody is watching a number.
+    eq(/const HIGH_INHAND = 10000;/.test(app112), true, 'A112: one named threshold, in one place');
+    eq(/\.filter\(function \(h\) \{ return h\.inHand > HIGH_INHAND; \}\)/.test(app112), true,
+       'A112: …🩺 lists whoever is over it');
+    eq(/Number\(u\.money\.inHand\) > HIGH_INHAND[\s\S]{0,60}color:var\(--red\)/.test(app112), true,
+       'A112: …and the admin list turns that figure red');
+    eq(/anom_highinhand_t:/.test(i18n112), true, 'A112: …in words, not just a colour');
+
+    // both sit ABOVE the anomalies: reconcile means "the book disagrees with
+    // itself", and neither of these does
+    eq(/heavyCard \+ voidCard \+/.test(app112), true,
+       'A112: both sit above the anomaly cards, not inside reconcile');
+    // …and an empty desk must not claim to be empty when one of them is showing
+    eq(/\(heavyCard \|\| voidCard \? '' : '<div class="empty">'/.test(app112), true,
+       'A112: …so "no anomalies" is not printed under a card that says otherwise');
+  }
   // A111: the pre-puja sweep. Thirteen screens in two languages and three
   // roles turned up one message that was false: a cashier WITHOUT the 🛠️ grant
   // was told "you are not a cashier". canReview() is two conditions and the

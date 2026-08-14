@@ -10065,3 +10065,62 @@ really is not a cashier.
 or `undefined`/`NaN` on any screen, no console errors.
 
 Tests **1,688 → 1,691**. Client-only — no redeploy.
+
+## A112 — the two things the book was balanced about, and silent on
+
+Hrishi: *"have you got any loopholes… functional gap that will make problem
+later?"* Four, each reproduced rather than guessed. Two are now closed, one is a
+documented trade-off, one is a rule for people rather than code.
+
+### The pattern behind both fixes
+
+`reconcile` answers one question — *does the book disagree with itself?* Both
+gaps were things where it **agrees perfectly**, which is exactly why neither was
+visible.
+
+**A void erases money with the arithmetic intact.** Measured:
+
+```
+রসিদ দিয়ে ₹১০০০ নিল    আদায় 1000 · হাতে 1000 · অসঙ্গতি 0
+নিজের কিস্তি void করল   আদায়    0 · হাতে    0 · অসঙ্গতি 0
+🩺 বলল                  কিছুই না
+সাক্ষী                  Audit শিটের একটি লাইন
+```
+
+Collection drops, that person's in-hand drops by the same amount, every total
+still balances. The donor is left holding receipt `2026000001` against a payment
+that no longer exists, and nobody is prompted to notice. This is not an
+accusation of anyone — a mis-tap and misuse have the identical signature, and
+neither was visible.
+
+**Cash piling up in one pair of hands.** ₹45,000 with one collector and the app
+said nothing. On puja night this is the likelier of the two: not wrongdoing, just
+money accumulating because no one was watching a number.
+
+Both now sit at the top of 🩺, above the anomalies rather than inside
+`reconcile` — its meaning is left alone. Cancelled entries come with their total
+(one ₹3,000 void reads differently from thirty ₹100 ones) and the amount is read
+off the row that was cancelled, since a void row carries no money of its own.
+Anyone over **₹10,000** is listed, and the figure A100 put on the admin's user
+list turns red past the same line. Verified in the harness: কালী at ₹18,800 red
+and named, one ₹3,000 void surfaced.
+
+The threshold is a named constant in `js/app.js`, deliberately not a Config key:
+that would need a Code.gs redeploy, and this had to land before the trial.
+
+### The two not fixed, and why
+
+**The freeze trusts the phone's clock.** A row stamped `createdAt: 2020` walks
+straight through a live freeze — `createdAt` comes from the device and nothing
+checks it. Fixable by comparing a server-side `receivedAt` instead, but that
+would refuse the honest offline backlog A110 exists to protect. Hrishi's rule was
+explicit that the backlog gets in. **Left as is, and written down: the freeze
+stops honest work, it is not a lock.**
+
+**A phone swap strands the old phone's queue.** One account, one device — so
+logging in on a replacement answers `bad-token` on the old one, with its unsynced
+rows still on it. Recoverable (log back in on the old phone, sync, then switch)
+but not guessable, so it is now a numbered step in the collector guide rather
+than a change to the code.
+
+Ten assertions, each mutation-tested. Tests **1,691 → 1,701**. Client-only.

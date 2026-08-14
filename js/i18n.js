@@ -504,6 +504,23 @@ const I18N = {
   // A111: a cashier WITHOUT the corrections-review grant used to be told
   // "you are not a cashier" — false, and it sends them to the admin arguing
   // about the wrong thing. The condition is two halves; the message was one.
+  // A112: the two things the book was balanced about and silent on.
+  //
+  // A void keeps the arithmetic perfect — collection drops, that person's
+  // in-hand drops by the same amount, reconcile is happy — so money can leave
+  // the book without a single figure looking wrong. The only witness was one
+  // line in the Audit sheet, which nobody is told to read.
+  anom_voids_t: { bn: '🚫 বাতিল করা এন্ট্রি — দেখে নিন',
+                  en: '🚫 Cancelled entries — worth a look' },
+  anom_voids_sub: { bn: '{n}টি বাতিল · মোট {amt}। হিসাব মিলে যায় বলেই এগুলো চোখে পড়ে না — তাই এখানে।',
+                    en: '{n} cancelled · {amt} in total. The books balance either way, which is why these are easy to miss.' },
+  anom_void_line: { bn: '{amt} · {who} · {when}', en: '{amt} · {who} · {when}' },
+  // …and cash simply piling up in one pair of hands. Not wrongdoing — the
+  // ordinary thing that happens when nobody is watching a number.
+  anom_highinhand_t: { bn: '💰 হাতে অনেক টাকা জমেছে',
+                       en: '💰 A lot of cash in one pair of hands' },
+  anom_highinhand_sub: { bn: '{amt}-এর বেশি হাতে থাকলে এখানে দেখাবে। জমা নিয়ে নিন।',
+                         en: 'Anyone holding more than {amt} shows here. Time to collect it.' },
   no_review_grant: { bn: '🛠️ সংশোধন review-এর অনুমতি তোমার নেই — admin-কে বলো',
                      en: '🛠️ You do not have the corrections-review permission — ask the admin' },
   freeze_bar_admin: { bn: '🛑 আপনি সবার entry থামিয়ে রেখেছেন',
