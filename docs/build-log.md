@@ -10357,3 +10357,37 @@ the server.
 ও অনুমতি (until then every post reads ⚠️ স্তর বসানো নেই and only an admin
 appoints), make a **second admin** before go-live (nobody may enter their own
 committee record), and clear the account-less member rows 🩺 lists by name.
+
+## v4.33.1 — A115b: the count, on the screen that can fix it
+
+Hrishi asked who actually sees the account-less member rows. Checked rather than
+guessed: 🩺 অসঙ্গতি পরীক্ষা is gated on `Auth.isCashier()`
+(`cashier === 1 || role === 'admin'`) — [js/app.js:4505](../js/app.js), and the
+📊 banner and the 🏠 red dot use the same gate.
+
+Fixing one of those rows needs **`memberadmin`**, which is a different grant. An
+admin may hand out either without the other, and then the only person who CAN
+repair the rows never sees that there are any. Verified by logging in as রতন —
+`memberadmin`, `cashier: 0`: 🩺 bounces him to home.
+
+Each row already carried its own ⚠️. What was missing was the number, so the
+register now prints it above the list:
+
+```
+1 জন সদস্য
+⚠️ 1 জনের app-অ্যাকাউন্ট জোড়া নেই। অ্যাকাউন্ট ছাড়া ওই সারিগুলো আর সেভ করা
+   যাবে না, আর কমিটিতে পদও দেওয়া যাবে না — নিচে ⚠️ চিহ্ন দেওয়া আছে…
+```
+
+Two audiences, two surfaces, one fact — the same shape as A115 itself.
+
+Tests **1,757 → 1,759**, mutation-tested. Client-only in effect.
+
+**⚠️ Needs a second Apps Script redeploy**, and that is the whole cost of a
+one-line UI addition: `sw.js` must change for a shell file to reach a phone
+(A114), and the three version constants are pinned equal by test, so `Code.gs`
+moves with it although not a line of its logic changed. This is the second time
+this bill has arrived. `docs/pending.md` already carries the fix — the worker's
+cache key does not have to be the server's build number — and it stays a
+post-puja item, because changing how releases work in the week of the puja is a
+worse trade than one extra deploy.

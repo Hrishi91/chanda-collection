@@ -2733,6 +2733,19 @@ eq(/q_email|q_phone|q_person_name/.test(a29Reg), false,
 eq(/function renderMemberForm\(params\)[\s\S]{0,600}const id = \(params && params\.id\)/.test(a25App), true,
    'A32: one form serves both registering and EDITING a member');
 eq(a25App.indexOf('data-ma-edit') >= 0, true, 'A32: every registered member has an edit button');
+// A115b: the register counts its OWN account-less rows. 🩺 অসঙ্গতি already
+// raises them, but that desk is gated on `cashier` while fixing one needs
+// `memberadmin` — an admin may grant either without the other, so the person
+// who can repair them would never see the number. Two audiences, two surfaces.
+{
+  const pma = a25App.slice(a25App.indexOf('function paintMemberAdmin'),
+                           a25App.indexOf('function renderMemberForm'));
+  eq(/list\.filter\(function \(m\) \{ return !String\(m\.appUser \|\| ''\); \}\)\.length/.test(pma) &&
+     /member_no_account_n/.test(pma), true,
+     'A115: the register shows how many members have no account, without 🩺');
+  eq(/member_no_account_n:/.test(a25I18n) && /\{n\}/.test(a25I18n), true,
+     'A115: …in both languages, with the number');
+}
 eq(/others\.length >= cap/.test(a29Reg), true,
    'A32: the cap is re-checked at SAVE, not only in the dropdown');
 // A115: counted over ACCOUNTS now, because that is where the post lives — and

@@ -2436,7 +2436,16 @@
       if (!el.isConnected) return;
       const list = liveParties(data).filter(function (p) { return p.type === 'member'; })
         .sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'bn'); });
+      // A115b: the total, on THIS screen, because the two audiences are not the
+      // same people. 🩺 অসঙ্গতি is gated on `cashier`, and fixing one of these
+      // needs `memberadmin` — an admin may hand out one without the other, and
+      // then the person who can repair it never sees the count. Each row already
+      // carries its own ⚠️; this is the number, so nobody has to scroll a
+      // hundred names to learn there are three.
+      const noAcct = list.filter(function (m) { return !String(m.appUser || ''); }).length;
       el.innerHTML = '<div class="section">' + esc(t('member_admin_count').replace('{n}', list.length)) + '</div>' +
+        (noAcct ? '<div class="perm-warn" style="display:block;margin-bottom:10px">⚠️ ' +
+                  esc(t('member_no_account_n').replace('{n}', noAcct)) + '</div>' : '') +
         (list.length ? list.map(function (m) {
           const bits = [];
           const pos = memberPost(m);

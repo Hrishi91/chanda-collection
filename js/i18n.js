@@ -69,6 +69,8 @@ const I18N = {
   // A115: the register writes permissions, so it writes them on the wire.
   member_needs_online: { bn: '📶 সদস্য যোগ বা বদল করতে internet লাগবে। কমিটির পদ দেওয়া মানে অ্যাপের অনুমতি দেওয়া — সেটা ফোন নিজে ঠিক করতে পারে না, সার্ভারকেই বলতে হয়। তালিকা দেখা যাবে, আর 🤝 সদস্যের চাঁদা আগের মতোই offline-এ চলবে।',
                          en: 'Adding or editing a member needs internet. Giving a committee post grants app permissions, and a phone cannot settle that on its own — the server must. Viewing the list still works, and 🤝 Member contribution still works offline.' },
+  member_no_account_n: { bn: '{n} জনের app-অ্যাকাউন্ট জোড়া নেই। অ্যাকাউন্ট ছাড়া ওই সারিগুলো আর সেভ করা যাবে না, আর কমিটিতে পদও দেওয়া যাবে না — নিচে ⚠️ চিহ্ন দেওয়া আছে, ✏️ বদলাও চেপে অ্যাকাউন্ট বসিয়ে দাও।',
+                         en: '{n} members have no app account linked. Those rows cannot be saved again, and cannot hold a committee post — each is marked ⚠️ below; tap ✏️ and pick an account.' },
   member_self_note: { bn: '🚫 নিজের সদস্য-তথ্য নিজে বদলানো যায় না — অন্য একজন admin বা 🎖️-অনুমতিওয়ালা কেউ করবে।',
                       en: '🚫 You cannot edit your own committee record — another admin, or somebody else with 🎖️, must do it.' },
   member_pick_user: { bn: 'অ্যাকাউন্ট বাছো', en: 'Pick an account' },
