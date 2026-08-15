@@ -10391,3 +10391,17 @@ this bill has arrived. `docs/pending.md` already carries the fix — the worker'
 cache key does not have to be the server's build number — and it stays a
 post-puja item, because changing how releases work in the week of the puja is a
 worse trade than one extra deploy.
+
+### v4.33.1 deployed (2026-08-15)
+
+Second deployment of the day — the price of the A114 rule plus the version
+pinning, paid for a one-line UI addition. Probed before trusting, as always:
+
+```
+POST {action:'pull', token:'probe-only'}  →  {ok:false, error:'bad-token',
+                                              codeVersion:'chanda-v4.33.1', schema:5}
+```
+
+`js/config.js` rebaked. Server, `sw.js` and `auth.js` all read
+`chanda-v4.33.1`, so no 🛠️ bar, and `sw.js` changed so the new worker installs
+and A115b actually reaches the phones.
