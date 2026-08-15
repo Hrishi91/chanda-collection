@@ -10405,3 +10405,44 @@ POST {action:'pull', token:'probe-only'}  →  {ok:false, error:'bad-token',
 `js/config.js` rebaked. Server, `sw.js` and `auth.js` all read
 `chanda-v4.33.1`, so no 🛠️ bar, and `sw.js` changed so the new worker installs
 and A115b actually reaches the phones.
+
+## 2026-08-15 — a UI role, scoped down to what it can honestly do
+
+Hrishi: *"I think we should have mobile app expert roles… what you say"*, then
+narrowed it himself: *"we just need the ui approaches here, nothing else."*
+
+He was right that there was a blind spot, and it was measurable: `pending.md`
+had six hundred lines and **no UI section at all** — every item in it was money,
+permissions, sync or deploys.
+
+What I pushed back on was the title. The biggest mobile risks in this app are
+things **no agent can observe**: mic permission, bn-IN recognition on a real
+handset, the WhatsApp share sheet, a pandal network that completes TLS and then
+goes quiet. Called "mobile expert", an agent produces confident advice about
+exactly those, because the title invites it — the same family as a harness that
+cannot see failure. Hrishi cut it to UI himself before I finished arguing.
+
+Measured the ground first rather than guessing, and the answer was better than
+expected in one place and worse in another:
+
+- **already done:** `min-height: 44px` on every button, chip, back-bar and
+  input, with A73's note at `css/style.css:257` saying why it is min-height and
+  not padding. A 360px media query exists. Nothing to redo.
+- **🔴 236 hard-coded `px`, no `rem`** — smallest 10px, 26 declarations at
+  11–12.5px. Turning the phone's text size up changes nothing at all. That is
+  the older committee member, reading rupee figures.
+- **🔴 no `prefers-color-scheme`** — used after dark, in a pandal, on phones in
+  dark mode, and it flashes white.
+
+Both recorded in `pending.md` with the measurements, **after the puja** and
+after the SW-cache-key decoupling — until that lands, a stylesheet change drags
+a full Apps Script redeploy behind it, and re-laying-out screens people are
+about to collect real money on is the wrong trade this week.
+
+The role itself is `.claude/agents/ui-approach.md`, deliberately narrow: it may
+edit **`css/style.css` and nothing else**, and a change needing different markup
+comes back as a recommendation. `js/app.js` holds the money and permission
+decisions, and this project has been bitten more than once by a change that
+looked cosmetic and moved a rule.
+
+No code changed. Docs and the agent definition only.

@@ -593,6 +593,41 @@ nothing locks, so no phone is affected either way.
 ✅ `safeCell_` verified on the real Sheet 2026-07-29: a donor named `=টেস্ট`
 reads back as exactly `=টেস্ট`.
 
+## AFTER THE PUJA — UI / mobile pass (raised by Hrishi, 2026-08-15)
+
+Hrishi: *"I think we should have mobile app expert roles"*, then narrowed it
+himself: *"we just need the ui approaches here, nothing else."* He was right that
+there is a blind spot — this file had **six hundred lines and not one about the
+UI**. Everything in it is money, permissions, sync and deploys.
+
+Measured rather than guessed, so the pass starts from facts:
+
+- **Touch targets are already done** and should be left alone. `min-height: 44px`
+  is on every button, chip, back-bar, void-btn and input; `css/style.css:257`
+  carries A73's note — *"min-height makes 44px a GUARANTEE"*. There is also a
+  `@media (max-width: 360px)` block. Nothing to redo here.
+
+- **🔴 The app does not honour the phone's text size.** 236 hard-coded `px` in a
+  545-line stylesheet and not a single `rem`. Smallest is **10px**, with 26
+  declarations at 11–12.5px. An Android user who turns their text size up gets
+  **no change at all**, because `px` does not listen to the OS. That is exactly
+  the older committee member, reading rupee figures, on their own handset.
+
+- **🔴 No dark mode.** Not one `prefers-color-scheme` rule. The app is used after
+  dark, in a pandal, on phones that are in dark mode — and it will flash white
+  and then be read by someone squinting at money.
+
+Both bite at the moment of real use: dark, crowded, older eyes. Neither is worth
+doing before the puja: a stylesheet change bumps `sw.js`, which (until the item
+below lands) drags a full Apps Script redeploy behind it, and re-laying-out
+screens people are about to collect real money on, days before, is the wrong
+trade. Do this AFTER the decoupling below, when a client-only change is cheap.
+
+**Scope, agreed with Hrishi and written into `.claude/agents/ui-approach.md`:**
+`css/style.css` only. Any markup change comes back as a recommendation instead
+of an edit — `js/app.js` holds the money and permission decisions, and a UI pass
+loose in there would cost more than a font size is worth.
+
 ## AFTER THE PUJA — decouple the SW cache key from the server version
 
 A114 (2026-08-14): three client-only releases reached Pages and no phone, because
