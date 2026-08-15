@@ -10334,3 +10334,26 @@ red.
 **⚠️ Needs an Apps Script redeploy** (this supersedes the pending v4.32.0 one —
 deploy this instead, once). New: `saveMember`, `removeMember`, the `level`
 column on `Lists`, and `committee` on every pull.
+
+### v4.33.0 deployed (2026-08-15)
+
+New `/exec` asked what it runs **before** being trusted — the A81 habit, since a
+New deployment can silently be built against an older Version entry:
+
+```
+POST {action:'pull', token:'probe-only'}  →  {ok:false, error:'bad-token',
+                                              codeVersion:'chanda-v4.33.0', schema:5}
+```
+
+A deliberately bad token, so the probe reads a version and changes nothing. From
+a browser, never `curl`: `curl -L` downgrades a redirected POST to GET, so every
+healthy `/exec` answers "Page not found".
+
+`js/config.js` rebaked to the new URL. This one deployment carries A109
+(v4.30.0), A114 (v4.32.0) and A115 (v4.33.0) — the first two had never reached
+the server.
+
+**Still Hrishi's, in the app:** type a **level** into each post in 🎖️ কমিটির পদ
+ও অনুমতি (until then every post reads ⚠️ স্তর বসানো নেই and only an admin
+appoints), make a **second admin** before go-live (nobody may enter their own
+committee record), and clear the account-less member rows 🩺 lists by name.
