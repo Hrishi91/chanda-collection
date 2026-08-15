@@ -10172,3 +10172,51 @@ the same figure, and a card that overstates its certainty is ignored the first
 time it is wrong — so the likely cause leads and the other stays as the fallback.
 
 Six assertions, mutation-tested. Tests **1,701 → 1,707**. Client-only.
+
+## v4.32.0 — A114: three releases that reached Pages and no phone
+
+Hrishi: *"I am not able to see the buttons recently we made."* He was right, and
+the cause was mine.
+
+`sw.js` has not changed since the v4.31.0 commit. `js/app.js` and `js/i18n.js`
+have — three times: **A111, A112, A113**. The worker serves the app shell
+**cache-first** and only re-fetches those files when a NEW worker installs, which
+only happens when `sw.js` itself changes byte-for-byte. So all three landed on
+GitHub Pages, were verified live there, and could not reach a single phone that
+already held the `chanda-v4.31.0` cache.
+
+🔄 আপডেট খুঁজি could not help either: `runUpdate` calls `registration.update()`,
+which re-fetches `sw.js`, finds it identical, and correctly does nothing.
+
+**And I told him three times that a client-only change needs no redeploy.** That
+was wrong. A client-only change still needs the cache key to move, and in this
+repo the cache key is tied to the release version.
+
+### The guard, so it cannot happen again
+
+`scripts/pre-commit-docs.sh` gains a second rule: any commit touching a file in
+the worker's SHELL list — `index.html`, `css/style.css`, or the ten `js/*.js`
+files it precaches — must also touch `sw.js`.
+
+```
+COMMIT BLOCKED: an app-shell file changed but sw.js did not.
+  The service worker serves these cache-first and only refreshes them
+  when sw.js itself changes. Without a VERSION bump this lands on Pages
+  and never reaches a single phone.
+```
+
+Proved by trying it: a commit with `js/app.js` + a doc and no `sw.js` is refused.
+The docs rule was already there and fires first, so the first attempt tested the
+wrong rule — the second staged both a shell file and a doc, which is the case
+that used to sail through.
+
+All three versions move to **chanda-v4.32.0**, carrying A111 (the review desk's
+false "you are not a cashier"), A112 (voids and high in-hand on 🩺) and A113 (the
+negative-hand sentence) onto phones at last.
+
+**⚠️ Needs an Apps Script redeploy.** Nothing in `Code.gs` changed except the
+version constant, but the three are pinned equal by test — and that pinning is
+what makes a cache-key bump imply a redeploy. Worth revisiting after the puja:
+the worker's cache key and the server build number do not have to be the same
+number, and tying them is what turned "fix a sentence" into "redeploy the
+backend". Recorded in `docs/pending.md`.

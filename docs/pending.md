@@ -572,6 +572,20 @@ nothing locks, so no phone is affected either way.
 ✅ `safeCell_` verified on the real Sheet 2026-07-29: a donor named `=টেস্ট`
 reads back as exactly `=টেস্ট`.
 
+## AFTER THE PUJA — decouple the SW cache key from the server version
+
+A114 (2026-08-14): three client-only releases reached Pages and no phone, because
+the worker's cache key never moved. The pre-commit hook now blocks that. But the
+fix it forces is a full three-way version bump, which drags an Apps Script
+redeploy behind every wording change.
+
+They are two different numbers doing two different jobs: `VERSION` in `sw.js` is
+a **cache key** and must move whenever a shell file moves; `CODE_VERSION` is the
+**server build**. Only `APP_VERSION === sw VERSION` is load-bearing (A31 uses it
+to tell "the worker is holding a different build"). Splitting `CODE_VERSION` off
+would let a client fix ship on its own. Needs the test at run.js ~1396 rewritten
+to express that rule instead of three-way equality.
+
 ## AFTER THE PUJA — closing the year (design note, 2026-07-29)
 
 **Not to be built before the puja.** Closure is needed *after* the season, there
