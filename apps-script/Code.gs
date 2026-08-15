@@ -156,6 +156,155 @@ function union_(a, b) {
   a.concat(b).forEach(function (k) { if (k && !seen[k]) { seen[k] = 1; out.push(k); } });
   return out;
 }
+// A115: the RANK of a post, memoised like positionPerms_ — one execution, one
+// read of the sheet. 0 means "no rank set", and a level-0 person hands out
+// nothing, so an un-ranked book behaves exactly like today's: admin appoints.
+var posLevelMemo_ = {};
+function positionLevel_(positionId) {
+  var id = String(positionId || '');
+  if (!id) return 0;
+  if (posLevelMemo_[id] !== undefined) return posLevelMemo_[id];
+  var out = 0;
+  try {
+    var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
+    if (sh && sh.getLastRow() > 1) {
+      var lv = ensureCol_(sh, 'level');
+      var rows = sh.getRange(2, 1, sh.getLastRow() - 1, Math.max(2, lv)).getValues();
+      for (var i = 0; i < rows.length; i++) {
+        if (String(rows[i][0]) !== id || String(rows[i][1]) !== 'position') continue;
+        out = Number(rows[i][lv - 1]) || 0;
+        break;
+      }
+    }
+  } catch (e) { /* a rank we cannot read is no rank — never more */ }
+  posLevelMemo_[id] = out;
+  return out;
+}
+
+// A115: may THIS person hand THAT person THIS post? Returns '' for yes, or a
+// reason code — the caller writes the refusal to the Audit log, because in a
+// permission system the attempt that FAILS is the one worth keeping.
+//
+// Both doors to a committee post — the admin panel and the member register —
+// come through here, so the answer cannot depend on which screen asked.
+function canAssignPosition_(actor, target, wantPos) {
+  var want = String(wantPos || '');
+  var have = String((target && target.position) || '');
+  if (want === have) return '';                  // nothing is being handed out
+  if (String(actor.role) === 'admin') return ''; // admin can do all
+
+  // 🚨 A110's emergency stop. Making somebody কোষাধ্যক্ষ hands them the one
+  // money-moving key a post can carry, so a freeze that stopped money entries
+  // but not this would be a stop with a door left open in it.
+  if (String(readConfig_().freeze_at || '')) return 'freeze';
+
+  // Nobody promotes themselves. Tested on identity, never on the screen the
+  // request arrived from.
+  if (String(target.username) === String(actor.username)) return 'self';
+
+  // blocked means blocked: no post rides in, and none is taken away either.
+  if (String(target.status) !== 'approved') return 'target-not-approved';
+
+  // 💰 stays admin-only, and the test is the post's LIVE permission set rather
+  // than its id — an admin may tick `cashier` onto any post at any time, and a
+  // hard-coded 'treasurer' would quietly stop meaning what it says.
+  //
+  // BOTH ends, and the second one was missing until a real screen showed it: a
+  // সম্পাদক (30) outranks the কোষাধ্যক্ষ (20), so the level rules happily let
+  // them take the treasurer's post away — and with it the one money key a post
+  // can carry. "Only an admin hands out 💰" is worth nothing if anybody senior
+  // enough can take it back. Written for giving, unguarded for taking, exactly
+  // like the level check two lines below.
+  if (want && positionPerms_(want).cashier === 1) return 'cashier-admin-only';
+  if (have && positionPerms_(have).cashier === 1) return 'cashier-admin-only';
+
+  var mine = positionLevel_(actor.position);
+  if (!mine) return 'no-level';
+
+  // TWO checks, and they are deliberately separate rather than one combined
+  // test. The first is about the post being GIVEN; the second about the person
+  // being CHANGED. Only the second can stop a কোষাধ্যক্ষ stripping the
+  // সভাপতি — because REMOVING a post sends want='', whose level is 0, and 0
+  // sails through the first check every single time. This is the exact spot
+  // where a "lower cannot touch higher" rule gets written for one half of the
+  // pair and quietly missed for the other.
+  if (want && positionLevel_(want) >= mine) return 'level-want';
+  if (have && positionLevel_(have) >= mine) return 'level-target';
+  return '';
+}
+
+// A115: one member row, read by id, with the sheet's REAL header — the same
+// rule push learned in A81. Returns the handle saveMember/removeMember need to
+// write it back without blanking a column they never sent.
+function findPartyRow_(id) {
+  var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.parties);
+  if (!sh || sh.getLastRow() < 2 || !String(id || '')) return null;
+  var head = sheetHeader_(sh);
+  var vals = sh.getRange(2, 1, sh.getLastRow() - 1, head.length).getValues();
+  for (var i = 0; i < vals.length; i++) {
+    if (String(vals[i][head.indexOf('id')]) !== String(id)) continue;
+    var row = {};
+    head.forEach(function (h, j) { row[h] = vals[i][j]; });
+    return { rowIndex: i + 2, row: row, head: head, sh: sh };
+  }
+  return null;
+}
+// One account, one member row. Without this, two rows could each claim to
+// author the same person's post and the last save would win silently.
+function memberRowByUser_(username) {
+  var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.parties);
+  if (!sh || sh.getLastRow() < 2 || !String(username || '')) return null;
+  var head = sheetHeader_(sh);
+  var iId = head.indexOf('id'), iTy = head.indexOf('type'), iAu = head.indexOf('appUser');
+  if (iAu < 0) return null;
+  var vals = sh.getRange(2, 1, sh.getLastRow() - 1, head.length).getValues();
+  for (var i = 0; i < vals.length; i++) {
+    if (String(vals[i][iTy]) === 'member' &&
+        String(vals[i][iAu]).toLowerCase() === String(username).toLowerCase()) {
+      return { id: String(vals[i][iId]), rowIndex: i + 2 };
+    }
+  }
+  return null;
+}
+// What the audit log says a member row IS. Kept in one place so `member:edit`
+// can print before → after in the same shape, which is the only form of an
+// edit log anybody can actually read.
+function memberDesc_(row) {
+  return [String(row.name || '?'), '@' + String(row.appUser || '—'),
+          String(row.phone || '—'), String(row.email || '—')].join(' · ');
+}
+
+// A115: the committee roster — who holds which post — rebuilt on every pull.
+// It is a PROJECTION of the Users sheet, never a stored second copy, and that
+// is the entire point: a second copy is exactly what let the member register
+// and the admin panel disagree about who was কোষাধ্যক্ষ.
+//
+// It rides on pull rather than behind its own admin-only call because the two
+// screens that show a member's post — the register and 🤝 সদস্যের চাঁদা — are
+// used OFFLINE, by collectors who are not admins. Without it those screens
+// would show names with no post the moment the signal dropped, which reads to
+// the person holding the phone as lost data.
+//
+// Deliberately narrow. No phone, no grants, no money: a picker needs a name to
+// show and a username to store, and a post to display. Nothing here is wider
+// than listCashiers, which every logged-in user has always been able to ask.
+function committeeRoster_() {
+  var sh = usersSheet_(), out = [];
+  if (sh && sh.getLastRow() > 1) {
+    sh.getDataRange().getValues().slice(1).forEach(function (v) {
+      var row = {};
+      USER_COLS.forEach(function (c, j) { row[c] = v[j]; });
+      // blocked and pending rows are INCLUDED, with their status: the picker
+      // filters them out, but a member row linked to an account that was
+      // blocked last week must still show a name rather than go blank.
+      out.push({ username: String(row.username), name: String(row.name),
+                 role: String(row.role), status: String(row.status),
+                 position: String(row.position || ''), cashier: effPerms_(row).cashier });
+    });
+  }
+  return out;
+}
+
 function effPerms_(row) {
   var p = positionPerms_(row && row.position);
   return {
@@ -658,6 +807,19 @@ var POSITION_SEED = [['president', 'সভাপতি', 'President', 1],
                      ['secretary', 'সম্পাদক', 'Secretary', 1],
                      ['treasurer', 'কোষাধ্যক্ষ', 'Treasurer', 1],
                      ['member', 'সদস্য', 'Member', 0]];
+// A115: the columns Lists carries beyond the six it is created with. `level` is
+// the committee RANK of a post — a plain number the admin types in, bigger =
+// more senior, several posts may share one. It decides who may hand a post out
+// (canAssignPosition_), and NOTHING else: it grants no permission by itself.
+//
+// Deliberately NOT seeded. Hrishi's decision, and it happens to fail the safe
+// way: until a level is typed in, a post's level is 0, and a level-0 person can
+// hand out nothing — so the system keeps working with the admin doing every
+// appointment, which is exactly today's behaviour. The one thing that must not
+// happen is it failing SILENTLY, so the position editor says so on every post
+// that has no level yet (A101's lesson: an inert feature nobody can see is
+// indistinguishable from a broken one).
+var LIST_COLS_EXTRA = ['maxCount', 'perms', 'level'];
 // A101: the four shop areas. Ids match js/lists.js SEED.area exactly — the app
 // has always shown these four from the client, and a row that stores an id the
 // sheet has never heard of cannot be renamed, cannot be deleted, and answers
@@ -798,7 +960,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.32.0';
+var CODE_VERSION = 'chanda-v4.33.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1016,6 +1178,18 @@ var ACTIONS = {
           var own = ownerIndex_('parties')[String(r.row.id)];
           if (own && user.row.role !== 'admin' && own.collectorId &&
               own.collectorId !== user.row.username) { rejectedIds.push(r.row.id); return; }
+          // A115: a committee POST can no longer arrive this way. saveMember is
+          // the only door, because only there can the level rules, the cap and
+          // the self-check run at the moment of writing.
+          //
+          // Rows with NO post are still accepted, deliberately: a phone that
+          // queued a member offline before this version shipped would otherwise
+          // have its work dropped without a word, and silently discarding
+          // somebody's entry is the failure this project keeps finding. So the
+          // old queue drains, and only the part that grants power is refused.
+          if (String(r.row.type) === 'member' && String(r.row.position || '')) {
+            rejectedIds.push(r.row.id); return;
+          }
         }
         // the chat kill switch is enforced HERE, not only in the UI — otherwise
         // a phone with the screen still cached could keep writing after the
@@ -1313,8 +1487,23 @@ var ACTIONS = {
       if (ts && Number(b.since) >= ts) {
         var pub = {};
         Object.keys(cfg).forEach(function (k) { if (k.indexOf('receiptSeq_') !== 0) pub[k] = cfg[k]; });
+        // A115: the roster rides the IDLE path too, and it has to.
+        //
+        // Measured on a real screen, not caught by any test: an admin changes
+        // somebody's post, nothing in the eight transactional sheets moves, so
+        // `data_ts` never advances and every phone stays on this fast path for
+        // ever. The post change would reach nobody until a full pull — on a
+        // screen whose entire purpose is that one person's post has one value.
+        //
+        // The alternative was to make every action that touches a Users row
+        // remember to bump `data_ts` — setUserPosition, setStatus, setCashier,
+        // setEntries — which is a rule stated in four places and guarded in
+        // three by next month. Twelve short rows off a sheet already read by
+        // requireUser_ is the cheaper promise to keep. The fast path still
+        // skips what it was built to skip: the thousands of ledger rows.
         return { ok: true, mode: 'delta', data: {}, cursor: String(b.since),
-                 config: pub, me: publicUser_(u.row), notif: null, idle: true };
+                 config: pub, me: publicUser_(u.row), notif: null, idle: true,
+                 committee: committeeRoster_() };
       }
     }
     // A50 (audit 0.3): read the watermark BEFORE the rows.
@@ -1348,9 +1537,15 @@ var ACTIONS = {
         // ever; >= re-sends a handful of boundary rows the client upserts by id.
         delta[store] = (all[store] || []).filter(function (r) { return toEpoch_(r.receivedAt) >= since; });
       });
-      return { ok: true, mode: 'delta', data: delta, cursor: cursor, config: publicConfig_(), me: me, notif: notif };
+      // A115: the roster rides BOTH modes. It is a dozen short rows, and a
+      // delta that left it out would let a post change go unseen on every phone
+      // until the next full pull — which is the shape of bug this whole change
+      // exists to remove.
+      return { ok: true, mode: 'delta', data: delta, cursor: cursor, config: publicConfig_(),
+               me: me, notif: notif, committee: committeeRoster_() };
     }
-    return { ok: true, mode: 'full', data: all, cursor: cursor, config: publicConfig_(), me: me, notif: notif };
+    return { ok: true, mode: 'full', data: all, cursor: cursor, config: publicConfig_(),
+             me: me, notif: notif, committee: committeeRoster_() };
   },
 
   // receipt-design config — any approved user reads it (needed to render a
@@ -1886,14 +2081,16 @@ var ACTIONS = {
       ensureListCols_(sh); // cheap no-op once healed; locks only when it writes
     }
     if (sh && sh.getLastRow() > 1) {
-      var mx = ensureCol_(sh, 'maxCount'), pc = ensureCol_(sh, 'perms');
-      var wide = Math.max(5, mx, pc);
+      var mx = ensureCol_(sh, 'maxCount'), pc = ensureCol_(sh, 'perms'), lv = ensureCol_(sh, 'level');
+      var wide = Math.max(5, mx, pc, lv);
       sh.getRange(2, 1, sh.getLastRow() - 1, wide).getValues().forEach(function (r) {
         if (!b.kind || String(r[1]) === b.kind) {
           out.push({ id: String(r[0]), kind: String(r[1]), nameBn: String(r[2]), nameEn: String(r[3]),
                      order: Number(r[4]) || 0,
                      // 0 / blank = as many as you like. Only a positive number caps.
-                     maxCount: Number(r[mx - 1]) || 0, perms: String(r[pc - 1] || '') });
+                     maxCount: Number(r[mx - 1]) || 0, perms: String(r[pc - 1] || ''),
+                     // A115: 0 / blank = "no rank set", which hands out nothing.
+                     level: Number(r[lv - 1]) || 0 });
         }
       });
       out.sort(function (a, c) { return a.order - c.order; });
@@ -1908,12 +2105,20 @@ var ACTIONS = {
     var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
     if (!sh || sh.getLastRow() < 2) throw new Error('not-found');
     ensureListCols_(sh);
-    var mx = ensureCol_(sh, 'maxCount'), pc = ensureCol_(sh, 'perms');
+    var mx = ensureCol_(sh, 'maxCount'), pc = ensureCol_(sh, 'perms'), lv = ensureCol_(sh, 'level');
     var rows = sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues();
     for (var i = 0; i < rows.length; i++) {
       if (String(rows[i][0]) !== String(b.id)) continue;
       if (String(rows[i][1]) !== 'position') throw new Error('not-a-position');
       if (b.maxCount !== undefined) sh.getRange(i + 2, mx).setValue(Math.max(0, Number(b.maxCount) || 0));
+      // A115: the rank. Several posts may share one — the committee has two
+      // joint secretaries and they are peers — so nothing here checks for
+      // uniqueness. What it DOES mean is that neither of them can appoint the
+      // other: canAssignPosition_ demands STRICTLY lower, both ways.
+      if (b.level !== undefined) {
+        sh.getRange(i + 2, lv).setValue(Math.max(0, Number(b.level) || 0));
+        logAudit_(me.row, 'position:level', b.id + ' → ' + (Number(b.level) || 0));
+      }
       if (b.perms !== undefined) {
         var keep = (b.perms || []).filter(function (k) { return POSITION_PERM_KEYS.indexOf(k) >= 0; });
         sh.getRange(i + 2, pc).setValue(keep.join(','));
@@ -2267,10 +2472,168 @@ var ACTIONS = {
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
     var want = String(b.position || '');
+    // A115: the admin panel and the member register are two doors to this one
+    // field, so both come through canAssignPosition_. For an admin it answers
+    // '' at the first line — this is here so the rule cannot become true of one
+    // door and false of the other, which is how the two screens drifted apart
+    // in the first place.
+    var no = canAssignPosition_(me.row, u.row, want);
+    if (no) {
+      logAudit_(me.row, 'denied:position', '@' + u.row.username + ' → ' + (want || '(none)') + ' · ' + no);
+      throw new Error('position-denied:' + no);
+    }
+    var had = String(u.row.position || '');
     applyPosition_(u, want, false);
     saveUser_(u);
-    logAudit_(me.row, 'position', '@' + u.row.username + ' → ' + (want || '(none)'));
+    logAudit_(me.row, 'position', '@' + u.row.username + ' : ' + (had || '(none)') + ' → ' + (want || '(none)'));
     return { ok: true, user: publicUser_(u.row) };
+  },
+  // A115: the committee-member register, taken off the offline sync queue and
+  // put on the wire. It belongs here rather than in push because everything
+  // this screen writes is a PERMISSION question — who may appoint whom — and a
+  // question a phone is allowed to answer for itself is not a rule, it is a
+  // suggestion. Every guard below exists because the same act can be reached
+  // two ways: through the post field, or through the account field.
+  //
+  // The cost is Hrishi's, made with his eyes open: no network, no new committee
+  // member. Collecting FROM a member is untouched and still works offline — a
+  // member payment is a `payments` row against a party that already exists, and
+  // not one rupee passes through here.
+  saveMember: function (b) {
+    var me = requireUser_(b.token);
+    if (!entryAllowed_(me, 'memberadmin')) throw new Error('forbidden');
+    var name = String(b.name || '').trim();
+    var username = String(b.appUser || '').trim().toLowerCase();
+    if (!name) throw new Error('bad-input');
+    // The account is MANDATORY now, and this is the line that makes the whole
+    // design work: with every member row tied to an account, the post has one
+    // home (the Users sheet) instead of two that drift. Before this, the
+    // register said কালী was কোষাধ্যক্ষ while Users said রতন, and no screen
+    // could see both.
+    if (!username) throw new Error('member-needs-account');
+    var lock = LockService.getScriptLock(); lock.waitLock(20000);
+    try {
+      var u = findUser_('username', username);
+      if (!u) throw new Error('no-such-user');
+      if (String(u.row.status) !== 'approved') throw new Error('user-not-approved');
+      var existing = b.id ? findPartyRow_(b.id) : null;
+      if (b.id && !existing) throw new Error('not-found');
+      if (existing && String(existing.row.type) !== 'member') throw new Error('not-a-member');
+      // A47, kept and made real. A member row is the one thing in this book
+      // edited IN PLACE, so two people with 🎖️ could overwrite each other and
+      // neither would ever know. The old check compared against whatever this
+      // device had last SYNCED and then asked "carry on?" — which is the best a
+      // client can do, and it is a warning, not a rule.
+      //
+      // On the wire it can be a rule: the form sends the stamp of the row it
+      // loaded, and a row that has moved since is refused. `receivedAt` is
+      // written on every save, so it is the version number this already had.
+      if (existing && b.expect !== undefined &&
+          String(b.expect || '') !== String(existing.row.receivedAt || '')) {
+        throw new Error('member-stale');
+      }
+      // Nobody keeps their own committee record — and the guard is on the ROW,
+      // not on the post field. Somebody who can edit their own line can point
+      // it at an account, and pointing it at a row that already carries সম্পাদক
+      // is a promotion that never touches the post field at all. Both ends are
+      // checked: the account being set, and the account the row already had.
+      if (String(username) === String(me.row.username) ||
+          (existing && String(existing.row.appUser || '') === String(me.row.username))) {
+        throw new Error('member-self');
+      }
+      // one account, one member row — otherwise two rows would each claim to
+      // author one person's post
+      var clash = memberRowByUser_(username);
+      if (clash && (!existing || String(clash.id) !== String(existing.row.id))) throw new Error('account-taken');
+
+      // The post lives on the USER; this row only displays it. So the write
+      // goes through applyPosition_ (the cap, at the moment of writing) and
+      // only after canAssignPosition_ has said who may do it at all.
+      var want = String(b.position || ''), had = String(u.row.position || '');
+      if (want !== had) {
+        var no = canAssignPosition_(me.row, u.row, want);
+        if (no) {
+          logAudit_(me.row, 'denied:position', '@' + u.row.username + ' → ' +
+                    (want || '(none)') + ' · ' + no);
+          throw new Error('position-denied:' + no);
+        }
+        applyPosition_(u, want, false);
+        saveUser_(u);
+        logAudit_(me.row, 'position', '@' + u.row.username + ' : ' +
+                  (had || '(none)') + ' → ' + (want || '(none)'));
+      }
+
+      var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.parties);
+      ensureCols_(sh, SHEETS.parties);
+      var head = sheetHeader_(sh);
+      var row = existing ? existing.row : {};
+      var was = existing ? memberDesc_(row) : '';
+      var now = new Date().toISOString();
+      if (!existing) {
+        row.id = Utilities.getUuid();
+        row.year = Number(b.year) || new Date().getFullYear();
+        row.createdAt = now;
+        row.collector = me.row.name;
+        row.collectorId = me.row.username;
+        row.collectorRole = me.row.role;
+        row.pledged = 0;
+        row.owner = ''; row.side = ''; row.location = '';
+      }
+      row.type = 'member';
+      row.name = name;
+      row.phone = String(b.phone || '');
+      row.email = String(b.email || '');
+      row.appUser = username;
+      // A115: never written again. The post is the user's. Old rows keep
+      // whatever value they were left with; nothing reads it any more.
+      row.position = '';
+      row.receivedAt = now;
+      var vals = head.map(function (h) { return safeCell_(row[h] === undefined ? '' : row[h]); });
+      if (existing) sh.getRange(existing.rowIndex, 1, 1, head.length).setValues([vals]);
+      else sh.appendRow(vals);
+      touchData_(); // this wrote a row outside push — every phone learns on its next poll
+      logAudit_(me.row, existing ? 'member:edit' : 'member:add',
+                existing ? (was + '  →  ' + memberDesc_(row)) : memberDesc_(row));
+      return { ok: true, id: String(row.id), user: publicUser_(u.row) };
+    } finally { lock.releaseLock(); }
+  },
+  removeMember: function (b) {
+    var me = requireUser_(b.token);
+    if (!entryAllowed_(me, 'memberadmin')) throw new Error('forbidden');
+    var lock = LockService.getScriptLock(); lock.waitLock(20000);
+    try {
+      var existing = findPartyRow_(String(b.id || ''));
+      if (!existing || String(existing.row.type) !== 'member') throw new Error('not-found');
+      if (String(existing.row.appUser || '') === String(me.row.username)) throw new Error('member-self');
+      // A60's rule, server-side: a member with payments against them cannot be
+      // removed. The rupees survive, but the donor row those payments point at
+      // would not, and reconcile would raise `payment_orphan` for every one of
+      // them for the rest of the season.
+      if (partyHasMoney_(existing.row.id)) throw new Error('member-has-money');
+      // A115: removing the record must never be a silent permission change, and
+      // it must never leave a post held by somebody the register has forgotten.
+      // So it refuses while a post is held, and says which one — the post comes
+      // off first, through the checks, and then the row can go.
+      var u = findUser_('username', String(existing.row.appUser || ''));
+      if (u && String(u.row.position || '')) throw new Error('member-holds-post:' + u.row.position);
+      // A60's mechanism, kept: a `voids` row, NOT a deleted sheet row. Deleting
+      // the row here would remove it from this book and reach no other phone
+      // ever — a delta pull carries rows that changed, and a row that no longer
+      // exists changes nothing. `voids` is append-only, so it travels like
+      // everything else, and activeData/activeData_ drop the member from the
+      // arithmetic, the reports and the lists at once.
+      var vsh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.voids);
+      ensureCols_(vsh, SHEETS.voids);
+      var now = new Date().toISOString();
+      var vrow = { id: Utilities.getUuid(), year: existing.row.year, targetStore: 'parties',
+                   targetId: existing.row.id, reason: 'removed', collector: me.row.name,
+                   createdAt: now, receivedAt: now, collectorId: me.row.username };
+      var vhead = sheetHeader_(vsh);
+      vsh.appendRow(vhead.map(function (h) { return safeCell_(vrow[h] === undefined ? '' : vrow[h]); }));
+      touchData_(); // every other phone learns on its next poll
+      logAudit_(me.row, 'member:remove', memberDesc_(existing.row));
+      return { ok: true };
+    } finally { lock.releaseLock(); }
   },
 
   // Wipe the PERSONAL permission extras so everyone's access comes from their
@@ -2370,7 +2733,7 @@ function ensureCols_(sh, cols) {
 function ensureListCols_(sh) {
   var last = sh.getLastColumn();
   var have = last ? sh.getRange(1, 1, 1, last).getValues()[0].map(String) : [];
-  var needCols = ['maxCount', 'perms'].filter(function (c) { return have.indexOf(c) < 0; }).length > 0;
+  var needCols = LIST_COLS_EXTRA.filter(function (c) { return have.indexOf(c) < 0; }).length > 0;
   var seen = {};
   if (sh.getLastRow() > 1) {
     sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(function (r) {
@@ -2388,7 +2751,7 @@ function ensureListCols_(sh) {
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    ensureCols_(sh, ['maxCount', 'perms']);
+    ensureCols_(sh, LIST_COLS_EXTRA);
     seedLists_(sh); // re-reads the sheet itself, so the second check is real
   } finally { lock.releaseLock(); }
 }

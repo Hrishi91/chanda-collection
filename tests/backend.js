@@ -1182,4 +1182,306 @@ module.exports = function runBackendTests(eq) {
     const row = b.rows('Users').filter(function (u) { return u.username === 'ratan'; })[0];
     eq(row.appVersion, 'chanda-v1.0.0', 'backend version: …and the phone’s version is recorded for the fleet list');
   }
+
+  // ---- A115: the committee register and who may hand out a post -----------
+  // The bug this stands guard over, measured before the fix: an admin removed
+  // কালী's post in the admin panel and the member register still called him
+  // কোষাধ্যক্ষ, so রতন could be made কোষাধ্যক্ষ too and the book had two of a
+  // post capped at one. The post now lives in ONE place — the Users sheet — and
+  // every door to it comes through canAssignPosition_.
+  //
+  // Levels are NOT seeded; Hrishi types them in. Each book here sets them the
+  // way he will, before anything reads them.
+  function committee() {
+    const { b, tok } = book();
+    [['president', 40], ['secretary', 30], ['treasurer', 20], ['member', 10]].forEach(function (p) {
+      b.call('setPositionRules', { token: tok.admin, id: p[0], level: p[1] });
+    });
+    // কোষাধ্যক্ষ carries the money key, like the committee word means
+    b.call('setPositionRules', { token: tok.admin, id: 'treasurer', perms: ['cashier'] });
+    const id = function (u) { return b.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+    // রতন keeps the register and is সম্পাদক; কালী is an ordinary সদস্য
+    b.call('setEntries', { token: tok.admin, userId: id('ratan'),
+                           entries: ['shop', 'person', 'member', 'road', 'toto', 'bus', 'memberadmin'] });
+    b.call('setUserPosition', { token: tok.admin, userId: id('ratan'), position: 'secretary' });
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: 'member' });
+    return { b: b, tok: tok, id: id };
+  }
+  const denied = function (b, tok, body) {
+    try { b.call('saveMember', Object.assign({ token: tok }, body)); return ''; }
+    catch (e) { return String(e.message || e); }
+  };
+
+  // the account is mandatory — this is what collapses the two copies into one
+  {
+    const { b, tok } = committee();
+    eq(denied(b, tok.ratan, { name: 'নতুন লোক' }), 'member-needs-account',
+       'backend A115: a committee member with no app account is refused');
+    eq(b.rows('Parties').length, 0, 'backend A115: …and nothing was written');
+  }
+
+  // nobody keeps their own committee record — through EITHER field
+  {
+    const { b, tok } = committee();
+    eq(denied(b, tok.ratan, { name: 'RATAN', appUser: 'ratan' }), 'member-self',
+       'backend A115: you cannot write your own member row');
+    // and the row you already own cannot be re-pointed at somebody else either
+    b.call('saveMember', { token: tok.admin, name: 'RATAN', appUser: 'ratan', year: 2026 });
+    const mine = b.rows('Parties')[0].id;
+    eq(denied(b, tok.ratan, { id: mine, name: 'RATAN', appUser: 'kali' }), 'member-self',
+       'backend A115: …nor edit the row that points at you');
+  }
+
+  // one account, one row — two rows could each claim to author one post
+  {
+    const { b, tok } = committee();
+    b.call('saveMember', { token: tok.ratan, name: 'কালী', appUser: 'kali', year: 2026 });
+    eq(denied(b, tok.ratan, { name: 'কালী আবার', appUser: 'kali' }), 'account-taken',
+       'backend A115: one account cannot hold two member rows');
+  }
+
+  // the post goes to the USER, and Parties.position is never written again
+  {
+    const { b, tok, id } = committee();
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: '' });
+    b.call('saveMember', { token: tok.ratan, name: 'কালী', appUser: 'kali', position: 'member', year: 2026 });
+    const u = b.rows('Users').filter(function (x) { return x.username === 'kali'; })[0];
+    eq(u.position, 'member', 'backend A115: the post set in the register lands on the USER');
+    eq(String(b.rows('Parties')[0].position || ''), '',
+       'backend A115: …and the member row keeps no second copy of it');
+  }
+
+  // a post change must not disturb what the person was granted personally
+  {
+    const { b, tok, id } = committee();
+    b.call('setEntries', { token: tok.admin, userId: id('kali'), entries: ['shop', 'otherdonor'] });
+    b.call('saveMember', { token: tok.ratan, name: 'কালী', appUser: 'kali', position: 'member', year: 2026 });
+    const u = b.rows('Users').filter(function (x) { return x.username === 'kali'; })[0];
+    eq(String(u.entries).indexOf('otherdonor') >= 0, true,
+       'backend A115: personal permissions survive a post change untouched');
+  }
+
+  // ---- the level rules ----------------------------------------------------
+  // সম্পাদক (30) may appoint a সদস্য (10) …
+  {
+    const { b, tok, id } = committee();
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: '' });
+    b.call('saveMember', { token: tok.ratan, name: 'কালী', appUser: 'kali', position: 'member', year: 2026 });
+    eq(b.rows('Users').filter(function (x) { return x.username === 'kali'; })[0].position, 'member',
+       'backend A115: a সম্পাদক may appoint below their own level');
+  }
+  // … but never to their own level, and never above it
+  {
+    const { b, tok } = committee();
+    eq(denied(b, tok.ratan, { name: 'কালী', appUser: 'kali', position: 'secretary', year: 2026 }),
+       'position-denied:level-want',
+       'backend A115: nobody appoints to their OWN level');
+    eq(denied(b, tok.ratan, { name: 'কালী', appUser: 'kali', position: 'president', year: 2026 }),
+       'position-denied:level-want',
+       'backend A115: …nor above it');
+  }
+  // THE separate check: removing a post sends want='', whose level is 0, so the
+  // wanted-post test passes every time. Only a test on the TARGET's current
+  // post can stop a junior stripping a senior.
+  {
+    const { b, tok, id } = committee();
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: 'president' });
+    b.call('setPositionRules', { token: tok.admin, id: 'president', maxCount: 0 });
+    eq(denied(b, tok.ratan, { name: 'কালী', appUser: 'kali', position: '', year: 2026 }),
+       'position-denied:level-target',
+       'backend A115: a junior cannot STRIP a senior — the target’s post is its own check');
+    eq(b.rows('Users').filter(function (x) { return x.username === 'kali'; })[0].position, 'president',
+       'backend A115: …and the senior kept the post');
+  }
+  // an un-ranked person hands out nothing — the un-seeded book keeps working,
+  // with the admin doing every appointment, exactly as it does today
+  {
+    const { b, tok, id } = committee();
+    b.call('setPositionRules', { token: tok.admin, id: 'secretary', level: 0 });
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: '' });
+    eq(denied(b, tok.ratan, { name: 'কালী', appUser: 'kali', position: 'member', year: 2026 }),
+       'position-denied:no-level',
+       'backend A115: no level means no appointments — it fails the safe way');
+  }
+  // 💰 stays admin-only, tested on the post's LIVE perms, not on its id
+  {
+    const { b, tok, id } = committee();
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: '' });
+    eq(denied(b, tok.ratan, { name: 'কালী', appUser: 'kali', position: 'treasurer', year: 2026 }),
+       'position-denied:cashier-admin-only',
+       'backend A115: a post carrying 💰 can only be given by an admin');
+  }
+  // …and taking 💰 away is the same power as giving it. Found on a real screen,
+  // not by a test: রতন is সম্পাদক (30) and কালী is কোষাধ্যক্ষ (20), so every
+  // level rule said "go ahead" while the post being removed carried the one
+  // money key a post can hold. A rule written for giving and unguarded for
+  // taking is not a rule.
+  {
+    const { b, tok, id } = committee();
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: 'treasurer' });
+    eq(denied(b, tok.ratan, { name: 'কালী', appUser: 'kali', position: '', year: 2026 }),
+       'position-denied:cashier-admin-only',
+       'backend A115: a senior cannot STRIP a 💰 post either — only an admin');
+    eq(b.rows('Users').filter(function (x) { return x.username === 'kali'; })[0].position, 'treasurer',
+       'backend A115: …and the treasurer kept it');
+  }
+  // blocked means blocked
+  {
+    const { b, tok, id } = committee();
+    b.call('setStatus', { token: tok.admin, userId: id('kali'), status: 'blocked' });
+    eq(denied(b, tok.ratan, { name: 'কালী', appUser: 'kali', position: 'member', year: 2026 }),
+       'user-not-approved', 'backend A115: a blocked account takes no member row at all');
+  }
+  // 🚨 the emergency stop closes this door too — handing out a post during a
+  // freeze would be a stop with a door left open in it
+  {
+    const { b, tok, id } = committee();
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: '' });
+    b.call('setFreeze', { token: tok.admin, on: '1', confirm: 'FREEZE' });
+    eq(denied(b, tok.ratan, { name: 'কালী', appUser: 'kali', position: 'member', year: 2026 }),
+       'position-denied:freeze', 'backend A115: a freeze stops appointments as well as money');
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: 'member' });
+    eq(b.rows('Users').filter(function (x) { return x.username === 'kali'; })[0].position, 'member',
+       'backend A115: …but the admin can still act during one');
+  }
+  // the grant itself
+  {
+    const { b, tok } = committee();
+    eq(denied(b, tok.bimal, { name: 'কালী', appUser: 'kali', year: 2026 }), 'forbidden',
+       'backend A115: without memberadmin the register is closed, cashier or not');
+  }
+
+  // ---- canAssignPosition_, tested directly --------------------------------
+  // saveMember refuses a self-edit and a blocked account BEFORE this function
+  // is reached, so these two branches are unreachable through any request —
+  // and a guard no test can exercise is a guard that will rot without anyone
+  // noticing. They stay because this function is the shared rule behind two
+  // doors, and the next door added must not be able to skip them.
+  {
+    const { b, tok, id } = committee();
+    // কালী starts postless, or `want === have` would answer '' first and both
+    // assertions below would pass without ever reaching the rule they name.
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: '' });
+    b.api.resetRequestState();
+    const row = function (u) { return b.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    const ratan = row('ratan');
+    eq(b.api.canAssignPosition_(ratan, ratan, 'member'), 'self',
+       'backend A115: canAssignPosition_ refuses a self-appointment on identity alone');
+    eq(b.api.canAssignPosition_(ratan, row('kali'), 'member'), '',
+       'backend A115: …and allows that very appointment for somebody else');
+    b.call('setStatus', { token: tok.admin, userId: id('kali'), status: 'blocked' });
+    b.api.resetRequestState();
+    eq(b.api.canAssignPosition_(ratan, row('kali'), 'member'), 'target-not-approved',
+       'backend A115: …and refuses to post a blocked account');
+  }
+  // several posts may share a level — joint secretaries are peers, and peers
+  // cannot appoint each other
+  {
+    const { b, tok } = committee();
+    b.call('addItem', { token: tok.admin, kind: 'position', nameBn: 'সহ-সম্পাদক', nameEn: 'Joint Secretary' });
+    const joint = b.rows('Lists').filter(function (r) { return r.nameEn === 'Joint Secretary'; })[0];
+    b.call('setPositionRules', { token: tok.admin, id: joint.id, level: 30 });
+    eq(b.call('listItems', { token: tok.admin, kind: 'position' }).items
+        .filter(function (i) { return i.level === 30; }).length, 2,
+       'backend A115: two posts may hold the same level — nothing demands uniqueness');
+    eq(denied(b, tok.ratan, { name: 'কালী', appUser: 'kali', position: joint.id, year: 2026 }),
+       'position-denied:level-want',
+       'backend A115: …and neither peer can appoint the other');
+  }
+
+  // ---- a slot taken is taken, whoever is sitting in it ---------------------
+  // The client used to skip admins when counting a post's holders and the
+  // server never did, so an admin holding কোষাধ্যক্ষ made the dropdown read
+  // "0/1, free" while the save answered `position-full`. Pinned server-side
+  // because that is the side that decides.
+  {
+    const { b, tok, id } = committee();
+    b.call('setUserPosition', { token: tok.admin, userId: id('hrishi'), position: 'president' });
+    let threw = '';
+    try { b.call('setUserPosition', { token: tok.admin, userId: id('bimal'), position: 'president' }); }
+    catch (e) { threw = String(e.message || e); }
+    eq(threw, 'position-full:hrishi',
+       'backend A115: an ADMIN holding a post occupies its slot like anybody else');
+  }
+
+  // ---- the roster must reach a phone that is only polling ------------------
+  // The one this suite did not catch and a real screen did: changing a post
+  // writes to Users and to nothing else, so `data_ts` never moves and every
+  // device sits on pull's idle fast path. If the roster does not ride THAT
+  // response, a post change reaches nobody until the next full pull — on the
+  // very feature whose promise is that a post has one value everywhere.
+  {
+    const { b, tok, id } = committee();
+    // one real write first, so `data_ts` exists — the fast path needs a
+    // watermark to compare against and skips itself on a book that has none
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 'w1', year: 2026, type: 'shop', name: 'দোকান', pledged: 100 })] });
+    const first = b.call('pull', { token: tok.ratan, year: 2026 });
+    const idle = b.call('pull', { token: tok.ratan, year: 2026, since: String(first.cursor) });
+    eq(idle.idle, true, 'backend A115: a poll with nothing new takes the fast path…');
+    eq(Object.keys(idle.data || {}).length, 0, 'backend A115: …and reads no ledger rows…');
+    eq((idle.committee || []).length > 0, true, 'backend A115: …but still carries the committee roster');
+    b.call('setUserPosition', { token: tok.admin, userId: id('bimal'), position: 'president' });
+    const after = b.call('pull', { token: tok.ratan, year: 2026, since: String(first.cursor) });
+    eq((after.committee || []).filter(function (x) { return x.username === 'bimal'; })[0].position, 'president',
+       'backend A115: …so a post changed on the admin panel reaches a polling phone');
+  }
+
+  // ---- a post can no longer arrive through the sync queue ------------------
+  {
+    const { b, tok } = committee();
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 'm-post', year: 2026, type: 'member', name: 'ফাঁকি', position: 'president' }),
+      rec('parties', { id: 'm-plain', year: 2026, type: 'member', name: 'পুরোনো queue' }),
+    ] });
+    const ids = b.rows('Parties').map(function (p) { return String(p.id); });
+    eq(ids.indexOf('m-post') < 0, true, 'backend A115: a pushed member row carrying a post is refused');
+    eq(ids.indexOf('m-plain') >= 0, true,
+       'backend A115: …but a post-less row still drains, so an old offline queue is not silently dropped');
+  }
+
+  // ---- removing a member --------------------------------------------------
+  {
+    const { b, tok, id } = committee();
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: '' });
+    b.call('saveMember', { token: tok.ratan, name: 'কালী', appUser: 'kali', position: 'member', year: 2026 });
+    const row = b.rows('Parties')[0].id;
+    let threw = '';
+    try { b.call('removeMember', { token: tok.ratan, id: row }); } catch (e) { threw = String(e.message || e); }
+    eq(threw, 'member-holds-post:member',
+       'backend A115: a member holding a post cannot be deleted — the post would be orphaned');
+    b.call('saveMember', { token: tok.ratan, id: row, name: 'কালী', appUser: 'kali', position: '', year: 2026 });
+    b.call('removeMember', { token: tok.ratan, id: row });
+    // A60's mechanism: a `voids` row, not a deleted sheet row. A deleted row
+    // reaches no other phone — a delta pull carries what CHANGED, and a row
+    // that no longer exists changes nothing.
+    const v = b.rows('Voids').filter(function (x) { return String(x.targetId) === String(row); })[0];
+    eq(!!v && v.targetStore === 'parties', true,
+       'backend A115: …and once the post is off it is voided, so the removal travels');
+  }
+
+  // ---- the refusals are written down --------------------------------------
+  // In a permission system the attempt that FAILS is the one worth keeping: a
+  // successful-action log can never show you somebody trying the door.
+  {
+    const { b, tok } = committee();
+    denied(b, tok.ratan, { name: 'কালী', appUser: 'kali', position: 'president', year: 2026 });
+    const line = b.rows('Audit').filter(function (a) { return a.action === 'denied:position'; })[0];
+    eq(!!line, true, 'backend A115: a refused appointment is audited');
+    eq(String(line.detail).indexOf('level-want') >= 0 && String(line.detail).indexOf('@kali') >= 0, true,
+       'backend A115: …with who, whom, and which rule stopped it');
+  }
+  // and so is a member edit, in a shape a human can read
+  {
+    const { b, tok } = committee();
+    b.call('saveMember', { token: tok.ratan, name: 'কালী', appUser: 'kali', phone: '9000000001', year: 2026 });
+    const row = b.rows('Parties')[0].id;
+    b.call('saveMember', { token: tok.ratan, id: row, name: 'কালীপদ', appUser: 'kali', phone: '9000000002', year: 2026 });
+    const acts = b.rows('Audit').filter(function (a) { return String(a.action).indexOf('member:') === 0; })
+      .map(function (a) { return a.action; }).join(',');
+    eq(acts, 'member:add,member:edit', 'backend A115: adding and editing a member are both audited');
+    const edit = b.rows('Audit').filter(function (a) { return a.action === 'member:edit'; })[0];
+    eq(/কালী .*→.*কালীপদ/.test(String(edit.detail)), true,
+       'backend A115: …and the edit line says what it was before, not only after');
+  }
 };

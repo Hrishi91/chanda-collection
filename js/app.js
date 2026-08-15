@@ -250,6 +250,40 @@
   try { setCentral(JSON.parse(localStorage.getItem('ck_central') || 'null')); } catch (e) { setCentral(null); }
   try { centralCursor = localStorage.getItem('ck_central_cursor') || ''; } catch (e) { centralCursor = ''; }
   try { centralYear = localStorage.getItem('ck_central_year') || ''; } catch (e) { centralYear = ''; }
+  // A115: the committee roster (username → name, post, status), refreshed on
+  // every pull. A member's post is NOT stored on the member row any more — it
+  // lives on their app account, and this is how the register and 🤝 সদস্যের
+  // চাঁদা read it, online or off. Cached so a phone with no signal still shows
+  // who is কোষাধ্যক্ষ instead of a blank where the post used to be.
+  let committee = [];
+  try { committee = JSON.parse(localStorage.getItem('ck_committee') || '[]') || []; } catch (e) { committee = []; }
+  function memberUser(username) {
+    const u = String(username || '').toLowerCase();
+    if (!u) return null;
+    return committee.filter(function (x) { return String(x.username).toLowerCase() === u; })[0] || null;
+  }
+  // The post a committee member holds, read from their account. One place.
+  function memberPost(m) {
+    const u = memberUser(m && m.appUser);
+    return u ? String(u.position || '') : '';
+  }
+  // A115: what reconcile needs to know that it cannot work out from the ledger.
+  // ONE builder for all three callers (🏠 dot, the cashier banner, 🩺) — three
+  // copies of this object is how two of them end up right and one wrong, which
+  // is the shape of half the bugs in this file's history.
+  //
+  // The holders come from the roster because a post lives on the app account
+  // now. An empty roster hands back nothing, and reconcile then SKIPS the post
+  // check rather than reporting everyone as un-posted — a detector that cannot
+  // see its subject must say nothing, not guess.
+  function reconcileRules() {
+    const holders = {};
+    committee.forEach(function (x) {
+      if (!x.position) return;
+      (holders[x.position] || (holders[x.position] = [])).push(x.name || x.username);
+    });
+    return { positionMax: Lists.maxMap(), positionHolders: holders };
+  }
   // merge a delta (only changed rows) into the cached snapshot, upsert by id.
   // There are no hard deletes (voids are soft), so merge-only stays correct.
   // Returns which stores actually changed. Chat is separated from the rest:
@@ -362,6 +396,12 @@
       if (resp.cursor != null) centralCursor = String(resp.cursor);
       centralYear = year;
       if (resp.config) { centralConfig = resp.config; try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {} updateTrainingBar(); }
+      // A115: rides both full and delta pulls, so a post change reaches every
+      // phone within one poll rather than at the next full snapshot
+      if (resp.committee) {
+        committee = resp.committee;
+        try { localStorage.setItem('ck_committee', JSON.stringify(committee)); } catch (e) {}
+      }
       // notifications ride the pull now — apply them and stop the separate
       // 60s notifications poll (halves the server calls per device)
       if (resp.notif) { notifViaPull = true; applyNotifications(resp.notif.notifications, resp.notif.items); }
@@ -1879,7 +1919,7 @@
       });
       if (mineFlagged.length) d.entries = 1;
       if (Auth.isCashier()) {
-        const r = Aggregate.reconcile(data, { positionMax: Lists.maxMap() });
+        const r = Aggregate.reconcile(data, reconcileRules());
         if (!r.balanced || r.anomalies.length) d.anomalies = 1;
       }
         dotState = d;
@@ -2340,14 +2380,17 @@
         .filter(function (p) {
           // A103: the same rule as everywhere else — "শঙ্কর কোষাধ্যক্ষ" used to
           // find nobody, with both words on the row
+          // A115: the post comes from the account, not the row.
+          const pos = memberPost(p);
           return matchWords([p.name, p.phone,
-            p.position ? Lists.labelOf('position', p.position) : ''].join(' '), q);
+            pos ? Lists.labelOf('position', pos) : ''].join(' '), q);
         })
         .sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || ''), 'bn'); });
       if (!el.isConnected) return;
       el.innerHTML = list.length ? list.map(function (m) {
         const bits = [];
-        if (m.position) bits.push('🎖️ ' + Lists.labelOf('position', m.position));
+        const pos = memberPost(m);
+        if (pos) bits.push('🎖️ ' + Lists.labelOf('position', pos));
         if (m.phone) bits.push('📞 ' + m.phone);
         return '<div class="row" data-mpay="' + esc(m.id) + '"><div><b>' + esc(m.name) + '</b>' +
           '<div class="row-sub">' + esc(bits.join(' · ')) + '</div></div>' +
@@ -2362,46 +2405,29 @@
     });
   }
   // 🎖️ কমিটির সদস্য register — its own screen and its own grant. Adding a
-  // member, setting the post, and linking the app account all live here, so the
-  // collection screen stays a collection screen. The app-user picker needs the
-  // full user list, which is an admin-only call, so it degrades gracefully for a
-  // non-admin holding `memberadmin`: everything else still works, the link does
-  // not offer names.
-  let memberAdminUsers = null, memberUsersWaiting = null;
-  // The approved-user list, for the account dropdown.
+  // member, setting the post and linking the app account all live here, so the
+  // collection screen stays a collection screen.
   //
-  // On FAILURE the cache stays null so the next visit tries again: caching the
-  // failure meant one bad moment of signal left the dropdown saying "cannot load
-  // the user list" for the rest of the session, with nothing on screen able to
-  // retry it — the same shape as the update button that could never update (A31).
-  //
-  // Callers that arrive while a fetch is in flight JOIN it. My first cut had
-  // them return early instead, and that quietly broke the very thing it was
-  // meant to fix: open the register (fetch starts) then tap ➕ within the same
-  // second, and the form gave up waiting, painted "cannot load", and the arriving
-  // users repainted the screen you had already left.
-  function loadMemberUsers(then) {
-    if (memberAdminUsers !== null) { then(); return; }
-    if (!Auth.isAdmin() || !navigator.onLine || !Sync.configured()) { then(); return; }
-    if (memberUsersWaiting) { memberUsersWaiting.push(then); return; }
-    memberUsersWaiting = [then];
-    Auth.call('listUsers', { token: Auth.token() }).then(function (r) {
-      memberAdminUsers = (r.users || []).filter(function (u) { return u.status === 'approved'; });
-    }).catch(function () { /* leave null — retry on the next visit */ })
-      .then(function () {
-        const waiting = memberUsersWaiting || [];
-        memberUsersWaiting = null;
-        waiting.forEach(function (fn) { fn(); });
-      });
-  }
+  // A115: the account picker used to come from `listUsers`, which is admin-only
+  // — and with an account now REQUIRED that would quietly have made this whole
+  // screen admin-only, for a grant an admin is meant to be able to hand to
+  // somebody who is not one. It reads the committee roster instead, which rides
+  // on every pull and is therefore also there with no signal at all.
   function renderMemberAdmin() {
     if (!canEntry('memberadmin')) { navigate('home'); return; }
+    // A115: reading the register offline is fine and useful — knowing who is on
+    // the committee is exactly what somebody at the pandal wants. WRITING is
+    // what needs the server, so the ➕ says so instead of opening a form whose
+    // save can only fail.
+    const off = !navigator.onLine || !Sync.configured();
     $view().innerHTML = backBar('home') + '<div class="flow-title">🎖️ ' + esc(t('member_admin_title')) + '</div>' +
       '<div class="hint" style="margin-bottom:8px">' + esc(t('member_admin_hint')) + '</div>' +
-      '<button id="ma-add" class="tile wide" style="margin-bottom:10px">➕ ' + esc(t('member_add')) + '</button>' +
+      '<button id="ma-add" class="tile wide" style="margin-bottom:10px"' + (off ? ' disabled' : '') + '>➕ ' +
+        esc(t('member_add')) + '</button>' +
+      (off ? '<div class="perm-warn" style="display:block;margin-bottom:10px">' +
+             esc(t('member_needs_online')) + '</div>' : '') +
       '<div id="ma-list"><div class="empty">' + esc(t('loading')) + '</div></div>';
-    document.getElementById('ma-add').onclick = function () { navigate('memberform', { id: '' }); };
-    loadMemberUsers(paintMemberAdmin);
+    if (!off) document.getElementById('ma-add').onclick = function () { navigate('memberform', { id: '' }); };
     paintMemberAdmin();
   }
   function paintMemberAdmin() {
@@ -2413,10 +2439,15 @@
       el.innerHTML = '<div class="section">' + esc(t('member_admin_count').replace('{n}', list.length)) + '</div>' +
         (list.length ? list.map(function (m) {
           const bits = [];
-          if (m.position) bits.push('🎖️ ' + Lists.labelOf('position', m.position));
+          const pos = memberPost(m);
+          if (pos) bits.push('🎖️ ' + Lists.labelOf('position', pos));
           if (m.phone) bits.push('📞 ' + m.phone);
           if (m.email) bits.push('✉️ ' + m.email);
-          bits.push(m.appUser ? '👤 @' + m.appUser : '👤 ' + t('member_no_user'));
+          // A115: an account is required now. A row without one is a row from
+          // before this rule, and it cannot be saved again until it gets one —
+          // so it is flagged HERE, where the person who can fix it is looking,
+          // rather than left to fail at the moment somebody tries to edit it.
+          bits.push(m.appUser ? '👤 @' + m.appUser : '⚠️ ' + t('member_no_user'));
           return '<div class="row" style="cursor:default;flex-wrap:wrap"><div style="flex:1 1 60%"><b>' +
             esc(m.name) + '</b><div class="row-sub">' + esc(bits.join(' · ')) + '</div></div>' +
             '<div class="chips" style="margin:0">' +
@@ -2440,37 +2471,89 @@
   function renderMemberForm(params) {
     if (!canEntry('memberadmin')) { navigate('home'); return; }
     const id = (params && params.id) || '';
+    // A115: this screen is ONLINE-ONLY now, and the reason is not squeamishness
+    // about offline. Everything it writes is a permission question — who may
+    // appoint whom — and a question a phone is allowed to answer for itself is
+    // not a rule, it is a suggestion. The server refuses it either way; this is
+    // the app saying so before somebody fills in a form that cannot be saved.
+    //
+    // 🤝 সদস্যের চাঁদা is untouched and still works with no signal at all:
+    // taking money from a member already on the register writes a `payments`
+    // row against a party that exists, and needs none of this.
+    if (!navigator.onLine || !Sync.configured()) {
+      $view().innerHTML = backBar('memberadmin') +
+        '<div class="flow-title">🎖️ ' + esc(t('member_admin_title')) + '</div>' +
+        '<div class="perm-warn" style="display:block">' + esc(t('member_needs_online')) + '</div>';
+      wireNav();
+      return;
+    }
     $view().innerHTML = backBar('memberadmin') + '<div class="empty">' + esc(t('loading')) + '</div>';
-    // Declared BEFORE loadMemberUsers, and that order is load-bearing: when the
-    // user list is already cached, loadMemberUsers calls back SYNCHRONOUSLY, and
-    // paint() reading a `let` declared below it throws on the temporal dead zone
-    // — before paint's own `if (!form) return` guard can help. The screen then
-    // sat on "আসছে…" for ever, and only on the second visit, because the first
-    // one takes the async path.
     let members = [], form = null, memberLivePays = 0;
-    loadMemberUsers(paint);
     viewData().then(function (data) {
       members = liveParties(data).filter(function (p) { return p.type === 'member'; });
       const v = Aggregate.voidedIds(data);
       memberLivePays = !id ? 0 : (data.payments || []).filter(function (x) { return x.partyId === id && !v[x.id]; }).length;
       const m = members.filter(function (p) { return p.id === id; })[0];
       if (id && !m) { navigate('memberadmin'); return; }
-      form = { name: (m && m.name) || '', position: (m && m.position) || '',
-               email: (m && m.email) || '', phone: (m && m.phone) || '', appUser: (m && m.appUser) || '' };
+      // Nobody keeps their own committee record — checked here so the form is
+      // never even drawn, and again on the server, where it is a rule.
+      const me = Auth.current() || {};
+      if (m && String(m.appUser || '').toLowerCase() === String(me.username || '').toLowerCase()) {
+        $view().innerHTML = backBar('memberadmin') +
+          '<div class="perm-warn" style="display:block">' + esc(t('member_self_note')) + '</div>';
+        wireNav();
+        return;
+      }
+      // A115: the post is READ from the account, never from the row.
+      form = { name: (m && m.name) || '', position: memberPost(m),
+               email: (m && m.email) || '', phone: (m && m.phone) || '', appUser: (m && m.appUser) || '',
+               // A47: the version of the row this form was drawn from. Sent back
+               // on save so a row somebody else changed meanwhile is refused
+               // rather than silently overwritten.
+               expect: (m && m.receivedAt) || '' };
       paint();
     });
     function paint() {
       if (!form) return;
-      const users = memberAdminUsers || [];
+      const me = Auth.current() || {};
+      const iAmAdmin = Auth.isAdmin();
+      // My own rank. 0 = no rank, and a level-0 person hands out nothing —
+      // exactly what the server answers, said here first so the dropdown does
+      // not offer what the save is going to refuse.
+      const myLevel = iAmAdmin ? Infinity : Lists.levelOf(String(me.position || ''));
+      // Only approved accounts can be picked. blocked means blocked — but a row
+      // already pointing at an account that was blocked LATER keeps showing it,
+      // or the screen would silently forget who this member is.
+      const users = committee.filter(function (u) {
+        return u.status === 'approved' || u.username === form.appUser;
+      }).sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'bn'); });
       const picked = users.filter(function (u) { return u.username === form.appUser; })[0];
-      // How many people already hold each post, NOT counting the one being
-      // edited — otherwise editing সভাপতি's phone would report the post full
-      // against himself.
+      // How many hold each post, counted the way the SERVER counts it: every
+      // account except the one being edited. The old client version skipped
+      // admins and the server never did, so an admin holding কোষাধ্যক্ষ made the
+      // screen say "0/1, free" while the save answered `position-full`.
       const held = {};
-      members.forEach(function (p) {
-        if (p.id === id || !p.position) return;
-        held[p.position] = (held[p.position] || 0) + 1;
+      committee.forEach(function (x) {
+        if (!x.position) return;
+        if (form.appUser && String(x.username).toLowerCase() === String(form.appUser).toLowerCase()) return;
+        held[x.position] = (held[x.position] || 0) + 1;
       });
+      // Why a post cannot be given, in the same order the server decides it —
+      // '' means it can. Said on the option itself, because a dropdown that
+      // silently omits a post teaches people the post does not exist.
+      const posBlock = function (pid) {
+        if (iAmAdmin) return '';
+        if (freezeOn()) return t('pos_no_freeze');
+        const cur = picked ? String(picked.position || '') : '';
+        // BOTH ends of every pair. Giving 💰 and taking it away are the same
+        // power; so are promoting past your level and demoting somebody above it.
+        if (pid && Lists.permsOf(pid).indexOf('cashier') >= 0) return t('pos_no_cashier');
+        if (cur && Lists.permsOf(cur).indexOf('cashier') >= 0) return t('pos_no_cashier_off');
+        if (!myLevel) return t('pos_no_level');
+        if (pid && Lists.levelOf(pid) >= myLevel) return t('pos_no_higher');
+        if (cur && Lists.levelOf(cur) >= myLevel) return t('pos_no_target');
+        return '';
+      };
       const posts = Lists.get('position');
       $view().innerHTML = backBar('memberadmin') +
         '<div class="flow-title">' + (id ? '✏️ ' + esc(t('member_edit')) : '➕ ' + esc(t('member_add'))) + '</div>' +
@@ -2481,17 +2564,22 @@
           // whole point of having the list at all.
           '<div class="field"><label>👤 ' + esc(t('member_app_user')) + '</label>' +
           (users.length
-            ? '<select id="mf-user"><option value="">— ' + esc(t('member_no_user')) + ' —</option>' +
+            ? '<select id="mf-user"><option value="">— ' + esc(t('member_pick_user')) + ' —</option>' +
                 users.map(function (u) {
                   return '<option value="' + esc(u.username) + '"' + (u.username === form.appUser ? ' selected' : '') + '>' +
                     esc(u.name + ' (@' + u.username + ')') + '</option>';
                 }).join('') + '</select>' +
               (picked ? '<div class="bd-line" style="display:block;margin-top:6px">' +
-                esc('@' + picked.username + (picked.phone ? ' \u00b7 \ud83d\udcde ' + picked.phone : '') +
+                esc('@' + picked.username +
                     ' \u00b7 ' + (picked.role === 'admin' ? t('role_admin') : t('role_collector')) +
-                    (picked.cashier ? ' \u00b7 \ud83d\udcb0 ' + t('cashier') : '')) + '</div>' : '') +
-              // Said every time, because the obvious reading is the wrong one.
-              '<div class="perm-note">' + esc(t('member_link_note')) + '</div>'
+                    (picked.cashier ? ' \u00b7 \ud83d\udcb0 ' + t('cashier') : '') +
+                    (picked.position ? ' \u00b7 \ud83c\udf96\ufe0f ' + Lists.labelOf('position', picked.position) : '')) +
+                '</div>' : '') +
+              // A115: the account is REQUIRED now, and the note says why \u2014 it is
+              // what keeps one person's post in ONE place instead of two that
+              // drift. The old note ("linking changes no money") is still true
+              // and still says so.
+              '<div class="perm-note">' + esc(t('member_account_note')) + '</div>'
             : '<div class="empty">' + esc(t('member_users_na')) + '</div>') + '</div>' +
           '<div class="field"><label>' + esc(t('member_f_name')) + '</label>' +
           '<input id="mf-name" value="' + esc(form.name) + '" autocomplete="off"></div>' +
@@ -2499,11 +2587,29 @@
           '<select id="mf-pos"><option value="">— ' + esc(t('member_no_post')) + ' —</option>' +
             posts.map(function (p) {
               const cap = Lists.maxOf(p.id), n = held[p.id] || 0, full = cap > 0 && n >= cap;
+              // A115: two DIFFERENT reasons a post can be closed to you — it is
+              // full, or it is not yours to hand out. Kept apart because "পূর্ণ"
+              // and "আপনার স্তরের উপরে" are different problems with different
+              // answers, and one word for both teaches people to stop reading.
+              const why = posBlock(p.id);
+              const off = (full || why) && p.id !== form.position;
+              // The PERMISSION reason wins over "পূর্ণ", and that order matters:
+              // a cap frees up, a level does not. Saying "পূর্ণ" to somebody who
+              // could never give that post anyway sends them to ask the admin to
+              // empty a slot, and then refuses them a second time for a reason
+              // they were never told — one answer that only buys another question.
               return '<option value="' + esc(p.id) + '"' + (p.id === form.position ? ' selected' : '') +
-                (full && p.id !== form.position ? ' disabled' : '') + '>' +
+                (off ? ' disabled' : '') + '>' +
                 esc(Lists.labelOf('position', p.id) + (cap > 0 ? ' (' + n + '/' + cap + ')' : '') +
-                    (full && p.id !== form.position ? ' — ' + t('pos_is_full') : '')) + '</option>';
-            }).join('') + '</select></div>' +
+                    (off ? ' — ' + (why || t('pos_is_full')) : '')) + '</option>';
+            }).join('') + '</select>' +
+            // The post belongs to the ACCOUNT now. Said on the screen, because
+            // somebody who came here to fix a phone number needs to know why the
+            // post followed the person rather than the row.
+            '<div class="perm-note">' + esc(t('member_post_note')) + '</div>' +
+            (posBlock('') ? '<div class="perm-warn" style="display:block;margin-top:6px">' +
+                            esc(posBlock('')) + '</div>' : '') +
+          '</div>' +
           '<div class="field"><label>✉️ ' + esc(t('member_f_email')) + '</label>' +
           '<input id="mf-email" value="' + esc(form.email) + '" autocomplete="off" inputmode="email"></div>' +
           '<div class="field"><label>📞 ' + esc(t('member_f_phone')) + '</label>' +
@@ -2522,11 +2628,18 @@
         form.appUser = uSel.value;
         // Fill only what is still BLANK. Overwriting a name somebody typed
         // because they later picked an account is how a form loses work.
-        const u = (memberAdminUsers || []).filter(function (x) { return x.username === form.appUser; })[0];
-        if (u) { if (!form.name.trim()) form.name = u.name || ''; if (!form.phone.trim()) form.phone = u.phone || ''; }
+        const u = memberUser(form.appUser);
+        if (u) {
+          if (!form.name.trim()) form.name = u.name || '';
+          // A115: and the post comes with them. Picking an account that already
+          // holds সম্পাদক must SHOW সম্পাদক — the post is theirs, not this
+          // row's, and a form that quietly showed "পদ নেই" would be offering to
+          // strip it on the next save.
+          form.position = String(u.position || '');
+        }
         paint();
       };
-      document.getElementById('mf-save').onclick = function () { saveMemberForm(id, members); };
+      document.getElementById('mf-save').onclick = function () { saveMemberForm(id, members, form.expect); };
       const del = document.getElementById('mf-del');
       if (del) del.onclick = function () {
         // A60: the same guard the donor form uses. Removing a member who has
@@ -2537,6 +2650,14 @@
         // confirm promised "money already collected stays exactly as it is",
         // which was true about the rupees and misleading about the book.
         if (memberLivePays > 0) { alert(t('party_remove_has_pay').replace('{n}', String(memberLivePays))); return; }
+        // A115: a member still holding a post cannot go — the post would be
+        // left with nobody the register knows about. Said here, before the
+        // confirm, so the answer is "take the post off first" rather than a
+        // refusal after they have already agreed to delete somebody.
+        if (form.position) {
+          alert(t('member_holds_post').replace('{post}', Lists.labelOf('position', form.position)));
+          return;
+        }
         if (!window.confirm(t('member_remove_confirm').replace('{who}', form.name))) return;
         // A60: this used to set `row.voided = 1`. Nothing on either side reads
         // that field and `parties` has no such column server-side, so the push
@@ -2547,13 +2668,18 @@
         // mechanism that already works". `voids` is that mechanism: activeData
         // and activeData_ both drop rows by targetId, so one record removes the
         // member from the arithmetic, the reports and the lists at once.
-        DB.put('voids', DB.newRow({ targetStore: 'parties', targetId: id, reason: 'removed' }))
-          .then(function () { toast(t('party_removed')); updateBadge(); autoSync(); navigate('memberadmin'); })
-          .catch(function (e) { toast(errMsg(e)); });
+        // A115: over the wire, like every other write on this screen. The server
+        // still records it as a `voids` row — the mechanism A60 settled on —
+        // so the removal travels to every other phone on its next poll.
+        del.disabled = true;
+        Auth.call('removeMember', { token: Auth.token(), id: id })
+          .then(function () { toast(t('party_removed')); return pullCentral({ force: true }); })
+          .then(function () { navigate('memberadmin'); })
+          .catch(function (e) { del.disabled = false; alert(errMsg(e)); });
       };
     }
   }
-  function saveMemberForm(id, members) {
+  function saveMemberForm(id, members, memberExpect) {
     const err = document.getElementById('mf-err');
     const show = function (msg) { err.textContent = msg; err.style.display = ''; };
     const name = document.getElementById('mf-name').value.trim();
@@ -2577,15 +2703,23 @@
       if (box) box.focus();
       return;
     }
-    // The cap again, on SAVE. The dropdown disables a full post, but a stale
-    // screen or a post whose cap was tightened after this page was drawn would
-    // slip through — the check that matters is the one at the moment of writing.
+    // A115: the account is required, and it is asked for BEFORE the post — the
+    // post has nowhere to live without one.
+    if (!appUser) { show(t('member_need_account')); return; }
+    const acct = memberUser(appUser);
+    // The cap again, on SAVE, counted the way the server counts it: over the
+    // ACCOUNTS, every one of them except the person being edited. The dropdown
+    // disables a full post, but a stale screen or a cap tightened after this
+    // page was drawn would sail past that.
     if (position) {
-      const others = members.filter(function (p) { return p.id !== id && p.position === position; });
+      const others = committee.filter(function (x) {
+        return String(x.username).toLowerCase() !== String(appUser).toLowerCase() &&
+               String(x.position || '') === position;
+      });
       const cap = Lists.maxOf(position);
       if (cap > 0 && others.length >= cap) {
         show(t('pos_full').replace('{who}', Lists.labelOf('position', position))
-          .replace('{n}', others.length).replace('{names}', others.map(function (p) { return p.name; }).join(', ')));
+          .replace('{n}', others.length).replace('{names}', others.map(function (x) { return x.name; }).join(', ')));
         return;
       }
     }
@@ -2595,37 +2729,32 @@
     })[0];
     if (dup && !window.confirm(t('dup_party_warn').replace('{row}',
         esc0(dup.name) + (dup.phone ? ' · 📞 ' + dup.phone : '')))) return;
-    const done = function () { toast(t('saved')); autoSync(); navigate('memberadmin'); };
-    if (id) {
-      DB.get('parties', id).then(function (row) {
-        if (!row) { navigate('memberadmin'); return; }
-        // A47: a member row is the ONE thing in this book edited in place —
-        // everything else is append-only, which is why concurrent edits have
-        // never mattered before. Two people with 🎖️ can still overwrite each
-        // other silently, so compare against the central copy this device
-        // already holds and say WHOSE change would be lost.
-        //
-        // Honest limit, and it is written on the screen as a hint rather than a
-        // promise: this sees only what has SYNCED. Somebody editing offline
-        // right now is invisible to everyone until their phone reaches the
-        // server — no lock could change that, it would only add a claim that
-        // gets stuck when a battery dies.
-        const mine = (members || []).filter(function (x) { return x.id === id; })[0];
-        const clash = mine && (String(mine.name || '') !== String(row.name || '') ||
-                               String(mine.phone || '') !== String(row.phone || '') ||
-                               String(mine.position || '') !== String(row.position || ''));
-        if (clash && !window.confirm(t('member_clash')
-              .replace('{who}', row.collector || '?')
-              .replace('{name}', row.name || '?'))) { navigate('memberadmin'); return; }
-        row.name = name; row.position = position; row.email = email;
-        row.phone = phone; row.appUser = appUser; row.synced = 0;
-        return DB.put('parties', row).then(done);
-      }).catch(function (e) { toast(errMsg(e)); });
-    } else {
-      const row = DB.newRow({ type: 'member', name: name, owner: '', side: '', location: '',
-        phone: phone, pledged: 0, position: position, email: email, appUser: appUser });
-      DB.put('parties', row).then(done).catch(function (e) { toast(errMsg(e)); });
+    // A115: changing the post changes what that ACCOUNT may do in the app, and
+    // this screen is called "কমিটির সদস্য", not "অনুমতি". So it is never silent
+    // — it says whose permissions move, from what to what, and asks. The server
+    // writes an audit line either way; this is so the person doing it knows.
+    const had = acct ? String(acct.position || '') : '';
+    if (position !== had) {
+      const label = function (p) { return p ? Lists.labelOf('position', p) : t('member_no_post'); };
+      if (!window.confirm(t('member_post_confirm')
+            .replace('{who}', '@' + appUser)
+            .replace('{from}', label(had))
+            .replace('{to}', label(position)))) return;
     }
+    const btn = document.getElementById('mf-save');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ ' + t('saving'); }
+    // Over the wire, not into the queue. Every rule this screen enforces is a
+    // permission rule, and a permission rule a phone can settle for itself is
+    // not a rule — see saveMember in Code.gs.
+    Auth.call('saveMember', { token: Auth.token(), id: id, name: name, position: position,
+                              email: email, phone: phone, appUser: appUser,
+                              expect: memberExpect, year: Number(Settings.get('year')) })
+      .then(function () { toast(t('saved')); return pullCentral({ force: true }); })
+      .then(function () { navigate('memberadmin'); })
+      .catch(function (e) {
+        if (btn) { btn.disabled = false; btn.textContent = t('save'); }
+        show(errMsg(e));
+      });
   }
   // A60 (audit 2.1): correcting a shop/person donor row.
   //
@@ -4329,7 +4458,7 @@
     if (!Auth.isCashier()) return; // admins are cashiers here too
     viewData().then(function (data) {
       const el = document.getElementById('reconcile-warn'); if (!el) return;
-      const r = Aggregate.reconcile(data, { positionMax: Lists.maxMap() });
+      const r = Aggregate.reconcile(data, reconcileRules());
       const others = r.anomalies.filter(function (a) { return a.type !== 'unbalanced'; });
       if (r.balanced && !others.length) { el.innerHTML = ''; return; }
       let msg = '';
@@ -4378,7 +4507,7 @@
     viewData().then(function (data) {
       // Lists.maxMap() carries the post caps in — reconcile is pure logic and
       // cannot reach the master lists itself.
-      const r = Aggregate.reconcile(data, { positionMax: Lists.maxMap() });
+      const r = Aggregate.reconcile(data, reconcileRules());
       const byId = {}; (data.payments || []).forEach(function (p) { byId[p.id] = p; });
       const dailyById = {}; (data.daily || []).forEach(function (r) { dailyById[r.id] = r; });
       const partyById = {}; liveParties(data).forEach(function (p) { partyById[p.id] = p; });
@@ -4478,6 +4607,7 @@
           : a.type === 'split_mismatch' ? t('anom_split').replace('{store}', a.store || '').replace('{n}', fmtMoney(a.amount || 0)).replace('{s}', fmtMoney(a.split || 0))
           : a.type === 'breakdown_mismatch' ? t('anom_breakdown').replace('{n}', fmtMoney(a.amount || 0)).replace('{s}', fmtMoney(a.breakdownSum || 0))
           : a.type === 'position_over_max' ? t('anom_position_over_max').replace('{pos}', Lists.labelOf('position', a.position)).replace('{n}', a.count).replace('{max}', a.max).replace('{names}', (a.who || []).join(', '))
+          : a.type === 'member_no_account' ? t('anom_member_no_account').replace('{who}', a.party || '?')
           : a.type;
         return '<div class="card"><div class="card-title">⚠️ ' + esc(t('anom_' + a.type + '_t') || a.type) + '</div>' +
           '<div class="row-sub">' + esc(line) + '</div>' +
@@ -5161,6 +5291,17 @@
     const code = raw.replace(/-/g, '_');
     const key = 'err_' + (code === 'year_not_approved' ? 'year' : code);
     if (I18N[key]) return t(key);
+    // A115: some refusals carry WHICH rule stopped you — `position-denied:
+    // level-want`, `member-holds-post:treasurer`. Try the whole thing first, so
+    // each reason can have its own sentence, then fall back to the family. Both
+    // halves matter: without the second, a new reason added server-side would
+    // show the collector a raw English error code.
+    if (code.indexOf(':') >= 0) {
+      const whole = 'err_' + code.replace(/:/g, '_');
+      if (I18N[whole]) return t(whole);
+      const family = 'err_' + code.split(':')[0];
+      if (I18N[family]) return t(family).replace('{what}', raw.split(':')[1] || '');
+    }
     if (code === 'network' || code === 'Failed_to_fetch') return t('err_network');
     return t('err_server') + ': ' + raw;
   }
@@ -5681,6 +5822,7 @@
     if (!it || !admPosDraft) return 0;
     let n = 0;
     if (admPosDraft.max !== (Number(it.maxCount) || 0)) n++;
+    if (admPosDraft.level !== (Number(it.level) || 0)) n++;
     if (admPosDraft.perms.slice().sort().join() !==
         String(it.perms || '').split(',').filter(Boolean).sort().join()) n++;
     return n;
@@ -5693,9 +5835,11 @@
     const btn = document.getElementById('adm-pos-save');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ ' + t('saving'); }
     Auth.call('setPositionRules', { token: Auth.token(), id: it.id,
-                                    maxCount: admPosDraft.max, perms: admPosDraft.perms })
+                                    maxCount: admPosDraft.max, level: admPosDraft.level,
+                                    perms: admPosDraft.perms })
       .then(function () {
         it.maxCount = admPosDraft.max;
+        it.level = admPosDraft.level;
         it.perms = admPosDraft.perms.join(',');
         admPosDraft = null;
         Lists.refresh(true);        // just edited — the entry screens need it NOW
@@ -6000,7 +6144,13 @@
         if (u.status !== 'approved' || u.role === 'admin') return '';
         const held = {};
         (resp.users || []).forEach(function (x) {
-          if (x.id === u.id || !x.position || x.role === 'admin') return;
+          // A115: `x.role === 'admin'` used to be in this test, and the server
+          // never had it. applyPosition_ counts EVERY row holding the post, so
+          // an admin sitting in কোষাধ্যক্ষ made this dropdown say "0/1, free"
+          // and the save answer `position-full:hrishi` — a screen and a server
+          // disagreeing about the same number. The server is right: a slot
+          // taken is taken, whoever is in it.
+          if (x.id === u.id || !x.position) return;
           held[x.position] = (held[x.position] || 0) + 1;
         });
         return '<div class="perm-grp"><div class="perm-head">🎖️ ' + esc(t('user_post')) + '</div>' +
@@ -6299,13 +6449,21 @@
               '<div class="row-sub">' + esc(it.nameEn) + ' · ' +
                 esc(cap > 0 ? t('pos_max_n').replace('{n}', cap) : t('pos_max_any')) + ' · ' +
                 esc(set.length ? t('pos_perm_n').replace('{n}', set.length) : t('pos_perm_none')) +
-              '</div></div><span class="adm-caret">›</span></button>';
+              '</div>' +
+              // A115: said HERE, on the list, not only inside the post — a
+              // feature that quietly does nothing is indistinguishable from a
+              // broken one, and levels are deliberately not seeded (A101).
+              (Number(it.level) || 0
+                ? '<div class="row-sub">🪜 ' + esc(t('pos_level_n').replace('{n}', Number(it.level))) + '</div>'
+                : '<div class="row-sub" style="color:#c0392b">⚠️ ' + esc(t('pos_level_none_short')) + '</div>') +
+              '</div><span class="adm-caret">›</span></button>';
           }).join('') : '<div class="empty">' + esc(t('pos_none_server')) + '</div>');
       } else if (admSection === 'positions') {
         const it = positions.filter(function (x) { return x.id === admPosId; })[0];
         if (!it) { admPosId = ''; paintAdmin(res); return; }
         if (!admPosDraft) admPosDraft = {
           max: Number(it.maxCount) || 0,
+          level: Number(it.level) || 0,
           perms: String(it.perms || '').split(',').filter(Boolean),
         };
         const groups = [
@@ -6328,6 +6486,18 @@
           '<div class="field"><label>🔢 ' + esc(t('pos_max_label')) + '</label>' +
             '<input id="pos-max" type="number" min="0" inputmode="numeric" value="' + admPosDraft.max + '">' +
             '<div class="row-sub" style="margin-top:4px">' + esc(t('pos_max_zero')) + '</div></div>' +
+          // A115: the rank. Bigger = more senior; several posts may share a
+          // number and nothing here objects — joint secretaries are peers. What
+          // it costs them is that peers cannot appoint each other, which is the
+          // rule stated plainly under the box rather than discovered later.
+          '<div class="field"><label>🪜 ' + esc(t('pos_level_label')) + '</label>' +
+            '<input id="pos-level" type="number" min="0" inputmode="numeric" value="' + admPosDraft.level + '">' +
+            '<div class="row-sub" style="margin-top:4px">' + esc(t('pos_level_hint')) + '</div>' +
+            (admPosDraft.level ? '' :
+              '<div class="perm-warn" style="display:block;margin-top:6px">' + esc(t('pos_level_none')) + '</div>') +
+            (admPosDraft.perms.indexOf('cashier') >= 0 ?
+              '<div class="perm-note">' + esc(t('pos_level_cashier')) + '</div>' : '') +
+          '</div>' +
           groups.map(function (g) {
             return '<div class="perm-grp"><div class="perm-head">' + esc(t(g[0])) + '</div>' +
               '<div class="chips" style="margin:4px 0 0">' + g[1].map(function (k) {
@@ -6420,6 +6590,12 @@
       const pmax = document.getElementById('pos-max');
       if (pmax) pmax.oninput = function () {
         admPosDraft.max = Math.max(0, Math.floor(Number(pmax.value) || 0));
+        admStick(document.getElementById('adm-pos-save'),
+                 document.getElementById('adm-pos-dirty'), admPosDirty());
+      };
+      const plevel = document.getElementById('pos-level');
+      if (plevel) plevel.oninput = function () {
+        admPosDraft.level = Math.max(0, Math.floor(Number(plevel.value) || 0));
         admStick(document.getElementById('adm-pos-save'),
                  document.getElementById('adm-pos-dirty'), admPosDirty());
       };

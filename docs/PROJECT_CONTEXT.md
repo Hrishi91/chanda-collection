@@ -153,6 +153,38 @@ Bengali and an English label. Collectors are assigned areas via `Users.areas`.
   session" button, and queueing an offline logout so it reaches the server.
   Consequence to keep in mind: a logout made while offline clears the phone but
   leaves the sheet's token valid until the next login overwrites it.
+- **A committee post lives on the app ACCOUNT, in one place** (2026-08-15,
+  A115, Hrishi's decision). The member register and 👥 ইউজার ও permission used
+  to hold a post each, and they drifted silently: measured against the real
+  `Code.gs`, removing কালী's post in the admin panel left the register still
+  calling him কোষাধ্যক্ষ, and রতন could then be made কোষাধ্যক্ষ as well — two
+  people in a post capped at one, with no warning anywhere.
+
+  The fix is not to sync the two copies. Two copies that are synced still drift,
+  only more slowly. So the app account became **mandatory** on a member row, and
+  with that the register has somewhere to read the post from and needs no copy
+  of its own. `Parties.position` is never written again; old rows keep whatever
+  they were left with and nothing reads it.
+
+  Its costs, all shown to Hrishi before he agreed:
+  - a committee member with **no smartphone cannot be recorded**, because
+    `register` is self-service and an admin cannot create an account for anyone
+  - **nobody adds or edits their own** committee record, admin included — so a
+    one-admin book cannot enter its own admin, and a second admin is required
+    before go-live
+  - the register is **online-only**, because everything it writes is a
+    permission question and a question a phone answers for itself is not a rule.
+    Collecting FROM a member is untouched and still works with no signal.
+
+  Posts also gained a **level** — a plain number the admin types in, several
+  posts may share one — and you may hand out only posts strictly below your own.
+  Both halves of every pair are checked: the post being given AND the post the
+  target already holds (else a junior strips a senior, since removing a post
+  asks for level 0), giving 💰 AND taking it away (else anyone senior enough
+  undoes the admin-only rule). Levels are deliberately **not seeded**: until one
+  is typed in, only the admin appoints — safe, and marked on screen so it cannot
+  fail silently.
+
 - **Leaving the committee and being blocked are two different doors**
   (2026-07-31, A78, Hrishi's own design). 🚪 **বিদায়ী** is the committee's
   decision: the post, the personal grants and the cashier flag all go, but the

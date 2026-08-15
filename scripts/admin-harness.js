@@ -55,7 +55,10 @@ NAMES.slice(1, 10).forEach(function (u) {
   const r = rowOf(u[0]);
   b.call('setStatus', { token: admin, userId: r.id, status: 'approved' });
   b.call('approveYear', { token: admin, userId: r.id, year: 2026 });
-  b.call('setEntries', { token: admin, userId: r.id, entries: ['shop', 'person', 'road', 'toto'] });
+  // 'member' = collecting FROM a committee member. It was missing here, and the
+  // A102 fixture below has been quietly losing its member row ever since while
+  // printing "4 donors added" — a harness that reports work it did not do.
+  b.call('setEntries', { token: admin, userId: r.id, entries: ['shop', 'person', 'member', 'road', 'toto'] });
   b.call('setAreas', { token: admin, userId: r.id, areas: ['main_malda', 'harirampur'] });
 });
 // two cashiers, one blocked account, one stood down
@@ -67,9 +70,21 @@ b.call('setStatus', { token: admin, userId: rowOf('manik').id, status: 'blocked'
 try { b.call('setAccess', { token: admin, userId: rowOf('dipak').id, access: 'exiting' }); } catch (e) {}
 // committee posts, so the position row on each card has something to say
 try {
-  b.call('setPosition', { token: admin, userId: rowOf('kali').id, position: 'treasurer' });
-  b.call('setPosition', { token: admin, userId: rowOf('ratan').id, position: 'secretary' });
-} catch (e) {}
+  b.call('setUserPosition', { token: admin, userId: rowOf('kali').id, position: 'treasurer' });
+  b.call('setUserPosition', { token: admin, userId: rowOf('ratan').id, position: 'secretary' });
+} catch (e) { console.error('position fixture: ' + e.message); }
+// A115: the committee ranks Hrishi will type in, and the register grant on a
+// NON-admin — that combination is the whole point of the level rules, and the
+// screen cannot be judged without somebody standing in the middle of the ladder.
+try {
+  [['president', 40], ['secretary', 30], ['treasurer', 20], ['member', 10]].forEach(function (p) {
+    b.call('setPositionRules', { token: admin, id: p[0], level: p[1] });
+  });
+  b.call('setPositionRules', { token: admin, id: 'treasurer', perms: ['cashier'] });
+  b.call('setEntries', { token: admin, userId: rowOf('ratan').id,
+                         entries: ['shop', 'person', 'member', 'road', 'toto', 'bus', 'memberadmin'] });
+  console.log('A115: levels 40/30/20/10 set; @ratan is সম্পাদক with the register grant');
+} catch (e) { console.error('A115 fixture: ' + e.message); }
 
 // money in several hands: shops, payments and daily collections per collector
 let seq = 0;
@@ -130,12 +145,21 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
       side: 'harirampur', pledged: 3000, year: 2026, date: '2026-08-10' },
     { id: 'sx-3', type: 'person', name: 'অনিমেষ রায়', phone: '9834567890',
       side: 'singhadaha', pledged: 500, year: 2026, date: '2026-08-10' },
-    { id: 'sx-4', type: 'member', name: 'শঙ্কর দত্ত', phone: '9845678901', position: 'treasurer',
+    // A115: pushed WITHOUT a post — the server refuses a member row that carries
+    // one, and this row is here to prove the register still shows it. Its post
+    // comes from @kali's account (কোষাধ্যক্ষ), like every member's now. It also
+    // carries no appUser on purpose, so the 🩺 desk has an account-less row to
+    // complain about — that is the pre-A115 shape a real book will have.
+    { id: 'sx-4', type: 'member', name: 'শঙ্কর দত্ত', phone: '9845678901',
       pledged: 1000, year: 2026, date: '2026-08-10' }
   ];
-  try { b.call('push', { token: tok, year: 2026, records: rows.map(function (r) {
-    return { store: 'parties', row: r }; }) });
-    console.log('A102 search fixtures: ' + rows.length + ' donors added');
+  try {
+    // count what the SERVER accepted, not what we sent — the two disagreed for
+    // months and the log cheerfully reported the number we hoped for
+    var res = b.call('push', { token: tok, year: 2026, records: rows.map(function (r) {
+      return { store: 'parties', row: r }; }) });
+    console.log('A102 search fixtures: ' + (res.savedIds || []).length + '/' + rows.length + ' donors added' +
+                ((res.rejectedIds || []).length ? '  REJECTED: ' + res.rejectedIds.join(',') : ''));
   } catch (e) { console.error('fixture push failed: ' + e.message); }
 })();
 
@@ -155,6 +179,16 @@ http.createServer(function (req, res) {
           res.end('<!DOCTYPE html><html><title>Error</title></html>');
           return;
         }
+        // A115: let the clock MOVE. The shim freezes time so the suite stays
+        // deterministic, and the seeding above depends on that — but a frozen
+        // clock means `data_ts` never advances, so pull's idle fast path fires
+        // on every poll and NOTHING a screen writes ever comes back down. The
+        // register looked broken here while the server had the row all along.
+        //
+        // Worse than a wrong answer: a harness that cannot show a delta pull
+        // working also cannot show one broken, and this file exists to be
+        // believed. One second per request, after seeding, is enough.
+        b.env._setNow(b.env._now() + 1000);
         out = b.api.doPost({ postData: { contents: body } }).getContent();
         if (process.env.CK_TRACE) {
           var req = {}; try { req = JSON.parse(body); } catch (e) {}

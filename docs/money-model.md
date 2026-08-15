@@ -170,7 +170,7 @@ member contribution would raise an anomaly and drown the 🩺 desk.
 
 ## When something IS wrong: the anomaly desk (A23)
 
-`reconcile` raises **eleven** anomaly types. Do not hand-count them: the suite
+`reconcile` raises **twelve** anomaly types. Do not hand-count them: the suite
 reads the list out of `js/aggregate.js` and demands a title and a message for
 each, and this sentence drifted twice before anyone noticed (it said eight when
 the code raised nine, and again when A61 added `possible_duplicate_daily`).
@@ -186,8 +186,19 @@ The ⚠️ banner on 📊 রিপোর্ট is a button onto **🩺 অস�
 - `overpaid` — ✓ ঠিক আছে (stamp `parties.pledgeOk`), or ✏️ correct the pledge,
   which goes to A60's donor form and fixes the cause instead of the symptom
 
-The other seven are deliberately read-only: they are data surgery, and a wrong
+The other nine are deliberately read-only: they are data surgery, and a wrong
 "fix" moves real money.
+
+Two of them (A115) are about the committee register rather than the arithmetic:
+
+- `position_over_max` — its holders are handed IN by the caller
+  (`reconcileRules()` in `js/app.js`, built from the committee roster), because
+  a post lives on the app **account** now, not on the member row. Rows written
+  before A115 still carry a stale `parties.position`; reconcile never reads it,
+  and with no roster it skips the check entirely rather than guessing.
+- `member_no_account` — a committee member with no app account linked. An
+  account is required as of A115, so such a row cannot be saved again until one
+  is picked; the desk says so where the person who can fix it is already looking.
 
 Rule for anyone adding an eleventh type: **detection without a sentence is not
 detection, and a sentence without an answer is not much better.** A count

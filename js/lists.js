@@ -85,6 +85,15 @@ window.Lists = (function () {
     const it = itemOf('position', id);
     return Math.max(0, Number(it && it.maxCount) || 0);
   }
+  // A115: the committee RANK of a post. 0 = no rank set, and a level-0 person
+  // hands out nothing — the server says the same, and this is only the screen
+  // agreeing with it early. Deliberately not seeded: the numbers are the
+  // committee's to decide, and until they are typed in the admin appoints
+  // everybody, exactly as before.
+  function levelOf(id) {
+    const it = itemOf('position', id);
+    return Math.max(0, Number(it && it.level) || 0);
+  }
   // Would putting one more person in this post break its cap? `held` is how many
   // already hold it, EXCLUDING the person being edited — the caller knows which.
   function isFull(id, held) {
@@ -100,5 +109,6 @@ window.Lists = (function () {
     return out;
   }
   return { get: get, labelOf: labelOf, refresh: refresh,
-           itemOf: itemOf, permsOf: permsOf, maxOf: maxOf, isFull: isFull, maxMap: maxMap };
+           itemOf: itemOf, permsOf: permsOf, maxOf: maxOf, levelOf: levelOf,
+           isFull: isFull, maxMap: maxMap };
 })();

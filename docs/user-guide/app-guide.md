@@ -176,6 +176,24 @@ Refreshes every minute and whenever you return to the app.
 - **🧾 Expense subjects** and **📍 Area / location lists** — add, rename or remove
   here; each item needs a Bengali and an English name, and changes reach every
   phone quickly.
+- **🎖️ Committee posts & levels** — each post carries what holding it lets you
+  do in the app, a maximum number of holders, and a **level**. The level is a
+  plain number you type in yourself; bigger means more senior, and several posts
+  may share one. It decides one thing only: **you may hand out a post only if
+  its level is strictly below your own**, and only to somebody whose current
+  post is also below yours. Nobody may give themselves a post, a post carrying
+  💰 can be handed out (or taken away) by an admin alone, and an admin can do
+  all of it. Until you type a level in, the post is marked ⚠️ and only an admin
+  can appoint anybody with it.
+- **🎖️ Committee members** — the register. Every member row must name an **app
+  account**, because that is where the post lives: set it here and 👥 Users &
+  permissions shows the same post, and the other way round. Two consequences
+  worth knowing before the puja: **nobody can add or edit their own** committee
+  record, so a book with one admin cannot enter that admin — make a second one
+  — and the screen needs **internet**, because a post is a permission and a
+  phone must not settle that for itself. Collecting FROM a member (🤝) is
+  untouched and still works offline. A member row left over from before this
+  rule, with no account, is listed by name on 🩺 অসঙ্গতি পরীক্ষা.
 - **📜 Activity log** — who did what and when: voids, correction approve/reject,
   handover confirms, admin/cashier changes, password resets, list edits.
   Append-only, for accountability.

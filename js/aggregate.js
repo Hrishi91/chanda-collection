@@ -1156,12 +1156,22 @@
     });
     // More people in a one-person post than the post allows.
     const posMax = (rules && rules.positionMax) || null;
-    if (posMax) {
-      const holders = {};
-      parties.forEach(function (p) {
-        if (p.type !== 'member' || !p.position) return;
-        (holders[p.position] || (holders[p.position] = [])).push(p.name || p.id);
-      });
+    // A115: the holders are handed IN now, because a committee post lives on the
+    // app account, not on the member row. Reading p.position here would be worse
+    // than useless: rows written before this change still carry an old value, so
+    // the desk would raise a clash nobody can clear — and a marker that cannot
+    // be cleared is how a desk stops being read.
+    //
+    // No holders passed = the check is skipped, exactly like no posMax. A
+    // detector that cannot see its own subject must say nothing, not guess.
+    const holders = (rules && rules.positionHolders) || null;
+    // An empty roster needs no special case, and I tried to give it one: a map
+    // with nothing in it can never exceed a cap, so "not synced yet" and
+    // "nobody holds anything" produce the same silence. The extra branch was a
+    // guard no test could tell apart from its own absence, which is the kind
+    // that rots. Omitting positionHolders entirely IS observable, and that is
+    // the distinction kept.
+    if (posMax && holders) {
       Object.keys(posMax).forEach(function (pid) {
         // 0 means "as many as you like" EVERYWHERE else in this app; a reconcile
         // that read it as "nobody allowed" would be a trap for the next caller.
@@ -1174,6 +1184,15 @@
         }
       });
     }
+    // A115: a committee member with no app account. The account is required
+    // now — it is what keeps a person's post in one place — but rows written
+    // before that rule are still here, and they cannot be saved again until
+    // somebody links one. Surfaced HERE rather than left to fail at the moment
+    // somebody opens the row to fix a phone number.
+    parties.forEach(function (p) {
+      if (p.type !== 'member' || String(p.appUser || '')) return;
+      anomalies.push({ type: 'member_no_account', id: p.id, partyId: p.id, party: p.name || p.id });
+    });
     // same id appearing twice in a store (would double-count)
     ['parties', 'payments', 'daily', 'expenses', 'handovers'].forEach(function (store) {
       const seen = {};

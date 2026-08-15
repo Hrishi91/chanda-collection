@@ -10220,3 +10220,117 @@ what makes a cache-key bump imply a redeploy. Worth revisiting after the puja:
 the worker's cache key and the server build number do not have to be the same
 number, and tying them is what turned "fix a sentence" into "redeploy the
 backend". Recorded in `docs/pending.md`.
+
+## v4.33.0 — A115: one person, one post, one place
+
+Hrishi: *"user and permission screen and comitir sodosyo screen are not interact
+with each other."* Measured before touching anything, by running the real
+`Code.gs`:
+
+```
+১. admin প্যানেলে কালী → কোষাধ্যক্ষ        Users.position   = "treasurer"
+২. সদস্য-রেজিস্টারে কালী → কোষাধ্যক্ষ       Parties.position = "treasurer"
+৩. admin প্যানেলে কালীর পদ সরালাম          Users = ""  ·  Parties = "treasurer" ← রয়ে গেল
+৪. রতনকে User-পদে কোষাধ্যক্ষ করলাম          ✅ হয়ে গেল
+   ⇒ এক পদে দুজন, দুটো পর্দায় দুটো উত্তর, কোনো সতর্কতা নেই
+```
+
+Two copies of one fact. Syncing them would only make them drift more slowly, so
+the second copy is gone: **a committee post lives on the app account.**
+
+### What Hrishi decided
+
+- the app account is **mandatory** on a member row — that is what collapses the
+  two copies into one
+- **nobody adds or edits their own** committee record
+- the register is **online-only**; collecting from a member is untouched
+- posts get a **level**, typed in by the admin, several posts may share one
+- you may hand out only posts **strictly below** your own level
+- **blocked means blocked**; **everything is audited**
+
+### Consequences he was shown before agreeing
+
+- a committee member with no smartphone can no longer be recorded — `register`
+  is self-service, so an admin cannot create an account for anybody
+- his OWN member row needs a **second admin**, because nobody edits their own
+- `goLive` wipes `Parties`, so members are entered after go-live — but the
+  posts now survive it, which they did not before
+
+### Rules, all server-side, all mutation-tested
+
+`canAssignPosition_` answers one question for both doors — the admin panel and
+the register — and returns the reason, which is written to the Audit log even
+when the answer is no. In a permission system the attempt that FAILS is the one
+worth keeping; a successful-action log can never show somebody trying the door.
+
+Two pairs, and one half of each was missing until something forced it:
+
+- **the target's current post**, not only the post being given. Removing a post
+  sends `want=''`, whose level is 0, and 0 passes the wanted-post test every
+  time — so without this a কোষাধ্যক্ষ could strip the সভাপতি.
+- **taking 💰 away**, not only giving it. Found by driving the real screen: রতন
+  (সম্পাদক, 30) outranks কালী (কোষাধ্যক্ষ, 20), so every level rule said "go
+  ahead" while the post being removed carried the one money key a post can hold.
+  "Only an admin hands out 💰" is worth nothing if anyone senior can take it back.
+
+### What the sweep of dependencies turned up
+
+- **`position_over_max` would have broken.** It counted member rows; with the
+  post on the account it would either go permanently silent or fire on stale
+  values nobody could clear. Its holders are handed in now, from the roster, and
+  with no roster it skips rather than guesses.
+- **A pre-existing bug, fixed in passing.** The client skipped admins when
+  counting a post's holders and `applyPosition_` never did — an admin holding
+  কোষাধ্যক্ষ made the dropdown read "0/1, free" and the save answer
+  `position-full`. Both counters now count every row.
+- **Five display sites** read the post; all five moved to the account.
+
+### The one a test could not have found
+
+Every screen showed the right thing and the register still would not update. The
+cause was in `pull`'s **idle fast path**: changing a post writes to `Users` and
+to nothing else, so `data_ts` never advances and every phone answers its own
+poll from the fast path for ever. The roster now rides **every** pull response,
+and the test counts them against pull's `return` statements rather than against
+a number, because the number is not the property.
+
+The alternative — making `setUserPosition`, `setStatus`, `setCashier` and
+`setEntries` each remember to bump `data_ts` — is a rule stated in four places
+and guarded in three by next month.
+
+### A47, kept and made stronger
+
+The register's "somebody else changed this, carry on?" warning could only ever
+see what that device had SYNCED. On the wire it becomes a rule: the form sends
+the stamp of the row it was drawn from, and a row that moved since is refused.
+
+### Levels are NOT seeded — deliberately
+
+Hrishi's call: *"user should add the level in position creation, this is totally
+on admin decision."* It fails the safe way (no level ⇒ hands out nothing ⇒ the
+admin appoints, exactly as today), but it must not fail SILENTLY, so every post
+without one is marked in the editor and in its list. A101's lesson: a feature
+that quietly does nothing is indistinguishable from a broken one.
+
+### Harness repairs — three things that were lying
+
+- `tests/gas-shim.js` never reset the position memos, though the real runtime
+  gets a fresh execution per request
+- `scripts/admin-harness.js` printed "4 donors added" while writing 3 — it never
+  granted the `member` entry key, so the member row was refused every time. It
+  now counts what the SERVER accepted.
+- the same harness froze the clock, so `data_ts` never moved, so **no delta pull
+  could ever be exercised** — it made a working save look broken. A harness that
+  cannot show a delta working cannot show one broken either.
+
+Three test assertions pinned a fixed character window and failed correct code as
+comments grew — the A38 trap, three more times. All now anchored on structure.
+One new assertion read its own explanatory comment and failed the fix it was
+guarding; it strips comments now.
+
+Tests **1,707 → 1,757**. Twenty-one guards removed one at a time and watched go
+red.
+
+**⚠️ Needs an Apps Script redeploy** (this supersedes the pending v4.32.0 one —
+deploy this instead, once). New: `saveMember`, `removeMember`, the `level`
+column on `Lists`, and `committee` on every pull.

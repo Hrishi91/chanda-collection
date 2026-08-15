@@ -1098,7 +1098,10 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
        'A103: …the ledger and find-donor searches (name · owner · phone · area · location)');
     eq(/const hit = matchWords\(r\.dataset\.q \|\| r\.textContent, q\);/.test(app103), true,
        'A103: …the four admin filters');
-    eq(/return matchWords\(\[p\.name, p\.phone,\n\s*p\.position \? Lists\.labelOf\('position', p\.position\) : ''\]\.join\(' '\), q\);/.test(app103), true,
+    // A115: the post moved to the account, so the picker reads memberPost(p).
+    // The property is unchanged: name, phone AND post all go through the one
+    // matchWords rule, so "শঙ্কর কোষাধ্যক্ষ" finds the row with both words on it.
+    eq(/matchWords\(\[p\.name, p\.phone,\s*\n?\s*pos \? Lists\.labelOf\('position', pos\) : ''\]\.join\(' '\), q\)/.test(app103), true,
        'A103: …and the member picker');
     // the old rule must be gone from all of them, or one screen keeps lying
     eq(/normText\(\[p\.name, p\.phone[\s\S]{0,120}\]\.join\(' '\)\)\.indexOf\(q\)/.test(app103), false,
@@ -1192,8 +1195,13 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     // for money, and it is the admin panel's.
     eq((app100.match(/Auth\.call\('listUsers', \{ token: Auth\.token\(\), year:/g) || []).length, 1,
        'A100: exactly one listUsers call asks for the money');
-    eq((app100.match(/Auth\.call\('listUsers', \{ token: Auth\.token\(\) \}\)/g) || []).length, 3,
-       'A100: …the two screens that show none still send no year, and the retry joins them');
+    // A115: this used to COUNT the yearless call sites, and A115 removed one of
+    // them (the member register reads the committee roster now, not listUsers).
+    // Counting sites was never the property anyway — the property is that no
+    // OTHER listUsers request drags a full readAll_ it will throw away.
+    eq((app100.match(/Auth\.call\('listUsers', \{ token: Auth\.token\(\) \}\)/g) || []).length,
+       (app100.match(/Auth\.call\('listUsers'/g) || []).length - 1,
+       'A100: …every other listUsers call still sends no year');
     eq(/Auth\.call\('listUsers', \{ token: Auth\.token\(\), year: Settings\.get\('year'\) \}\)/.test(app100), true,
        'A100: …and the admin panel is the one that asks');
     // the row: in-hand, never for a pending account, and the ⏳ that stops the
@@ -2675,8 +2683,19 @@ eq((a27Pos.match(/\{ id:/g) || []).length, 4, 'A27: four committee posts seeded'
 ['সভাপতি', 'সম্পাদক', 'কোষাধ্যক্ষ', 'সদস্য'].forEach(function (bn) {
   eq(a27Pos.indexOf(bn) >= 0, true, 'A27: bilingual — ' + bn);
 });
-eq(/id="mf-pos"[\s\S]{0,400}Lists\.labelOf\('position'/.test(a25App), true,
-   'A27: the post is a DROPDOWN off the master list, on every member');
+// A115: this counted characters between the two ("within 900 of each other"),
+// and every comment written since has walked it closer to failing — it broke
+// twice while A115 was being written. What has to hold is structural: the post
+// field is a <select>, and its options come from the master list.
+{
+  const mfForm = a25App.slice(a25App.indexOf('function renderMemberForm'),
+                              a25App.indexOf('function saveMemberForm'));
+  eq(/<select id="mf-pos">/.test(mfForm) &&
+     /posts\.map\(function \(p\)/.test(mfForm) &&
+     /Lists\.labelOf\('position', p\.id\)/.test(mfForm) &&
+     /const posts = Lists\.get\('position'\)/.test(mfForm), true,
+     'A27: the post is a DROPDOWN off the master list, on every member');
+}
 // The membership-type list was never wanted — it must be gone everywhere.
 // A81: comments stripped first. The word now has to appear in a comment,
 // because the COLUMN is still on the live sheet (ensureCols_ appends, it never
@@ -2696,7 +2715,9 @@ const a29Reg = a25App.slice(a25App.indexOf('function renderMemberForm'),
                             a25App.indexOf('function renderFindParty'));
 eq(a29Reg.indexOf("key: 'pledged'") < 0, true, 'A27: a member is registered without a pledge');
 eq(a29Reg.indexOf('moneySteps(') < 0, true, 'A27: …and takes no money at registration');
-eq(a29Reg.indexOf("pledged: 0") >= 0, true, 'A27: …the row is stored with a zero pledge, explicitly');
+// A115: the row is written by the SERVER now (saveMember), so the zero pledge
+// is stamped there. Same property, one side of the wire further along.
+eq(/row\.pledged = 0;/.test(a25Gs), true, 'A27: …the row is stored with a zero pledge, explicitly');
 // A form asks by LABEL, not by flow question — and the flow wording said
 // "(Skip if none)", which is a lie on a screen with no Skip button.
 ['member_f_name', 'member_f_post', 'member_f_email', 'member_f_phone'].forEach(function (k) {
@@ -2714,8 +2735,30 @@ eq(/function renderMemberForm\(params\)[\s\S]{0,600}const id = \(params && param
 eq(a25App.indexOf('data-ma-edit') >= 0, true, 'A32: every registered member has an edit button');
 eq(/others\.length >= cap/.test(a29Reg), true,
    'A32: the cap is re-checked at SAVE, not only in the dropdown');
-eq(/p\.id === id \|\| !p\.position/.test(a25App), true,
+// A115: counted over ACCOUNTS now, because that is where the post lives — and
+// counted the way the server counts it, admins included. The old client version
+// skipped admins while the server never did, so an admin holding কোষাধ্যক্ষ made
+// the screen say "0/1, free" and the save answer `position-full`.
+eq(/String\(x\.username\)\.toLowerCase\(\) === String\(form\.appUser\)\.toLowerCase\(\)/.test(a25App), true,
    'A32: …counting holders EXCLUDING the member being edited, or he blocks himself');
+// A115: BOTH cap counters — the member register's and the admin panel's — must
+// count a post's holders the way applyPosition_ does: every row, admins
+// included. Checked as a pair on purpose. This was wrong in the admin panel for
+// months and right in nothing, and fixing one of two is how it comes back.
+{
+  // Every block that counts post holders, found by its own shape rather than by
+  // a line number, then each one checked for the admin exclusion.
+  // Comments STRIPPED first: the fix for this very bug carries an explanation
+  // that quotes the broken line, and the check read its own explanation and
+  // failed the corrected code. A source assertion that cannot tell code from
+  // prose is worse than none.
+  const blocks = a25App.split('const held = {};').slice(1)
+    .map(function (s) { return s.slice(0, s.indexOf('});') + 3); })
+    .map(function (s) { return s.split('\n').filter(function (l) { return !/^\s*\/\//.test(l); }).join('\n'); });
+  eq(blocks.length, 2, 'A32: there are exactly two places that count post holders');
+  eq(blocks.filter(function (s) { return /role === 'admin'/.test(s); }).length, 0,
+     'A32: …and NEITHER skips admins — a slot taken is taken, whoever is in it');
+}
 eq(/window\.prompt/.test(a29Reg), false,
    'A32: no typing a number from a printed list — that was the complaint');
 // a pledge of zero means no pledge was agreed — not an overpayment
@@ -2739,21 +2782,35 @@ eq(a25I18n.indexOf('  q_note_member:') >= 0, true, 'A25: with its own wording');
 // linking a member to an app account must never move money
 eq(/id="mf-user"[\s\S]{0,300}u\.username/.test(a25App), true,
    'A25: the register screen links an app account, from a dropdown of real users');
-eq(/member_link_note/.test(a25App), true,
+// A115 renamed the note (the account is mandatory now, so it says that too).
+// The property is the SENTENCE, not the key: whatever note this screen prints
+// beside the account picker must still say that linking moves no money.
+eq(/member_account_note/.test(a25App), true, 'A25: …the account picker carries a note');
+eq(/টাকার হিসাব এতে বদলায় না/.test(a25I18n) && /changes no money/.test(a25I18n), true,
    'A25: …and says on screen that linking moves no money');
-// One failed fetch used to cache [] and the dropdown said "cannot load" for the
-// rest of the session, with nothing able to retry it — the A31 shape again.
-eq(/catch\(function \(\) \{ \/\* leave null — retry on the next visit \*\/ \}\)/.test(a25App), true,
-   'A32: a failed user-list fetch leaves the cache empty so the next visit RETRIES');
+// A115: the account dropdown no longer fetches anything. It reads the committee
+// roster, which rides on every pull — so the whole family of "the fetch failed
+// and nothing can retry it" problems this used to guard has no way to happen.
+// What must hold now is stronger and simpler: the picker needs no admin-only
+// call, and it still has names with no signal at all.
+eq(/Auth\.call\('listUsers'[\s\S]{0,200}mf-user/.test(a25App), false,
+   'A32: the account picker makes no admin-only call — it would lock non-admins out of a grant meant for them');
 eq(/memberAdminUsers = \[\];/.test(a25App), false,
    'A32: …and no code path caches the failure as an empty list');
-// Arriving mid-flight must JOIN the fetch, not give up on it: opening the
-// register and tapping ➕ within the same second used to paint "cannot load"
-// on the form while the users repainted the screen you had just left.
-eq(/if \(memberUsersWaiting\) \{ memberUsersWaiting\.push\(then\); return; \}/.test(a25App), true,
-   'A32: a second caller JOINS the in-flight user fetch instead of dropping its callback');
-eq(/waiting\.forEach\(function \(fn\) \{ fn\(\); \}\)/.test(a25App), true,
-   'A32: …and everyone who asked is told when it lands');
+eq(/localStorage\.getItem\('ck_committee'/.test(a25App) &&
+   /localStorage\.setItem\('ck_committee'/.test(a25App), true,
+   'A32: …the roster is cached, so a phone with no signal still shows who holds which post');
+// A115: EVERY return path of `pull` carries it — full, delta, and the idle fast
+// path. Counting them against pull's `return {` statements rather than a fixed
+// number, because the number is not the property: a new early return that
+// forgot the roster is exactly the bug this guards.
+{
+  const pullAt = a25Gs.indexOf('  pull: function');
+  const pullSrc = a25Gs.slice(pullAt, a25Gs.indexOf('\n  },', pullAt));
+  eq((pullSrc.match(/committee: committeeRoster_\(\)/g) || []).length,
+     (pullSrc.match(/return \{ ok: true/g) || []).length,
+     'A32: …and it rides EVERY pull response — one that skipped it would hide a post change from a polling phone');
+}
 // …which makes the callback SYNCHRONOUS once the list is cached, and a sync
 // callback reading a `let` declared below it throws on the temporal dead zone,
 // before paint's own guard can help. The form then sat on "loading" for ever —
@@ -2761,8 +2818,8 @@ eq(/waiting\.forEach\(function \(fn\) \{ fn\(\); \}\)/.test(a25App), true,
 {
   const mf = a25App.slice(a25App.indexOf('function renderMemberForm'),
                           a25App.indexOf('function saveMemberForm'));
-  eq(mf.indexOf('let members = [], form = null;') < mf.indexOf('loadMemberUsers(paint);'), true,
-     'A32: the form state is declared BEFORE the loader that can call back synchronously');
+  eq(mf.indexOf('let members = [], form = null') < mf.indexOf('function paint()'), true,
+     'A32: the form state is declared BEFORE the paint that reads it');
 }
 eq(a25App.indexOf('function renderMemberPay') >= 0, true, 'A29: the collection screen exists');
 eq(a25App.indexOf('function renderMemberAdmin') >= 0, true, 'A29: …and the register is a separate screen');
@@ -2981,8 +3038,18 @@ try {
   });
   eq(/function seedLists_/.test(gs) && /seedLists_\(sh\)/.test(gs), true,
      'A32: …and seeds them on read too, so an old book heals without setup()');
-  eq(/ensureCols_\(sh, \['maxCount', 'perms'\]\)/.test(gs), true,
+  // A115: this used to pin the literal `ensureCols_(sh, ['maxCount','perms'])`,
+  // which is the representation, not the property — adding a THIRD Lists column
+  // the correct, append-only way still failed it. What actually has to hold is
+  // that the extra columns keep their historical order and new ones go on the
+  // END, because ensureCols_ appends and an old sheet's data sits under the
+  // headers it already has.
+  var extra = (gs.match(/var LIST_COLS_EXTRA = \[([^\]]*)\]/) || [])[1] || '';
+  var extraIds = extra.split(',').map(function (s) { return s.trim().replace(/'/g, ''); }).filter(String);
+  eq(extraIds[0] === 'maxCount' && extraIds[1] === 'perms', true,
      'A32: Lists columns are appended at the END, so an old sheet keeps working');
+  eq(/ensureCols_\(sh, LIST_COLS_EXTRA\)/.test(gs), true,
+     'A32: …and the healer uses that one list, not a second copy of it');
   // The healing is a WRITE inside listItems — a READ endpoint every collector
   // hits on every app open. It must not lock when there is nothing to do, and
   // it MUST lock when there is, or ten phones each append their own four posts.
@@ -3002,22 +3069,48 @@ try {
 // reconcile: two people in a one-person post — the case the screen cannot block,
 // because two admins can assign it while both are offline.
 {
+  // A115: the holders come from the committee ROSTER now — a post lives on the
+  // app account, not on the member row. The member rows below deliberately
+  // still carry a stale `position`, because that is exactly what a book upgraded
+  // mid-season looks like, and reconcile must ignore it completely.
   const members = { parties: [
-    { id: 'm1', type: 'member', name: 'অ', position: 'president', pledged: 0 },
-    { id: 'm2', type: 'member', name: 'ব', position: 'president', pledged: 0 },
-    { id: 'm3', type: 'member', name: 'স', position: 'member', pledged: 0 }] };
-  const over = reconcile(members, { positionMax: { president: 1 } }).anomalies
+    { id: 'm1', type: 'member', name: 'অ', position: 'president', appUser: 'a', pledged: 0 },
+    { id: 'm2', type: 'member', name: 'ব', position: 'president', appUser: 'b', pledged: 0 },
+    { id: 'm3', type: 'member', name: 'স', position: 'member', appUser: 'c', pledged: 0 }] };
+  const holders = { president: ['অ', 'ব'], member: ['স'] };
+  const over = reconcile(members, { positionMax: { president: 1 }, positionHolders: holders }).anomalies
     .filter(function (a) { return a.type === 'position_over_max'; });
   eq(over.length, 1, 'A32: two সভাপতি raises one anomaly');
   eq(over[0].count, 2, 'A32: …naming how many hold it');
   eq(over[0].who.join(','), 'অ,ব', 'A32: …and WHO, so it can be fixed without hunting');
-  eq(reconcile(members, { positionMax: { member: 0 } }).anomalies
+  eq(reconcile(members, { positionMax: { member: 0 }, positionHolders: holders }).anomalies
      .filter(function (a) { return a.type === 'position_over_max'; }).length, 0,
      'A32: an uncapped post never complains');
   // Without the rules the check is skipped entirely — every existing caller of
   // reconcile(data) keeps working untouched.
   eq(reconcile(members).anomalies.filter(function (a) { return a.type === 'position_over_max'; }).length, 0,
      'A32: no rules passed → no post check, so old callers are unaffected');
+  // A115: and the stale column is not a second source. Caps passed, holders NOT
+  // — the desk must stay silent rather than read p.position and raise a clash
+  // nobody can clear. A marker that cannot be cleared teaches people to ignore
+  // markers, which costs more than the check was ever worth.
+  eq(reconcile(members, { positionMax: { president: 1 } }).anomalies
+     .filter(function (a) { return a.type === 'position_over_max'; }).length, 0,
+     'A115: a stale Parties.position is never read — no roster, no post check');
+  // A phone that has never pulled has an empty roster, and reports nobody over
+  // cap — which is right, and needs no branch of its own: an empty map cannot
+  // exceed a cap.
+  eq(reconcile(members, { positionMax: { president: 1 }, positionHolders: {} }).anomalies
+     .filter(function (a) { return a.type === 'position_over_max'; }).length, 0,
+     'A115: an un-synced phone accuses nobody');
+  // the account is required now, so a row without one is surfaced where the
+  // person who can fix it is already looking
+  const noAcct = reconcile({ parties: [
+    { id: 'm9', type: 'member', name: 'পুরোনো', pledged: 0 },
+    { id: 'm8', type: 'member', name: 'ঠিক আছে', appUser: 'kali', pledged: 0 }] }).anomalies
+    .filter(function (a) { return a.type === 'member_no_account'; });
+  eq(noAcct.length, 1, 'A115: a member with no app account is raised on the 🩺 desk');
+  eq(noAcct[0].party, 'পুরোনো', 'A115: …by name, and only the row that is missing one');
 }
 
 
@@ -3206,7 +3299,11 @@ try {
   const fs = require('fs');
   const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
   const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
-  const fn = app.slice(app.indexOf('function errMsg'), app.indexOf('function errMsg') + 700);
+  // A115: this used to slice a fixed 700 characters, so adding a branch to
+  // errMsg pushed the two lines below out of the window and failed correct
+  // code — the A38 trap exactly. Slice the whole function instead.
+  const errAt = app.indexOf('function errMsg');
+  const fn = app.slice(errAt, app.indexOf('\n  }', errAt));
   eq(/return t\('err_server'\) \+ ': ' \+ raw;/.test(fn), true,
      'A35: an untranslated server error is repeated verbatim, not renamed "network"');
   eq(/if \(code === 'network' \|\| code === 'Failed_to_fetch'\) return t\('err_network'\);/.test(fn), true,
@@ -3617,8 +3714,16 @@ try {
      'A47: shown as "3 minutes ago", which reads as recency');
 
   // the one row this book edits in place
-  eq(/member_clash/.test(app) && /member_clash:/.test(i18n), true,
-     'A47: editing a member warns if somebody else already changed it');
+  // A115: the member register writes over the wire now, so this stopped being a
+  // warning a client offers and became a rule the server keeps: the form sends
+  // the stamp of the row it was drawn from, and a row that moved since is
+  // REFUSED rather than silently overwritten. Strictly stronger than the warn-
+  // and-carry-on it replaced, which could only see what this device had synced.
+  const a47gs = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  eq(/String\(b\.expect \|\| ''\) !== String\(existing\.row\.receivedAt \|\| ''\)[\s\S]{0,80}member-stale/.test(a47gs), true,
+     'A47: editing a member refuses if somebody else already changed it');
+  eq(/expect: memberExpect/.test(app) && /err_member_stale:/.test(i18n), true,
+     'A47: …the form sends what it loaded, and the refusal has a sentence in Bengali');
   eq(/Somebody editing offline right now is invisible|only what has SYNCED/.test(app), true,
      'A47: …and the limit is written down where the code is, not just in a doc');
 }
@@ -3820,9 +3925,22 @@ try {
     eq(/row\.voided = 1;/.test(appSrc), false, 'A60: the dead `voided` flag is gone');
     eq(/parties: \[[^\]]*'voided'/.test(src), false,
        'A60: …and it never was a server column, which is why the push dropped it');
-    const mf = appSrc.slice(appSrc.indexOf('function renderMemberForm'), appSrc.indexOf('function saveMemberForm'));
-    eq(/DB\.put\('voids', DB\.newRow\(\{ targetStore: 'parties', targetId: id/.test(mf), true,
+    // A115: removal is a server action now, so the voids row is written there —
+    // and it MUST still be a voids row, not a deleted sheet row. A deleted row
+    // reaches no other phone: a delta pull carries what changed, and a row that
+    // no longer exists changes nothing.
+    const a60gs = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+    // to the END of the action, not a fixed number of characters — a window
+    // that happens to fit today is a test that fails the next comment somebody
+    // writes (A38, and again twice while writing A115).
+    const rmAt = a60gs.indexOf('removeMember: function');
+    const rm = a60gs.slice(rmAt, a60gs.indexOf('\n  },', rmAt));
+    eq(/targetStore: 'parties'/.test(rm) && /reason: 'removed'/.test(rm), true,
        'A60: …removal now uses the mechanism that already works everywhere else');
+    eq(/deleteRow/.test(rm), false,
+       'A60: …and never a hard delete, which would reach no other phone');
+    const mf = appSrc.slice(appSrc.indexOf('function renderMemberForm'),
+                            appSrc.indexOf('function saveMemberForm'));
     eq(/if \(memberLivePays > 0\)/.test(mf), true,
        'A60: …and refuses when money already points at that member');
 

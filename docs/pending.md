@@ -369,9 +369,30 @@ give different numbers:
 - [x] ~~**DECISION — money in the user LIST?**~~ **Yes (Hrishi, 2026-08-12),
       shipped as A100.** In-hand on every row, gated on the year so the two
       other `listUsers` callers stay cheap. See build-log "v4.29.0 — A100".
-- [ ] **⚠️ REDEPLOY for A109 (v4.30.0)** — goLive now strips a blocked
-      account's grants at the cutover. Code.gs changed, so this needs a **New
-      deployment** (Version: `New version`), then the `/exec` URL rebaked.
+- [ ] **⚠️ ONE REDEPLOY, v4.33.0 — supersedes every pending one below.** The
+      A109 (v4.30.0) and A114 (v4.32.0) redeploys were never done; **A115
+      (v4.33.0) contains both**, so deploy this once and all three land. New in
+      `Code.gs`: `saveMember` / `removeMember` (the committee register is a
+      server action now), `canAssignPosition_`, the `level` column on `Lists`,
+      and `committee` on every `pull` response.
+      Order, unchanged and non-negotiable on this account: paste
+      `apps-script/Code.gs` → **New deployment** (never "New version" — it has
+      never repointed here) → ask the new `/exec` what version it runs BEFORE
+      trusting it → rebake `js/config.js` → push.
+      **After deploying, before anything else:** open 🎖️ কমিটির পদ ও অনুমতি and
+      type a **level** into each post. Until you do, every post says
+      "⚠️ স্তর বসানো নেই" and only an admin can appoint anybody — safe, and
+      deliberately visible, but it is not the finished state.
+- [ ] **A115 — make a SECOND admin before go-live.** Nobody may add or edit
+      their own committee record, admin included, and `register` is
+      self-service so an admin cannot create an account for anyone. With one
+      admin, Hrishi's own row can never be entered or corrected. This is not a
+      code item; it is five minutes in the admin panel.
+- [ ] **A115 — clear the account-less member rows.** An app account is required
+      on a member row now. Rows written before this cannot be saved again until
+      one is picked; 🩺 অসঙ্গতি lists each by name. A committee member with no
+      smartphone cannot be recorded at all — Hrishi's decision, made with the
+      consequence in front of him.
 - [x] ~~**⚠️ REDEPLOY — this one needs Apps Script, not just Pages.**~~ Done 2026-08-13 (v4.29.0). A96/A98/A99
       were client-only; **A100 and A101 change `Code.gs`** (`listUsers` now returns
       money when asked). All three versions moved to `chanda-v4.29.0` together,

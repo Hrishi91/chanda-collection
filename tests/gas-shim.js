@@ -193,10 +193,21 @@ function loadBackend(opts) {
     '\n g.doPost = doPost; g.doGet = doGet;' +
     '\n g.hash_ = hash_; g.readConfig_ = readConfig_; g.setConfig_ = setConfig_;' +
     '\n g.dailyBackup = dailyBackup;' +
+    // A115: exposed so the guards inside them can be tested DIRECTLY. Both
+    // helpers are defence-in-depth — saveMember refuses a self-edit and a
+    // blocked account before either is reached — and a guard no test can
+    // exercise is a guard that will silently rot.
+    '\n g.canAssignPosition_ = canAssignPosition_; g.positionLevel_ = positionLevel_;' +
     // reset the per-request caches the real runtime gets for free by starting a
     // fresh execution context each time — forgetting this is how a shim starts
     // reporting things the server would never do
-    '\n g.resetRequestState = function () { OWNER_CACHE = null; PARTY_PAY_CACHE = null; ACCESS_CACHE = null; REQ_APP_VERSION = ""; };');
+    // A115: the position memos belong here too. The real runtime gets a fresh
+    // execution — and therefore a fresh memo — for every request; the shim
+    // reuses one context for a whole test file, so without this a level or a
+    // perm set read BEFORE an admin changed it would answer the old value for
+    // the rest of the run. That is the shim reporting something the server
+    // would never do, which is the one thing a shim must not do.
+    '\n g.resetRequestState = function () { OWNER_CACHE = null; PARTY_PAY_CACHE = null; ACCESS_CACHE = null; REQ_APP_VERSION = ""; posPermMemo_ = {}; posLevelMemo_ = {}; };');
   fn(env.SpreadsheetApp, env.LockService, env.Utilities, env.Session, env.DriveApp,
      env.ScriptApp, env.Logger, env.ContentService, FixedDate, out);
 
