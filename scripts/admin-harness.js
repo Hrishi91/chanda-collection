@@ -24,6 +24,10 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const ROOT = require('path').join(__dirname, '..');
+// A117: CK_SLOW=<ms> adds real-server latency to every /exec response. The
+// shim answers in ~2 ms — precisely why the pull-race the live trial found
+// (an in-flight poll resurrecting an answered 🩺 card) could never show here.
+const SLOW_MS = Number(process.env.CK_SLOW || 0);
 const { loadBackend } = require(ROOT + '/tests/gas-shim.js');
 
 const b = loadBackend();
@@ -179,6 +183,11 @@ http.createServer(function (req, res) {
           res.end('<!DOCTYPE html><html><title>Error</title></html>');
           return;
         }
+        // A117: CK_SLOW=<ms> adds real-server latency to every response. The
+        // shim answers in ~2 ms, which is precisely why the pull-races the live
+        // trial found on day one (an in-flight poll resurrecting an answered
+        // 🩺 card) could never happen here. A harness that cannot reproduce the
+        // race cannot verify its fix either.
         // A115: let the clock MOVE. The shim freezes time so the suite stays
         // deterministic, and the seeding above depends on that — but a frozen
         // clock means `data_ts` never advances, so pull's idle fast path fires
@@ -198,8 +207,11 @@ http.createServer(function (req, res) {
         }
       }
       catch (e) { out = JSON.stringify({ ok: false, error: String(e && e.message || e) }); }
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      res.end(out);
+      const send = function () {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(out);
+      };
+      if (SLOW_MS > 0) setTimeout(send, SLOW_MS); else send();
     });
     return;
   }

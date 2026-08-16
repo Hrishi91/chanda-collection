@@ -4576,12 +4576,37 @@ try {
   // one. Four things call it: the 60 s timer, focus, the notification poll and
   // autoSync after a push.
   eq(/let pullBusy = false, pullSkip = 0, pullFails = 0;/.test(app), true, 'A69: pullCentral has an in-flight guard');
-  eq(/if \(pullBusy\) return Promise\.resolve\(\);/.test(app), true,
-     'A69: …checked BEFORE the force branch, so even a forced pull cannot stack');
-  eq(app.indexOf('if (pullBusy) return Promise.resolve();') < app.indexOf('if (!forced && pullSkip > 0)'), true,
+  // A117: the guard still refuses to STACK pulls, but a forced one is now
+  // QUEUED instead of silently dropped. The old assertion pinned the drop —
+  // which was the bug the live trial found on day one: a 🩺 answer's forced
+  // pull vanished into an in-flight poll, and the poll's pre-answer snapshot
+  // re-drew the card the cashier had just settled.
+  eq(/if \(pullBusy\) \{ if \(forced\) pullQueued = true; return Promise\.resolve\(\); \}/.test(app), true,
+     'A69/A117: …a pull never stacks, and a forced one is queued, never dropped');
+  eq(/if \(pullQueued\) \{ pullQueued = false; return pullCentral\(\{ force: true \}\); \}/.test(app), true,
+     'A117: …and the queued pull runs when the line frees, exactly once');
+  eq(app.indexOf('if (pullBusy) { if (forced) pullQueued = true;') < app.indexOf('if (!forced && pullSkip > 0)'), true,
      'A69: …in that order');
-  eq(/\}\)\.then\(function \(\) \{[\s\S]{0,600}?pullBusy = false;\n\s*\}\);/.test(app), true,
+  // A117's second half: the answered-set. The desk re-renders on every pull,
+  // and a pull already in flight at tap-time carries the pre-answer world — so
+  // every reader of reconcile filters out what THIS device already stamped.
+  // Counted against the reconcile call sites so a fourth reader cannot forget.
+  eq((app.match(/r\.anomalies = r\.anomalies\.filter\(function \(a\) \{ return !anomalyAnswered\(a\); \}\);/g) || []).length,
+     (app.match(/const r = Aggregate\.reconcile\(data, reconcileRules\(\)\);/g) || []).length,
+     'A117: EVERY reconcile reader drops answers this device already wrote');
+  eq(/stampedAnswers\[store \+ '\|' \+ id \+ '\|' \+ field\] = 1;/.test(app) &&
+     app.indexOf("stampedAnswers[store + '|' + id + '|' + field] = 1;") >
+     app.indexOf("Auth.call('setAnomalyFlag'"), true,
+     'A117: …and an answer is recorded only AFTER the server said ok');
+
+  // A117 loosened the tail: pullBusy=false is no longer the LAST statement in
+  // the release block (the queued follow-up runs after it) — the property is
+  // that the release lives in the both-paths `.then`, before anything else.
+  eq(/\}\)\.then\(function \(\) \{[\s\S]{0,900}?pullBusy = false;/.test(app), true,
      'A69: …and released on success, failure AND abort — a flag a stuck request can leave set for ever would silently stop every future pull');
+  eq(app.indexOf('pullBusy = false;', app.indexOf('}).then(function () {')) <
+     app.indexOf('if (pullQueued)'), true,
+     'A117: …and the release happens BEFORE the queued follow-up fires, or it would refuse itself');
 
   // the epoch branch: this is where the guard is a CORRECTNESS fix. Before it,
   // a second pull holding a PRE-clear response resolved after the wipe and

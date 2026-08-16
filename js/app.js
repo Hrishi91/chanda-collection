@@ -320,12 +320,23 @@
   // on a manual pull-to-refresh — all three are a human or the OS saying
   // "conditions changed", which is better evidence than a timer.
   let pullBusy = false, pullSkip = 0, pullFails = 0;
+  // A117: a forced pull that arrives while another pull is in flight. The old
+  // line was `if (pullBusy) return` — one line above a comment insisting "a
+  // forced pull ALWAYS runs". On the live server a poll takes 1-3s, so the
+  // window was open on every tap: the desk stamped an answer, removed the
+  // card, sent a forced pull for the fresh snapshot — and that pull was
+  // silently dropped while the IN-FLIGHT poll came back with pre-stamp data
+  // and re-drew the card the cashier had just answered. Hrishi, from the live
+  // trial: "after approving the anomaly entries the entry is remained in
+  // screen". The flag queues exactly one follow-up, run when the current pull
+  // finishes.
+  let pullQueued = false;
   let storageWarned = false; // A73/V12: the quota warning is worth saying once, not every minute
   function resetPullBackoff() { pullSkip = 0; pullFails = 0; }
   function pullCentral(opts) {
     if (!navigator.onLine || !Sync.configured() || !Auth.loggedIn()) return Promise.resolve();
     const forced = !!(opts && opts.force);
-    if (pullBusy) return Promise.resolve();
+    if (pullBusy) { if (forced) pullQueued = true; return Promise.resolve(); }
     // a forced pull (focus, manual refresh, post-push) always runs; only the
     // background timer is allowed to be skipped
     if (!forced && pullSkip > 0) { pullSkip--; return Promise.resolve(); }
@@ -488,6 +499,11 @@
       // both paths; a `.finally` would too, but this file targets phones whose
       // browser may predate it.
       pullBusy = false;
+      // A117: honour the forced pull that arrived mid-flight — once, now that
+      // the line is free. Without this the answer a screen just wrote sits on
+      // the server for up to a full poll interval while the screen shows the
+      // pre-answer world.
+      if (pullQueued) { pullQueued = false; return pullCentral({ force: true }); }
     });
   }
   // central snapshot overlaid with this device's own rows (so a just-saved
@@ -1953,6 +1969,8 @@
       if (mineFlagged.length) d.entries = 1;
       if (Auth.isCashier()) {
         const r = Aggregate.reconcile(data, reconcileRules());
+      // A117: drop what this device already answered — see stampedAnswers
+      r.anomalies = r.anomalies.filter(function (a) { return !anomalyAnswered(a); });
         if (!r.balanced || r.anomalies.length) d.anomalies = 1;
       }
         dotState = d;
@@ -4531,6 +4549,8 @@
     viewData().then(function (data) {
       const el = document.getElementById('reconcile-warn'); if (!el) return;
       const r = Aggregate.reconcile(data, reconcileRules());
+      // A117: drop what this device already answered — see stampedAnswers
+      r.anomalies = r.anomalies.filter(function (a) { return !anomalyAnswered(a); });
       const others = r.anomalies.filter(function (a) { return a.type !== 'unbalanced'; });
       if (r.balanced && !others.length) { el.innerHTML = ''; return; }
       let msg = '';
@@ -4580,6 +4600,22 @@
   // on purpose for now: a Config key would need a Code.gs redeploy, and this
   // had to land before the trial. Change it here.
   const HIGH_INHAND = 10000;
+  // A117: answers THIS device has already written to the server, kept for the
+  // session. The desk re-renders on every pull, and a pull that was already in
+  // flight when the cashier tapped the answer comes back carrying the
+  // PRE-answer world — without this, that re-render resurrected the very card
+  // they had just settled, until the next poll carried the stamp. A stamp is
+  // permanent server-side, so suppressing the card locally can never hide a
+  // live problem; the entry is only added after the server said ok.
+  const stampedAnswers = {};
+  function anomalyAnswered(a) {
+    const k = a.type === 'overpaid' ? 'parties|' + a.partyId + '|pledgeOk'
+      : a.type === 'possible_duplicate_payment' ? 'payments|' + a.id + '|dupOk'
+      : a.type === 'possible_duplicate_daily' ? 'daily|' + a.id + '|dupOk'
+      : a.type === 'possible_duplicate_party' ? 'parties|' + a.id + '|dupOk'
+      : '';
+    return !!(k && stampedAnswers[k]);
+  }
   function renderAnomalies() {
     if (!Auth.isCashier()) { $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
     $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('loading')) + '</div>';
@@ -4587,6 +4623,8 @@
       // Lists.maxMap() carries the post caps in — reconcile is pure logic and
       // cannot reach the master lists itself.
       const r = Aggregate.reconcile(data, reconcileRules());
+      // A117: drop what this device already answered — see stampedAnswers
+      r.anomalies = r.anomalies.filter(function (a) { return !anomalyAnswered(a); });
       const byId = {}; (data.payments || []).forEach(function (p) { byId[p.id] = p; });
       const dailyById = {}; (data.daily || []).forEach(function (r) { dailyById[r.id] = r; });
       const partyById = {}; liveParties(data).forEach(function (p) { partyById[p.id] = p; });
@@ -4784,6 +4822,9 @@
         }
         return Auth.call('setAnomalyFlag', { token: Auth.token(), store: store, id: id, field: field })
           .then(function () {
+            // A117: only after the server said ok — a failed stamp must keep
+            // its card, or the desk hides a problem nobody answered.
+            stampedAnswers[store + '|' + id + '|' + field] = 1;
             toast(t('saved'));
             settleCard(b);
             // pull so this device's own snapshot stops raising it too; the card

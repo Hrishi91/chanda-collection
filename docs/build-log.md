@@ -10863,3 +10863,54 @@ trial-week batch, discussed before building):**
 Live data was NOT touched from here: logging into the live server invalidates
 that account's phone session (one account, one device), so the live check is a
 two-minute drill on Hrishi's own phone instead.
+
+## v4.34.1 — A117: the answered card that came back
+
+Hrishi, day one of the live trial: *"after approving the anomaly entries the
+entry is remained in screen, not removed; after refresh or again click it is
+removing."* The harness could never show this — its server answers in ~2 ms,
+and the bug lives in the gap.
+
+### The mechanism
+
+`pullCentral` began `if (pullBusy) return` — one line above a comment insisting
+*"a forced pull ALWAYS runs; only the background timer is allowed to be
+skipped"*. The comment described the intention; the code dropped forced pulls
+whenever ANY pull was in flight. On the live server a poll takes 1–3 s, so the
+window was open on every tap:
+
+1. the 60-second poll goes out (reads the pre-answer world)
+2. cashier taps ✓ — the stamp lands on the server, the card is removed in place
+3. the desk's forced refresh pull is **silently dropped** (line already busy)
+4. the in-flight poll returns with pre-stamp data → the desk re-renders
+   (`anomalies` is in REFRESHABLE) → **the answered card is redrawn**
+5. nothing carries the stamp until the next poll — up to a minute of a card
+   the cashier just settled staring back at them
+
+### Two fixes, belt and braces, both mutation-proved (4/4)
+
+- **A forced pull is queued, never dropped.** `pullQueued` — set when a forced
+  pull arrives mid-flight, honoured exactly once when the line frees. This also
+  repairs the same silent drop everywhere else it lived: after-push refresh,
+  member saves, notification actions.
+- **What this device answered cannot resurrect.** `stampedAnswers` records each
+  ✓ after — only after — the server says ok; all THREE readers of reconcile
+  (🏠 dot, 📊 banner, 🩺 desk) drop those anomalies, counted against the call
+  sites so a fourth reader cannot forget. A stamp is permanent server-side, so
+  the suppression can never hide a live problem.
+
+### Verified in the gap it lives in
+
+`scripts/admin-harness.js` gained `CK_SLOW=<ms>` — real-server latency on every
+response, because a harness that cannot reproduce the race cannot verify its
+fix. At 1,500 ms per request: tap ✓ with a pull in flight → card count 14 → 13
+at the stamp's return, then watched for nine seconds through the queued
+follow-up and the poll — never 14 again.
+
+Two old A69 assertions had pinned the buggy line verbatim ("even a forced pull
+cannot stack" — the drop WAS the defect); they now pin the queue-never-drop
+property. Tests **1,778 → 1,782**.
+
+**⚠️ Needs an Apps Script redeploy (v4.34.1)** — the fix is client-side but the
+three versions are pinned. Mid-trial is the right time: trial data is
+disposable, and this is a desk cashiers touch daily.
