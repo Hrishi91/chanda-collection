@@ -616,6 +616,30 @@ What this buys, and the plan for the week:
 - **After the trial:** 🧹/🚀 (wipes entries, keeps Users/permissions/posts) →
   enter committee members → real go-live.
 
+## AFTER THE PUJA — the PRODUCT question (Hrishi, 2026-08-17)
+
+Hrishi: *"I was thinking it as a product sale."* Recorded as the standing
+direction for the post-puja season — the DB/domain question folds into this
+(it was never about speed; the measured system is fast).
+
+What already carries over as-is: the offline-first engine, the money model and
+its invariant, 1,800+ tests, bilingual UI + in-app guide, the permission/post
+system, the anomaly desk. What is single-committee by construction and must be
+generalized for a product: one baked SCRIPT_URL (config.js), one Sheet, the
+first-registrant-is-admin bootstrap, year handling, Hrishi-specific wording.
+
+Two build paths to weigh AFTER the season, with the trial as market research:
+1. **Kit model** (low cost, keeps the Sheet promise): each committee gets its
+   own Sheet + Apps Script via a setup wizard; we sell setup + support. Nearly
+   zero rewrite; scales poorly but proves demand.
+2. **SaaS model** (real product): multi-tenant DB + domain + billing; the
+   client stays, Code.gs's 47 actions become a real API. Big rewrite, real ops.
+
+Honest unknowns to answer before building either: will committees PAY, who
+supports 12×N phones in October, seasonality (income one month a year?). The
+twelve trial users are the first customer interviews — collect what confused
+them and what they'd pay for. No revenue promises; decision after the puja.
+
 ## AFTER THE PUJA — the A116 review's deferred findings (2026-08-16)
 
 From the two adversarial reviews the night before go-live. Each was verified
