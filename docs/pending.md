@@ -593,6 +593,29 @@ nothing locks, so no phone is affected either way.
 ✅ `safeCell_` verified on the real Sheet 2026-07-29: a donor named `=টেস্ট`
 reads back as exactly `=টেস্ট`.
 
+## THE TRIAL WEEK (Hrishi, 2026-08-16: "not live tomorrow — full trial will start, for one week")
+
+Timeline corrected: ~2026-08-17 → ~2026-08-24 is a full trial in TRAINING mode
+on all twelve phones; 🚀 Go Live comes AFTER it and wipes the trial entries.
+
+What this buys, and the plan for the week:
+
+- **Before the trial starts (Hrishi, in the app):** type the four post levels,
+  make the second admin, link accounts on the ⚠️ member rows — so the trial
+  exercises the REAL permission setup, not a placeholder one.
+- **Days 1–2: observe, touch nothing.** Collect "কেমন যেন লাগছে" reports —
+  every one so far has been a real bug.
+- **Mid-week: one fix batch, one redeploy.** Trial data is disposable, so this
+  is the cheapest week the project will ever have for changes. Candidates, in
+  order: the freeze-gates decision (#2 below), fmtMoney memoization, and — now
+  affordable because a redeploy no longer risks live money — possibly the
+  SW-cache-key decoupling and the UI pass (px→rem, dark mode), which would then
+  get a real-phones week of testing for free.
+- **Last 2 days: stable.** No deploys; the committee practices on what will go
+  live.
+- **After the trial:** 🧹/🚀 (wipes entries, keeps Users/permissions/posts) →
+  enter committee members → real go-live.
+
 ## AFTER THE PUJA — the A116 review's deferred findings (2026-08-16)
 
 From the two adversarial reviews the night before go-live. Each was verified
