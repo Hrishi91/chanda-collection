@@ -11118,3 +11118,8 @@ Both verified on screen; renames + hint mutation-proved. Tests **1,791 →
 so the permission now reads "নালিশের রায়" there too — same fact, same words.
 
 **⚠️ One redeploy: v4.34.6 supersedes v4.34.5.**
+
+### v4.34.6 deployed (2026-08-17)
+
+Probed before rebaking: a new URL answering `chanda-v4.34.6 / schema 5`.
+`js/config.js` rebaked. A121's desk renames join A117–A120 for the whole fleet.
