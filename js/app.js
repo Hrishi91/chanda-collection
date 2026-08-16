@@ -6366,6 +6366,15 @@
       if (!admSection) {
         $view().innerHTML = head('admin_panel') + trainCard +
           '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
+          '<div class="hint" style="margin:-4px 4px 10px">' + esc(t('refresh_hint')) + '</div>' +
+          // A115c: said under the button, permanently, rather than in a confirm.
+          // Hrishi stopped at this control and asked for a popup explaining
+          // itself — the instinct was right and the diagnosis was not: it reads
+          // only, so a confirm here would be a question with nothing behind it,
+          // and two of those teach somebody to tap through the confirms on 🧹,
+          // 🚀 and freeze, which are the ones that cost money. A subtitle
+          // answers "what does this do?" every time, before the tap.
+
           menuRow('users', '👥', 'adm_users',
             t('adm_sub_users').replace('{n}', groups.approved.length)
               .replace('{p}', groups.pending.length).replace('{s}', staleN),

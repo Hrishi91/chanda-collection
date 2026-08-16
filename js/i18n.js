@@ -510,7 +510,13 @@ const I18N = {
   temp_pw_is: { bn: 'সাময়িক পাসওয়ার্ড (ওকে মুখে বলে দাও)', en: 'Temporary password (tell them verbally)' },
   give_year_access: { bn: 'এ বছরের access দাও', en: 'Give this year access' },
   none_here: { bn: 'কেউ নেই', en: 'Nobody here' },
-  refresh: { bn: '🔄 নতুন করে আনো', en: '🔄 Refresh' },
+  // A115c: was '🔄 নতুন করে আনো', which sat one line under 🧹 প্র্যাকটিসের ডেটা
+  // মুছে ফেলো and read like part of the danger block — and the SAME panel has
+  // '🔄 নতুন বছরে দাতা আনো' (rollover), which writes. Same emoji, same verb,
+  // both starting "নতুন". In a hurry, on a phone, they are one button.
+  refresh: { bn: '🔄 আবার দেখাও', en: '🔄 Refresh' },
+  refresh_hint: { bn: 'কিছু বদলায় না — শুধু সার্ভার থেকে নতুন তথ্য এনে পর্দাটা আবার আঁকে।',
+                  en: 'Changes nothing — just re-reads from the server and redraws this screen.' },
   err_bad_login: { bn: 'ভুল username বা পাসওয়ার্ড', en: 'Wrong username or password' },
   err_pending: { bn: 'Admin এখনো approve করেনি — admin-কে বলো', en: 'Not approved yet — contact the admin' },
   err_blocked: { bn: 'তোমার access বন্ধ করা হয়েছে — admin-কে বলো', en: 'Your access is blocked — contact the admin' },
@@ -593,7 +599,9 @@ const I18N = {
                         en: '▶️ Resume? Everything waiting will go through.' },
   freeze_off_done: { bn: '▶️ আবার চালু — অপেক্ষমাণ entry ঢুকছে', en: '▶️ Resumed — queued entries are going in' },
   freeze_entry_toast: { bn: '🛑 admin সব entry থামিয়েছেন', en: '🛑 The admin has paused entries' },
-  adm_money_off: { bn: '⚠️ হাতের টাকার হিসাব আনা গেল না — বাকি সব কাজ করছে। 🔄 নতুন করে আনো চেপে দেখো।',
+  // A115c: this names the button above it, so it moved with it. A message that
+  // tells you to press something no longer on the screen is worse than none.
+  adm_money_off: { bn: '⚠️ হাতের টাকার হিসাব আনা গেল না — বাকি সব কাজ করছে। 🔄 আবার দেখাও চেপে দেখো।',
                    en: '⚠️ Could not load who is holding what — everything else works. Try 🔄 Refresh.' },
   adm_sub_users: { bn: '{n} জন approved · {p} জন অপেক্ষায় · {s} জনের ফোন পিছিয়ে', en: '{n} approved · {p} waiting · {s} phones behind' },
   adm_sub_positions: { bn: '{n}টি পদ — কোন পদে কী করা যাবে', en: '{n} posts — what each one may do' },

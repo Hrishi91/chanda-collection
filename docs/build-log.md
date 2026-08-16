@@ -10446,3 +10446,54 @@ decisions, and this project has been bitten more than once by a change that
 looked cosmetic and moved a rule.
 
 No code changed. Docs and the agent definition only.
+
+## v4.33.2 — A115c: two buttons that read as one
+
+Hrishi, on the admin panel: *"নতুন করে আনো — it should have a popup that will
+ask about what are we doing and all."*
+
+The instinct was right and the diagnosis was not. `🔄 নতুন করে আনো` is
+`adm-refresh` → `renderAdmin` ([js/app.js](../js/app.js)): it re-reads and
+redraws, and writes nothing at all. A confirm there is a question with nothing
+behind it — and the cost is not the extra tap, it is that two of those teach
+somebody to dismiss the confirms on 🧹, 🚀, freeze and rollover without reading,
+which are the ones that move money. The same sentence is already written in
+`saveMemberForm` about the phone-number ask.
+
+But looking for why he stopped there turned up something worse. The same panel
+held **two** buttons:
+
+| label | what it does |
+|---|---|
+| `🔄 নতুন করে আনো` | nothing — redraws |
+| `🔄 নতুন বছরে দাতা আনো` | **writes** — carries last year's donors into the new year |
+
+Same emoji, same verb আনো, both beginning নতুন. On a phone, in a hurry, they are
+one button. And the harmless one sat one line under 🧹 প্র্যাকটিসের ডেটা মুছে
+ফেলো's warning text, so it read as part of the danger block — which is exactly
+why he stopped at it. (Rollover does have a confirm, and refuses when the target
+year already has donors, so nothing was ever lost. It was still one misread tap
+away from a dialog nobody expected.)
+
+Fixed by naming and placement rather than a popup:
+
+```
+🔄 আবার দেখাও
+কিছু বদলায় না — শুধু সার্ভার থেকে নতুন তথ্য এনে পর্দাটা আবার আঁকে।
+```
+
+A subtitle answers "what does this do?" **every time, before the tap**. A confirm
+answers it after you have already committed, and only until you stop reading it.
+
+`adm_money_off` names that button ("🔄 … চেপে দেখো"), so it moved with it — a
+message telling you to press something no longer on the screen is worse than no
+message. That is the half a rename usually forgets, and the suite now pins it:
+whatever `refresh.bn` says, `adm_money_off.bn` must contain it.
+
+Three assertions, each broken on its own and watched go red: the two 🔄 labels
+cannot both match `/🔄 নতুন.*আনো/`; the read-only one carries its hint in both
+languages; and no message names a button by a stale label.
+
+Tests **1,759 → 1,762**. Client-only in effect; **needs an Apps Script redeploy**
+for the same reason as A115b — third today, and the decoupling item in
+`pending.md` is what ends it.

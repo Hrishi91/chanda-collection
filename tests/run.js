@@ -852,6 +852,24 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
        'A108: …and the panel says which of the two screens you are looking at');
     eq(BN108.test(D108.adm_money_off.bn) && !BN108.test(D108.adm_money_off.en), true,
        'A108: …in both languages');
+    // A115c: Hrishi stopped at 🔄 in the admin panel and asked for a popup
+    // explaining what it does. It reads only — but the SAME panel had
+    // '🔄 নতুন বছরে দাতা আনো' (rollover), which WRITES. Same emoji, same verb
+    // আনো, both starting নতুন, one of them a line under 🧹's warning text. On a
+    // phone, in a hurry, they were one button.
+    const confusable = /🔄 *নতুন.*আনো/;
+    eq(confusable.test(D108.refresh.bn) && confusable.test(D108.rollover_btn.bn), false,
+       'A115: the harmless 🔄 and the one that WRITES cannot be read as the same button');
+    // and the read-only one explains itself where it stands, not in a confirm:
+    // a question with nothing behind it is what teaches people to tap through
+    // the confirms on 🧹, 🚀 and freeze, which are the ones that cost money.
+    eq(/refresh_hint/.test(app108) && BN108.test(D108.refresh_hint.bn) &&
+       !BN108.test(D108.refresh_hint.en), true,
+       'A115: …and the read-only one says so on the screen, in both languages');
+    // the money-fallback message names that button. A message telling you to
+    // press something no longer on the screen is worse than no message.
+    eq(D108.adm_money_off.bn.indexOf(D108.refresh.bn) >= 0, true,
+       'A115: …and every message that names the button uses its CURRENT name');
 
     // seven labels that stayed English in Bengali mode. "Approve" survives as a
     // loan word because the app already uses it that way in pending_users.
