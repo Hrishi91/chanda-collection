@@ -10746,3 +10746,10 @@ Tests **1,764 → 1,778**. All three versions → **chanda-v4.34.0**.
 
 **⚠️ Needs an Apps Script redeploy — the last one before the puja.** Everything
 above that matters on day one is server-side.
+
+### v4.34.0 deployed (2026-08-16) — the last one before the puja
+
+Probed before rebaking: a new URL, answering `chanda-v4.34.0 / schema 5`.
+`js/config.js` rebaked. Every A116 guard is now on the server; what remains is
+Hrishi's hand-list (levels, second admin, member accounts, 🧹, 🚀) and the
+real-phone drill no desktop can run.
