@@ -11237,3 +11237,13 @@ remaining home-exits (shop/person/daily/expense/handover started from home, and
 "➕ আরেকটা" from a receipt) genuinely belong home. Driven: ✏️ on a road entry →
 back from the first question → the entries list. Mutation caught. Tests
 **1,807 → 1,808**. One redeploy: v4.34.11 supersedes v4.34.10.
+
+### v4.34.11 deployed (2026-08-18) — after one stale paste
+
+The first deployment offered still answered `.10`: Hrishi had pasted from his
+local clone without `git pull`, so A124b's bump never reached the editor. The
+probe refused the rebake — blind-baking it would have raised the 🛠️ bar on
+every trial phone (Pages was already serving the `.11` client). Rule restated
+for the routine: local is fine, but pull first, and glance at CODE_VERSION
+before pasting. Second deployment probed clean at `chanda-v4.34.11 / schema 5`;
+`js/config.js` rebaked. A117–A124b live fleet-wide.
