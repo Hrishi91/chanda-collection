@@ -11247,3 +11247,16 @@ every trial phone (Pages was already serving the `.11` client). Rule restated
 for the routine: local is fine, but pull first, and glance at CODE_VERSION
 before pasting. Second deployment probed clean at `chanda-v4.34.11 / schema 5`;
 `js/config.js` rebaked. A117–A124b live fleet-wide.
+
+## v4.34.12 — A125: the ← rides along on long screens
+
+Trial: *"the back button is not floating on the help screen — I have to go to
+the top then need to back."* Fixed at the CSS class, not the one screen: the
+back-bar is `position: sticky` everywhere, so the guide today and the anomaly
+desk, handover book and dues report tomorrow all keep their ← in reach. Ghost
+buttons are transparent, so the bar gains a solid `--bg` while stuck — a
+see-through button over scrolling text is unreadable — and a z-index above the
+cards. Verified at 3,000 px deep: the ← floats at top=8px, solid, and returns
+to the source screen from down there. Tests **1,808** (CSS-only).
+
+**⚠️ One redeploy: v4.34.12 supersedes v4.34.11.**

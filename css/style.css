@@ -126,7 +126,13 @@ button.block { display: block; width: 100%; margin: 8px 0; }
 /* A83: 44px is the smallest thing a thumb hits reliably, and ← পেছনে was 40 —
    the one control on every drill-in screen, tapped by people standing in a
    street. min-height rather than more padding, so the label does not move. */
-button.back-bar { margin: 0 0 12px; padding: 8px 14px; font-size: 14px; min-height: 44px; }
+/* A125 (trial: "back is not floating on the help screen — I have to go to the
+   top"): the ← rides along as the page scrolls, on EVERY long screen — the
+   guide today, the anomaly desk and the handover book tomorrow. Sticky needs a
+   solid background (ghost buttons are transparent, and a see-through bar over
+   scrolling text is unreadable) and a z-index above the cards. */
+button.back-bar { margin: 0 0 12px; padding: 8px 14px; font-size: 14px; min-height: 44px;
+  position: sticky; top: 8px; z-index: 30; background: var(--bg); }
 .help-p { font-size: 14.5px; line-height: 1.65; color: var(--sub); margin: 8px 0; }
 .help-p b { color: var(--ink); }
 .row.voided b { text-decoration: line-through; color: var(--sub); }
