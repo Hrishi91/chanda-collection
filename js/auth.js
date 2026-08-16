@@ -7,7 +7,7 @@ const Auth = (function () {
   // here would depend on load order, which is the kind of thing that works in
   // testing and fails on somebody's phone. Bound to sw.js VERSION and Code.gs
   // CODE_VERSION by tests/run.js so the three cannot drift.
-  const APP_VERSION = 'chanda-v4.33.3';
+  const APP_VERSION = 'chanda-v4.33.4';
   // A43: the RELEASE string above is for people to read. This is the number
   // that decides anything: the server CONTRACT this client speaks — columns,
   // handlers, meanings. It moves only when Code.gs actually changes, so a

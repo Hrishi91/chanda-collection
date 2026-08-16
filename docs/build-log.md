@@ -10589,3 +10589,69 @@ POST {action:'pull', token:'probe-only'}  →  {ok:false, error:'bad-token',
 
 `js/config.js` rebaked to it. A115d — the duplicate-cancel trap that could file
 one donor's money under another's name — is now on the server as well as Pages.
+
+## v4.33.4 — A115e: "server error", said by a save that had already worked
+
+Hrishi, from the 🩺 desk: *"got more amount than the pledge amount, adding the
+correct details for the user, it says server error, no forms available like
+that, but data is getting updated to the entry."*
+
+Reproduced word for word by driving the real screen:
+
+```
+✅ সেভ হয়ে গেল
+⚠️ সার্ভার বলছে: from is not defined
+```
+
+He read `from` as *form* — "no forms available". It is not a server error at
+all, and the save had already succeeded.
+
+### Bug 1 — a bare identifier read across module-level siblings
+
+`savePartyForm(id, orig, livePays)` read `from` twice. `from` is a `const`
+inside `renderPartyForm`, which is a **sibling** at module level, not a parent.
+So `navigate('party', { id: id, from: from })` threw `ReferenceError` — *after*
+`DB.put` had written the row and toasted "সেভ হয়ে গেল". The outer `.catch`
+turned it into `err_server`, so a working save reported a server fault and the
+form never left the screen.
+
+**This is A105 again, ten functions away, four weeks later.** A105 was the same
+mistake in `drawParty`, and it added `tests/scope-check.js` — which looks for
+out-of-scope **calls** (`name(`) and **property reads** (`name.`) and skips bare
+identifiers on purpose, because a general bare-name check cries wolf.
+
+So scope-check now carries a NAMED list, `RENDER_LOCALS = ['from', 'params']` —
+the few short words that belong to a render function and have no business being
+read anywhere else. Both entries were paid for in production. A general version
+is a linter's job, not this file's. Strings and comments are stripped first, or
+a Bengali sentence containing the word would raise a phantom.
+
+Proved by re-introducing the bug: `savePartyForm() reads bare 'from' — declared
+in no reachable scope (pass it as an argument)`.
+
+### Bug 2 — found on the way, and it made the desk's own button useless
+
+`savePartyForm` looked the row up with `DB.get('parties', id)` — **this device's**
+IndexedDB. A donor somebody else wrote lives only in the central snapshot, so
+`row` came back undefined and the screen navigated away having written nothing
+and said nothing.
+
+That is A68's lesson exactly, and it landed on the button A61 added to the
+overpaid card: ✏️ পলজ সংশোধন is offered to an **admin**, whose donors are
+overwhelmingly other people's. The commonest use of that button was a silent
+no-op — measured here before the fix.
+
+It now falls back to the snapshot copy. Safe, and checked on the server rather
+than trusted: push refuses a `parties` edit from anyone but the creator or an
+admin, and the admin path carries the ORIGINAL collector forward instead of
+re-stamping it, so correcting Ratan's donor cannot move Ratan's money onto the
+admin's head. The snapshot object is deep-copied before editing, so the cached
+row is never mutated in place.
+
+Measured after, on a donor this device never created: `✅ সেভ হয়ে গেল`,
+`☁️ Sync: 1`, and the donor screen showing the corrected pledge.
+
+Tests **1,764**, plus the scope check extended and mutation-proved.
+
+**⚠️ Needs an Apps Script redeploy.** Same class as A115d: an entry screen every
+cashier and admin reaches, failing in a way that reads as the server's fault.

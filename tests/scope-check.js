@@ -106,6 +106,30 @@ fns.forEach(f => {
   while ((r = reads.exec(f.body))) {
     if (!seen.has(r[1])) problems.push(f.name + '() reads ' + r[1] + '.… — declared in no reachable scope');
   }
+
+  // A115e: and the third variant — a BARE read. `savePartyForm` read `from`,
+  // which is a const inside renderPartyForm, a SIBLING at module level. Every
+  // donor correction threw `ReferenceError: from is not defined` after the row
+  // had already been written, so the collector saw "✅ সেভ হয়ে গেল" followed by
+  // "⚠️ সার্ভার বলছে: from is not defined" and reported the save as broken. It
+  // had saved. Four weeks after A105 fixed the same mistake ten functions away.
+  //
+  // The comment above is still right that a general bare-identifier check cries
+  // wolf — that is a linter's job, not this file's. So this is a NAMED list:
+  // the few short words that are local to a render function in js/app.js and
+  // have no business being read anywhere else. Both entries were paid for.
+  const RENDER_LOCALS = ['from', 'params'];
+  RENDER_LOCALS.forEach(function (nm) {
+    if (seen.has(nm)) return; // this function declares or receives it — fine
+    const bare = new RegExp('(?<![A-Za-z0-9_$.\'"])' + nm + '(?![A-Za-z0-9_$:\'"])', 'g');
+    // strip strings and comments first, or a Bengali sentence or a CSS class
+    // containing the word would raise a phantom
+    const code = f.body.replace(/\/\/[^\n]*/g, '').replace(/'(\\.|[^'\\])*'/g, "''")
+                       .replace(/"(\\.|[^"\\])*"/g, '""');
+    if (bare.test(code)) {
+      problems.push(f.name + '() reads bare `' + nm + '` — declared in no reachable scope (pass it as an argument)');
+    }
+  });
 });
 
 const unique = [...new Set(problems)];

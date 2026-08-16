@@ -2859,7 +2859,7 @@
         // of disappearing and leaving somebody hunting for it.
         '<button id="pf-del" class="ghost block">' + esc(t('party_remove')) + '</button>';
       wireNav();
-      admEl('pf-save').onclick = function () { savePartyForm(id, orig, livePays); };
+      admEl('pf-save').onclick = function () { savePartyForm(id, orig, livePays, from); };
       admEl('pf-del').onclick = function () {
         if (livePays > 0) { alert(t('party_remove_has_pay').replace('{n}', String(livePays))); return; }
         if (!window.confirm(t('party_remove_confirm').replace('{who}', form.name))) return;
@@ -2875,7 +2875,19 @@
       };
     }
   }
-  function savePartyForm(id, orig, livePays) {
+  // A115e: `from` is a PARAMETER. It used to be read straight out of
+  // renderPartyForm, which is a sibling at module level, not a parent — so every
+  // save threw `ReferenceError: from is not defined` AFTER the row was already
+  // written. The collector saw "✅ সেভ হয়ে গেল" and then
+  // "⚠️ সার্ভার বলছে: from is not defined", which reads as a server fault and is
+  // not one, and the form never left the screen. Hrishi read it as "no forms
+  // available" and reported the save as broken; it had in fact saved.
+  //
+  // Exactly A105's `drawParty`, in the same file, four weeks later. That one was
+  // caught by tests/scope-check.js — which looks for out-of-scope CALLS
+  // (`name(`) and PROPERTY reads (`name.`) and deliberately skips bare
+  // identifiers. `from` is a bare identifier.
+  function savePartyForm(id, orig, livePays, from) {
     const err = document.getElementById('pf-err');
     const show = function (m) { err.textContent = m; err.style.display = ''; };
     const val = function (elId) { const e = document.getElementById(elId); return e ? e.value : ''; };
@@ -2896,7 +2908,22 @@
       if (pledged > 0 && paid > pledged &&
           !window.confirm(t('party_pledge_low').replace('{paid}', fmtMoney(paid)).replace('{pledged}', fmtMoney(pledged)))) return;
       return DB.get('parties', id).then(function (row) {
+        // A115e, A68's lesson again: this is THIS DEVICE's IndexedDB. A donor
+        // written by somebody else lives only in the central snapshot, so `row`
+        // was undefined and the screen navigated away having saved nothing and
+        // said nothing — and the 🩺 desk's ✏️ সংশোধন button is offered to an
+        // ADMIN for exactly those rows. The commonest use of that button was a
+        // silent no-op.
+        //
+        // Falling back to the snapshot copy is safe here and is checked on the
+        // server: push refuses a `parties` edit from anyone but the creator or
+        // an admin, and the admin path carries the ORIGINAL collector forward
+        // rather than re-stamping it, so correcting Ratan's donor cannot move
+        // Ratan's money onto the admin's head. canEditParty offers the button
+        // on the same rule.
+        if (!row) row = (liveParties(data).filter(function (p) { return p.id === id; })[0] || null);
         if (!row) { navigate('list'); return; }
+        row = JSON.parse(JSON.stringify(row)); // never mutate the cached snapshot in place
         // A47's rule, applied to donors: two people may hold this screen at once
         // and the second save silently wins. Compare against the central copy
         // this device already has and name whose change would be lost. It sees
