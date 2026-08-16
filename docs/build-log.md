@@ -10753,3 +10753,41 @@ Probed before rebaking: a new URL, answering `chanda-v4.34.0 / schema 5`.
 `js/config.js` rebaked. Every A116 guard is now on the server; what remains is
 Hrishi's hand-list (levels, second admin, member accounts, 🧹, 🚀) and the
 real-phone drill no desktop can run.
+
+## 2026-08-16 — the big-book speed drill (no code changed)
+
+Hrishi asked, before the trial: interdependent screens, friendliness, speed
+under load, many users at once. The one open question a desktop could still
+answer was load, so the harness was fed a book at ~2× a realistic season —
+**396 donors, 2,196 payments, 262 daily, 120 expenses, 64 handovers, 80
+messages** — through the real push path, and measured.
+
+**Server side (local shim; multiply 3–10× for real Apps Script):**
+- seeding: 16 pushes of 200 rows, ~2 ms each — the batch write scales
+- full pull: **1,039 KB · 14 ms** — a one-time cost per device per season
+- idle delta after it: `idle:true`, ~1 ms, zero rows — the 60-second polls
+  stay free at any book size
+- 14 rejected rows per collector turned out to be the permission system
+  working: the fixture pushed bus rounds for people without the `bus` grant
+
+**Client side, pure compute on the 954 KB snapshot (desktop; weakest phone
+≈ 10–20×):**
+- JSON parse 7 ms · computeTotals over 2,196 payments 5 ms · reconcile 14 ms ·
+  personalSummary 2 ms — even at 20×, every screen's arithmetic stays under
+  ~300 ms on the weakest handset
+
+**Two false alarms, both my own instruments:** a hidden browser pane throttles
+`setTimeout` to 1 s, which inflated screen timings to a uniform ~600 ms and a
+"936 ms keystroke" that was actually the ledger's own 120 ms debounce being
+throttled. Timer-free re-measurement: ledger paints in 28 ms. The measuring
+tools lied confidently, again — same family as curl and the frozen shim clock.
+
+**One real, small finding, recorded not fixed:** `fmtMoney` calls
+`toLocaleString('en-IN')`, which builds a fresh Intl formatter per call —
+28 ms per 1,000 calls on desktop, so perhaps ~0.3 s extra on the weakest phone
+for a full 396-row ledger paint. A two-line memoization, but not worth the
+redeploy cascade the night before the trial. Added to the post-puja UI pass in
+pending.md.
+
+Verdict: at twice season scale, nothing approaches a limit a collector would
+feel. The first pull is ~1 MB once per device; every poll after is bytes.

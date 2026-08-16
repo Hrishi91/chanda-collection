@@ -656,6 +656,11 @@ below lands) drags a full Apps Script redeploy behind it, and re-laying-out
 screens people are about to collect real money on, days before, is the wrong
 trade. Do this AFTER the decoupling below, when a client-only change is cheap.
 
+- **(from the big-book drill, 2026-08-16)** `fmtMoney` builds a fresh Intl
+  formatter per call via `toLocaleString('en-IN')` — ~28 ms/1,000 calls on
+  desktop, likely ~0.3 s on the weakest phone across a full 396-row ledger
+  paint. Memoize one `Intl.NumberFormat` in `js/i18n.js`. Two lines.
+
 **Scope, agreed with Hrishi and written into `.claude/agents/ui-approach.md`:**
 `css/style.css` only. Any markup change comes back as a recommendation instead
 of an edit — `js/app.js` holds the money and permission decisions, and a UI pass
