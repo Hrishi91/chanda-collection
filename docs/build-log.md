@@ -11010,3 +11010,10 @@ cashier's 🛠️ desk hides a flag whose target the author already fixed (the
 voided-target filter). Mutation-proved; tests **1,787 → 1,788**.
 
 **⚠️ One redeploy: v4.34.4 now carries A117 + A118 + A118b + A119.**
+
+### v4.34.4 deployed (2026-08-16)
+
+Probed before rebaking: a new URL answering `chanda-v4.34.4 / schema 5`.
+`js/config.js` rebaked. The trial-week batch — A117 (answered cards stay
+settled), A118/A118b (four screens open instantly), A119 (road/toto ✏️ works
+at all) — is live end to end.
