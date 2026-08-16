@@ -10791,3 +10791,33 @@ pending.md.
 
 Verdict: at twice season scale, nothing approaches a limit a collector would
 feel. The first pull is ~1 MB once per device; every poll after is bytes.
+
+### Big-book drill, part 2 — every report and list, individually (2026-08-16)
+
+Hrishi asked whether the REPORTS and lists themselves had been opened on the
+big book, not just the arithmetic under them. Fair — part 1 measured compute,
+not screens. All driven now, timer-free, on the 396-donor / 2,196-payment book:
+
+| screen | rows | paint |
+|---|---|---|
+| 📊 মোট হিসাব | — | 4 ms |
+| 📋 বাকির তালিকা | 1,138 lines | 37 ms |
+| 💰 কার হাতে কত | 114 lines | 18 ms |
+| 🏆 কে কত তুলল | 29 lines | 12 ms |
+| 📍 এলাকা-ভিত্তিক / 🧾 খরচ / 🛣️ দৈনিক | — | 3–16 ms |
+| 🩺 অসঙ্গতি (262 cards) | 262 | 35 ms |
+| ✅ জমা নেওয়া confirm | 64 pending | 50 ms |
+| 📗 জমা-খাতা | 64 | 9 ms |
+| ✏️ সবার দৈনিক/খরচ | 382 | 27 ms |
+
+Correctness cross-checked, not assumed: the overview's three figures
+(₹3,82,680 / ₹18,000 / ₹3,64,680) equal an independent sum over the raw
+snapshot, reconcile's inHand equals its expected to the rupee, and the
+জমা-খাতা's pending-in (₹12,800) equals 64 × ₹200 exactly. No NaN/undefined
+anywhere.
+
+Two zero-row scares, both explained and neither a bug: "আমার entry" reads THIS
+DEVICE's rows by design (the seeder pushed from node, not this browser), and
+জমা-খাতা keys on `collectorUsername`, which every real login writes
+(js/auth.js:131) and my synthetic session had skipped — setting it produced the
+64 rows instantly. The measuring rig lied twice more before the app did once.
