@@ -1123,7 +1123,16 @@
     // name/number in a toto/road flow). If none remain, leave the flow.
     let i = flowState.idx - 1;
     while (i >= 0 && !visible(flowState.def.steps[i])) i--;
-    if (i < 0) { flowState = null; draftClear(); navigate('home'); return; }
+    if (i < 0) {
+      // A124 (trial: dues → donor → 💰 → back landed on HOME): leaving a flow
+      // backwards returns to where it was OPENED, when the flow says where
+      // that is. The donor's page carries its own `from`, so the whole trail
+      // (dues filter → donor → flow → back → donor → back → list) stays whole.
+      const exit = flowState.def.exitTo;
+      flowState = null; draftClear();
+      if (exit) navigate(exit.view, exit.params); else navigate('home');
+      return;
+    }
     delete flowState.answers[flowState.def.steps[i].key];
     flowState.idx = i;
     draftSave();
@@ -1604,6 +1613,9 @@
       // replacement saves, so resuming an edit from a stale snapshot could
       // void a row against figures that have since moved.
       resume: editing ? null : { fn: 'payment', partyId: party.id, origin: origin, label: party.name },
+      // A124: backing out of the first question returns to THIS donor's page,
+      // with the origin carried so the page's own ← keeps working too.
+      exitTo: { view: 'party', params: { id: party.id, from: origin === 'list' ? '' : origin } },
       steps: moneySteps(false).concat([
         isMember
           ? { key: 'note', qKey: 'q_note_member', kind: 'text' }   // no `optional` → mandatory

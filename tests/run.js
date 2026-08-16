@@ -4632,7 +4632,18 @@ try {
     eq(/ভুল entry শোধরানো/.test(help121) && /নালিশের রায়/.test(help121) &&
        /জানানো হয়েছে — অপেক্ষায়/.test(help121), true,
        'A121: the guide walks the flag→fix→ruling chain, naming the tags the user will see');
-    // A123 (trial: "not able to understand the entry type"): the mixed lists'
+    // A124 (trial: dues → donor → 💰 → back landed on HOME): a flow may declare
+  // where backing out of its first question returns, and paymentFlow returns
+  // to the donor it was opened from.
+  {
+    eq(/const exit = flowState\.def\.exitTo;/.test(app) &&
+       /if \(exit\) navigate\(exit\.view, exit\.params\); else navigate\('home'\);/.test(app), true,
+       'A124: backing out of a flow honours the flow\'s declared exit');
+    eq(/exitTo: \{ view: 'party', params: \{ id: party\.id/.test(app), true,
+       'A124: …and the payment flow exits to its donor, not to home');
+  }
+
+  // A123 (trial: "not able to understand the entry type"): the mixed lists'
   // summaries LEAD with the kind. A donor's payment and an expense both used to
   // render as name-dash-amount, indistinguishable.
   {

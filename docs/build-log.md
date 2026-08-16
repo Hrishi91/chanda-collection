@@ -11208,3 +11208,20 @@ Verified on a mixed list in the browser; both mutations caught. Tests
 **1,803 → 1,805**.
 
 **⚠️ One redeploy: v4.34.9 supersedes v4.34.8 (A117–A123).**
+
+## v4.34.10 — A124: backing out of a payment returns to the donor
+
+Trial: *"due screen → entry selection → add payment → back — back is going to
+home screen."* Exact. `goBack`, stepping past a flow's FIRST question, exited
+with a hardcoded `navigate('home')` — dropping the collector at home with the
+dues trail (filter → donor) lost, mid-conversation with that donor.
+
+A flow may now declare `exitTo`; `goBack` honours it, home stays the default
+for flows genuinely started from home (shop/person/daily/expense/handover).
+`paymentFlow` exits to its own donor's page with the origin carried, so the
+whole trail survives both directions. Driven end to end: ledger → বাকি-আছে
+filter → donor → 💰 → back → the donor's page → back → the ledger. The phone's
+hardware back was never broken (history already held the donor state) — this
+was the on-screen ← only. Mutation caught. Tests **1,805 → 1,807**.
+
+**⚠️ One redeploy: v4.34.10 supersedes v4.34.9 (A117–A124).**
