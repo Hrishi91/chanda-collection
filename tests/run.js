@@ -4632,7 +4632,19 @@ try {
     eq(/ভুল entry শোধরানো/.test(help121) && /নালিশের রায়/.test(help121) &&
        /জানানো হয়েছে — অপেক্ষায়/.test(help121), true,
        'A121: the guide walks the flag→fix→ruling chain, naming the tags the user will see');
-    // A122 generalized the door: one helper draws it, one wires it, and the
+    // A123 (trial: "not able to understand the entry type"): the mixed lists'
+  // summaries LEAD with the kind. A donor's payment and an expense both used to
+  // render as name-dash-amount, indistinguishable.
+  {
+    const esAt = app.indexOf('function entrySummary');
+    const es = app.slice(esAt, app.indexOf('\n  function ', esAt + 10));
+    eq(/'💰 ' \+ t\('es_payment'\)/.test(es) && /'🧾 ' \+ t\('es_expense'\)/.test(es), true,
+       'A123: payment and expense summaries lead with what they ARE');
+    eq(/entrySummary\(v\.targetStore, tgt\)/.test(app), true,
+       'A123: …and the 🩺 void list names what was voided, not only the amount');
+  }
+
+  // A122 generalized the door: one helper draws it, one wires it, and the
     // wiring carries BOTH the section and the source screen (Hrishi's rule —
     // the guide's ← goes back to where it was opened).
     eq(/function guideDoor\(sec\)/.test(app) &&

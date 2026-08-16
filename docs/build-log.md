@@ -11181,3 +11181,30 @@ had never heard of `queueMicrotask`. Verified in the browser end to end:
 🩺 → 📖 lands on the 🩺 section highlighted → ← returns to 🩺.
 
 Tests **1,799 → 1,803**. **⚠️ One redeploy: v4.34.8 supersedes v4.34.7.**
+
+## v4.34.9 — A123: every row says what KIND of money it is
+
+Trial report: *"in anomaly desk and my entries and reviews … we are not able to
+understand the entry type."* Measured, and the reader was right: on the mixed
+lists a donor's payment ("শিকল দাতা — ₹200") and an expense ("প্যান্ডেল — ₹50")
+rendered identically — name, dash, amount — and only memory could tell them
+apart.
+
+The culprit was one helper, which is also the cure: `entrySummary` feeds the ✏️
+rows, the flag screen, and (via the stored targetSummary) the 🛠️ desk. It now
+LEADS with the kind:
+
+    💰 দাতার জমা · টাইপ-ড্রিল — ₹200
+    🧾 খরচ · প্যান্ডেল — ₹50
+    🛣️ রোড — ₹300   (🛺/🚌 likewise; a bus adds its name)
+    🤝 জমা → বিমল — ₹200
+
+The 🩺 desk's void list had the same gap one step deeper — "₹300 — ভুল অঙ্ক"
+without saying ₹300 of WHAT — and now opens each line with the same summary.
+(The desk's other cards already carry their kind in their titles.)
+
+Old flags keep their stored pre-A123 summaries — trial data, wiped at go-live.
+Verified on a mixed list in the browser; both mutations caught. Tests
+**1,803 → 1,805**.
+
+**⚠️ One redeploy: v4.34.9 supersedes v4.34.8 (A117–A123).**

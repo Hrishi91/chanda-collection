@@ -3770,12 +3770,22 @@
     return false;
   }
   // one-line description of any entry (for lists + a flag's stored summary)
+  // A123 (trial: "we are not able to understand the entry type"): every
+  // summary now LEADS with what kind of money this is. "শিকল দাতা — ₹200" and
+  // "প্যান্ডেল — ₹50" looked identical on the mixed lists — one is a donor's
+  // payment, the other an expense, and only the reader's memory could tell.
+  // One helper feeds ✏️ rows, the 🛠️ desk (via the stored targetSummary) and
+  // the flag screen, so the word travels everywhere at once.
   function entrySummary(store, r) {
     const amt = fmtMoney(r.amount);
-    if (store === 'payments') return (r.partyName || '?') + ' — ' + amt;
-    if (store === 'daily') return t('type_' + r.type) + ' — ' + amt;
-    if (store === 'expenses') return expenseTitle(r) + ' — ' + amt;
-    if (store === 'handovers') return t('handover') + ' → ' + (r.to || '?') + ' — ' + amt;
+    if (store === 'payments') return '💰 ' + t('es_payment') + ' · ' + (r.partyName || '?') + ' — ' + amt;
+    if (store === 'daily') {
+      const em = { road: '🛣️', toto: '🛺', bus: '🚌' }[r.type] || '';
+      return (em ? em + ' ' : '') + t('type_' + r.type) +
+        (r.type === 'bus' && r.busName ? ' ' + r.busName : '') + ' — ' + amt;
+    }
+    if (store === 'expenses') return '🧾 ' + t('es_expense') + ' · ' + expenseTitle(r) + ' — ' + amt;
+    if (store === 'handovers') return '🤝 ' + t('handover') + ' → ' + (r.to || '?') + ' — ' + amt;
     return amt;
   }
   function renderVoidReason(targetStore, targetId, backFn) {
@@ -4855,7 +4865,12 @@
         '<div class="row-sub">' + esc(t('anom_voids_sub').replace('{n}', toBengaliDigits(String(voids.length)))
           .replace('{amt}', fmtMoney(voidTotal))) + '</div>' +
         voids.slice(0, 15).map(function (v) {
-          return '<div class="row" style="cursor:default"><div><b>' + esc(fmtMoney(voidAmt(v))) + '</b>' +
+          // A123: say WHAT was voided, not only how much — "₹300" alone could
+          // be a donor's payment or a road round, and the reader should not
+          // need to remember. entrySummary already knows the words.
+          const tgt = v.targetStore === 'daily' ? dailyById2[v.targetId] : payById[v.targetId];
+          const head = tgt ? entrySummary(v.targetStore, tgt) : fmtMoney(voidAmt(v));
+          return '<div class="row" style="cursor:default"><div><b>' + esc(head) + '</b>' +
             (v.reason ? ' <span class="row-sub">— ' + esc(v.reason) + '</span>' : '') +
             '<div class="row-sub">' + esc(v.collector || v.collectorId || '?') + ' · ' +
             esc(v.createdAt ? fmtDateTime(v.createdAt) : '') + '</div></div></div>';
