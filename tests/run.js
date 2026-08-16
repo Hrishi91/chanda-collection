@@ -3097,6 +3097,28 @@ try {
      'A32: maxMap only reports capped posts');
 }
 
+// A116 (review #5): position-full:<names> is thrown exactly for the race
+// applyPosition_'s own comment documents (stale dropdown, cap tightened after
+// draw) — it must have a sentence, not show the collector a raw English code.
+{
+  const i18n116 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  eq(/err_position_full:/.test(i18n116) &&
+     /err_position_full:[\s\S]{0,200}\{what\}/.test(i18n116), true,
+     'A116: position-full has its own sentence, carrying WHO holds the post');
+}
+
+// A115f: the banner's HEADING tells the truth. A balanced book with a
+// non-money anomaly must not say "হিসাব মিলছে না" — found on the pre-go-live
+// sweep, where a member row with no account made every cashier's report scream
+// about money that reconciled to the rupee.
+{
+  const app115f = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const i18n115f = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  eq(/t\(r\.balanced \? 'reconcile_title_anoms' : 'reconcile_title'\)/.test(app115f), true,
+     'A115f: the reconcile banner heading depends on whether the money actually reconciles');
+  eq(/reconcile_title_anoms:/.test(i18n115f), true, 'A115f: …and the milder heading exists in both languages');
+}
+
 // reconcile: two people in a one-person post — the case the screen cannot block,
 // because two admins can assign it while both are offline.
 {

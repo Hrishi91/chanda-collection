@@ -10663,3 +10663,86 @@ Probed before rebaking, as always — a genuinely new URL this time, answering
 
 A115d (the duplicate-cancel trap) and A115e (the donor correction that saved and
 then blamed the server) are now on the server as well as on Pages.
+
+## v4.34.0 — A116: the pre-go-live sweep, the night before
+
+Hrishi: *"check whole application once, everything means everything (in-out
+all), take the roles depending on requirements — I am going live by tomorrow."*
+
+Three layers, because each sees what the others cannot: the full machine pass
+(1,764 green, 21 guards mutation-proved, every file parsed, the live triangle
+agreeing), two independent adversarial reviews — one hunting the money paths in
+`Code.gs`, one hunting client/server mirror drift and i18n holes — and the app
+driven by hand in a browser as admin, cashier, collector, blocked, pending and
+logged-out, plus the freeze and go-live drills against the shim.
+
+The reviews returned **fifteen verified findings and two more from the mirror
+audit**. Nine were small, guard-shaped, and fixed tonight; the rest are recorded
+below rather than rushed into the money path hours before go-live.
+
+### Fixed tonight (each with a test, each mutation-proved — 29/29)
+
+- **A116a — the A60 rule, for the money stores.** Only the creator or an admin
+  may rewrite an EXISTING payments/daily/expenses/handovers row. Without it any
+  valid token could re-push somebody else's payment id with a different amount:
+  restamped to the pusher, serial intact on a changed amount, reconcile still
+  balanced because the money only moved between pockets. The old U1 test that
+  PROVED the theft (it was the argument for setAnomalyFlag) now proves the
+  refusal.
+- **A116b — an admin-restored handover keeps the collector as sender.** The
+  reassign branch fixed collector/collectorId and left from/fromId stamped with
+  the admin — both people's in-hand wrong after every restore. A73's own branch,
+  same half-of-a-pair.
+- **A116c — the correction desk cannot orphan a paid donor.** voidAllowed_
+  refuses voiding a donor with payments "by anybody, admin included"; approve
+  wrote the void directly and skipped the rule. Same check, this door too.
+- **A116d — a voided pending handover no longer blocks a stand-down.**
+  pendingToUser_ was the one reader of handovers that forgot the void filter, so
+  an Undone parcel held `has-pending` hostage for ever, invisible on every
+  screen.
+- **A116e — removed is removed.** removeMember writes a void (the thing that
+  travels) but the sheet row stays; findPartyRow_/memberRowByUser_ now know
+  that, and know the YEAR. Before: re-adding a removed member answered
+  `account-taken` for ever, and editing the voided row reported success into a
+  row every screen hides. Two tests, the second isolating the findPartyRow_
+  half after the first let it escape mutation.
+- **A116f — goLive/clearTraining re-check live_mode INSIDE the lock.** The
+  check ran before the mandatory Drive backup — the slow step, slow enough for
+  a re-fired button. Request 2 could wipe the first live payments, already
+  marked synced on the phones, never re-pushed. Drilled: second goLive answers
+  `already-live`.
+- **A116g — an old queued member row keeps the person, loses only the post.**
+  The code now does what its own comment promised.
+- **A116h — an unknown store lands in rejectedIds**, so a malformed row can
+  drain instead of re-pushing for ever.
+- **A116i — frozen means frozen, on the client too.** canEntry's comment said
+  "no screen is left where a button appears that the server will hold" — there
+  were five (💰 টাকা জমা from the ledger, draft-resume, edit, void, flag),
+  because payments carry no permission key and only keyed routes were gated. One
+  gate in startFlow + one in canVoid. Drilled live: pay blocked during freeze,
+  open again after, admin exempt throughout.
+- **A115f — the reconcile banner's heading tells the truth** (a balanced book
+  with a non-money anomaly no longer shouts "হিসাব মিলছে না!"), and
+  **err_position_full** has a Bengali sentence naming who holds the post.
+
+### Verified sound on the sweep
+
+Logged-out screen (no dead tabs), bad/blocked/pending logins, every tab and desk
+as admin with zero console errors, the freeze on/off round trip, and the go-live
+drill: mandatory backup, wipe, `already-live` on the double-fire, 12 accounts
+and both committee posts surviving, first live receipt = 2026000001.
+
+### Recorded, deliberately NOT rushed tonight (docs/pending.md)
+
+The exiting gate rejecting pre-decision offline rows instead of holding them;
+freeze not gating confirmHandover/resolveCorrection (a DECISION to make, not a
+bug); blank-createdAt sliding past the freeze hold; mixed-year serials in one
+batch; confirmHandover's positional reads (A81-class, aligned today); the
+last-admin race needing a lock; rollover copying pledgeOk and member rows into
+the new year; canEditParty vs push on blank-collectorId rows; personalSummary_'s
+expense projection missing `subject`.
+
+Tests **1,764 → 1,778**. All three versions → **chanda-v4.34.0**.
+
+**⚠️ Needs an Apps Script redeploy — the last one before the puja.** Everything
+above that matters on day one is server-side.

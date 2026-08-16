@@ -453,12 +453,19 @@ module.exports = function runBackendTests(eq) {
       rec('payments', { id: 'p1', year: 2026, partyId: 's1', partyName: 'মা তারা', amount: 500,
                         cashAmount: 500, upiAmount: 0, date: '2026-08-01' }),
     ] });
-    // what the audit suggested: take the central row, stamp it, push it back
+    // what the audit suggested: take the central row, stamp it, push it back.
+    // A116a closed this door on the server too — until the pre-go-live review
+    // this test PROVED the theft happened (collectorId became bimal), which was
+    // the argument for setAnomalyFlag. The desk still must not push (a rejected
+    // row is a silent no-op, A68's original failure), but the server no longer
+    // lets the attribution move even if a tampered client tries.
     const central = b.call('pull', { token: tok.bimal, year: 2026 }).data.payments[0];
     central.dupOk = 1;
-    b.call('push', { token: tok.bimal, epoch: '', records: [rec('payments', central)] });
-    eq(b.rows('Payments')[0].collectorId, 'bimal',
-       'backend U1: pushing a central row back DOES steal the attribution — which is why the desk must not do it');
+    const theft = b.call('push', { token: tok.bimal, epoch: '', records: [rec('payments', central)] });
+    eq((theft.rejectedIds || []).indexOf('p1') >= 0, true,
+       'backend A116: pushing somebody else\'s money row back is REFUSED outright');
+    eq(b.rows('Payments')[0].collectorId, 'ratan',
+       'backend A116: …and the attribution (the in-hand liability) never moves');
   }
   {
     const { b, tok } = book();
@@ -1173,6 +1180,93 @@ module.exports = function runBackendTests(eq) {
     eq(acts, 'freeze:on,freeze:off', 'backend A110: both directions are in the audit log');
   }
 
+  // ---- A116: the pre-go-live review's eight guards -------------------------
+  // A116b: an admin restoring a collector's backup must not become the SENDER
+  // of the restored handovers — personalSummary_ keys on fromId, so both
+  // people's in-hand would be wrong.
+  {
+    const { b, tok } = book();
+    b.call('push', { token: tok.admin, epoch: '', records: [
+      rec('handovers', { id: 'h-re', year: 2026, collectorId: 'ratan', from: 'RATAN', fromId: 'ratan',
+                         to: 'BIMAL', toId: 'bimal', amount: 700, cashAmount: 700, upiAmount: 0, date: '2026-08-02' }),
+    ] });
+    const h = b.rows('Handovers')[0];
+    eq(h.fromId, 'ratan', 'backend A116: an admin-restored handover keeps the COLLECTOR as sender');
+    eq(h.status, 'pending', 'backend A116: …and arrives pending, never pre-confirmed');
+  }
+  // A116c: the correction desk cannot void a donor who has payments — the same
+  // rule voidAllowed_ enforces on the push door, at this door too.
+  {
+    const { b, tok } = book();
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('parties', { id: 'cd1', year: 2026, type: 'shop', name: 'দোকান', pledged: 1000 }),
+      rec('payments', { id: 'cp1', year: 2026, partyId: 'cd1', amount: 300, cashAmount: 300, upiAmount: 0, date: '2026-08-02' }),
+      rec('corrections', { id: 'cc1', year: 2026, targetStore: 'parties', targetId: 'cd1', reason: 'ভুল' }),
+    ] });
+    let threw = '';
+    try { b.call('resolveCorrection', { token: tok.admin, id: 'cc1', decision: 'approve' }); }
+    catch (e) { threw = String(e.message || e); }
+    eq(threw, 'party-has-money',
+       'backend A116: approving a correction cannot orphan a money-bearing donor');
+    eq(b.rows('Voids').length, 0, 'backend A116: …and no void was written');
+  }
+  // A116d: a VOIDED pending handover must not block standing somebody down.
+  {
+    const { b, tok } = book();
+    b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('handovers', { id: 'hv1', year: 2026, to: 'BIMAL', toId: 'bimal', amount: 500,
+                         cashAmount: 500, upiAmount: 0, date: '2026-08-02' }),
+      rec('voids', { id: 'vv1', year: 2026, targetStore: 'handovers', targetId: 'hv1', reason: 'ভুল করে' }),
+    ] });
+    const bid = b.rows('Users').filter(function (x) { return x.username === 'bimal'; })[0].id;
+    const r = b.call('setAccess', { token: tok.admin, userId: bid, access: 'exiting' });
+    eq(r.ok, true,
+       'backend A116: a handover the sender Undid does not hold a stand-down hostage');
+  }
+  // A116e: removing a member and re-adding the same account must work — the
+  // void travels but the sheet row stays, and the lookups must know that.
+  {
+    const { b, tok, id } = committee();
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: '' });
+    b.call('saveMember', { token: tok.ratan, name: 'কালী', appUser: 'kali', year: 2026 });
+    const row = b.rows('Parties')[0].id;
+    b.call('removeMember', { token: tok.ratan, id: row });
+    const again = b.call('saveMember', { token: tok.ratan, name: 'কালী আবার', appUser: 'kali', year: 2026 });
+    eq(again.ok, true, 'backend A116: a removed member can be re-added — removed is removed');
+    let threw = '';
+    try { b.call('saveMember', { token: tok.ratan, id: row, name: 'ভূত', appUser: 'kali', year: 2026 }); }
+    catch (e) { threw = String(e.message || e); }
+    eq(threw === 'not-found' || threw === 'account-taken', true,
+       'backend A116: …and editing the VOIDED row cannot report success into a row every screen hides');
+  }
+  // …and the findPartyRow_ half in ISOLATION: no re-add this time, so the only
+  // guard between "removed" and "edited back into existence" is the void check
+  // inside findPartyRow_ itself. The first version of this test re-added the
+  // member first, so memberRowByUser_'s clash answered account-taken and the
+  // findPartyRow_ guard could be deleted without anything going red.
+  {
+    const { b, tok, id } = committee();
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: '' });
+    b.call('saveMember', { token: tok.ratan, name: 'কালী', appUser: 'kali', year: 2026 });
+    const row = b.rows('Parties')[0].id;
+    b.call('removeMember', { token: tok.ratan, id: row });
+    let threw = '';
+    try { b.call('saveMember', { token: tok.ratan, id: row, name: 'ভূত', appUser: 'kali', year: 2026 }); }
+    catch (e) { threw = String(e.message || e); }
+    eq(threw, 'not-found',
+       'backend A116: a voided member row is NOT FOUND — editing it cannot resurrect it');
+  }
+  // A116h: a record naming a store this server never heard of is REJECTED, not
+  // left in limbo — a row in none of the three lists is re-pushed for ever.
+  {
+    const { b, tok } = book();
+    const r = b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('nonsense', { id: 'zz1', year: 2026, amount: 100 }),
+    ] });
+    eq((r.rejectedIds || []).indexOf('zz1') >= 0, true,
+       'backend A116: an unknown store lands in rejectedIds so the queue can drain');
+  }
+
   // ---- the version/schema handshake every client depends on ---------------
   {
     const { b, tok } = book();
@@ -1434,10 +1528,17 @@ module.exports = function runBackendTests(eq) {
       rec('parties', { id: 'm-post', year: 2026, type: 'member', name: 'ফাঁকি', position: 'president' }),
       rec('parties', { id: 'm-plain', year: 2026, type: 'member', name: 'পুরোনো queue' }),
     ] });
-    const ids = b.rows('Parties').map(function (p) { return String(p.id); });
-    eq(ids.indexOf('m-post') < 0, true, 'backend A115: a pushed member row carrying a post is refused');
-    eq(ids.indexOf('m-plain') >= 0, true,
-       'backend A115: …but a post-less row still drains, so an old offline queue is not silently dropped');
+    // A116g: the post is STRIPPED and the person kept — this used to reject the
+    // whole row, losing the member's name and phone from an old offline queue
+    // while the comment promised "only the part that grants power is refused".
+    const saved = {};
+    b.rows('Parties').forEach(function (p) { saved[String(p.id)] = p; });
+    eq(!!saved['m-post'], true,
+       'backend A116: a pushed member row carrying a post keeps the PERSON…');
+    eq(String(saved['m-post'].position || ''), '',
+       'backend A116: …and loses only the post, which has exactly one door (saveMember)');
+    eq(!!saved['m-plain'], true,
+       'backend A115: …and a post-less row still drains, so an old offline queue is not silently dropped');
   }
 
   // ---- removing a member --------------------------------------------------

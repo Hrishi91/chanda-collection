@@ -888,6 +888,17 @@
   // ---------- flow engine ----------
   // step: {key, qKey, kind:text|amount|choice, options:[{v,labelKey}], optional, showIf(answers)}
   function startFlow(def) {
+    // A116i (pre-go-live review): canEntry's comment claimed "there is no
+    // screen left where a button appears that the server will hold" — and there
+    // were five: 💰 টাকা জমা on the donor screen (payments carry no permission
+    // key, so canEntry(null) stayed true while frozen), the draft-resume card,
+    // ✏️ my-entries edit, and the void/flag pair. Every flow is a money flow,
+    // so ONE gate here closes payments, edits and resumes at once. Without it
+    // the collector completed a payment during the emergency stop, handed the
+    // donor a receipt printed "নং —" (the serial is minted server-side), and
+    // the row sat held in the queue until unfreeze — a receipt for money the
+    // book refused to take.
+    if (frozen()) { toast(t('freeze_bar')); return; }
     flowState = { def: def, answers: Object.assign({}, def.presets || {}), idx: 0 };
     // A normal flow skips any step whose answer is already known (presets are
     // context, not input). An EDIT is the opposite: every answer is known, and
@@ -3674,6 +3685,9 @@
   function canVoid(entry) {
     const u = Auth.current();
     if (!u) return false;
+    // A116i: voiding moves money out of the book — frozen means frozen. The
+    // admin exemption rides inside frozen() itself, same as everywhere else.
+    if (frozen()) return false;
     if (u.role === 'admin') return true;
     const myId = Settings.get('collectorUsername') || u.username;
     if (entry.collectorId && entry.collectorId === myId) return false; // never one's own
@@ -4527,9 +4541,16 @@
       // Tappable: a banner that names a count and cannot say WHICH row teaches
       // people to ignore it, and then the day a real ₹5,000 gap appears nobody
       // looks. Every anomaly reconcile can raise now has a screen behind it.
+      // A115f (pre-go-live sweep): the heading used to be unconditional, so a
+      // book whose money reconciled to the rupee still shouted "হিসাব মিলছে
+      // না!" over a member row with no account. A false sentence about MONEY,
+      // on the report screen, on day one — and the fastest way to teach twelve
+      // collectors that the red banner lies. The heading now says what is
+      // actually true; the body lines were always conditional.
       el.innerHTML = '<button class="card" data-go="anomalies" style="border:1.5px solid #c0392b;' +
         'background:#fdecea;width:100%;text-align:left;font-family:inherit;cursor:pointer">' +
-        '<b>⚠️ ' + esc(t('reconcile_title')) + '</b><div class="row-sub" style="margin-top:4px">' + msg +
+        '<b>⚠️ ' + esc(t(r.balanced ? 'reconcile_title_anoms' : 'reconcile_title')) +
+        '</b><div class="row-sub" style="margin-top:4px">' + msg +
         '<br>' + esc(t('anom_open')) + ' ›</div></button>';
       wireNav();
     });

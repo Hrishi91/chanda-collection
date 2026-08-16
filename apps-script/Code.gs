@@ -236,9 +236,26 @@ function canAssignPosition_(actor, target, wantPos) {
 // A115: one member row, read by id, with the sheet's REAL header — the same
 // rule push learned in A81. Returns the handle saveMember/removeMember need to
 // write it back without blanking a column they never sent.
+// A116e (pre-go-live review #6): the voided rows. removeMember writes a `voids`
+// row — the mechanism that travels — so the sheet row it removed is still
+// physically there. Any register lookup that forgets this resurrects the dead:
+// re-adding a removed member answered `account-taken` for ever, and editing a
+// removed row reported success into a row every screen hides.
+function voidedTargets_() {
+  var out = {};
+  var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.voids);
+  if (sh && sh.getLastRow() >= 2) {
+    var head = sheetHeader_(sh), it = head.indexOf('targetId');
+    sh.getRange(2, 1, sh.getLastRow() - 1, head.length).getValues().forEach(function (v) {
+      out[String(v[it])] = 1;
+    });
+  }
+  return out;
+}
 function findPartyRow_(id) {
   var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.parties);
   if (!sh || sh.getLastRow() < 2 || !String(id || '')) return null;
+  if (voidedTargets_()[String(id)]) return null; // removed is removed — see above
   var head = sheetHeader_(sh);
   var vals = sh.getRange(2, 1, sh.getLastRow() - 1, head.length).getValues();
   for (var i = 0; i < vals.length; i++) {
@@ -249,16 +266,22 @@ function findPartyRow_(id) {
   }
   return null;
 }
-// One account, one member row. Without this, two rows could each claim to
-// author the same person's post and the last save would win silently.
-function memberRowByUser_(username) {
+// One account, one member row — counted over LIVE rows of the SAME year.
+// Without the void filter, re-adding a removed member answered `account-taken`
+// for ever; without the year filter, next season's rollover would lock the
+// whole register (every account already "taken" by last year's row).
+function memberRowByUser_(username, year) {
   var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.parties);
   if (!sh || sh.getLastRow() < 2 || !String(username || '')) return null;
   var head = sheetHeader_(sh);
-  var iId = head.indexOf('id'), iTy = head.indexOf('type'), iAu = head.indexOf('appUser');
+  var iId = head.indexOf('id'), iTy = head.indexOf('type'), iAu = head.indexOf('appUser'),
+      iYr = head.indexOf('year');
   if (iAu < 0) return null;
+  var dead = voidedTargets_();
   var vals = sh.getRange(2, 1, sh.getLastRow() - 1, head.length).getValues();
   for (var i = 0; i < vals.length; i++) {
+    if (dead[String(vals[i][iId])]) continue;
+    if (year && iYr >= 0 && Number(vals[i][iYr]) !== Number(year)) continue;
     if (String(vals[i][iTy]) === 'member' &&
         String(vals[i][iAu]).toLowerCase() === String(username).toLowerCase()) {
       return { id: String(vals[i][iId]), rowIndex: i + 2 };
@@ -960,7 +983,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.33.4';
+var CODE_VERSION = 'chanda-v4.34.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1095,7 +1118,14 @@ var ACTIONS = {
       });
       var exiting = isExiting_(user.row);
       (b.records || []).forEach(function (r) {
-        if (!SHEETS[r.store] || !r.row || !r.row.id) return;
+        // A116h (pre-go-live review): a malformed record — unknown store, no
+        // row, no id — used to `return` here and land in NONE of
+        // savedIds/rejectedIds/heldIds. The client only removes a row from its
+        // queue when one of those lists names it, so such a row was re-pushed
+        // on every sync for ever. It takes a client bug to produce one; it must
+        // not take a server change to drain one.
+        if (!r || !r.row) return; // nothing to name — nothing is stuck either
+        if (!SHEETS[r.store] || !r.row.id) { if (r.row.id) rejectedIds.push(r.row.id); return; }
         // A110: money is frozen; talking is not. Whatever stopped the
         // collection has to be explainable to twelve people, and 💬 বার্তা is
         // the only way to reach them all at once.
@@ -1174,6 +1204,22 @@ var ACTIONS = {
         // loop below re-stamps collector/collectorId from the token, and only
         // the admin branch carries the original attribution forward. A cashier
         // editing a shop would silently move that donor into their own name.
+        // A116a (pre-go-live review #1): A60 gave `parties` this rule — only
+        // the creator or an admin may rewrite an EXISTING row — and left the
+        // four MONEY stores without it, which is the same hole one store over.
+        // Without this, any valid token could re-push somebody else's payment
+        // id with a different amount: the row is rewritten in place, restamped
+        // to the pusher, the receipt serial survives pointing at a changed
+        // amount, and reconcile stays balanced because the money only moved
+        // between pockets. A tampered client is exactly the threat A9/A51/A60
+        // were built against. Ordinary retries pass (same collector); admin
+        // restore passes (admin); cashiers settle through confirmHandover,
+        // which was never push.
+        if (['payments', 'daily', 'expenses', 'handovers'].indexOf(r.store) >= 0) {
+          var mOwn = ownerIndex_(r.store)[String(r.row.id)];
+          if (mOwn && user.row.role !== 'admin' && mOwn.collectorId &&
+              mOwn.collectorId !== user.row.username) { rejectedIds.push(r.row.id); return; }
+        }
         if (r.store === 'parties') {
           var own = ownerIndex_('parties')[String(r.row.id)];
           if (own && user.row.role !== 'admin' && own.collectorId &&
@@ -1187,9 +1233,12 @@ var ACTIONS = {
           // have its work dropped without a word, and silently discarding
           // somebody's entry is the failure this project keeps finding. So the
           // old queue drains, and only the part that grants power is refused.
-          if (String(r.row.type) === 'member' && String(r.row.position || '')) {
-            rejectedIds.push(r.row.id); return;
-          }
+          // A116g (pre-go-live review #10): STRIP the post, keep the person.
+          // This used to reject the whole row, while its own comment promised
+          // "only the part that grants power is refused" — so an old offline
+          // queue lost the member's name and phone along with the post. The
+          // code now does what the comment always said.
+          if (String(r.row.type) === 'member') r.row.position = '';
         }
         // the chat kill switch is enforced HERE, not only in the UI — otherwise
         // a phone with the screen still cached could keep writing after the
@@ -1323,6 +1372,18 @@ var ACTIONS = {
             row.collector = reassign.row.name;
             row.collectorId = reassign.row.username;
             row.collectorRole = roleOf_(reassign.row.role, reassign.row.cashier);
+            // A116b (pre-go-live review #2): the from/fromId stamped a few
+            // lines above took the ADMIN's identity, and this branch fixed only
+            // the collector fields — so an admin restoring a collector's backup
+            // filed every restored handover as sent BY THE ADMIN. The
+            // collector's handedOver dropped to zero and the admin's book
+            // showed outgoing money they never touched; personalSummary_ keys
+            // on fromId, so both people's in-hand was wrong. Same half-of-a-
+            // pair as A73 found in this exact branch.
+            if (isNew && store === 'handovers') {
+              row.from = reassign.row.name;
+              row.fromId = reassign.row.username;
+            }
             reassigned[claimed] = (reassigned[claimed] || 0) + 1;
             var values0 = rowForSheet_(head, row, rowAt(row.id));
             if (idRow[row.id]) sh.getRange(idRow[row.id], 1, 1, head.length).setValues([preserve(row.id, values0)]);
@@ -1445,6 +1506,16 @@ var ACTIONS = {
           csh.getRange(i + 1, ensureCol_(csh, 'resolvedAt')).setValue(new Date().toISOString());
           csh.getRange(i + 1, ensureCol_(csh, 'receivedAt')).setValue(new Date().toISOString()); // carry in delta pull
           if (b.decision === 'approve') {
+            // A116c (pre-go-live review #3): voidAllowed_ refuses voiding a
+            // donor who has payments — "by anybody, admin included" — because
+            // the void orphans every payment pointing at that row and the 🩺
+            // desk raises payment_orphan for each of them for the rest of the
+            // season. This desk wrote the void DIRECTLY and skipped that rule:
+            // one approve tap re-opened the exact hole A60 closed on the push
+            // door. Same check, at this door too.
+            if (String(corr.targetStore) === 'parties' && partyHasMoney_(corr.targetId)) {
+              throw new Error('party-has-money');
+            }
             var vsh = ss.getSheetByName(SHEET_TITLES.voids), vcols = SHEETS.voids;
             var v = { id: Utilities.getUuid(), year: corr.year, targetStore: corr.targetStore, targetId: corr.targetId,
                       reason: corr.reason, collector: u.row.name, collectorId: u.row.username,
@@ -1600,6 +1671,12 @@ var ACTIONS = {
     catch (e) { throw new Error('backup-failed: ' + (e && e.message || e)); }
     var lock = LockService.getScriptLock(); lock.waitLock(30000);
     try {
+      // A116f (pre-go-live review #7): the live_mode check at the top ran
+      // BEFORE the mandatory Drive backup, which is the slow step — slow enough
+      // that an admin re-fires the button, or fires goLive while this backup
+      // runs. A check that ran before the backup proves nothing afterwards, so
+      // it is re-read where it cannot be raced: inside the lock.
+      if (String(readConfig_().live_mode || '') === 'on') throw new Error('already-live');
       var ss = SpreadsheetApp.getActive();
       // ESSENTIALS ARE UNTOUCHED: Users, Config, Lists (areas/locations),
       // ExpenseSubjects and Audit are not in SHEETS — only the transactional
@@ -1650,6 +1727,13 @@ var ACTIONS = {
     catch (e) { throw new Error('backup-failed: ' + (e && e.message || e)); }
     var lock = LockService.getScriptLock(); lock.waitLock(30000);
     try {
+      // A116f (pre-go-live review #7): re-read INSIDE the lock. The check at
+      // the top ran before the mandatory Drive backup — the slow step, slow
+      // enough for an admin to re-fire the button. Request 1 wipes and sets
+      // live_mode; request 2, which passed minutes ago, then takes the lock
+      // and wipes AGAIN, destroying the first live payments — which the phones
+      // have already marked synced and will never re-push.
+      if (String(readConfig_().live_mode || '') === 'on') throw new Error('already-live');
       var ss = SpreadsheetApp.getActive();
       Object.keys(SHEETS).forEach(function (store) { // clear every transactional sheet (keep header)
         var sh = ss.getSheetByName(SHEET_TITLES[store]);
@@ -2543,7 +2627,7 @@ var ACTIONS = {
       }
       // one account, one member row — otherwise two rows would each claim to
       // author one person's post
-      var clash = memberRowByUser_(username);
+      var clash = memberRowByUser_(username, Number(b.year) || new Date().getFullYear());
       if (clash && (!existing || String(clash.id) !== String(existing.row.id))) throw new Error('account-taken');
 
       // The post lives on the USER; this row only displays it. So the write
@@ -2964,8 +3048,18 @@ function accessIndex_() {
 // waiting on anybody.
 function pendingToUser_(username, year) {
   var d = readAll_(Number(year) || new Date().getFullYear());
+  // A116d (pre-go-live review #4): voids were not filtered here, and this is
+  // the gate setAccess consults before standing somebody down. A handover the
+  // sender Undid (a void, synced like everything else) stayed "pending" in this
+  // count for ever: invisible on every screen — they all go through
+  // activeData_ — impossible to confirm or reject, and blocking the stand-down
+  // with `has-pending` for a parcel that no longer exists. notifData_ and
+  // accountPicture_ both filter voids; this was the N−1th place.
+  var voided = {};
+  (d.voids || []).forEach(function (v) { voided[String(v.targetId)] = 1; });
   var mine = (d.handovers || []).filter(function (h) {
-    return String(h.toId || h.to || '') === String(username) &&
+    return !voided[String(h.id)] &&
+           String(h.toId || h.to || '') === String(username) &&
            String(h.status) !== 'confirmed' && String(h.status) !== 'rejected';
   });
   return { count: mine.length, total: sumBy_(mine, function (h) { return h.amount; }) };

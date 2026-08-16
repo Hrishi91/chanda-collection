@@ -593,6 +593,39 @@ nothing locks, so no phone is affected either way.
 ✅ `safeCell_` verified on the real Sheet 2026-07-29: a donor named `=টেস্ট`
 reads back as exactly `=টেস্ট`.
 
+## AFTER THE PUJA — the A116 review's deferred findings (2026-08-16)
+
+From the two adversarial reviews the night before go-live. Each was verified
+against the code; none is day-one-critical, and each touches the money path
+deeply enough that rushing it hours before the trial was the worse risk. In
+rough order of value:
+
+1. **The exiting gate rejects pre-decision offline rows** instead of holding
+   them the way the freeze gate does (no timestamp on the check). An exiting
+   collector's morning round, queued offline before the committee decided,
+   lands in rejectedIds — collected cash with no central record. Fix shape:
+   hold (heldIds) rows whose createdAt predates the access change.
+2. **Freeze does not gate confirmHandover / rejectHandover / resolveCorrection
+   / setAnomalyFlag** — cashiers can settle money during the emergency stop.
+   May be WANTED (getting cash into the cashier's hands during an incident is
+   arguably the point). A decision for Hrishi, then one gate.
+3. **confirmHandover/rejectHandover still read/write by `cols` position** —
+   the A81 ghost-column class, aligned today, latent. Move to sheetHeader_.
+4. **Last-admin guards race**: two admins demoting each other concurrently can
+   leave zero admins. Wants the same lock the rest of Users writes hold.
+5. **rolloverYear** copies `pledgeOk` (a per-season answer) and member rows
+   (now account-bearing) into the new year — next season's register starts
+   pre-cleared and pre-occupied. Revisit with the closure work.
+6. **canEditParty vs push on blank-collectorId rows** (hand-typed sheet rows):
+   server accepts any collector, UI offers admin only. Harmless until somebody
+   hand-types a row; align the two.
+7. **Freeze hold trusts client createdAt** — blank/backdated stamps slide past.
+   Inherent to offline design; note kept so nobody mistakes it for a guarantee.
+8. **Mixed-year push batches mint serials from the first row's year** — only
+   matters in the New-Year straddle window.
+9. **personalSummary_'s expense projection still omits `subject`** (client
+   sends it) — matters the day anything consumes myReport.
+
 ## AFTER THE PUJA — UI / mobile pass (raised by Hrishi, 2026-08-15)
 
 Hrishi: *"I think we should have mobile app expert roles"*, then narrowed it

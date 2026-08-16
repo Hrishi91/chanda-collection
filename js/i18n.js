@@ -108,6 +108,12 @@ const I18N = {
   err_position_denied_level_want: { bn: 'নিজের স্তরের চেয়ে নিচের পদই দেওয়া যায় — সমান বা উঁচু নয়', en: 'You may only hand out posts below your own level — not equal, not above' },
   err_position_denied_level_target: { bn: 'ইনি আপনার চেয়ে উঁচু স্তরে — এঁর পদে হাত দেওয়া যাবে না', en: 'They outrank you — their post is not yours to change' },
   err_position_denied_target_not_approved: { bn: 'blocked বা pending অ্যাকাউন্টে পদ দেওয়া যায় না', en: 'A blocked or pending account takes no post' },
+  // A116 (pre-go-live review #5): applyPosition_ throws position-full:<names>
+  // exactly for the race its own comment documents — a stale dropdown, or a cap
+  // tightened after the screen was drawn. Every sibling refusal had a sentence;
+  // this one showed the collector "position-full:manik" raw.
+  err_position_full: { bn: 'ওই পদ পূর্ণ — এখন আছে: {what}। আগে ওঁর পদ সরাও, তারপর এঁকে দাও।',
+                       en: 'That post is full — currently held by: {what}. Take theirs off first.' },
   member_remove: { bn: 'সদস্য তালিকা থেকে সরাও', en: 'Remove from the register' },
   member_remove_confirm: { bn: '{who}-কে সদস্য তালিকা থেকে সরাবো? আগের চাঁদার হিসাব যেমন আছে তেমনই থাকবে।', en: 'Remove {who} from the register? Money already collected stays exactly as it is.' },
   pos_is_full: { bn: 'পূর্ণ', en: 'full' },
@@ -822,6 +828,10 @@ const I18N = {
   anom_breakdown_mismatch_t: { bn: 'জমার ভাঙা হিসাব মিলছে না', en: "Handover breakdown doesn't match" },
   anom_breakdown: { bn: 'জমা {n}, কিন্তু ভাগের যোগফল {s}।', en: 'Handover {n} but its breakdown sums to {s}.' },
   reconcile_title: { bn: 'হিসাব মিলছে না!', en: "Money doesn't reconcile!" },
+  // A115f: when the sums DO match and only non-money anomalies exist, the
+  // banner must not claim the money is wrong — that is how a red banner
+  // teaches people to stop believing red banners.
+  reconcile_title_anoms: { bn: '🩺 খাতায় দেখার মতো কিছু আছে', en: 'Something in the book needs a look' },
   reconcile_off: { bn: 'সবার হাতের যোগফল আর (আদায় − খরচ)-এ {diff} ফারাক — কোথাও entry ভুল আছে।', en: "Everyone's in-hand vs (collected − expenses) differ by {diff} — an entry is wrong somewhere." },
   reconcile_anoms: { bn: 'আরও {n}টা অসঙ্গতি (যেমন কথার চেয়ে বেশি জমা / হাতে ঋণাত্মক টাকা) — কার্যকলাপ ও entry দেখো।', en: '{n} more anomalies (e.g. overpaid pledge / negative in-hand) — check the entries.' },
   err_no_report_access: { bn: 'এই রিপোর্টের permission নেই — admin-কে বলো', en: 'No permission for this report — ask the admin' },
