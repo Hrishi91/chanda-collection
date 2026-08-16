@@ -4604,6 +4604,18 @@ try {
        'A118: …with the same test the server list applies (approved + admin-or-cashier)');
   }
 
+  // A119: an EDIT must not open on a step showIf hides. dailyFlow begins with
+  // busName/busNumber (visible only for buses, busName required), so ✏️ on a
+  // road/toto entry sat trapped on "বাসের নাম কী?" — the entry door was the one
+  // place that did not skip invisible steps (goBack and skipHidden both did).
+  {
+    const sf = app.slice(app.indexOf('function startFlow'), app.indexOf('function visible'));
+    const iSkip = sf.indexOf('while (flowState.idx < def.steps.length && !visible(def.steps[flowState.idx])) flowState.idx++;');
+    const iRender = sf.indexOf('renderEntry(); try { history.pushState');
+    eq(iSkip >= 0 && iRender >= 0 && iSkip < iRender, true,
+       'A119: the edit door skips showIf-hidden steps before painting the first question');
+  }
+
   // A118b: the two cashier desks and the expense flow open from what the phone
   // already holds; a round trip may refresh, never gate first paint. Pinned as
   // "the screen's opener reads local data": the desk functions must not await

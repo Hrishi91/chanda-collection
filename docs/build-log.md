@@ -10977,3 +10977,36 @@ week) — hardened, then all three proved. Tests **1,784 → 1,787**.
 
 **⚠️ One redeploy: v4.34.3 supersedes v4.34.1/.2 — A117, A118 and A118b ride
 together.**
+
+## v4.34.4 — A119: ✏️ on a road/toto entry was trapped on the bus question
+
+Hrishi asked whether the ✏️ আমার entry / সংশোধন flow had been driven with every
+role, both directions. Driving it as a pure collector found a feature that has
+been broken since it shipped:
+
+The designed chain is flag-then-fix — ⚠️ ভুল বলে জানাও marks your own entry,
+and only then does ✏️ ঠিক করি appear ("you have declared it wrong, and nobody
+knows better than you what it should say"). The chain worked up to the tap.
+Then ✏️ on a ROAD entry opened on **"বাসের নাম কী?"** — dailyFlow's first two
+steps are busName/busNumber, `showIf` type==='bus', and busName is required.
+An edit deliberately walks every ANSWERED step, so the entry door skipped
+nothing — landing on a hidden, required, unanswerable question. "পরের প্রশ্ন"
+refused the empty answer, for ever. Trapped exactly like A54's loop.
+
+goBack skips invisible steps. skipHidden skips invisible steps. The edit's
+ENTRY point was the one door that did not — the N−1 pattern, inside one
+feature's three doors.
+
+One line: the editing branch advances past showIf-hidden steps before painting.
+Driven end-to-end after the fix: road edit opens on "কীভাবে দিল?", amount
+300→350, old row voided, replacement live, flow closes. Payments and expenses
+edits were never affected (their first steps are visible); bus edits were fine
+(their busName is visible).
+
+Also verified on the way, as the question asked: a pure collector's own rows
+carry ⚠️ only (never ✖️ — canVoid refuses one's own), the flag screen writes
+the correction, the ⚠️-জানানো-হয়েছে tag and ✏️ appear on re-render, and the
+cashier's 🛠️ desk hides a flag whose target the author already fixed (the
+voided-target filter). Mutation-proved; tests **1,787 → 1,788**.
+
+**⚠️ One redeploy: v4.34.4 now carries A117 + A118 + A118b + A119.**

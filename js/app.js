@@ -919,7 +919,18 @@
     // A normal flow skips any step whose answer is already known (presets are
     // context, not input). An EDIT is the opposite: every answer is known, and
     // the point is to walk through them and change what is wrong.
-    if (def.editing) { renderEntry(); try { history.pushState({ v: 'entry' }, ''); } catch (e) {} return; }
+    if (def.editing) {
+      // A119 (trial drill): an edit walks every ANSWERED step on purpose — but
+      // it still must not land on a step showIf HIDES. dailyFlow's first two
+      // steps are busName/busNumber, visible only for buses, and busName is
+      // required — so ✏️ on a road/toto round opened on "বাসের নাম কী?", where
+      // "পরের প্রশ্ন" refused an empty required answer, for ever. Trapped
+      // exactly like A54's loop, on a feature that shipped in this state:
+      // goBack and skipHidden both knew to skip invisible steps; the edit's
+      // ENTRY point was the one door that did not.
+      while (flowState.idx < def.steps.length && !visible(def.steps[flowState.idx])) flowState.idx++;
+      renderEntry(); try { history.pushState({ v: 'entry' }, ''); } catch (e) {} return;
+    }
     try { history.pushState({ v: 'entry' }, ''); } catch (e) {} // Back cancels the entry
     skipHidden();
     renderEntry();
