@@ -10655,3 +10655,11 @@ Tests **1,764**, plus the scope check extended and mutation-proved.
 
 **⚠️ Needs an Apps Script redeploy.** Same class as A115d: an entry screen every
 cashier and admin reaches, failing in a way that reads as the server's fault.
+
+### v4.33.4 deployed (2026-08-16)
+
+Probed before rebaking, as always — a genuinely new URL this time, answering
+`chanda-v4.33.4 / schema 5`. `js/config.js` rebaked.
+
+A115d (the duplicate-cancel trap) and A115e (the donor correction that saved and
+then blamed the server) are now on the server as well as on Pages.
