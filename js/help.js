@@ -110,7 +110,7 @@ window.HELP = [
     },
   },
   {
-    icon: '✏️',
+    icon: '✏️', id: 'fix',
     title: { bn: 'ভুল entry শোধরানো — আমার লেখা entry ও নালিশের রায়', en: 'Fixing a wrong entry — My entries & Rule on flags' },
     body: {
       bn: [
@@ -150,7 +150,7 @@ window.HELP = [
     },
   },
   {
-    icon: '🤝',
+    icon: '🤝', id: 'confirm',
     title: { bn: 'জমা দেওয়া ও confirm', en: 'Handover & confirmation' },
     body: {
       bn: [
@@ -168,7 +168,7 @@ window.HELP = [
     },
   },
   {
-    icon: '📒',
+    icon: '📒', id: 'ledger',
     title: { bn: 'খাতা ও রিপোর্ট', en: 'Ledger & reports' },
     body: {
       bn: [
@@ -198,7 +198,7 @@ window.HELP = [
     },
   },
   {
-    icon: '💰',
+    icon: '💰', id: 'maths',
     title: { bn: 'হিসাব কীভাবে হয় (সূত্র)', en: 'How the maths works' },
     body: {
       bn: [
@@ -216,7 +216,7 @@ window.HELP = [
     },
   },
   {
-    icon: '🧾',
+    icon: '🧾', id: 'receipts',
     title: { bn: 'রসিদ ও বাকির তাগাদা', en: 'Receipts & dues reminders' },
     body: {
       bn: [
@@ -280,7 +280,47 @@ window.HELP = [
     },
   },
   {
-    icon: '👥',
+    icon: '🎖️', id: 'register',
+    title: { bn: 'কমিটির সদস্য — রেজিস্টার ও পদ', en: 'Committee members — register & posts' },
+    body: {
+      bn: [
+        'সদস্য তোলা/বদলানো <b>🎖️ কমিটির সদস্য</b> পর্দায় (memberadmin অনুমতি লাগে) — আর এতে <b>internet লাগে</b>, কারণ পদ মানেই অ্যাপের অনুমতি।',
+        'প্রত্যেক সদস্যের একটা <b>app-অ্যাকাউন্ট বাধ্যতামূলক</b>; পদটা থাকে অ্যাকাউন্টের গায়ে — তাই 👥 ইউজার-পর্দা আর রেজিস্টার সবসময় একই পদ দেখায়।',
+        '<b>পদের স্তর (level):</b> নিজের চেয়ে <b>নিচু</b> স্তরের পদই দেওয়া/সরানো যায় — সমান বা উঁচু নয়; 💰-ওয়ালা পদ শুধু admin। <b>নিজের সদস্য-তথ্য নিজে বদলানো যায় না</b> — অন্য কেউ করবে।',
+        'সদস্য সরাতে হলে আগে তাঁর পদ সরাও; চাঁদা-দেওয়া সদস্য সরানো যায় না (হিসাব রক্ষা)। টাকা তোলা বরাবরের মতোই 🤝 <b>সদস্যের চাঁদা</b>-য়, offline-ও।',
+      ],
+      en: [
+        'Members are added/edited on the <b>🎖️ Committee members</b> screen (needs the memberadmin grant) — and it <b>needs internet</b>, because a post IS app permission.',
+        'Every member must have an <b>app account</b>; the post lives on the account — so the 👥 Users screen and the register always show the same post.',
+        '<b>Post levels:</b> you may give/remove only posts <b>below</b> your own level — never equal or above; posts carrying 💰 are admin-only. <b>Nobody edits their own member record.</b>',
+        'To remove a member, take their post off first; a member with payments cannot be removed (protects the books). Collecting stays on 🤝 <b>Member contribution</b>, offline too.',
+      ],
+    },
+  },
+  {
+    icon: '🩺', id: 'anom',
+    title: { bn: 'অসঙ্গতি পরীক্ষা — কার্ডগুলোর মানে', en: 'Anomaly desk — what each card means' },
+    body: {
+      bn: [
+        'এই পর্দা (cashier/admin) খাতা <b>নিজেই নিজেকে মিলিয়ে</b> যা যা বেমানান পায়, তা সাজিয়ে দেখায়। লাল মানেই বিপদ নয় — বেশিরভাগই একটা প্রশ্ন, যার উত্তর দিলে কার্ড সরে যায়।',
+        '<b>🔁 একই জমা/কালেকশন দুবার?</b> — সত্যিই আলাদা কিস্তি হলে ✓ চাপো (আর কোনো ফোনে জিজ্ঞেস করবে না); ভুলে দুবার উঠলে ✖️ বাড়তিটা বাতিল।',
+        '<b>⚠️ কথার চেয়ে বেশি জমা</b> — দাতা সত্যিই বেশি দিলে ✓; কথার অঙ্কটাই ভুল লেখা হলে ✏️-তে শুধরে দাও।',
+        '<b>দাতাহীন জমা</b> — টাকা আছে, দাতার সারি নেই (সাধারণত দাতা বাতিলের পরে)। <b>নগদ+UPI মিলছে না / ভাঙা হিসাব</b> — Sheet-এ হাতে বদলের চিহ্ন; admin-কে দেখাও।',
+        '<b>💰 হাতে অনেক টাকা</b> — কারো কাছে ১০,০০০-এর বেশি জমে গেছে: জমা করিয়ে নাও। <b>বাতিলের তালিকা</b> — মোছা নয়, স্বচ্ছতার খাতা।',
+        'উত্তর দেওয়া কার্ড <b>জায়গাতেই মিলিয়ে যায়</b> ও সব ফোন থেকে সরে; উত্তরগুলোর জন্য internet লাগে।',
+      ],
+      en: [
+        'This desk (cashier/admin) shows what the book finds when it <b>reconciles itself</b>. Red is not danger — most cards are a question, and an answered card leaves.',
+        '<b>🔁 Same payment/round twice?</b> — genuinely separate: ✓ (no phone asks again); doubled by mistake: ✖️ void the extra.',
+        '<b>⚠️ Paid more than pledged</b> — the donor really gave more: ✓; the pledge was typed wrong: fix it with ✏️.',
+        '<b>Orphan payment</b> — money without a donor row (usually after a donor was voided). <b>Cash+UPI mismatch / breakdown mismatch</b> — signs of hand-editing in the Sheet; show the admin.',
+        '<b>💰 Heavy in-hand</b> — someone holds over 10,000: get it handed over. <b>The void list</b> — not deletion, a transparency ledger.',
+        'Answered cards settle <b>in place</b> and clear on every phone; the answers need internet.',
+      ],
+    },
+  },
+  {
+    icon: '👥', id: 'dup',
     title: { bn: 'একই চাঁদাদাতা দুবার উঠে গেলে', en: 'The same donor entered twice' },
     body: {
       bn: [

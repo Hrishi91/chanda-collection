@@ -4632,8 +4632,15 @@ try {
     eq(/ভুল entry শোধরানো/.test(help121) && /নালিশের রায়/.test(help121) &&
        /জানানো হয়েছে — অপেক্ষায়/.test(help121), true,
        'A121: the guide walks the flag→fix→ruling chain, naming the tags the user will see');
-    eq(/entries_guide_btn/.test(app) &&
-       /getElementById\('entries-guide'\)[\s\S]{0,120}navigate\('help'\)/.test(app), true,
+    // A122 generalized the door: one helper draws it, one wires it, and the
+    // wiring carries BOTH the section and the source screen (Hrishi's rule —
+    // the guide's ← goes back to where it was opened).
+    eq(/function guideDoor\(sec\)/.test(app) &&
+       /navigate\('help', \{ sec: b\.dataset\.sec, from: current\.view \}\)/.test(app), true,
+       'A122: the guide door is wired, and passes section + source');
+    eq(/backBar\(params\.from \|\| 'settings'\)/.test(app), true,
+       'A122: …and the guide honours that source on ←');
+    eq(/guideDoor\('fix'\)/.test(app) && /wireGuideDoors\(\);/.test(app), true,
        'A121: …and the entries screen opens it in one tap — WIRED, not just drawn');
   }
 

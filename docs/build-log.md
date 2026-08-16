@@ -11149,3 +11149,35 @@ the asserted sentences behind) was redone validly; both guards proved. Tests
 **1,796 → 1,799**.
 
 **⚠️ One redeploy: v4.34.7 supersedes v4.34.6.**
+
+## v4.34.8 — A122: every screen carries its guidance, one tap deep
+
+Hrishi: *"all screens should have their own guidance … there will be all
+details and flow details"* — and, on the design question, chose the two-tier
+shape over walls of text; then added the condition that named this change:
+*"but the back button should go to its source."*
+
+The pattern, generalized from A121b:
+
+- **Tier 1, on the screen:** a one-breath hint. The three desks that had NONE
+  got theirs — ✅ জমা confirm, 📗 জমা-খাতা, 🩺 অসঙ্গতি.
+- **Tier 2, one tap:** a 📖 chip (`guideDoor(sec)`) at the end of each hint,
+  opening the guide AT the right section — scrolled to it and highlighted, not
+  dumped at the top of a long page to hunt. Doors placed on ✏️, 🛠️, ✅, 📗, 🩺,
+  🎖️ and 🤝.
+- **The ← honours the source.** `renderHelp` takes `{from, sec}`; every door
+  passes both; ← returns to the screen the guide was opened from. Settings
+  remains the default only for the guide's own home there.
+
+The guide gained two sections that did not exist: **🩺 অসঙ্গতি** (what each
+card means and what its buttons do to the money) and **🎖️ কমিটির সদস্য** under
+the A115 rules (account mandatory, post-on-account, levels, no self-edit,
+online-only). Six existing sections got ids for direct landing.
+
+Two rig-catches on the way: the section scroll was silently undone by
+`navigate()`'s own end-of-render `scrollTo(0,0)` — deferred by a microtask so
+the section scroll is the one that sticks (verified: top=0px); and scope-check
+had never heard of `queueMicrotask`. Verified in the browser end to end:
+🩺 → 📖 lands on the 🩺 section highlighted → ← returns to 🩺.
+
+Tests **1,799 → 1,803**. **⚠️ One redeploy: v4.34.8 supersedes v4.34.7.**

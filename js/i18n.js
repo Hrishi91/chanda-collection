@@ -958,6 +958,13 @@ const I18N = {
   review_title: { bn: 'নালিশের রায়', en: 'Rule on flags' },
   review_hint: { bn: 'সংগ্রাহক নিজের ভুল entry-তে ⚠️ চাপলে নালিশটা এখানে আসে। ✅ বাতিল = টাকা খাতা থেকে সরবে · 🚫 ঠিক আছে = entry যেমন ছিল থাকবে। সংগ্রাহক নিজে ✏️-তে ঠিক করে নিলে নালিশ নিজেই সরে যায়।',
                  en: 'When a collector ⚠️-flags their own entry, it lands here. ✅ void = the money leaves the book · 🚫 keep = the entry stands. If the collector fixes it themselves with ✏️, the flag clears on its own.' },
+  // A122: the one-breath hints for the three desks that had none.
+  cashier_hint: { bn: 'সংগ্রাহকেরা যে টাকা তোমার হাতে দিয়েছে বলে লিখেছে — মিলিয়ে নিয়ে ✅ পেয়েছি বা ❌ ফেরত। নিচে তোমার নিজের পাঠানোগুলোও।',
+                  en: 'Money collectors say they handed you — check it and ✅ received or ❌ return. Your own outgoing parcels are below.' },
+  hbook_hint: { bn: 'তোমার জমার পুরো খাতা — কী পেয়েছ, কী পাঠিয়েছ, কোনটা এখনো পথে (⏳)। সারিতে চাপলে ভাঙা হিসাব।',
+                en: 'Your full handover book — received, sent, and what is still in transit (⏳). Tap a row for its breakdown.' },
+  anom_hint: { bn: 'খাতা নিজেই নিজেকে মিলিয়ে যা বেমানান পেয়েছে। বেশিরভাগ কার্ডই একটা প্রশ্ন — উত্তর দিলে কার্ড সরে, সব ফোন থেকেই।',
+               en: 'What the book found reconciling itself. Most cards are a question — answer it and the card leaves, on every phone.' },
   review_none: { bn: 'কোনো নালিশ অপেক্ষায় নেই', en: 'No flags waiting' },
   corr_approve: { bn: '✅ বাতিল করো', en: '✅ Void it' },
   corr_reject: { bn: '🚫 ঠিক আছে (reject)', en: '🚫 It\'s fine (reject)' },

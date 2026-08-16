@@ -2454,11 +2454,12 @@
   function renderMemberPay() {
     if (!canEntry('member')) { navigate('home'); return; }
     $view().innerHTML = backBar('home') + '<div class="flow-title">🤝 ' + esc(t('member_pay_title')) + '</div>' +
-      '<div class="hint" style="margin-bottom:8px">' + esc(t('member_pay_hint')) + '</div>' +
+      '<div class="hint" style="margin-bottom:8px">' + esc(t('member_pay_hint')) + guideDoor('register') + '</div>' +
       '<input id="mp-search" class="search" enterkeyhint="search" placeholder="' + esc(t('search')) + '" value="' + esc(memberQuery) + '">' +
       '<div id="mp-results"><div class="empty">' + esc(t('loading')) + '</div></div>';
     const box = document.getElementById('mp-search');
-    box.oninput = function (e) { memberQuery = e.target.value; paintMembers(); };
+    box.oninput = function (e) { memberQuery = e.target.value; wireGuideDoors();
+    paintMembers(); };
     paintMembers();
   }
   function paintMembers() {
@@ -2511,13 +2512,14 @@
     // save can only fail.
     const off = !navigator.onLine || !Sync.configured();
     $view().innerHTML = backBar('home') + '<div class="flow-title">🎖️ ' + esc(t('member_admin_title')) + '</div>' +
-      '<div class="hint" style="margin-bottom:8px">' + esc(t('member_admin_hint')) + '</div>' +
+      '<div class="hint" style="margin-bottom:8px">' + esc(t('member_admin_hint')) + guideDoor('register') + '</div>' +
       '<button id="ma-add" class="tile wide" style="margin-bottom:10px"' + (off ? ' disabled' : '') + '>➕ ' +
         esc(t('member_add')) + '</button>' +
       (off ? '<div class="perm-warn" style="display:block;margin-bottom:10px">' +
              esc(t('member_needs_online')) + '</div>' : '') +
       '<div id="ma-list"><div class="empty">' + esc(t('loading')) + '</div></div>';
     if (!off) document.getElementById('ma-add').onclick = function () { navigate('memberform', { id: '' }); };
+    wireGuideDoors();
     paintMemberAdmin();
   }
   function paintMemberAdmin() {
@@ -3263,6 +3265,19 @@
   // so one line covers all of them — no screen can be forgotten.
   // Handing over money already in hand does NOT come through here (it carries
   // no permission key), and that is deliberate: see Aggregate.homeTiles.
+  // A122: the one-tap guide door every screen's hint can end with. It carries
+  // BOTH the section (so the reader lands on the right card, not the top of a
+  // long page) and the source screen (so ← comes back HERE — Hrishi's rule:
+  // the back button goes to its source).
+  function guideDoor(sec) {
+    return ' <button class="chip mini js-guide" data-sec="' + esc(sec) + '">📖 ' +
+      esc(t('entries_guide_btn')) + '</button>';
+  }
+  function wireGuideDoors() {
+    document.querySelectorAll('.js-guide').forEach(function (b) {
+      b.onclick = function () { navigate('help', { sec: b.dataset.sec, from: current.view }); };
+    });
+  }
   function canEntry(key) {
     if (key && Auth.schemaCmp() === -1) return false;
     // A110: the freeze rides the same choke point as the stale-version lock —
@@ -3923,18 +3938,13 @@
         '<button class="chip' + (all ? ' on' : '') + '" data-escope="all">' + esc(t('entries_all')) + '</button></div>';
       $view().innerHTML = backBar('home') + '<div class="flow-title">✏️ ' + esc(t('my_entries_title')) + '</div>' + tabs +
         '<div class="hint" style="margin-bottom:10px">' + esc(t(all ? 'entries_all_hint' : 'my_entries_hint')) +
-        // A121b: the one-line hint cannot hold the whole process, and the guide
-        // now has a dedicated section for it — put the door where the question
-        // arises, not three screens away in Settings.
-        ' <button class="chip mini" id="entries-guide">📖 ' + esc(t('entries_guide_btn')) + '</button></div>' + rowsHTML;
+        // A121b/A122: the one-line hint cannot hold the whole process — the
+        // door lands on the guide's fix-section and ← returns here.
+        guideDoor('fix') + '</div>' + rowsHTML;
       document.querySelectorAll('[data-escope]').forEach(function (b) {
         b.onclick = function () { entriesScope = b.dataset.escope; renderMyEntries(); };
       });
-      // A121b: data-go is not wired on this screen (its buttons are all
-      // hand-wired below), so the guide door gets its own handler — a chip
-      // that does nothing teaches people the guide does not exist.
-      const gd = document.getElementById('entries-guide');
-      if (gd) gd.onclick = function () { navigate('help'); };
+      wireGuideDoors();
       document.querySelectorAll('[data-vd]').forEach(function (b) {
         b.onclick = function () { const p = b.dataset.vd.split('|'); renderVoidReason(p[0], p[1], function () { navigate('entries'); }); };
       });
@@ -3995,7 +4005,7 @@
         // A121: this desk had no hint at all — empty, it said only "কেউ নেই",
         // which explains neither what the desk is nor what would appear here.
         // Its sibling (my-entries) always had one; the N−1th sentence.
-        '<div class="hint" style="margin-bottom:10px">' + esc(t('review_hint')) + '</div>' + html;
+        '<div class="hint" style="margin-bottom:10px">' + esc(t('review_hint')) + guideDoor('fix') + '</div>' + html;
       const resolve = function (id, decision, okMsg) {
         return function () {
           const btn = this;
@@ -4018,6 +4028,7 @@
             .catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
         };
       };
+      wireGuideDoors();
       document.querySelectorAll('[data-corr-ok]').forEach(function (b) { b.onclick = resolve(b.dataset.corrOk, 'approve', t('voided_done')); });
       document.querySelectorAll('[data-corr-no]').forEach(function (b) { b.onclick = resolve(b.dataset.corrNo, 'reject', t('corr_rejected')); });
     }).catch(function () { $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('needs_net')) + '</div>'; });
@@ -4513,6 +4524,7 @@
           (detail ? '<div class="hb-detail" hidden>' + detail + '</div>' : '') + '</div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>';
       $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('hb_title')) + '</div>' +
+        '<div class="hint" style="margin-bottom:10px">' + esc(t('hbook_hint')) + guideDoor('confirm') + '</div>' +
         head +
         '<div class="chips tabs">' + tabs.map(function (tb) {
           return '<button class="chip' + (hbFilter === tb[0] ? ' on' : '') + '" data-hbf="' + tb[0] + '">' + esc(tb[1]) + '</button>';
@@ -4527,6 +4539,7 @@
         el.style.cursor = 'pointer';
         el.onclick = function () { det.hidden = !det.hidden; };
       });
+      wireGuideDoors();
     });
   }
   function renderCashier() {
@@ -4578,6 +4591,7 @@
         const book = Aggregate.handoverReport(data, ident);
         const outRows = book.rows.filter(function (x) { return x.dir === 'out'; }).slice(0, 15);
         $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('confirm_handover')) + '</div>' +
+          '<div class="hint" style="margin-bottom:10px">' + esc(t('cashier_hint')) + guideDoor('confirm') + '</div>' +
           '<div class="section">📥 ' + esc(t('pending_handovers')) + ' (' + pending.length + ')</div>' +
           (pending.length ? pending.map(function (h) { return card(h, true); }).join('')
                           : '<div class="empty">' + esc(t('none_here')) + '</div>') +
@@ -4597,6 +4611,7 @@
           '<div class="grid one" style="margin-top:10px"><button class="tile wide" data-go="hbook">📗 ' +
             esc(t('hb_title')) + '</button></div>';
         wireNav();
+        wireGuideDoors();
         wireHandoverAnswers(document, renderCashier);
       });
     }).catch(function () {
@@ -4864,9 +4879,11 @@
             '<div class="row-right" style="color:var(--red)">' + esc(fmtMoney(h.inHand)) + '</div></div>';
         }).join('') + '</div>';
       $view().innerHTML = backBar('report') + '<div class="flow-title">🩺 ' + esc(t('anom_title')) + '</div>' +
+        '<div class="hint" style="margin-bottom:10px">' + esc(t('anom_hint')) + guideDoor('anom') + '</div>' +
         heavyCard + voidCard +
         (rows.length ? rows.join('') : (heavyCard || voidCard ? '' : '<div class="empty">' + esc(t('anom_none')) + '</div>'));
       wireNav();
+      wireGuideDoors();
       document.querySelectorAll('[data-goparty]').forEach(function (b) {
         b.onclick = function () { navigate('party', { id: b.dataset.goparty, from: 'anomalies' }); };
       });
@@ -5475,13 +5492,31 @@
   }
 
   // ---------- in-app guide ----------
-  function renderHelp() {
+  function renderHelp(params) {
+    params = params || {};
     const lang = Settings.get('lang');
     const secs = (window.HELP || []).map(function (s) {
-      return '<div class="card"><div class="card-title">' + esc(s.icon + ' ' + s.title[lang]) + '</div>' +
+      return '<div class="card"' + (s.id ? ' data-sec="' + esc(s.id) + '"' : '') +
+        '><div class="card-title">' + esc(s.icon + ' ' + s.title[lang]) + '</div>' +
         s.body[lang].map(function (p) { return '<div class="help-p">' + p + '</div>'; }).join('') + '</div>';
     }).join('');
-    $view().innerHTML = backBar('settings') + '<div class="flow-title">' + esc(t('help_title')) + '</div>' + secs;
+    // A122: ← returns to the SOURCE screen — every 📖 door passes where it was
+    // opened from. Settings stays the default for the guide's own home there.
+    $view().innerHTML = backBar(params.from || 'settings') +
+      '<div class="flow-title">' + esc(t('help_title')) + '</div>' + secs;
+    // …and a door that names a section lands ON that section, not at the top
+    // of a long page the reader then has to search by hand.
+    if (params.sec) {
+      const target = $view().querySelector('[data-sec="' + params.sec + '"]');
+      // queued: navigate() ends with scrollTo(0,0) AFTER render, so a
+      // synchronous scroll here was silently undone — the reader landed at the
+      // top of a long page and had to hunt. The microtask runs after navigate
+      // finishes, so this scroll is the one that sticks.
+      if (target) {
+        target.style.borderColor = '#c0392b';
+        queueMicrotask(function () { target.scrollIntoView(); });
+      }
+    }
   }
 
   // ---------- auth views ----------
@@ -7207,7 +7242,7 @@
     else if (current.view === 'usersnap') { Auth.isAdmin() ? renderUserSnapshot(current.params) : renderHome(); }
     else if (current.view === 'receiptcfg') { Auth.isAdmin() ? renderReceiptConfig() : renderHome(); }
     else if (current.view === 'receipt') renderReceiptShare(current.params);
-    else if (current.view === 'help') renderHelp();
+    else if (current.view === 'help') renderHelp(current.params);
     else renderHome();
     updateBadge();
   }

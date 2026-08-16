@@ -21,7 +21,7 @@ function strip(src) {
 // every name any file exposes at its own top level, plus browser globals
 const globals = new Set(['if','for','while','switch','catch','return','typeof','new','do','else','function','this',
   'Promise','Object','Array','String','Number','Boolean','Math','JSON','Date','Error','Set','Map','RegExp',
-  'parseInt','parseFloat','isNaN','isFinite','encodeURIComponent','decodeURIComponent','setTimeout',
+  'parseInt','parseFloat','isNaN','isFinite','encodeURIComponent','decodeURIComponent','setTimeout','queueMicrotask',
   'clearTimeout','setInterval','clearInterval','fetch','alert','confirm','prompt','console','document',
   'window','localStorage','indexedDB','navigator','history','location','requestAnimationFrame','URL',
   'Blob','File','FileReader','Notification','crypto','performance','CustomEvent','Event','caches',
