@@ -11076,3 +11076,11 @@ their only door).
 No dead ends, no lost desks, no A105-class break. Both drifts stay unless a
 trial collector actually trips on one — churning navigation mid-trial without a
 symptom is the worse trade.
+
+### v4.34.5 deployed (2026-08-17)
+
+Probed before rebaking: a new URL answering `chanda-v4.34.5 / schema 5`.
+`js/config.js` rebaked — every phone now gets it, not only the one where the
+URL was pasted into Settings' per-device override. Reminder given to clear
+that override (↺) so Hrishi's own phone follows the app's address again.
+A117–A120 are live end to end for the whole fleet.
