@@ -11084,3 +11084,37 @@ Probed before rebaking: a new URL answering `chanda-v4.34.5 / schema 5`.
 URL was pasted into Settings' per-device override. Reminder given to clear
 that override (↺) so Hrishi's own phone follows the app's address again.
 A117–A120 are live end to end for the whole fleet.
+
+## v4.34.6 — A121: the two "সংশোধন" desks, told apart
+
+Hrishi: *"user will be confused I think with these two screens — my entries/fix
+and review fixes."* Looked, and he was right three times over:
+
+1. Both names carried **"সংশোধন"** — a cashier's home showed
+   `🛠️ সংশোধন review` beside `✏️ আমার entry / সংশোধন`, and the names said
+   nothing about which desk does what.
+2. The 🛠️ desk had **no hint at all** — empty, it said only "কেউ নেই", which
+   explains neither what the desk is nor what would appear there. Its sibling
+   always had a hint; the N−1th sentence.
+3. Both tiles **doubled their emoji** (`🛠️ 🛠️`, `✏️ ✏️`) — the tile builder
+   prepends an icon and the title keys carried one too.
+
+Renamed by WHO and WHAT, not by mechanism:
+
+| was | now |
+|---|---|
+| ✏️ আমার entry / সংশোধন | **✏️ আমার লেখা entry** |
+| 🛠️ সংশোধন review | **🛠️ নালিশের রায়** |
+
+The 🛠️ desk now explains itself in one breath — where a flag comes from, what
+✅ and 🚫 each do to the money, and that a self-fixed flag clears on its own —
+and its empty state says "কোনো নালিশ অপেক্ষায় নেই" instead of "কেউ নেই". The
+my-entries hint gained the self-fix step (⚠️ then ✏️), which it had never
+mentioned despite being the designed path. Title keys are emoji-free; the tile
+builder and each screen header add the icon once.
+
+Both verified on screen; renames + hint mutation-proved. Tests **1,791 →
+1,796**. `review_title` doubles as the grant chip's label in the admin panel,
+so the permission now reads "নালিশের রায়" there too — same fact, same words.
+
+**⚠️ One redeploy: v4.34.6 supersedes v4.34.5.**

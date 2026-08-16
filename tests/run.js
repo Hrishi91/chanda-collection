@@ -4604,6 +4604,27 @@ try {
        'A118: …with the same test the server list applies (approved + admin-or-cashier)');
   }
 
+  // A121 (Hrishi: "user will be confused with these two screens"): the two
+  // desks may not share the word that distinguished nothing, both must explain
+  // themselves, and a tile must not double its emoji (the builder prepends
+  // one, so the TITLE keys stay emoji-free).
+  {
+    const i18n121 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+    const grab = function (key) {
+      const m = i18n121.match(new RegExp(key + ":\\s*\\{\\s*bn:\\s*'([^']*)'"));
+      return m ? m[1] : '';
+    };
+    const me = grab('my_entries_title'), rv = grab('review_title');
+    eq(me.length > 3 && rv.length > 3, true, 'A121: both titles found');
+    eq(/সংশোধন/.test(me) || /সংশোধন/.test(rv), false,
+       'A121: neither desk name carries the shared word that made them one blur');
+    eq(/^[\u0980-\u09FF]/.test(me) && /^[\u0980-\u09FF]/.test(rv), true,
+       'A121: …both titles are emoji-free — the tile builder adds the icon, once');
+    eq(/review_hint:/.test(i18n121) && /review_none:/.test(i18n121), true,
+       'A121: the flag desk explains itself, and its empty state names what would appear');
+    eq(/review_hint/.test(app), true, 'A121: …and the screen actually prints that hint');
+  }
+
   // A119: an EDIT must not open on a step showIf hides. dailyFlow begins with
   // busName/busNumber (visible only for buses, busName required), so ✏️ on a
   // road/toto entry sat trapped on "বাসের নাম কী?" — the entry door was the one

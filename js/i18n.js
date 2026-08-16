@@ -937,8 +937,14 @@ const I18N = {
   void_already: { bn: 'এটা আগেই বাতিল হয়ে গেছে — {who}, {when}। দুবার বাতিল করার দরকার নেই।', en: 'This was already cancelled — {who}, {when}. No need to cancel it twice.' },
   voided_label: { bn: 'বাতিল', en: 'VOID' },
   // --- my entries + flag/correction ---
-  my_entries_title: { bn: '✏️ আমার entry / সংশোধন', en: '✏️ My entries / fix' },
-  my_entries_hint: { bn: 'ভুল এন্ট্রি? ক্যাশিয়ার/admin হলে ✖️ বাতিল করো; নিজেরটা হলে ⚠️ ভুল বলে জানাও — ক্যাশিয়ার দেখে ঠিক করবে।', en: 'Wrong entry? cashier/admin can ✖️ void; for your own, ⚠️ flag it — a cashier will fix it.' },
+  // A121 (Hrishi, from the trial): the two desks both had "সংশোধন" in their
+  // names, so a cashier could not tell from home which was which — and both
+  // tiles doubled their emoji (the tile builder prepends one and the title
+  // carried one too). Titles are emoji-free now; the tile and the screen header
+  // each add their own, once.
+  my_entries_title: { bn: 'আমার লেখা entry', en: 'My entries' },
+  my_entries_hint: { bn: 'ভুল এন্ট্রি? নিজেরটা হলে ⚠️ ভুল বলে জানাও — তারপর নিজেই ✏️-তে ঠিক করতে পারবে, নয়তো ক্যাশিয়ার রায় দেবে। ক্যাশিয়ার/admin হলে অন্যেরটা ✖️ বাতিলও করতে পারো।',
+                     en: 'Wrong entry? For your own, ⚠️ flag it — then fix it yourself with ✏️, or a cashier will rule. A cashier/admin can ✖️ void others’ entries directly.' },
   entries_mine: { bn: 'আমার', en: 'Mine' },
   entries_all: { bn: 'সবার দৈনিক/খরচ', en: "Everyone's daily/expense" },
   entries_all_hint: { bn: 'সবার রোড/টোটো/বাস ও খরচের এন্ট্রি। ভুল দেখলে ক্যাশিয়ার/admin হলে ✖️ বাতিল, নাহলে ⚠️ ভুল বলে জানাও। (জমা দেখতে দাতার পাতায় যাও)', en: "Everyone's road/toto/bus & expense entries. Spot a wrong one — cashier/admin ✖️ void, else ⚠️ flag. (payments are on the donor's page)" },
@@ -948,7 +954,10 @@ const I18N = {
   flag_hint: { bn: 'তুমি নিজে মুছতে পারবে না — ক্যাশিয়ার/admin দেখে বাতিল করবে বা ফেরত দেবে।', en: 'You can\'t remove it yourself — a cashier/admin will void it or send it back.' },
   flag_confirm: { bn: '⚠️ জানিয়ে দাও', en: '⚠️ Send flag' },
   flagged_done: { bn: '⚠️ জানানো হলো', en: '⚠️ Flag sent' },
-  review_title: { bn: '🛠️ সংশোধন review', en: '🛠️ Review fixes' },
+  review_title: { bn: 'নালিশের রায়', en: 'Rule on flags' },
+  review_hint: { bn: 'সংগ্রাহক নিজের ভুল entry-তে ⚠️ চাপলে নালিশটা এখানে আসে। ✅ বাতিল = টাকা খাতা থেকে সরবে · 🚫 ঠিক আছে = entry যেমন ছিল থাকবে। সংগ্রাহক নিজে ✏️-তে ঠিক করে নিলে নালিশ নিজেই সরে যায়।',
+                 en: 'When a collector ⚠️-flags their own entry, it lands here. ✅ void = the money leaves the book · 🚫 keep = the entry stands. If the collector fixes it themselves with ✏️, the flag clears on its own.' },
+  review_none: { bn: 'কোনো নালিশ অপেক্ষায় নেই', en: 'No flags waiting' },
   corr_approve: { bn: '✅ বাতিল করো', en: '✅ Void it' },
   corr_reject: { bn: '🚫 ঠিক আছে (reject)', en: '🚫 It\'s fine (reject)' },
   corr_rejected: { bn: 'reject করা হলো', en: 'Rejected' },

@@ -3921,7 +3921,7 @@
       const tabs = '<div class="chips tabs" style="margin-bottom:10px">' +
         '<button class="chip' + (all ? '' : ' on') + '" data-escope="mine">' + esc(t('entries_mine')) + '</button>' +
         '<button class="chip' + (all ? ' on' : '') + '" data-escope="all">' + esc(t('entries_all')) + '</button></div>';
-      $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('my_entries_title')) + '</div>' + tabs +
+      $view().innerHTML = backBar('home') + '<div class="flow-title">✏️ ' + esc(t('my_entries_title')) + '</div>' + tabs +
         '<div class="hint" style="margin-bottom:10px">' + esc(t(all ? 'entries_all_hint' : 'my_entries_hint')) + '</div>' + rowsHTML;
       document.querySelectorAll('[data-escope]').forEach(function (b) {
         b.onclick = function () { entriesScope = b.dataset.escope; renderMyEntries(); };
@@ -3981,8 +3981,12 @@
           ' • ' + esc(c.reason) + '</div></div><div class="chips" style="margin-top:8px">' +
           '<button class="chip" data-corr-ok="' + esc(c.id) + '">' + esc(t('corr_approve')) + '</button>' +
           '<button class="chip" data-corr-no="' + esc(c.id) + '">' + esc(t('corr_reject')) + '</button></div></div>';
-      }).join('') : '<div class="empty">' + esc(t('none_here')) + '</div>';
-      $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('review_title')) + '</div>' + html;
+      }).join('') : '<div class="empty">' + esc(t('review_none')) + '</div>';
+      $view().innerHTML = backBar('home') + '<div class="flow-title">🛠️ ' + esc(t('review_title')) + '</div>' +
+        // A121: this desk had no hint at all — empty, it said only "কেউ নেই",
+        // which explains neither what the desk is nor what would appear here.
+        // Its sibling (my-entries) always had one; the N−1th sentence.
+        '<div class="hint" style="margin-bottom:10px">' + esc(t('review_hint')) + '</div>' + html;
       const resolve = function (id, decision, okMsg) {
         return function () {
           const btn = this;
