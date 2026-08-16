@@ -4604,6 +4604,28 @@ try {
        'A118: …with the same test the server list applies (approved + admin-or-cashier)');
   }
 
+  // A118b: the two cashier desks and the expense flow open from what the phone
+  // already holds; a round trip may refresh, never gate first paint. Pinned as
+  // "the screen's opener reads local data": the desk functions must not await
+  // a list-fetching Auth.call before their first real innerHTML.
+  {
+    // sliced to the NEXT function boundary, not a named one — the named one
+    // sat BEFORE renderCashier in the file, the slice came back empty, and the
+    // assertion passed with the mutation applied (the A100 trap, in a new hat)
+    const rcAt = app.indexOf('function renderCashier');
+    const rc = app.slice(rcAt, app.indexOf('\n  function ', rcAt + 10));
+    eq(rc.length > 500 && !/Auth\.call\('pendingHandovers'/.test(rc), true,
+       'A118: the confirm desk paints from the snapshot — no pendingHandovers gate');
+    const rr = app.slice(app.indexOf('function renderReviewCorrections'),
+                         app.indexOf('function renderReviewCorrections') + 2600);
+    eq(/Auth\.call\('pendingCorrections'/.test(rr), false,
+       'A118: the review desk paints from the snapshot — no pendingCorrections gate');
+    const se = app.slice(app.indexOf('function startExpense'), app.indexOf('function collectionExpenseFlow'));
+    const iCache = se.indexOf('if (cached && cached.length) { go(cached); refresh(null); }');
+    eq(iCache >= 0, true,
+       'A118: the expense flow opens from the cached subject list, refreshing behind');
+  }
+
   // A117's second half: the answered-set. The desk re-renders on every pull,
   // and a pull already in flight at tap-time carries the pre-answer world — so
   // every reader of reconcile filters out what THIS device already stamped.

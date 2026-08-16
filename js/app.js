@@ -1926,10 +1926,24 @@
       }
       startFlow(def);
     };
-    if (navigator.onLine && Sync.configured() && Auth.loggedIn()) {
+    // A118b: the subject list is CACHED, so the flow opens at once instead of
+    // standing 1–3 s on a listSubjects round trip (live-server latency). The
+    // background refresh updates the cache for the NEXT open — one open stale
+    // at most, on a list the admin edits a few times a season. A phone that
+    // has never had the list still takes the round trip once.
+    let cached = null;
+    try { cached = JSON.parse(localStorage.getItem('ck_subjects') || 'null'); } catch (e) {}
+    const refresh = function (after) {
+      if (!(navigator.onLine && Sync.configured() && Auth.loggedIn())) { if (after) after(null); return; }
       Auth.call('listSubjects', { token: Auth.token() })
-        .then(function (r) { go(r.subjects || []); }).catch(function () { go(null); });
-    } else go(null);
+        .then(function (r) {
+          const subs = r.subjects || [];
+          try { localStorage.setItem('ck_subjects', JSON.stringify(subs)); } catch (e) {}
+          if (after) after(subs);
+        }).catch(function () { if (after) after(null); });
+    };
+    if (cached && cached.length) { go(cached); refresh(null); }
+    else refresh(go);
   }
   // Collector's own spend while collecting — free text, no subject.
   function collectionExpenseFlow(collectionType) {
@@ -3936,16 +3950,20 @@
       return;
     }
     $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('loading')) + '</div>';
-    Promise.all([
-      Auth.call('pendingCorrections', { token: Auth.token(), year: Settings.get('year') }),
-      viewData(),
-    ]).then(function (both) {
-      const resp = both[0], data = both[1];
+    // A118b: this desk waited on a pendingCorrections round trip while the
+    // corrections store rides every pull — the server's list is nothing but
+    // `corrections.filter(status === 'pending')` over the same rows. Painting
+    // from the snapshot opens the desk at once; both answer buttons still go
+    // through resolveCorrection, which re-reads the row's status under its
+    // lock and refuses one already settled ('already-resolved', tested).
+    viewData().then(function (data) {
       // A flag whose target the author has already corrected is settled — the
       // old row is voided and a new one stands in its place. Showing it here
       // would invite a second void on a row that is already gone.
       const done = {}; (data.voids || []).forEach(function (v) { if (v.targetId) done[v.targetId] = 1; });
-      const list = (resp.corrections || []).filter(function (c) { return !done[c.targetId]; });
+      const list = (data.corrections || []).filter(function (c) {
+        return String(c.status || 'pending') === 'pending' && !done[c.targetId];
+      });
       const html = list.length ? list.map(function (c) {
         return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 100%"><b>' +
           esc(c.targetSummary || c.targetStore) + '</b><div class="row-sub">' + esc(c.collector || '') +
@@ -4476,8 +4494,22 @@
   function renderCashier() {
     if (!Auth.isCashier()) { $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
     $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('loading')) + '</div>';
-    Auth.call('pendingHandovers', { token: Auth.token(), year: Settings.get('year') }).then(function (resp) {
-      const mine = resp.handovers || [];
+    // A118b (trial: "handover screen is a bit slow" — this desk had the same
+    // wait): the pending list used to come from a pendingHandovers round trip,
+    // 1–3 s on the live server, while the SAME rows ride every pull into
+    // viewData. The server's list is exactly activeData().filter(isRecipient_),
+    // and both halves exist client-side — so the desk paints from the snapshot
+    // at once. Freshness is the pull's (≤60 s), same as any list fetched when
+    // the screen opened; and both answer buttons go through the server anyway,
+    // which re-checks the parcel's real status under its lock (double-confirm
+    // and confirm-after-reject are refused there, tested).
+    const meName = (Auth.current() || {}).name || '';
+    const meUser = Settings.get('collectorUsername') || (Auth.current() || {}).username || '';
+    viewData().then(function (data) {
+      const act = Aggregate.activeData(data);
+      const mine = (act.handovers || []).filter(function (h) {
+        return String(h.toId || h.to) === String(meUser) || String(h.to) === String(meName);
+      });
       // three outcomes, three lists — a refused parcel must leave the queue, or
       // the cashier is asked about it for ever
       const pending = mine.filter(function (h) { return h.status !== 'confirmed' && h.status !== 'rejected'; });
@@ -4530,7 +4562,7 @@
         wireHandoverAnswers(document, renderCashier);
       });
     }).catch(function () {
-      $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('needs_net')) + '</div>';
+      $view().innerHTML = backBar('home') + '<div class="empty">' + esc(t('fetch_fail')) + '</div>';
     });
   }
 

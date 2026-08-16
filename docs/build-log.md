@@ -10937,3 +10937,43 @@ after hardening. Tests **1,782 → 1,784**.
 
 **⚠️ Rides the SAME redeploy as A117 (v4.34.2 supersedes v4.34.1 — deploy
 once).**
+
+## v4.34.3 — A118b: the other screens that stood waiting for the server
+
+Hrishi: *"check the other screens also."* Every `Auth.call` in js/app.js was
+mapped to its enclosing function; three more DAILY screens gated their first
+paint on a round trip the phone did not need — the fast harness had hidden all
+three, and CK_SLOW=1500 exposed them:
+
+| screen | was fetching | while the phone held |
+|---|---|---|
+| ✅ জমা নেওয়া confirm | `pendingHandovers` | the same rows: `activeData(handovers).filter(isRecipient)` — both halves exist client-side |
+| 🛠️ সংশোধন review | `pendingCorrections` | the same rows: `corrections.filter(status==='pending')` |
+| 🧾 খরচ | `listSubjects`, every open | the list from its last open (now cached in `ck_subjects`) |
+
+All three now paint from what the phone holds. Safety unchanged, because the
+BUTTONS were always the real gate: confirm/reject re-read the parcel's status
+under the server's lock (double-confirm and confirm-after-reject refused,
+tested), resolveCorrection answers `already-resolved`, and the subject list is
+at most one open stale on a list the admin edits a few times a season. A phone
+that has never pulled still takes the round trip once.
+
+Measured on the CK_SLOW=1500 harness, screen-specific markers, after two rounds
+of the rig itself lying (a "done" heuristic satisfied by the PREVIOUS screen's
+text, and a review-desk marker that a missing grant — correctly — never showed):
+
+- ✅ confirm desk: blocked ≥1,500 ms → **8 ms** (64 pending)
+- 🛠️ review desk: blocked ≥1,500 ms → **13 ms**
+- 🧾 expense: **1,512 ms once** on a cache-less phone, **6 ms** after
+- 🤝 handover (A118): **3 ms**
+
+Left alone, deliberately: the admin panel's listUsers/listItems (admin-only,
+and its money column genuinely needs the server); the audit log, snapshots and
+backup lists (server-resident by nature); the home no-permission card and chat
+mention picker (already cache-first). One mutation escaped its first assertion
+— a slice bounded by a function that sits BEFORE the target, so the empty
+slice passed vacuously (indexOf −1, the A100 family, third appearance this
+week) — hardened, then all three proved. Tests **1,784 → 1,787**.
+
+**⚠️ One redeploy: v4.34.3 supersedes v4.34.1/.2 — A117, A118 and A118b ride
+together.**
