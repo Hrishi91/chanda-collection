@@ -10914,3 +10914,26 @@ property. Tests **1,778 → 1,782**.
 **⚠️ Needs an Apps Script redeploy (v4.34.1)** — the fix is client-side but the
 three versions are pinned. Mid-trial is the right time: trial data is
 disposable, and this is a desk cashiers touch daily.
+
+## v4.34.2 — A118: the handover flow stopped waiting for the server
+
+Hrishi, from the trial: *"handover screen is a bit slow."* Measured: opening
+🤝 জমা দিলাম BLOCKED on a `cashiers` round trip before drawing anything —
+1–3 s on live Apps Script — while the phone already held the answer: the
+committee roster rides every pull (A115) and applies the same test the server
+list does (approved + admin-or-cashier, both through effPerms_), and the flow
+needs only username + name.
+
+The roster now opens the flow at once; the round trip survives only for a
+phone that has never pulled. The other two `cashiers` callers were checked and
+left alone: the no-permission card needs the admin's PHONE (not on the roster,
+deliberately), and the chat mention picker already paints its cache first.
+
+Measured on the CK_SLOW=1500 harness: open went from ≥1,500 ms (blocked) to
+**4 ms**, with the correct in-hand split and roster-built recipient list. The
+first A118 assertion passed with the roster branch deleted — indexOf's −1
+(the A100 trap again); it now requires both indices to exist. Mutation-proved
+after hardening. Tests **1,782 → 1,784**.
+
+**⚠️ Rides the SAME redeploy as A117 (v4.34.2 supersedes v4.34.1 — deploy
+once).**

@@ -4587,6 +4587,23 @@ try {
      'A117: …and the queued pull runs when the line frees, exactly once');
   eq(app.indexOf('if (pullBusy) { if (forced) pullQueued = true;') < app.indexOf('if (!forced && pullSkip > 0)'), true,
      'A69: …in that order');
+  // A118 (live trial: "handover screen is a bit slow"): opening 🤝 জমা দিলাম
+  // must not block on a server round trip when the roster the phone already
+  // holds can answer. The roster branch runs FIRST and the 'cashiers' call
+  // survives only as the never-pulled fallback.
+  {
+    const sh = app.slice(app.indexOf('function startHandover'),
+                         app.indexOf('function dailyFlow'));
+    // both indices must EXIST — indexOf's −1 made the first version of this
+    // pass with the roster branch deleted (−1 < anything), the A100 trap again
+    const iRoster = sh.indexOf('if (rosterCashiers.length)');
+    const iCall = sh.indexOf("Auth.call('cashiers'");
+    eq(iRoster >= 0 && iCall >= 0 && iRoster < iCall, true,
+       'A118: the handover flow opens from the roster, without a round trip');
+    eq(/u\.status === 'approved' && \(u\.role === 'admin' \|\| Number\(u\.cashier\) === 1\)/.test(sh), true,
+       'A118: …with the same test the server list applies (approved + admin-or-cashier)');
+  }
+
   // A117's second half: the answered-set. The desk re-renders on every pull,
   // and a pull already in flight at tap-time carries the pre-answer world — so
   // every reader of reconcile filters out what THIS device already stamped.

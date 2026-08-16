@@ -1807,7 +1807,21 @@
       }
       startFlow(handoverFlow(opts, a.avail, a.view));
     };
-    if (navigator.onLine && Sync.configured()) {
+    // A118 (live trial: "handover screen is a bit slow"): opening the flow
+    // used to BLOCK on a 'cashiers' round trip — 1–3 s on the live server —
+    // while the phone already HELD the answer: the committee roster rides
+    // every pull (A115) and carries the same test the server's list applies
+    // (approved + admin-or-cashier, both via effPerms_), and the flow needs
+    // only username + name from it. So the roster opens the flow at once; the
+    // round trip remains only for a phone that has never pulled. The roster is
+    // at most one poll (60 s) stale, which is also true of any list fetched
+    // when the screen opened.
+    const rosterCashiers = committee.filter(function (u) {
+      return u.status === 'approved' && (u.role === 'admin' || Number(u.cashier) === 1);
+    }).map(function (u) { return { username: u.username, name: u.name }; });
+    if (rosterCashiers.length) {
+      availP.then(function (a) { begin(others(rosterCashiers), a); });
+    } else if (navigator.onLine && Sync.configured()) {
       Auth.call('cashiers', { token: Auth.token() })
         .then(function (resp) { return availP.then(function (a) { begin(others(resp.cashiers), a); }); })
         .catch(function () { availP.then(function (a) { begin(null, a); }); });
