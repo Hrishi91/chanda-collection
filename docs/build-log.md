@@ -10821,3 +10821,45 @@ DEVICE's rows by design (the seeder pushed from node, not this browser), and
 জমা-খাতা keys on `collectorUsername`, which every real login writes
 (js/auth.js:131) and my synthetic session had skipped — setting it produced the
 64 rows instantly. The measuring rig lied twice more before the app did once.
+
+### 🩺 desk drill — every raisable anomaly at once (2026-08-16)
+
+Hrishi: *"once check the anomaly desk with full possible data … I think there
+are issues and the need to check about user friendliness."* A book was built
+that trips everything at once, through the real doors only.
+
+**Verified live, one screen, simultaneously:** orphan_payment, split_mismatch,
+breakdown_mismatch, possible_duplicate_payment, possible_duplicate_daily,
+possible_duplicate_party, overpaid, position_over_max, member_no_account, and
+the 💰 high-in-hand card — every Bengali sentence correct, every card carrying
+exactly the actions the guide promises. The two answer buttons were pressed,
+not admired: ✓ আলাদা কিস্তি and ✓ ঠিক-আছে-বেশিই both stamped through the
+server and settled their card in place.
+
+**Two types cannot be produced through ANY legitimate door** — and that is a
+finding, not a failure: `unbalanced` (every push/confirm path preserves the
+money invariant; proven again by failing to break it) and `duplicate_id` (push
+upserts by id). Both detectors exist for sheet corruption only.
+`negative_inhand` was not staged live — my fixture arithmetic under-counted
+kali's seeded collections twice — but its logic and its A113 message carry unit
+tests; noted honestly rather than re-staged.
+
+**The user-friendliness findings Hrishi's instinct pointed at (for the
+trial-week batch, discussed before building):**
+1. **The wall.** 262 same-shape cards rendered in 35 ms — and were unreadable
+   as a desk. No grouping, no per-type counts, no collapse. A real season
+   should never produce that many, but one misbehaving phone could. Proposal:
+   group cards by type with a count header, collapsed beyond the first few.
+2. **The orphan card's only button misleads.** 👁 দেখো on a দাতাহীন জমা
+   navigates toward a donor that by definition does not exist, and quietly
+   lands on the donor LIST with no explanation. Proposal: say where you landed
+   and why, or show the payment's own detail instead.
+3. **position_over_max says what is wrong but not where to fix it** (admin
+   panel → the person's post). One sentence of copy.
+4. The dipak/exiting orphan artifact reproduced again — if Hrishi sees
+   unexplained দাতাহীন জমা on his LIVE book, the deferred exiting-gate finding
+   (pending.md #1) is the first suspect.
+
+Live data was NOT touched from here: logging into the live server invalidates
+that account's phone session (one account, one device), so the live check is a
+two-minute drill on Hrishi's own phone instead.
