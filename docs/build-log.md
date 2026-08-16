@@ -11049,3 +11049,30 @@ the two desks; the 🩺 one was found by Hrishi live, this one by driving the
 chain before the trial did.
 
 **⚠️ One redeploy: v4.34.5 supersedes v4.34.4 (carries A117–A120).**
+
+### ← sweep — does every back button return to its source? (2026-08-17)
+
+Hrishi asked the A105 question about the whole app. Static map: every backBar()
+call against every door into that screen.
+
+**Correct by construction (single source, or `from`/`back` carried):** party
+(5 doors — ledger, form save/cancel, void-callback, 🩺 with from='anomalies'),
+partyform, the bus receipt (my-entries → default 'entries'; ledger bus tab →
+back:'list'), memberform→memberadmin, every admin sub-screen (admGo), and all
+the home-rooted desks (cashier, hbook, entries, memberpay, review — home is
+their only door).
+
+**Two mild drifts, deliberate, left alone:**
+1. A payment receipt's top-← always goes to the DONOR page, even when the
+   journey began in 🔍 findparty or 🤝 memberpay. The DESIGNED return is the
+   big bottom button, which honours `origin` and goes straight back to the
+   search results; the top-← offering the donor page is an alternative, not a
+   wrong turn. (One step later that donor page's ← goes to the ledger — the
+   origin is not threaded through two hops. Acceptable; noted.)
+2. 🩺 anomalies' ← always goes to 📊 report, its host screen — also when
+   entered from the 🏠 red-dot card. Report is where the desk's banner lives,
+   so the "source" claim is arguable either way.
+
+No dead ends, no lost desks, no A105-class break. Both drifts stay unless a
+trial collector actually trips on one — churning navigation mid-trial without a
+symptom is the worse trade.
