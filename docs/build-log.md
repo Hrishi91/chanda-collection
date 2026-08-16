@@ -11225,3 +11225,15 @@ hardware back was never broken (history already held the donor state) — this
 was the on-screen ← only. Mutation caught. Tests **1,805 → 1,807**.
 
 **⚠️ One redeploy: v4.34.10 supersedes v4.34.9 (A117–A124).**
+
+### v4.34.11 — A124b: the sweep behind A124 (2026-08-18)
+
+Hrishi asked whether the OTHER exits without a source tag had been checked.
+Swept every flow's doors: the three ✏️ EDIT paths (payments, daily, expenses)
+all set `returnTo='entries'` for the after-SAVE exit and were all dropped to
+HOME when the collector backed out instead — goBack ignored returnTo. One line
+makes the rule symmetric: `exitTo` first, then `returnTo`, then home. The
+remaining home-exits (shop/person/daily/expense/handover started from home, and
+"➕ আরেকটা" from a receipt) genuinely belong home. Driven: ✏️ on a road entry →
+back from the first question → the entries list. Mutation caught. Tests
+**1,807 → 1,808**. One redeploy: v4.34.11 supersedes v4.34.10.

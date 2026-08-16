@@ -1128,9 +1128,16 @@
       // backwards returns to where it was OPENED, when the flow says where
       // that is. The donor's page carries its own `from`, so the whole trail
       // (dues filter → donor → flow → back → donor → back → list) stays whole.
-      const exit = flowState.def.exitTo;
+      // A124b (the sweep Hrishi asked for): every flow that knows where it was
+      // opened must be honoured on the way out BACKWARDS too. `returnTo` has
+      // always steered the after-SAVE exit (finishFlow); ignoring it here sent
+      // every ✏️ edit — payments, daily, expenses — back to HOME when the
+      // collector changed their mind, instead of to the entries list they were
+      // working down. Same rule, both directions.
+      const exit = flowState.def.exitTo, ret = flowState.def.returnTo;
       flowState = null; draftClear();
-      if (exit) navigate(exit.view, exit.params); else navigate('home');
+      if (exit) navigate(exit.view, exit.params);
+      else navigate(ret || 'home');
       return;
     }
     delete flowState.answers[flowState.def.steps[i].key];

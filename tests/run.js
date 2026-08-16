@@ -4636,9 +4636,11 @@ try {
   // where backing out of its first question returns, and paymentFlow returns
   // to the donor it was opened from.
   {
-    eq(/const exit = flowState\.def\.exitTo;/.test(app) &&
-       /if \(exit\) navigate\(exit\.view, exit\.params\); else navigate\('home'\);/.test(app), true,
+    eq(/if \(exit\) navigate\(exit\.view, exit\.params\);/.test(app), true,
        'A124: backing out of a flow honours the flow\'s declared exit');
+    eq(/else navigate\(ret \|\| 'home'\);/.test(app) &&
+       /const exit = flowState\.def\.exitTo, ret = flowState\.def\.returnTo;/.test(app), true,
+       'A124b: …and falls back to returnTo — an ✏️ edit backs out to the entries list, not home');
     eq(/exitTo: \{ view: 'party', params: \{ id: party\.id/.test(app), true,
        'A124: …and the payment flow exits to its donor, not to home');
   }
