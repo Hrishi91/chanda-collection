@@ -10497,3 +10497,75 @@ languages; and no message names a button by a stale label.
 Tests **1,759 → 1,762**. Client-only in effect; **needs an Apps Script redeploy**
 for the same reason as A115b — third today, and the decoupling item in
 `pending.md` is what ends it.
+
+## v4.33.3 — A115d: refusing a duplicate trapped the collector, and could misfile money
+
+Hrishi, from use: *"in person we got duplicate alert, and it goes to new entry,
+and we are making the new entry but it shows the alert as before duplicate check
+alert, though it is not fully entered data."*
+
+Reproduced exactly, by driving the real ব্যক্তি flow against the real backend
+logic. **Six** duplicate alerts from one entry, and the last line is the one
+that matters:
+
+```
+নাম কী? → অনিমেষ রায় · ফোন → 9834567890 · pledge → 500
+⚠️ DUP #1   (Cancel = "একই দাতা, যোগ করব না")
+নাম কী? → অনিমেষ রায়      ⚠️ DUP #2
+নাম কী? → অনিমেষ রায়      ⚠️ DUP #3 … #4 … #5
+নাম কী? → সম্পূর্ণ অন্য লোক  ⚠️ DUP #6   ← a completely different person, same alert
+```
+
+### Two bugs meeting
+
+`rewindToKey('name')` deleted **only** the key it rewound to. `skipHidden()`
+skips every step that already carries an answer. So Cancel returned the
+collector to "নাম?" with the phone, the pledge and the money still set — and the
+next answer flew **straight past every remaining question to save**. The alert
+fired again immediately, on data they had never entered, because it matched the
+old **phone**, which is the strong signal.
+
+There was no way out. Cancel loops. Hardware Back discards the entry. Pressing OK
+records the duplicate they had just correctly refused — the exact inversion A54
+was written to stop, arriving through the door A54 left open.
+
+**And OK was worse than a duplicate.** It would have saved the NEW name against
+the OLD phone, pledge and ₹500 — one donor's money filed under another donor's
+name, silently, with a receipt to match.
+
+### Why it survived five months
+
+A54 wrote the rule in its own comment — *"saying no, that IS a duplicate must
+END the entry"* — and then guarded it for one of two flows:
+
+```js
+if (!rewindToKey('name')) { flowState = null; toast(t('dup_cancelled')); … }
+```
+
+`paymentFlow` has no `name` step, so the rewind failed and it ended. `shop` and
+`person` **have** one, so they took the other branch. A rule stated for two
+places and guarded for the one where the guard happened to fail — and the test
+pinned that exact line, so the suite defended the bug.
+
+It also contradicted what the collector was being asked. The dialog says, in so
+many words, `"Cancel" = একই দাতা, যোগ করব না`.
+
+### The fix
+
+Cancel always ends the entry, in every flow, and clears the draft — an entry
+somebody explicitly refused must not come back as a resume offer. `rewindToKey`
+is deleted; it had no other caller and was dangerous by construction.
+`rewindToAmount` stays: it is reached when an amount is zero, and re-asking only
+the amount is right there.
+
+Measured after: **one** alert, the flow ends, home screen, no draft left behind.
+
+The A54 assertion now pins the property — no conditional in front of the ending,
+no `rewind` anywhere in the cancel path, and the draft cleared — instead of the
+line that was wrong.
+
+Tests **1,762 → 1,764**.
+
+**⚠️ Needs an Apps Script redeploy.** This one is worth interrupting for: it is a
+money-entry flow, it is reachable by every collector, and the failure files cash
+under the wrong donor.

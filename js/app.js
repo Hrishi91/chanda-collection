@@ -1021,11 +1021,34 @@
         // answer is OK — recording the duplicate they had just correctly
         // refused. The whole A22 defence inverted under exactly the pressure it
         // was built for.
-        if (!rewindToKey('name')) {
-          flowState = null;
-          toast(t('dup_cancelled'));
-          navigate(def.returnTo || 'home');
-        }
+        // A115d: ALWAYS end. A54 wrote the rule — "saying no, that IS a
+        // duplicate must END the entry" — and then guarded it for one of the
+        // two flows: paymentFlow has no name step, so rewindToKey returned
+        // false and it ended; newPartyFlow HAS one, so shop and person quietly
+        // took the other branch for five months.
+        //
+        // What that cost, reported from the field: rewindToKey deletes only the
+        // key it rewinds to, and skipHidden() skips every step that already has
+        // an answer. So the collector was dropped back on "নাম?" with the phone,
+        // the pledge and the money still filled in — typed a new name, and the
+        // flow jumped straight past all of it to save. The SAME duplicate alert
+        // fired at once, on data they had not entered, because it matched the
+        // old PHONE. Cancel again and it loops; the only ways out were hardware
+        // Back (which discards the entry) or pressing OK — recording the very
+        // duplicate they had just correctly refused. That is A54's own inversion
+        // arriving through the door A54 left open.
+        //
+        // Worse than the loop: pressing OK saved the NEW name against the OLD
+        // phone, pledge and amount — one donor's money filed under another's
+        // name, silently.
+        //
+        // Ending also matches what the collector was actually asked. The dialog
+        // says, in so many words, `"Cancel" = একই দাতা, যোগ করব না` — so Cancel
+        // must not leave a half-built entry alive behind it.
+        flowState = null;
+        draftClear(); // deliberately refused — it must not come back as a resume
+        toast(t('dup_cancelled'));
+        navigate(def.returnTo || 'home');
       }
       // A54 (audit 1.3): an IndexedDB write failure, a full phone, a Lists
       // throw — all of them used to say "মোট টাকা ০ হতে পারে না" and drop the
@@ -1049,14 +1072,13 @@
   }
   // Land back on a named step (e.g. 'name', after a declined duplicate-party
   // confirm) so the user can change exactly the field that caused the issue.
-  function rewindToKey(key) {
-    const steps = flowState.def.steps;
-    const i = steps.findIndex(function (s) { return s.key === key; });
-    if (i < 0) return false;
-    delete flowState.answers[key];
-    flowState.idx = i; renderEntry();
-    return true;
-  }
+  // A115d: rewindToKey is gone. Its only caller was the duplicate-cancel path,
+  // and it was actively dangerous there: it deleted ONLY the key it rewound to,
+  // while skipHidden() skips every step that already has an answer — so the
+  // collector was returned to "নাম?" with the phone and the money still set,
+  // and the next answer flew straight to save. rewindToAmount stays: it is
+  // reached when an amount is zero, and re-asking only the amount is exactly
+  // right there.
   function goBack() {
     Voice.stop();
     // step back to the previous VISIBLE step; skip hidden ones (e.g. bus

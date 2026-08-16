@@ -4924,13 +4924,31 @@ try {
   const sc = fs.readFileSync(__dirname + '/../tests/scope-check.js', 'utf8');
   const i18n = fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8');
 
-  // 1.2 — declining a duplicate must END the entry. paymentFlow has no 'name'
-  // step, so rewindToKey('name') failed and goBack() dropped the collector on
-  // "কোনো নোট?" with no message; Skip re-ran the save and re-asked, for ever.
-  // With a donor waiting the second answer is OK — recording the duplicate they
-  // had just correctly refused.
-  eq(/if \(!rewindToKey\('name'\)\) \{\n\s*flowState = null;\n\s*toast\(t\('dup_cancelled'\)\);/.test(app), true,
-     'A54: declining a duplicate abandons the entry and says so');
+  // 1.2 — declining a duplicate must END the entry.
+  //
+  // A115d: this used to pin `if (!rewindToKey('name'))`, i.e. the rule was
+  // written for two flows and guarded for the one where the rewind FAILED.
+  // paymentFlow has no 'name' step so it ended; shop and person have one, so
+  // they rewound — landing the collector back on "নাম?" with the phone, pledge
+  // and money still filled in, where skipHidden() jumped straight past all of
+  // it to save and fired the same alert again on the old PHONE. Cancel looped;
+  // OK saved the new name against the other donor's money.
+  //
+  // So the assertion is the property now, not the shape: there is no
+  // conditional in front of it, no rewind left in the cancel path, and the
+  // draft is cleared — an entry the collector explicitly refused must not come
+  // back as a resume offer.
+  {
+    const cancelBranch = app.slice(app.indexOf("else if (msg === 'cancelled')"),
+                                   app.indexOf("// A54 (audit 1.3)"));
+    eq(/flowState = null;/.test(cancelBranch) && /toast\(t\('dup_cancelled'\)\)/.test(cancelBranch) &&
+       /navigate\(def\.returnTo \|\| 'home'\)/.test(cancelBranch), true,
+       'A54: declining a duplicate abandons the entry and says so');
+    eq(/rewind/.test(cancelBranch.replace(/\/\/[^\n]*/g, '')), false,
+       'A115: …in EVERY flow — no rewind survives in the cancel path');
+    eq(/draftClear\(\)/.test(cancelBranch), true,
+       'A115: …and the refused entry is not left behind as a resumable draft');
+  }
   eq(/else if \(msg === 'cancelled'\) \{ rewindToKey\('name'\) \|\| goBack\(\); \}/.test(app), false,
      'A54: …the silent loop is gone');
 
