@@ -10569,3 +10569,23 @@ Tests **1,762 → 1,764**.
 **⚠️ Needs an Apps Script redeploy.** This one is worth interrupting for: it is a
 money-entry flow, it is reachable by every collector, and the failure files cash
 under the wrong donor.
+
+### v4.33.3 deployed (2026-08-16) — after one that was not
+
+The first URL handed over was the **previous** deployment, still answering
+`chanda-v4.33.1`, and it was already the one baked into `js/config.js`. Rebaking
+it would have changed nothing while producing a commit that said "deployed" —
+which is why the probe runs before the rebake and not after. This is the same
+shape as A81, and the same cause: on this account **"New version" has never
+repointed a deployment**; only "New deployment" does, and it fails silently —
+no error, same URL, old code still serving.
+
+The second URL probed clean:
+
+```
+POST {action:'pull', token:'probe-only'}  →  {ok:false, error:'bad-token',
+                                              codeVersion:'chanda-v4.33.3', schema:5}
+```
+
+`js/config.js` rebaked to it. A115d — the duplicate-cancel trap that could file
+one donor's money under another's name — is now on the server as well as Pages.
