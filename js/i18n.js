@@ -943,6 +943,7 @@ const I18N = {
   // carried one too). Titles are emoji-free now; the tile and the screen header
   // each add their own, once.
   my_entries_title: { bn: 'আমার লেখা entry', en: 'My entries' },
+  entries_guide_btn: { bn: 'পুরো নিয়মটা', en: 'The full process' },
   my_entries_hint: { bn: 'ভুল এন্ট্রি? নিজেরটা হলে ⚠️ ভুল বলে জানাও — তারপর নিজেই ✏️-তে ঠিক করতে পারবে, নয়তো ক্যাশিয়ার রায় দেবে। ক্যাশিয়ার/admin হলে অন্যেরটা ✖️ বাতিলও করতে পারো।',
                      en: 'Wrong entry? For your own, ⚠️ flag it — then fix it yourself with ✏️, or a cashier will rule. A cashier/admin can ✖️ void others’ entries directly.' },
   entries_mine: { bn: 'আমার', en: 'Mine' },

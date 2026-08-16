@@ -3922,10 +3922,19 @@
         '<button class="chip' + (all ? '' : ' on') + '" data-escope="mine">' + esc(t('entries_mine')) + '</button>' +
         '<button class="chip' + (all ? ' on' : '') + '" data-escope="all">' + esc(t('entries_all')) + '</button></div>';
       $view().innerHTML = backBar('home') + '<div class="flow-title">✏️ ' + esc(t('my_entries_title')) + '</div>' + tabs +
-        '<div class="hint" style="margin-bottom:10px">' + esc(t(all ? 'entries_all_hint' : 'my_entries_hint')) + '</div>' + rowsHTML;
+        '<div class="hint" style="margin-bottom:10px">' + esc(t(all ? 'entries_all_hint' : 'my_entries_hint')) +
+        // A121b: the one-line hint cannot hold the whole process, and the guide
+        // now has a dedicated section for it — put the door where the question
+        // arises, not three screens away in Settings.
+        ' <button class="chip mini" id="entries-guide">📖 ' + esc(t('entries_guide_btn')) + '</button></div>' + rowsHTML;
       document.querySelectorAll('[data-escope]').forEach(function (b) {
         b.onclick = function () { entriesScope = b.dataset.escope; renderMyEntries(); };
       });
+      // A121b: data-go is not wired on this screen (its buttons are all
+      // hand-wired below), so the guide door gets its own handler — a chip
+      // that does nothing teaches people the guide does not exist.
+      const gd = document.getElementById('entries-guide');
+      if (gd) gd.onclick = function () { navigate('help'); };
       document.querySelectorAll('[data-vd]').forEach(function (b) {
         b.onclick = function () { const p = b.dataset.vd.split('|'); renderVoidReason(p[0], p[1], function () { navigate('entries'); }); };
       });

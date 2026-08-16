@@ -4625,6 +4625,18 @@ try {
     eq(/review_hint/.test(app), true, 'A121: …and the screen actually prints that hint');
   }
 
+  // A121b: the flag-then-fix process has its OWN guide section, and the
+  // my-entries screen carries a door to it where the question arises.
+  {
+    const help121 = require('fs').readFileSync(__dirname + '/../js/help.js', 'utf8');
+    eq(/ভুল entry শোধরানো/.test(help121) && /নালিশের রায়/.test(help121) &&
+       /জানানো হয়েছে — অপেক্ষায়/.test(help121), true,
+       'A121: the guide walks the flag→fix→ruling chain, naming the tags the user will see');
+    eq(/entries_guide_btn/.test(app) &&
+       /getElementById\('entries-guide'\)[\s\S]{0,120}navigate\('help'\)/.test(app), true,
+       'A121: …and the entries screen opens it in one tap — WIRED, not just drawn');
+  }
+
   // A119: an EDIT must not open on a step showIf hides. dailyFlow begins with
   // busName/busNumber (visible only for buses, busName required), so ✏️ on a
   // road/toto entry sat trapped on "বাসের নাম কী?" — the entry door was the one

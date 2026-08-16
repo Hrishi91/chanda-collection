@@ -11123,3 +11123,29 @@ so the permission now reads "নালিশের রায়" there too — s
 
 Probed before rebaking: a new URL answering `chanda-v4.34.6 / schema 5`.
 `js/config.js` rebaked. A121's desk renames join A117–A120 for the whole fleet.
+
+## v4.34.7 — A121b: the process, told to the user where they need it
+
+Hrishi: *"give the details to user understanding and process in my entries
+also."* The guide had the pieces, but buried inside the ROLES section; the ✏️
+screen's one-line hint could not carry the whole chain; and there was no door
+from the screen to the story.
+
+- The in-app guide (📖) gained a dedicated bilingual section — **"ভুল entry
+  শোধরানো — আমার লেখা entry ও নালিশের রায়"** — walking the whole chain in the
+  user's words: why you never delete your own entry, the ⚠️ step and the exact
+  tag it leaves, the two ways it resolves (self-✏️ or the cashier's ✅/🚫 with
+  what each does to the money), the receipt number surviving a fix, who may
+  void whose, and where donor details and handovers are corrected instead.
+- The ✏️ screen's hint now ends with **📖 পুরো নিয়মটা** — one tap to that
+  guide. First cut shipped the chip with `data-go`, which this screen never
+  wires: a button that did nothing, caught by tapping it in the browser, wired
+  directly, and the assertion re-pinned to the WIRING rather than the markup.
+- The guide's two references to the old screen name updated;
+  `docs/user-guide/app-guide.md` synced per help.js's own header rule.
+
+One invalid mutation on the way (a section-delete that cut mid-body and left
+the asserted sentences behind) was redone validly; both guards proved. Tests
+**1,796 → 1,799**.
+
+**⚠️ One redeploy: v4.34.7 supersedes v4.34.6.**

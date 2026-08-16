@@ -211,3 +211,15 @@ Refreshes every minute and whenever you return to the app.
 - **💾 Backup** — export a JSON file from Settings; import it back if needed.
 - **🌐 Language** — Bengali/English toggle at the top or in Settings. **🎤 Voice**
   usually needs internet; typing always works.
+
+## ✏️ Fixing a wrong entry — the flag-then-fix chain (A121)
+
+You never delete your own entry in a money book. The path: in **✏️ আমার লেখা
+entry**, ⚠️-flag your own wrong row with a reason (the row is tagged
+"জানানো হয়েছে — অপেক্ষায়"); then either fix it yourself with the ✏️ button that
+appears (old row voided, new one stands, the flag clears itself) or the cashier
+rules on **🛠️ নালিশের রায়**: ✅ void (money leaves the book) or 🚫 keep. The
+receipt number never changes across a fix. A cashier/admin voids OTHERS'
+entries directly but never their own; donor details are corrected on the
+donor's page; handovers are never edited (Undo within 5 s, or the cashier
+returns them). The in-app guide carries this section bilingually.
