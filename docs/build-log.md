@@ -11260,3 +11260,9 @@ cards. Verified at 3,000 px deep: the ← floats at top=8px, solid, and returns
 to the source screen from down there. Tests **1,808** (CSS-only).
 
 **⚠️ One redeploy: v4.34.12 supersedes v4.34.11.**
+
+### v4.34.12 deployed (2026-08-18)
+
+Probed clean first try: `chanda-v4.34.12 / schema 5` (the pull-first habit
+held). `js/config.js` rebaked. A117–A125 live fleet-wide — the sticky ← rides
+to every phone on its next open.
