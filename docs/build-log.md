@@ -11017,3 +11017,35 @@ Probed before rebaking: a new URL answering `chanda-v4.34.4 / schema 5`.
 `js/config.js` rebaked. The trial-week batch — A117 (answered cards stay
 settled), A118/A118b (four screens open instantly), A119 (road/toto ✏️ works
 at all) — is live end to end.
+
+## v4.34.5 — A120: the review desk's answers, settled for good
+
+Hrishi pointed the sweep at "my entries/fix and review fixes and all
+interdependent screens", so the whole chain was driven both ways on the
+harness: collector flags two entries → sync → the cashier's 🛠️ desk shows both
+with author and reason → approve one / reject the other → server truth checked
+directly (approved + void written; rejected recorded) → the author's my-entries
+reflects both outcomes.
+
+The drive caught a regression **A118b had just introduced**: resolve's success
+path re-rendered the desk, which now paints from the LOCAL snapshot — still
+pre-answer — so the flag the cashier had just approved came straight back. The
+server was correct throughout; only the picture lagged. Before A118b the slow
+server refetch had been hiding as the thing keeping this correct.
+
+Fix is A117's trio, applied to this desk: record the answered flag only after
+the server says ok, settle the row in place (A44's rule — the desk is worked
+DOWN; a rebuild throws the cashier back to the top), filter answered flags on
+every repaint, and force a pull that A117 queues if a poll is in flight.
+
+Verified on the CK_SLOW=1200 harness with a poll deliberately in flight:
+approve → the row leaves at the server's answer (1.55 s) and stays gone through
+nine seconds of races. Both mutations caught. Tests **1,788 → 1,791**.
+
+The lesson worth the price: **a screen moved from server-first to local-first
+must have its ANSWER paths audited the same day** — any success handler that
+re-renders now paints the pre-answer world. A117 and A120 are the same bug in
+the two desks; the 🩺 one was found by Hrishi live, this one by driving the
+chain before the trial did.
+
+**⚠️ One redeploy: v4.34.5 supersedes v4.34.4 (carries A117–A120).**

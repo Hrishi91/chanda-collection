@@ -3973,7 +3973,7 @@
       // would invite a second void on a row that is already gone.
       const done = {}; (data.voids || []).forEach(function (v) { if (v.targetId) done[v.targetId] = 1; });
       const list = (data.corrections || []).filter(function (c) {
-        return String(c.status || 'pending') === 'pending' && !done[c.targetId];
+        return String(c.status || 'pending') === 'pending' && !done[c.targetId] && !resolvedFlags[c.id];
       });
       const html = list.length ? list.map(function (c) {
         return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 100%"><b>' +
@@ -3985,10 +3985,24 @@
       $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('review_title')) + '</div>' + html;
       const resolve = function (id, decision, okMsg) {
         return function () {
-          this.disabled = true;
+          const btn = this;
+          btn.disabled = true;
           Auth.call('resolveCorrection', { token: Auth.token(), id: id, decision: decision })
-            .then(function () { toast(okMsg); renderReviewCorrections(); })
-            .catch(function (e) { toast(errMsg(e)); renderReviewCorrections(); });
+            .then(function () {
+              // A120: only after the server said ok — then an answered flag can
+              // never be re-drawn from a snapshot that predates the answer. The
+              // row settles in place (A44's rule: the desk is worked DOWN, a
+              // rebuild throws the cashier back to the top), and the forced
+              // pull catches the snapshot up — A117 queues it if a poll is
+              // already in flight, which is exactly how the 🩺 desk does it.
+              resolvedFlags[id] = 1;
+              toast(okMsg);
+              const row = btn.closest('.row');
+              if (row) row.remove();
+              if (!$view().querySelectorAll('.row').length) renderReviewCorrections();
+              pullCentral({ force: true }).catch(function () {});
+            })
+            .catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
         };
       };
       document.querySelectorAll('[data-corr-ok]').forEach(function (b) { b.onclick = resolve(b.dataset.corrOk, 'approve', t('voided_done')); });
@@ -4665,6 +4679,13 @@
   // permanent server-side, so suppressing the card locally can never hide a
   // live problem; the entry is only added after the server said ok.
   const stampedAnswers = {};
+  // A120: the review desk's twin of stampedAnswers. resolveCorrection's success
+  // used to re-render the desk — which, after A118b, paints from the local
+  // snapshot, still PRE-answer — so the flag the cashier had just approved came
+  // straight back (the server state was correct throughout; only the picture
+  // lagged). Recorded only after the server says ok; consulted by the desk's
+  // list filter so no stale re-render can resurrect an answered flag.
+  const resolvedFlags = {};
   function anomalyAnswered(a) {
     const k = a.type === 'overpaid' ? 'parties|' + a.partyId + '|pledgeOk'
       : a.type === 'possible_duplicate_payment' ? 'payments|' + a.id + '|dupOk'

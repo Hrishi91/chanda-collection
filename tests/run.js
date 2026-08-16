@@ -4616,6 +4616,22 @@ try {
        'A119: the edit door skips showIf-hidden steps before painting the first question');
   }
 
+  // A120: the review desk's answers settle in place and are remembered — the
+  // A118b local-first repaint would otherwise resurrect a flag the cashier just
+  // approved (server correct, picture lagging). Same trio as A117: record only
+  // after the server ok, settle without a rebuild, filter on every render.
+  {
+    const rr2At = app.indexOf('function renderReviewCorrections');
+    const rr2 = app.slice(rr2At, app.indexOf('\n  function ', rr2At + 10));
+    eq(/resolvedFlags\[id\] = 1;/.test(rr2) &&
+       rr2.indexOf('resolvedFlags[id] = 1;') > rr2.indexOf("Auth.call('resolveCorrection'"), true,
+       'A120: a resolved flag is recorded only AFTER the server said ok');
+    eq(/&& !resolvedFlags\[c\.id\]/.test(rr2), true,
+       'A120: …and the desk list drops answered flags on every repaint');
+    eq(/renderReviewCorrections\(\);\s*\n\s*pullCentral/.test(rr2) || /row\.remove\(\)/.test(rr2), true,
+       'A120: …and the row settles in place instead of rebuilding the desk');
+  }
+
   // A118b: the two cashier desks and the expense flow open from what the phone
   // already holds; a round trip may refresh, never gate first paint. Pinned as
   // "the screen's opener reads local data": the desk functions must not await
