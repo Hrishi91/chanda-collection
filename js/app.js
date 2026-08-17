@@ -5176,12 +5176,21 @@
   function showVersion() {
     const el = document.getElementById('app-ver');
     if (!el) return;
-    el.textContent = APP_VERSION + ' • ' + location.hostname;
+    // A128: show the SERVER's version next to the phone's even when they match.
+    // The top bars only exist on mismatch, so "are we in sync?" had no
+    // yes-answer anywhere — only the absence of a warning, which reads the same
+    // as "not checked". Empty serverVersion means we have never heard from the
+    // server: say nothing rather than raise a mark nobody can act on.
+    const srv = Auth.serverVersion();
+    const base = esc(APP_VERSION + ' • ' + location.hostname) +
+      (srv ? '<br>' + esc(t('ver_srv_line').replace('{srv}', srv) +
+        (srv === APP_VERSION ? ' ✅' : ' ⚠️')) : '');
+    el.innerHTML = base;
     swVersion().then(function (have) {
       if (!have || have === APP_VERSION) return;
       const el2 = document.getElementById('app-ver');
       if (!el2) return;
-      el2.innerHTML = esc(APP_VERSION + ' • ' + location.hostname) +
+      el2.innerHTML = base +
         '<br><b class="warn">' + esc(t('upd_stale').replace('{v}', have)) + '</b>';
     });
   }

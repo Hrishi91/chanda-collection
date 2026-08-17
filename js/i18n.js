@@ -38,6 +38,7 @@ const I18N = {
   ver_blocked_body: { bn: 'এই ফোনে {mine}, সার্ভারে {srv}। নিচের বোতামটা চেপে আপডেট করো, তারপর সব আগের মতো চলবে। হাতে টাকা থাকলে জমা দেওয়া এখনও খোলা আছে।', en: 'This phone is on {mine}, the server on {srv}. Tap below to update and everything comes back. If you are holding money, handing it over is still open.' },
   ver_server_behind: { bn: 'সার্ভার এখনো {srv} — এই অ্যাপ {mine}। Code.gs আবার deploy করা বাকি।', en: 'The server is still on {srv} — this app is {mine}. Code.gs has not been redeployed yet.' },
   ver_stale_short: { bn: 'পিছিয়ে', en: 'behind' },
+  ver_srv_line: { bn: 'সার্ভার: {srv}', en: 'Server: {srv}' },
   ver_unknown: { bn: 'version জানা নেই', en: 'version unknown' },
   upd_fail: { bn: '⚠️ আপডেট নামেনি — নেট দেখে আবার চাপুন', en: '⚠️ The update did not download — check your connection and tap again' },
   upd_stale: { bn: '⚠️ নতুন version তৈরি আছে ({v}) — 🔄 চাপুন', en: '⚠️ A newer version is ready ({v}) — tap 🔄' },

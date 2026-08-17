@@ -2979,7 +2979,10 @@ try {
      'A31: exactly one definition of the running version');
 
   // The settings line must report the RUNNING code, never a cache name.
-  eq(/el\.textContent = APP_VERSION/.test(app), true,
+  // (A128 turned the line into innerHTML — escaped — to fit the server version
+  // beneath it; the property pinned here is unchanged: the first thing printed
+  // is APP_VERSION, the constant the page itself is executing.)
+  eq(/const base = esc\(APP_VERSION \+ ' • ' \+ location\.hostname\)/.test(app), true,
      'A31: Settings prints the version this page is RUNNING');
   eq(app.indexOf("(mine[0] || 'no cache')") < 0, true,
      'A31: …and no longer prints an arbitrary cache name as if it were the app');
@@ -4645,6 +4648,26 @@ try {
        'A127: the admin action runner shows busy centrally');
     eq(/const btn = this, undo = busyBtn\(btn\);\n      Auth\.login/.test(app), true,
        'A127: …and the login button — everyone\'s first tap — says ⏳');
+  }
+
+  // A128 (trial: "previously on top it was showing [both versions]"): the top
+  // bars exist only on MISMATCH, so a healthy phone had no yes-answer anywhere —
+  // the absence of a warning reads the same as "not checked". Settings' version
+  // line now prints the server's version next to the phone's: ✅ when they
+  // match, ⚠️ when not, and NOTHING when we have never heard from the server
+  // (an alarm nobody can act on teaches people to ignore alarms).
+  {
+    eq(/const srv = Auth\.serverVersion\(\);\n    const base = esc\(APP_VERSION/.test(app), true,
+       'A128: showVersion asks the server-version note, not a hard-coded string');
+    eq(/srv === APP_VERSION \? ' ✅' : ' ⚠️'/.test(app), true,
+       'A128: match says ✅, drift says ⚠️ — an explicit yes, not just a silent no');
+    eq(/\(srv \? '<br>' \+ esc\(t\('ver_srv_line'\)/.test(app), true,
+       'A128: unknown server version prints nothing');
+    eq(app.indexOf("'<br><b class=\"warn\">' + esc(t('upd_stale'") >= 0 &&
+       /el2\.innerHTML = base \+/.test(app), true,
+       'A128: the stale-worker warning stacks ON the two-version line, not over it');
+    eq(/  ver_srv_line: \{ bn: 'সার্ভার: \{srv\}'/.test(a25I18n), true,
+       'A128: ver_srv_line has a bilingual message');
   }
 
   // A126: the notification banner's answers follow the same trio as the two

@@ -11340,3 +11340,36 @@ runner's button severed → red). Tests **1,812 → 1,815**.
 
 Probed clean: `chanda-v4.34.14 / schema 5`. `js/config.js` rebaked. Every
 server-bound tap in the fleet now answers with ⏳ the instant it is pressed.
+
+## v4.34.15 — A128: Settings answers "are we in sync?" with a yes (2026-08-17)
+
+Trial report: *"previously on top it was showing"* — meaning the red bar that
+printed the phone's version next to the server's. Its absence after the .14
+deploy is the healthy state (the bars exist only on mismatch), but that framing
+is the bug: a healthy phone had NO yes-answer anywhere. The absence of a warning
+reads the same as "not checked", so the one screen Hrishi went to for
+reassurance could only reassure him by staying silent.
+
+`showVersion()` (⚙️ Settings footer) now prints the server's last-known version
+under the phone's:
+
+- match → `সার্ভার: chanda-v4.34.15 ✅` — an explicit yes
+- drift → `সার্ভার: chanda-v4.34.14 ⚠️` — same fact the bars/lock act on,
+  visible before it becomes a bar
+- never heard from the server → nothing (an alarm nobody can act on teaches
+  people to ignore alarms)
+
+The A31 stale-worker warning stacks BELOW the two-version line instead of
+replacing it. Line went `textContent` → escaped `innerHTML` for the second row;
+the A31 pin was repointed at the same property (first thing printed is the
+RUNNING `APP_VERSION`).
+
+Proven in the browser at all three states — including the trap where setting a
+fake drift value self-heals: navigating home fires a pull and the server
+truthfully rewrites `ck_srv_version`, so the drift case needed fetch stubbed to
+reject (the A126 offline lesson, again). Mutations caught (mark flipped,
+unknown-guard removed, serverVersion call severed, stale warning overwriting,
+i18n key removed → all red). Tests **1,815 → 1,820**.
+
+**⚠️ One redeploy: v4.34.15 supersedes v4.34.14** (tri-equality; nothing
+server-side changed beyond the version string).
