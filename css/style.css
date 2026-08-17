@@ -188,6 +188,15 @@ button.notif-item { width: 100%; text-align: left; background: #fff4e2; border: 
 }
 .chips.tabs::-webkit-scrollbar { display: none; }
 .chips.tabs .chip { flex: 0 0 auto; scroll-snap-align: start; }
+/* A130: the 18px fade alone read as "the tabs are cut off"; a › that hides
+   once the row is scrolled to its end says "more this way" instead */
+.tabs-wrap { position: relative; }
+.tabs-wrap .tabs-more { position: absolute; right: 0; top: 0; bottom: 10px; width: 28px;
+  display: flex; align-items: center; justify-content: flex-end; pointer-events: none;
+  font-size: 20px; font-weight: 700; color: var(--saffron-dark);
+  background: linear-gradient(to right, transparent, var(--bg) 72%);
+  transition: opacity .15s; }
+select.chip { appearance: none; -webkit-appearance: none; max-width: 52vw; }
 .chips.center { justify-content: center; }
 .chip {
   border: 1.5px solid var(--line); background: var(--card); color: var(--ink);

@@ -11468,3 +11468,41 @@ permanently: probe via the Browser pane, never via curl** — recorded in the
 apps-script-deploy-quirks memory. One real casualty of the day stands: the
 first .15 paste truly was broken (`cha` at line 3418 — that probe EXECUTED,
 which is how we know those four were rig-lies, not script deaths).
+
+## v4.34.18 — A130: the search package (2026-08-18)
+
+Hrishi's trial verdict on খোঁজ, in five parts, all shipped together:
+
+- **"User is not able to see the search criteria"** — the box said only
+  "খোঁজো…" while it matched name/owner/phone/area/location. Each box now says
+  what it searches, per screen (খাতা, বাস tab, সদস্য-জমা, দাতা-খুঁজি).
+- **The no-match message lied** — "এখনো কোনো এন্ট্রি নেই" over a failed
+  search reads as "this person is not here" (the A103 lesson: that is how
+  duplicates happen). Now: "এই খোঁজে কেউ মেলেনি — বানান অন্যভাবে লিখে দেখো",
+  on the bus tab too.
+- **"My screen, my data at first / date-time wise"** — the ledger's order was
+  alphabetical. Now: donors this collector dealt with TODAY first, then latest
+  activity (payment date, else party creation), then name. Maps built once per
+  paint, not per keystroke.
+- **Bus rows joined the one search rule** — they were the last box on a raw
+  substring (matchBus → matchWords; the A103 caller-count pin moved 4→5), and
+  a bus typed on সবাই now shows its hits under a "🚌 বাস কালেকশনে মিলল"
+  heading — no need to know the tab exists.
+- **"Tabs going out of the screen"** — A87's scroll row was correct but its
+  18px fade read as "cut off". A › cue now sits on the row's right edge and
+  hides once scrolled to the end (or when nothing overflows). Plus one new
+  filter: **📍 এলাকা** as a select in the same row (party tabs only) — the
+  road-wise collector's real need; no date filter, reports own that job.
+
+Riding the bump as promised: the in-app guide's 🔄 line (pending.md item) and
+the খাতা guide line naming the search powers and the new order.
+
+Browser-proven on 9436: placeholder per tab; honest no-match; ₹50 payment to
+the alphabetically-LAST donor put him first on খাতা; a fresh bus entry found
+from সবাই under the 🚌 heading (receipt row intact); 📍 সিংহদহ filter left
+exactly the singhadaha rows; › visible when overflowing, gone at scroll-end;
+bus tab drops the area select and swaps the placeholder. Mutations 6/6 (sort
+reverted, message reverted, bus hits severed, generic placeholder, filter
+drawn-but-inert, cue wired on one screen). Tests **1,828 → 1,846**.
+
+**⚠️ One redeploy: v4.34.18 supersedes v4.34.17.**

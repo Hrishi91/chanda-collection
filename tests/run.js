@@ -1112,10 +1112,12 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const app103 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
     eq(/function matchWords\(hay, query\) \{[\s\S]{0,260}q\.split\(' '\)\.every\(function \(w\) \{ return h\.indexOf\(w\) >= 0; \}\);/.test(app103), true,
        'A103: one rule — every word of the query, anywhere in the haystack');
-    // all three callers go through it; a fourth matcher appearing is the
-    // N-places-guarded-for-N-minus-1 pattern starting over
-    eq((app103.match(/matchWords\(/g) || []).length, 4,
-       'A103: …defined once and used by exactly three callers (party · admin rows · members)');
+    // every caller goes through it; an extra matcher appearing that does NOT
+    // raise this count is the N-places-guarded-for-N-minus-1 pattern starting
+    // over. A130 added the fourth caller: matchBus — the bus rows were the
+    // last box still on a raw substring.
+    eq((app103.match(/matchWords\(/g) || []).length, 5,
+       'A103: …defined once and used by exactly four callers (party · admin rows · members · bus)');
     eq(/return matchWords\(\[p\.name, p\.owner, p\.phone,/.test(app103), true,
        'A103: …the ledger and find-donor searches (name · owner · phone · area · location)');
     eq(/const hit = matchWords\(r\.dataset\.q \|\| r\.textContent, q\);/.test(app103), true,
@@ -4689,6 +4691,48 @@ try {
        'A129b: a forced refresh with a cache repaints the cache and fetches behind it');
     eq(/if \(admCache && m !== 'bad-token' && m !== 'blocked' && m !== 'pending'\) \{\n          paintAdmin\(admCache\); toast\(errMsg\(e\)\); return;/.test(app), true,
        'A129b: a failed refetch repaints the cache and says why — except a dead session, which must not be papered over');
+  }
+
+  // A130 (trial: "user is not able to see the search criteria / sort should be
+  // date and time wise, my data at first / tabs going out of the screen"):
+  // search's powers existed but were secret, the order was alphabetical, the
+  // no-match message lied ("no entries yet"), a bus number was findable only
+  // inside the 🚌 tab, and the A87 scroll-fade read as "cut off".
+  {
+    eq(/return \(mineToday\[b\.id\] \|\| 0\) - \(mineToday\[a\.id\] \|\| 0\) \|\|\n\s+String\(lastAct\[b\.id\] \|\| ''\)\.localeCompare\(String\(lastAct\[a\.id\] \|\| ''\)\) \|\|\n\s+\(a\.name \|\| ''\)\.localeCompare\(b\.name \|\| ''\)/.test(app), true,
+       'A130: ledger order = my-today first, then latest activity, then name');
+    eq(/if \(d === today && \(r\.collectorId \|\| r\.collector\) === meId\) mineToday\[r\.partyId\] = 1;/.test(app), true,
+       'A130: "mine today" comes from payments I made today, not guesswork');
+    eq(/esc\(t\(listQuery \? 'search_none' : 'no_entries'\)\)/.test(app), true,
+       'A130: a failed SEARCH no longer claims "no entries yet"');
+    eq((app.match(/listQuery \? 'search_none' : 'no_entries'/g) || []).length >= 2, true,
+       'A130: …on the bus tab too');
+    eq(/function matchBus\(r, query\) \{ return matchWords\(/.test(app) &&
+       app.indexOf("busName || '').toLowerCase().indexOf(") < 0, true,
+       'A130: bus search joined the ONE search rule (A103), off raw substring');
+    eq(/r\.type === 'bus' && !v\[r\.id\] && matchBus\(r, listQuery\)/.test(app) && /bus_hits/.test(app), true,
+       'A130: bus hits ride below the donors on সবাই — no tab knowledge needed');
+    eq(/t\(busRows \? 'search_bus_ph' : 'search_party_ph'\)/.test(app) &&
+       /t\('search_member_ph'\)/.test(app) &&
+       /fp-search[^\n]*search_party_ph/.test(app), true,
+       'A130: every box SAYS what it searches, per screen');
+    eq(/id="area-f"/.test(app) && /p\.side === listArea/.test(app) &&
+       /af\.onchange = function \(\) \{ listArea = af\.value; renderList\(\); \};/.test(app), true,
+       'A130: the 📍 area filter exists, filters by side, and is wired');
+    eq(/function wireTabsCue\(\)/.test(app) && /class="tabs-more"/.test(app) &&
+       (app.match(/wireTabsCue\(\);/g) || []).length >= 2, true,
+       'A130: the › cue exists and is wired on BOTH screens that use filterBar');
+    const css130 = require('fs').readFileSync(__dirname + '/../css/style.css', 'utf8');
+    eq(/\.tabs-wrap \{ position: relative; \}/.test(css130) && /\.tabs-more \{ position: absolute/.test(css130), true,
+       'A130: …and the cue is drawn over the row, not as one more chip');
+    ['search_party_ph', 'search_bus_ph', 'search_member_ph', 'search_none', 'bus_hits', 'all_areas'].forEach(function (k) {
+      eq(a25I18n.indexOf('  ' + k + ':') >= 0, true, 'A130: ' + k + ' has a bilingual message');
+    });
+    const help130 = require('fs').readFileSync(__dirname + '/../js/help.js', 'utf8');
+    eq(/মালিকের নাম, ফোন, এলাকা/.test(help130) && /আজ তোমার লেনদেন যাদের সঙ্গে, তারা উপরে/.test(help130), true,
+       'A130: the guide names the search powers and the new order');
+    eq(/মাথার <b>🔄<\/b>/.test(help130), true,
+       'A129→A130: the in-app guide finally mentions the header 🔄 (rode this bump)');
   }
 
   // A128 (trial: "previously on top it was showing [both versions]"): the top

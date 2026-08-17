@@ -11,11 +11,13 @@ window.HELP = [
         'গণেশ পুজোর <b>চাঁদা তোলার খাতা</b> — প্রত্যেক collector নিজের মোবাইলে entry করে।',
         'Internet ছাড়াও কাজ করে (offline); নেট এলে সব entry একটা কেন্দ্রীয় <b>Google Sheet</b>-এ জমা হয় (sync)।',
         'সব হিসাব এক জায়গায় মেলে — কে কত তুলল, কার হাতে কত, কত বাকি।',
+        'মাথার <b>🔄</b> (✅-র পাশে) যে-কোনো পর্দা তখনই টাটকা করে — সার্ভার থেকে নতুন তথ্য এনে আবার আঁকে; উপর থেকে টেনে নামালেও একই কাজ হয়। কিছু বদলায় না, শুধু পড়ে।',
       ],
       en: [
         'A <b>Ganesh Puja donation (chanda) ledger</b> — each collector makes entries on their own phone.',
         'Works offline; when the internet is back, every entry syncs to one central <b>Google Sheet</b>.',
         'All accounts reconcile in one place — who collected what, who holds how much cash, what is still due.',
+        'The header <b>🔄</b> (next to ✅) refreshes any screen on demand — fetches the latest from the server and redraws; pulling down from the top does the same. It changes nothing, it only reads.',
       ],
     },
   },
@@ -172,7 +174,7 @@ window.HELP = [
     title: { bn: 'খাতা ও রিপোর্ট', en: 'Ledger & reports' },
     body: {
       bn: [
-        '<b>📒 খাতা</b> — সব চাঁদাদাতার list; উপরে খুঁজতে পারো, "বাকি আছে" দিয়ে filter করো, নাম চেপে বিস্তারিত + টাকা জমা।',
+        '<b>📒 খাতা</b> — সব চাঁদাদাতার list; নাম চেপে বিস্তারিত + টাকা জমা। <b>খোঁজা যায় নাম, মালিকের নাম, ফোন, এলাকা বা রাস্তা দিয়ে</b> — যে-কোনো ক্রমে, যে-কোনো ক\'টা শব্দ; বাসের নাম-নম্বরও এখান থেকেই মেলে। ফিল্টার: ধরন-tab, 📍 এলাকা, "বাকি আছে"। ক্রম: <b>আজ তোমার লেনদেন যাদের সঙ্গে, তারা উপরে</b>, তারপর নতুন কাজ আগে।',
         '<b>📊 রিপোর্ট</b> — উপরে সবার নিজের <b>"আমার হিসাব"</b>। প্রথমে শুধু একটা সংখ্যা: <b>এখন আমার হিসাবে আছে</b> (নগদ + UPI)। জানতে চাইলে <b>"হিসাব দেখি"</b> চাপো — তখন ভাগ ধরে (📥 নতুন এন্ট্রি, 🛣️ রোড/টোটো) কত আছে দেখাবে, আর কোনো ভাগে চাপলে তার ভেতরের দোকান/ব্যক্তি/বাস… খুলে যাবে। উপরের সংখ্যার চেয়ে বড় কিছু নিচে কোথাও থাকে না।',
         '<b>⏳ জমা দিয়েছ কিন্তু অনুমোদন হয়নি</b> — সেই টাকা <b>এখনও তোমার হিসাবেই ধরা থাকে</b>, কারণ যিনি নেবেন তিনি এখনও "পেয়েছি" বলেননি। অনুমোদন হলে কত দাঁড়াবে, সেটা আগেই লেখা থাকে। <b>✅ অনুমোদিত</b> টাকা ধূসর — ওটা হিসাবে আর নেই, শুধু প্রমাণ হিসেবে রাখা।',
         '<b>❌ ফেরত এসেছে</b> — ক্যাশিয়ার "পাইনি" বললে (কারণ লিখে) টাকাটা <b>তোমার হিসাব থেকে কখনও বাদ যায় না</b>, শুধু আবার জমা দেওয়ার মতো হয়ে যায়। ওপরে খবর আসে, কারণ সহ; <b>বুঝেছি</b> চেপে খবরটা সরানো যায় — হিসাবের রেকর্ড 📗 জমা-খাতায় থেকেই যায়।',
@@ -184,7 +186,7 @@ window.HELP = [
         '<b>📄 PDF:</b> যেকোনো কেন্দ্রীয় রিপোর্ট খুলে নিচের "PDF বানাও / প্রিন্ট" চাপো — ফোনের print থেকে <b>Save as PDF</b> বেছে নিলেই কমিটিকে দেওয়ার মতো ফাইল তৈরি।',
       ],
       en: [
-        '<b>📒 Ledger</b> — list of all donors; search at top, filter by "Dues only", tap a name for details + add payment.',
+        '<b>📒 Ledger</b> — list of all donors; tap a name for details + add payment. <b>Search by name, owner, phone, area or road</b> — any words, any order; bus name/number matches here too. Filters: type tabs, 📍 area, "Dues only". Order: <b>donors you dealt with today come first</b>, then newest activity.',
         '<b>📊 Report</b> — everyone\'s own <b>"My summary"</b> at the top. It opens with one figure: <b>what is in your account right now</b> (cash + UPI). Tap <b>"Show the working"</b> for the group totals (📥 new entries, 🛣️ road/toto), and tap a group to open the pots inside it. Nothing below is ever larger than the figure on top.',
         '<b>⏳ Handed over but not approved</b> — that money is <b>still counted as yours</b>, because the receiver has not said "received" yet. The screen tells you in advance what your figure becomes once they do. <b>✅ Approved</b> parcels are greyed out: no longer counted, kept only as proof.',
         '<b>❌ Came back</b> — if the cashier says "not received" (with a reason), the money <b>never comes off your account</b>; it simply becomes available to hand over again. You get a notice with the reason; <b>Got it</b> clears the notice, while the record stays in 📗 the handover book.',

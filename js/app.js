@@ -2388,26 +2388,26 @@
   // Bus collections belong in the ledger, not in the daily-rounds report: a bus
   // is a named donor with a receipt, exactly like a shop. Rows come from the
   // `daily` store (type 'bus'), so they need their own renderer.
+  function busRow(r) {
+    return '<div class="row" data-busid="' + esc(r.id) + '"><div><b>' + esc(r.busName || t('daily_bus')) + '</b>' +
+      '<div class="row-sub">' + esc(r.busNumber || '') + (r.busNumber ? ' • ' : '') + esc(fmtDate(r.date || r.createdAt)) +
+      (r.collector ? ' • ' + esc(r.collector) : '') + (r.receiptNo ? ' • 🧾 ' + esc(r.receiptNo) : '') + '</div></div>' +
+      '<div class="row-right">' + fmtMoney(r.amount) + '</div></div>';
+  }
+  // A130: matchWords here too — bus rows were the one box still on a raw
+  // substring, so "৭৩০১ মালদা" found nothing while every other screen taught
+  // people that word order and extra words are free.
+  function matchBus(r, query) { return matchWords([r.busName, r.busNumber, r.collector].join(' '), query); }
   function drawBusList(data) {
     const v = {}; (data.voids || []).forEach(function (x) { if (x.targetId) v[x.targetId] = 1; });
     let rows = (data.daily || []).filter(function (r) { return r.type === 'bus' && !v[r.id]; });
-    if (listQuery) {
-      const q = listQuery.toLowerCase();
-      rows = rows.filter(function (r) {
-        return String(r.busName || '').toLowerCase().indexOf(q) >= 0 ||
-               String(r.busNumber || '').toLowerCase().indexOf(q) >= 0;
-      });
-    }
+    if (listQuery) rows = rows.filter(function (r) { return matchBus(r, listQuery); });
     rows.sort(function (a, b) { return String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || '')); });
     const total = rows.reduce(function (a, r) { return a + (Number(r.amount) || 0); }, 0);
     return (rows.length ? '<div class="row" style="cursor:default"><div><b>' + esc(t('total')) +
         '</b><div class="row-sub">' + rows.length + ' ' + esc(t('daily_bus')) + '</div></div><b>' + fmtMoney(total) + '</b></div>' : '') +
-      (rows.length ? rows.map(function (r) {
-        return '<div class="row" data-busid="' + esc(r.id) + '"><div><b>' + esc(r.busName || t('daily_bus')) + '</b>' +
-          '<div class="row-sub">' + esc(r.busNumber || '') + (r.busNumber ? ' • ' : '') + esc(fmtDate(r.date || r.createdAt)) +
-          (r.collector ? ' • ' + esc(r.collector) : '') + (r.receiptNo ? ' • 🧾 ' + esc(r.receiptNo) : '') + '</div></div>' +
-          '<div class="row-right">' + fmtMoney(r.amount) + '</div></div>';
-      }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
+      (rows.length ? rows.map(busRow).join('')
+        : '<div class="empty">' + esc(t(listQuery ? 'search_none' : 'no_entries')) + '</div>');
   }
   // Category chips shared by the ledger and "দাতা খুঁজি" (someone else's donor),
   // so both screens read the same way. They mirror what this person may collect;
@@ -2438,12 +2438,47 @@
   // targets stay the size they were — it is the ROW that changes, not the
   // buttons — and on a small phone this hands ~100px back to the list, which is
   // the difference between two donors visible and four.
-  function filterBar(buttons) { return '<div class="chips tabs">' + buttons + '</div>'; }
-  let listDueOnly = false, findFilter = 'all', findDueOnly = false;
+  function filterBar(buttons) {
+    return '<div class="tabs-wrap"><div class="chips tabs">' + buttons + '</div>' +
+      '<div class="tabs-more">›</div></div>';
+  }
+  // A130: the row has scrolled sideways since A87, but its only cue was an
+  // 18px fade — trial verdict: "the tabs are going out of the screen", read as
+  // broken, not scrollable. A visible › says "more this way", and goes away
+  // when there is nothing left to the right (or nothing overflows at all).
+  function wireTabsCue() {
+    document.querySelectorAll('.tabs-wrap').forEach(function (w) {
+      const row = w.querySelector('.chips.tabs'), cue = w.querySelector('.tabs-more');
+      if (!row || !cue) return;
+      const upd = function () {
+        cue.style.opacity = (row.scrollWidth - row.clientWidth - row.scrollLeft) > 24 ? '' : '0';
+      };
+      row.addEventListener('scroll', upd, { passive: true });
+      upd();
+    });
+  }
+  let listDueOnly = false, findFilter = 'all', findDueOnly = false, listArea = '';
   function drawList(data, paidBy) {
       const chips = typeChips(listFilter, true);
       listFilter = chips.valid;
       const busRows = listFilter === 'bus';
+      // A130 ("my screen, my data at first"): the ledger's order is (1) donors
+      // this collector dealt with TODAY, (2) latest activity anywhere first,
+      // (3) name. One pass over payments builds both maps per PAINT — putting
+      // this inside buildBody would redo it on every keystroke.
+      const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
+      const today = todayISO();
+      const lastAct = {}, mineToday = {};
+      liveParties(data).forEach(function (p) {
+        lastAct[p.id] = String(p.createdAt || '').slice(0, 10);
+        if (lastAct[p.id] === today && (p.collectorId || p.collector) === meId) mineToday[p.id] = 1;
+      });
+      (data.payments || []).forEach(function (r) {
+        if (!r.partyId) return;
+        const d = String(r.date || (r.createdAt || '').slice(0, 10) || '');
+        if (d > (lastAct[r.partyId] || '')) lastAct[r.partyId] = d;
+        if (d === today && (r.collectorId || r.collector) === meId) mineToday[r.partyId] = 1;
+      });
       // A42: the search box lives OUTSIDE the part that gets redrawn.
       //
       // It used to call renderList() on every keystroke, which replaced the
@@ -2454,12 +2489,31 @@
       // stays put and only #list-body is rebuilt: totals stay honest, and the
       // input is never touched.
       const buildBody = function () {
-        let rows = liveParties(data).sort(function (a, b) { return (a.name || '').localeCompare(b.name || ''); });
+        let rows = liveParties(data).sort(function (a, b) {
+          return (mineToday[b.id] || 0) - (mineToday[a.id] || 0) ||
+                 String(lastAct[b.id] || '').localeCompare(String(lastAct[a.id] || '')) ||
+                 (a.name || '').localeCompare(b.name || '');
+        });
         if (listFilter !== 'all' && !busRows) rows = rows.filter(function (p) { return p.type === listFilter; });
+        if (listArea && !busRows) rows = rows.filter(function (p) { return p.side === listArea; });
         if (listDueOnly) rows = rows.filter(function (p) { return (Number(p.pledged) || 0) - (paidBy[p.id] || 0) > 0; });
         if (listQuery) rows = rows.filter(function (p) { return matchParty(p, listQuery); });
         if (busRows) return drawBusList(data);
-        return rows.length ? rows.map(function (p) {
+        // A130: a bus number typed on সবাই used to find NOTHING unless you
+        // already knew the 🚌 tab existed — the hits ride below the donors.
+        let busExtra = '';
+        if (listQuery) {
+          const v = {}; (data.voids || []).forEach(function (x) { if (x.targetId) v[x.targetId] = 1; });
+          const hits = (data.daily || []).filter(function (r) {
+            return r.type === 'bus' && !v[r.id] && matchBus(r, listQuery);
+          });
+          if (hits.length) busExtra = '<div class="section">' + esc(t('bus_hits')) + '</div>' + hits.map(busRow).join('');
+        }
+        if (!rows.length) {
+          return busExtra ||
+            '<div class="empty">' + esc(t(listQuery ? 'search_none' : 'no_entries')) + '</div>';
+        }
+        return rows.map(function (p) {
           const paid = paidBy[p.id] || 0, due = (Number(p.pledged) || 0) - paid;
           return '<div class="row" data-id="' + p.id + '">' +
             '<div><b>' + esc(p.name) + '</b><div class="row-sub">' +
@@ -2469,13 +2523,26 @@
             '<div class="row-right">' + fmtMoney(paid) + '/' + fmtMoney(p.pledged) +
             (due > 0 ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
                      : '<span class="ok-chip">✅</span>') + '</div></div>';
-        }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>';
+        }).join('') + busExtra;
       };
+      // A130: the box says WHAT it searches — "খোঁজো…" alone kept the phone/
+      // owner/area powers a secret the whole trial.
+      const areaSel = busRows ? '' :
+        '<select id="area-f" class="chip">' +
+          '<option value="">' + esc(t('all_areas')) + '</option>' +
+          Lists.get('area').map(function (a) {
+            return '<option value="' + esc(a.id) + '"' + (listArea === a.id ? ' selected' : '') + '>📍 ' +
+              esc(Lists.labelOf('area', a.id)) + '</option>';
+          }).join('') + '</select>';
       $view().innerHTML =
         (canEntry('otherdonor') ? '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' : '') +
-        '<input id="search" class="search" enterkeyhint="search" placeholder="' + esc(t('search')) + '" value="' + esc(listQuery) + '">' +
-        filterBar(chips.buttons + (busRows ? '' : dueChip(listDueOnly))) +
+        '<input id="search" class="search" enterkeyhint="search" placeholder="' +
+          esc(t(busRows ? 'search_bus_ph' : 'search_party_ph')) + '" value="' + esc(listQuery) + '">' +
+        filterBar(chips.buttons + (busRows ? '' : dueChip(listDueOnly)) + areaSel) +
         '<div id="list-body">' + buildBody() + '</div>';
+      wireTabsCue();
+      const af = document.getElementById('area-f');
+      if (af) af.onchange = function () { listArea = af.value; renderList(); };
       const wireRows = function () {
         document.querySelectorAll('.row[data-id]').forEach(function (r) {
           r.onclick = function () { navigate('party', { id: r.dataset.id }); };
@@ -2522,7 +2589,7 @@
     if (!canEntry('member')) { navigate('home'); return; }
     $view().innerHTML = backBar('home') + '<div class="flow-title">🤝 ' + esc(t('member_pay_title')) + '</div>' +
       '<div class="hint" style="margin-bottom:8px">' + esc(t('member_pay_hint')) + guideDoor('register') + '</div>' +
-      '<input id="mp-search" class="search" enterkeyhint="search" placeholder="' + esc(t('search')) + '" value="' + esc(memberQuery) + '">' +
+      '<input id="mp-search" class="search" enterkeyhint="search" placeholder="' + esc(t('search_member_ph')) + '" value="' + esc(memberQuery) + '">' +
       '<div id="mp-results"><div class="empty">' + esc(t('loading')) + '</div></div>';
     const box = document.getElementById('mp-search');
     box.oninput = function (e) { memberQuery = e.target.value; wireGuideDoors();
@@ -3093,9 +3160,10 @@
     findFilter = chips.valid;
     $view().innerHTML = backBar('list') + '<div class="flow-title">' + esc(t('find_party_title')) + '</div>' +
       '<div class="hint" style="margin-bottom:8px">' + esc(t('find_party_hint')) + '</div>' +
-      '<input id="fp-search" class="search" enterkeyhint="search" placeholder="' + esc(t('search')) + '" value="' + esc(findQuery) + '">' +
+      '<input id="fp-search" class="search" enterkeyhint="search" placeholder="' + esc(t('search_party_ph')) + '" value="' + esc(findQuery) + '">' +
       filterBar(chips.buttons + dueChip(findDueOnly)) +
       '<div id="fp-results"><div class="empty">' + esc(t('loading')) + '</div></div>';
+    wireTabsCue();
     document.getElementById('fp-search').oninput = function (e) { findQuery = e.target.value; renderFPResults(); };
     document.querySelectorAll('[data-f]').forEach(function (c) {
       c.onclick = function () { findFilter = c.dataset.f; renderFindParty(); };
