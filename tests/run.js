@@ -4632,7 +4632,22 @@ try {
     eq(/ভুল entry শোধরানো/.test(help121) && /নালিশের রায়/.test(help121) &&
        /জানানো হয়েছে — অপেক্ষায়/.test(help121), true,
        'A121: the guide walks the flag→fix→ruling chain, naming the tags the user will see');
-    // A126: the notification banner's answers follow the same trio as the two
+    // A127 (trial: "no response from the app for some time"): every server-bound
+  // tap answers on the button itself — busyBtn swaps to ⏳, and after 2.5 s
+  // names the slow server. Pinned: the helper exists with its slow-timer, the
+  // admin's central action runner uses it (those taps had NO feedback at all),
+  // and login — the first tap anyone makes — uses it too.
+  {
+    eq(/function busyBtn\(b\)/.test(app) && /working_slow/.test(app) && /2500\)/.test(app), true,
+       'A127: busyBtn exists, with the 2.5s honest-slowness escalation');
+    eq(/function adminAction\(action, payload, after, btn\)/.test(app) &&
+       /const undo = busyBtn\(btn\);/.test(app), true,
+       'A127: the admin action runner shows busy centrally');
+    eq(/const btn = this, undo = busyBtn\(btn\);\n      Auth\.login/.test(app), true,
+       'A127: …and the login button — everyone\'s first tap — says ⏳');
+  }
+
+  // A126: the notification banner's answers follow the same trio as the two
   // desks — recorded only after server-ok, settled in place, filtered at BOTH
   // the builder and applyNotifications (counts/dots/toast fall immediately,
   // and a pre-answer poll cannot re-announce).

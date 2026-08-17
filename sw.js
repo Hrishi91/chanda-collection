@@ -1,5 +1,5 @@
 // App-shell cache. Bump VERSION on every deploy that changes app files.
-const VERSION = 'chanda-v4.34.13';
+const VERSION = 'chanda-v4.34.14';
 // A55: SHELL is what the app cannot run without. EXTRAS is everything else.
 //
 // They used to be one all-or-nothing list, and the two icons are 456 KB of it —

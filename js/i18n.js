@@ -944,6 +944,9 @@ const I18N = {
   // each add their own, once.
   my_entries_title: { bn: 'আমার লেখা entry', en: 'My entries' },
   // A123: the entry-kind words the mixed lists lead with.
+  // A127: the two words every server-bound button says while it works.
+  working: { bn: 'হচ্ছে…', en: 'working…' },
+  working_slow: { bn: 'সার্ভার ধীর — একটু অপেক্ষা…', en: 'server is slow — a moment…' },
   es_payment: { bn: 'দাতার জমা', en: 'donor payment' },
   es_expense: { bn: 'খরচ', en: 'expense' },
   entries_guide_btn: { bn: 'পুরো নিয়মটা', en: 'The full process' },

@@ -11306,3 +11306,32 @@ Tests **1,808 → 1,812**. **⚠️ One redeploy: v4.34.13 supersedes v4.34.12.*
 Probed clean: `chanda-v4.34.13 / schema 5`. `js/config.js` rebaked — the fleet
 is back on one number, and the notification banner's settled answers (A126)
 are live end to end.
+
+## v4.34.14 — A127: every server-bound tap answers instantly on the button
+
+Trial: *"after clicking the button, no response from the app for some time —
+user will be misguided."* Right, and the inventory showed why: 21 tap sites
+disabled their button (a near-invisible fade) and the admin's own action
+runner — block, reset password, role, cashier, areas — showed NOTHING at all
+for the full 1–3 s round trip. The good pattern (⏳ + label) existed in exactly
+one place, the member-save button: the N−1 pattern at its widest.
+
+One helper, `busyBtn(b)`: the tap instantly swaps the button to **⏳ হচ্ছে…**,
+and after 2.5 s escalates to **⏳ সার্ভার ধীর — একটু অপেক্ষা…** so a pandal
+network reads as "server is slow", never "the app ignored me". Failure restores
+the button (the old behaviour, kept); success lets the screen move on, with an
+isConnected guard so a late timer never scribbles on a removed node. Double-tap
+protection comes free.
+
+Applied at every server-bound tap: login and register and change-password (the
+first taps anyone makes), the notification banner's inline answers, both desks'
+✓/✅/🚫, confirm/reject on the cashier desk, member remove, receipt-config and
+target saves, chat on/off, backup-now, clearTraining, goLive, and the admin
+runner centrally (its ~10 call sites now pass their button). Local-only taps
+(void, flag — DB writes) stay as they are: they are already instant.
+
+Driven at CK_SLOW=3200 on the login button: ⏳ at 10 ms, the slow-server line
+at 2.5 s, logged in at 3.3 s. Mutations caught (⏳ text removed → red; admin
+runner's button severed → red). Tests **1,812 → 1,815**.
+
+**⚠️ One redeploy: v4.34.14 supersedes v4.34.13.**

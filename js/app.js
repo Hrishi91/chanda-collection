@@ -612,6 +612,27 @@
     if (ids.indexOf(String(id)) < 0) ids.push(String(id));
     Settings.set('rejSeen', JSON.stringify(ids.slice(-200))); // cap: it only grows
   }
+  // A127 (trial: "after clicking the button, no response for some time"): a
+  // server-bound tap answers INSTANTLY on the button itself — ⏳ + label, not
+  // just the near-invisible disabled fade — and after 2.5 s it says the slow
+  // part out loud, so a pandal network reads as "server is slow", never as
+  // "the app ignored me". Returns the undo for the failure path; on success
+  // the DOM usually moves on, and the isConnected guard keeps a late timer
+  // from scribbling on a removed node.
+  function busyBtn(b) {
+    if (!b || !b.isConnected) return function () {};
+    const was = b.innerHTML;
+    b.disabled = true;
+    b.innerHTML = '⏳ ' + esc(t('working'));
+    const timer = setTimeout(function () {
+      if (b.isConnected && b.disabled) b.innerHTML = '⏳ ' + esc(t('working_slow'));
+    }, 2500);
+    return function () {
+      clearTimeout(timer);
+      if (!b.isConnected) return;
+      b.disabled = false; b.innerHTML = was;
+    };
+  }
   function notifRow(msg, actions) {
     return '<div class="notif-item" style="display:block">' +
       '<div>' + msg + '</div>' +
@@ -666,10 +687,10 @@
     const offBtn = document.getElementById('chat-off-btn');
     if (offBtn) offBtn.onclick = function () {
       if (!window.confirm(t('chat_stop_confirm'))) return;
-      offBtn.disabled = true;
+      const undoOff = busyBtn(offBtn);
       Auth.call('setConfig', { token: Auth.token(), config: { chat_off: 'on' } })
         .then(function () { centralConfig.chat_off = 'on'; toast(t('chat_stopped')); render(); })
-        .catch(function (e) { offBtn.disabled = false; toast(errMsg(e)); });
+        .catch(function (e) { undoOff(); toast(errMsg(e)); });
     };
     el.querySelectorAll('[data-nav]').forEach(function (b) {
       b.onclick = function () { navigate(b.dataset.nav); };
@@ -686,7 +707,7 @@
     wireNav(); // the rejection notice offers "🤝 জমা দিলাম", which is a data-go
     el.querySelectorAll('[data-na]').forEach(function (b) {
       b.onclick = function () {
-        b.disabled = true;
+        const undo = busyBtn(b);
         const act = b.dataset.na, id = b.dataset.id, tok = Auth.token();
         const call = act === 'approve-user' ? Auth.call('setStatus', { token: tok, userId: id, status: 'approved', year: Settings.get('year') })
           : act === 'decline-user' ? Auth.call('setStatus', { token: tok, userId: id, status: 'blocked' })
@@ -701,7 +722,7 @@
           const row = b.closest('.notif-item');
           if (row) row.remove();
           if (notifViaPull) pullCentral({ force: true }); else checkNotifications();
-        }).catch(function (e) { b.disabled = false; toast(errMsg(e)); });
+        }).catch(function (e) { undo(); toast(errMsg(e)); });
       };
     });
   }
@@ -2804,11 +2825,11 @@
         // A115: over the wire, like every other write on this screen. The server
         // still records it as a `voids` row — the mechanism A60 settled on —
         // so the removal travels to every other phone on its next poll.
-        del.disabled = true;
+        const undoDel = busyBtn(del);
         Auth.call('removeMember', { token: Auth.token(), id: id })
           .then(function () { toast(t('party_removed')); return pullCentral({ force: true }); })
           .then(function () { navigate('memberadmin'); })
-          .catch(function (e) { del.disabled = false; alert(errMsg(e)); });
+          .catch(function (e) { undoDel(); alert(errMsg(e)); });
       };
     }
   }
@@ -4050,8 +4071,7 @@
         '<div class="hint" style="margin-bottom:10px">' + esc(t('review_hint')) + guideDoor('fix') + '</div>' + html;
       const resolve = function (id, decision, okMsg) {
         return function () {
-          const btn = this;
-          btn.disabled = true;
+          const btn = this, undo = busyBtn(btn);
           Auth.call('resolveCorrection', { token: Auth.token(), id: id, decision: decision })
             .then(function () {
               // A120: only after the server said ok — then an answered flag can
@@ -4067,7 +4087,7 @@
               if (!$view().querySelectorAll('.row').length) renderReviewCorrections();
               pullCentral({ force: true }).catch(function () {});
             })
-            .catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
+            .catch(function (e) { undo(); toast(errMsg(e)); });
         };
       };
       wireGuideDoors();
@@ -4509,10 +4529,10 @@
   function wireHandoverAnswers(root, after) {
     root.querySelectorAll('[data-hid]').forEach(function (b) {
       b.onclick = function () {
-        b.disabled = true;
+        const undo = busyBtn(b);
         Auth.call('confirmHandover', { token: Auth.token(), id: b.dataset.hid })
           .then(function () { toast(t('saved')); after(); })
-          .catch(function (e) { b.disabled = false; toast(errMsg(e)); });
+          .catch(function (e) { undo(); toast(errMsg(e)); });
       };
     });
     root.querySelectorAll('[data-hrej]').forEach(function (b) {
@@ -4520,10 +4540,10 @@
         const reason = window.prompt(t('reject_reason_q'), '');
         if (reason === null) return;                       // cancelled
         if (!String(reason).trim()) { toast(t('err_reason_required')); return; }
-        b.disabled = true;
+        const undo = busyBtn(b);
         Auth.call('rejectHandover', { token: Auth.token(), id: b.dataset.hrej, reason: String(reason).trim() })
           .then(function () { toast(t('rejected_done')); after(); })
-          .catch(function (e) { b.disabled = false; toast(errMsg(e)); });
+          .catch(function (e) { undo(); toast(errMsg(e)); });
       };
     });
   }
@@ -4978,10 +4998,8 @@
       // touches nothing else. It also lands in the audit log, which the local
       // queue never would have.
       const stampOk = function (b, store, id, field) {
-        b.disabled = true;
-        if (!navigator.onLine || !Sync.configured()) {
-          b.disabled = false; toast(t('anom_needs_net')); return Promise.resolve();
-        }
+        if (!navigator.onLine || !Sync.configured()) { toast(t('anom_needs_net')); return Promise.resolve(); }
+        const undo = busyBtn(b);
         return Auth.call('setAnomalyFlag', { token: Auth.token(), store: store, id: id, field: field })
           .then(function () {
             // A117: only after the server said ok — a failed stamp must keep
@@ -4993,7 +5011,7 @@
             // is already gone, so this is repair, not the user's feedback
             pullCentral({ force: true }).catch(function () {});
           })
-          .catch(function (e) { b.disabled = false; toast(errMsg(e)); });
+          .catch(function (e) { undo(); toast(errMsg(e)); });
       };
       document.querySelectorAll('[data-dupok]').forEach(function (b) {
         b.onclick = function () { stampOk(b, 'payments', b.dataset.dupok, 'dupOk'); };
@@ -5647,10 +5665,10 @@
       const user = document.getElementById('lg-user').value.trim();
       const pw = document.getElementById('lg-pw').value;
       if (!user || !pw) { authError(t('fill_all')); return; }
-      const btn = this; btn.disabled = true;
+      const btn = this, undo = busyBtn(btn);
       Auth.login(user, pw)
         .then(function () { navigate('home'); autoSync(); })
-        .catch(function (e) { btn.disabled = false; authError(errMsg(e)); });
+        .catch(function (e) { undo(); authError(errMsg(e)); });
     };
   }
   function renderRegister() {
@@ -5689,14 +5707,14 @@
       if (pw !== pw2) { authError(t('pw_mismatch')); return; }
       const phone = document.getElementById('rg-phone').value.trim();
       if (phone && phoneErrIN(phone)) { authError(t('err_phone_in')); return; }
-      const btn = this; btn.disabled = true;
+      const btn = this, undo = busyBtn(btn);
       Auth.register({ name: name, username: username,
         phone: phone ? cleanPhoneIN(phone) : '', password: pw,
       }).then(function (resp) {
         if (resp && resp.first) { authView = 'login'; toast(t('reg_admin_msg')); }
         else authView = 'regdone';
         renderAuth();
-      }).catch(function (e) { btn.disabled = false; authError(errMsg(e)); });
+      }).catch(function (e) { undo(); authError(errMsg(e)); });
     };
   }
   function renderAuthMsg() {
@@ -5723,10 +5741,10 @@
       const nw = document.getElementById('cp-new').value;
       if (nw !== document.getElementById('cp-new2').value) { toast(t('pw_mismatch')); return; }
       const oldEl = document.getElementById('cp-old');
-      const btn = this; btn.disabled = true;
+      const btn = this, undo = busyBtn(btn);
       Auth.changePassword(oldEl ? oldEl.value : '', nw)
         .then(function () { toast(t('saved')); navigate('home'); })
-        .catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
+        .catch(function (e) { undo(); toast(errMsg(e)); });
     };
   }
 
@@ -5736,9 +5754,13 @@
   // When the server hands back the fresh user (it does, in eight handlers) the
   // cache is patched and only the current screen repaints; otherwise the lists
   // really did change, so a genuine reload is right.
-  function adminAction(action, payload, after) {
+  function adminAction(action, payload, after, btn) {
+    // A127: the admin's own taps (block, reset, role, cashier…) had NO visible
+    // response at all — not even a disable — for the full 1–3 s round trip.
+    const undo = busyBtn(btn);
     Auth.call(action, Object.assign({ token: Auth.token() }, payload))
       .then(function (resp) {
+        undo();
         after && after(resp);
         if (resp && resp.user && admCache) { admPut(resp.user); paintAdmin(admCache); }
         else renderAdmin(true);
@@ -5747,7 +5769,7 @@
       // long enough to notice, nowhere near long enough to read, remember and
       // report. The person using this screen is the person who reports bugs, so
       // the message names the action too: one line is then a whole bug report.
-      .catch(function (e) { alert('⚠️ ' + action + '\n\n' + errMsg(e)); });
+      .catch(function (e) { undo(); alert('⚠️ ' + action + '\n\n' + errMsg(e)); });
   }
   // A78 ── the committee's access door ─────────────────────────────────────
   // Standing a member down takes their post AND both permission lists in one
@@ -6079,12 +6101,12 @@
       const rm = document.getElementById('rc-logo-rm');
       if (rm) rm.onclick = function () { form.committee_logo = ''; paint(); };
       document.getElementById('rc-save').onclick = function () {
-        const btn = this; btn.disabled = true;
+        const btn = this, undo = busyBtn(btn);
         Auth.call('setConfig', { token: Auth.token(), config: form }).then(function () {
           centralConfig = Object.assign({}, centralConfig, form);
           try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {}
           toast(t('saved')); navigate('admin');
-        }).catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
+        }).catch(function (e) { undo(); toast(errMsg(e)); });
       };
     }
     paint();
@@ -6927,7 +6949,7 @@
         if (!window.confirm(t('clear_training_confirm1'))) return;
         const typed = window.prompt(t('clear_training_confirm2'));
         if (String(typed || '').trim().toUpperCase() !== 'CLEAR') { toast(t('golive_cancelled')); return; }
-        clearBtn.disabled = true;
+        const undoClear = busyBtn(clearBtn);
         Auth.call('clearTraining', { token: Auth.token(), confirm: 'CLEAR' })
           .then(function (r) {
             // the server bumped data_epoch, so this device must drop its own
@@ -6938,7 +6960,7 @@
             });
           })
           .then(function () { updateBadge(); navigate('home'); })
-          .catch(function (e) { clearBtn.disabled = false; toast(errMsg(e)); });
+          .catch(function (e) { undoClear(); toast(errMsg(e)); });
       };
       const goLiveBtn = document.getElementById('golive-btn');
       if (goLiveBtn) goLiveBtn.onclick = function () {
@@ -6953,25 +6975,25 @@
         const digits = Math.min(9, Math.max(4, Number(dRaw) || 6));
         const sample = String(Settings.get('year') || '2026') + String(1).padStart(digits, '0');
         if (!window.confirm(t('golive_confirm3').replace('{sample}', sample))) return;
-        const btn = this; btn.disabled = true;
+        const btn = this, undo = busyBtn(btn);
         // A52: the admin already typed LIVE a few lines up; it used to be thrown
         // away, so the server had no confirmation at all. Send it.
         Auth.call('goLive', { token: Auth.token(), digits: digits, confirm: 'LIVE' }).then(function () {
           toast(t('golive_done'));
           pullCentral({ force: true }).then(function () { navigate('home'); }); // epoch bump wipes local training data
-        }).catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
+        }).catch(function (e) { undo(); toast(errMsg(e)); });
       };
       const chatTog = document.getElementById('chat-toggle');
       if (chatTog) chatTog.onclick = function () {
         const turningOff = chatOn();
         if (turningOff && !window.confirm(t('chat_stop_confirm'))) return;
-        chatTog.disabled = true;
+        const undoTog = busyBtn(chatTog);
         Auth.call('setConfig', { token: Auth.token(), config: { chat_off: turningOff ? 'on' : '' } })
           .then(function () {
             centralConfig.chat_off = turningOff ? 'on' : '';
             toast(t(turningOff ? 'chat_stopped' : 'saved')); renderAdmin();
           })
-          .catch(function (e) { chatTog.disabled = false; toast(errMsg(e)); });
+          .catch(function (e) { undoTog(); toast(errMsg(e)); });
       };
       viewData().then(function (d2) {
         const l = Aggregate.chatLoad(d2), el = document.getElementById('chat-load-line');
@@ -7002,10 +7024,10 @@
       admEl('receipt-btn').onclick = function () { navigate('receiptcfg'); };
       // on-demand snapshot — the cheap insurance before anything one-way
       admEl('backup-btn').onclick = function () {
-        const b = this; b.disabled = true;
+        const b = this, undo = busyBtn(b);
         Auth.call('backupNow', { token: Auth.token() })
-          .then(function (r) { b.disabled = false; alert(t('backup_done').replace('{f}', r.file)); })
-          .catch(function (e) { b.disabled = false; toast(errMsg(e)); });
+          .then(function (r) { undo(); alert(t('backup_done').replace('{f}', r.file)); })
+          .catch(function (e) { undo(); toast(errMsg(e)); });
       };
       // restore: pick a snapshot, then type RESTORE — the server takes a
       // safety backup of the CURRENT state first, so this is itself undoable
@@ -7126,24 +7148,24 @@
       document.querySelectorAll('[data-act]').forEach(function (b) {
         const id = b.dataset.id;
         b.onclick = function () {
-          if (b.dataset.act === 'approve') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') });
-          else if (b.dataset.act === 'year') adminAction('approveYear', { userId: id, year: Settings.get('year') });
-          else if (b.dataset.act === 'cashier') adminAction('setCashier', { userId: id, cashier: Number(b.dataset.v) });
-          else if (b.dataset.act === 'role') adminAction('setRole', { userId: id, role: b.dataset.v });
+          if (b.dataset.act === 'approve') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') }, null, b);
+          else if (b.dataset.act === 'year') adminAction('approveYear', { userId: id, year: Settings.get('year') }, null, b);
+          else if (b.dataset.act === 'cashier') adminAction('setCashier', { userId: id, cashier: Number(b.dataset.v) }, null, b);
+          else if (b.dataset.act === 'role') adminAction('setRole', { userId: id, role: b.dataset.v }, null, b);
           // A78: the security door now refuses while the person still holds
           // cash, and says how much. That refusal is not an error to shrug at —
           // it is the decision the committee has to make, so it is put to the
           // admin in the amount's own words, and the answer is recorded.
           else if (b.dataset.act === 'block') blockUser(id);
-          else if (b.dataset.act === 'unblock') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') });
+          else if (b.dataset.act === 'unblock') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') }, null, b);
           else if (b.dataset.act === 'exit') exitUser(resp.users.filter(function (x) { return x.id === id; })[0]);
           else if (b.dataset.act === 'restore') restoreUser(resp.users.filter(function (x) { return x.id === id; })[0], positions);
           else if (b.dataset.act === 'snap') showSnapshot(resp.users.filter(function (x) { return x.id === id; })[0]);
           else if (b.dataset.act === 'reset') adminAction('resetPassword', { userId: id }, function (r) {
             alert(t('temp_pw_is') + ':\n\n' + r.tempPassword);
-          });
+          }, b);
           else if (b.dataset.act === 'release') {
-            if (window.confirm(t('release_confirm'))) adminAction('releaseSession', { userId: id }, function () { toast(t('release_done')); });
+            if (window.confirm(t('release_confirm'))) adminAction('releaseSession', { userId: id }, function () { toast(t('release_done')); }, b);
           }
         };
       });
