@@ -628,13 +628,13 @@
     const haveDetail = (it.approvals && it.approvals.length) || (it.handovers && it.handovers.length) ||
       (it.corrections && it.corrections.length) || (it.rejections && it.rejections.length);
     let html = '';
-    (it.approvals || []).forEach(function (a) {
+    (it.approvals || []).filter(function (a) { return !answeredNotifs['user|' + a.userId]; }).forEach(function (a) {
       html += notifRow('🙋 <b>' + esc(a.name) + '</b> (@' + esc(a.username) + ') — ' + esc(t('notif_wants_approve')),
         '<button class="chip on" data-na="approve-user" data-id="' + esc(a.userId) + '">' + esc(t('approve')) + '</button>' +
         '<button class="chip" data-na="decline-user" data-id="' + esc(a.userId) + '">🚫 ' + esc(t('notif_decline')) + '</button>' +
         '<button class="chip" data-nav="admin">👁 ' + esc(t('view')) + '</button>');
     });
-    (it.handovers || []).forEach(function (h) {
+    (it.handovers || []).filter(function (h) { return !answeredNotifs['ho|' + h.id]; }).forEach(function (h) {
       html += notifRow('💰 <b>' + esc(h.from) + '</b> — ' + fmtMoney(h.amount) + ' <span class="row-sub">' + esc(fmtDate(h.date)) + '</span>' + breakdownLines(h),
         '<button class="chip on" data-na="confirm-handover" data-id="' + esc(h.id) + '">✅ ' + esc(t('confirm_received')) + '</button>' +
         '<button class="chip" data-nav="cashier">👁 ' + esc(t('view')) + '</button>');
@@ -692,9 +692,15 @@
           : act === 'decline-user' ? Auth.call('setStatus', { token: tok, userId: id, status: 'blocked' })
           : Auth.call('confirmHandover', { token: tok, id: id });
         call.then(function () {
+          // A126: only after the server said ok — then no stale feed can bring
+          // this card back. The row settles in place; the queued forced pull
+          // (A117) brings the fresh feed, and applyNotifications re-renders
+          // everything else when it lands.
+          answeredNotifs[(act === 'confirm-handover' ? 'ho|' : 'user|') + id] = 1;
           toast(t('saved'));
-          if (notifViaPull) pullCentral({ force: true }); else checkNotifications(); // refresh the feed
-          if (!flowState && REFRESHABLE.indexOf(current.view) >= 0) render();
+          const row = b.closest('.notif-item');
+          if (row) row.remove();
+          if (notifViaPull) pullCentral({ force: true }); else checkNotifications();
         }).catch(function (e) { b.disabled = false; toast(errMsg(e)); });
       };
     });
@@ -711,6 +717,13 @@
     // notice the user dismissed weeks ago (prev starts at 0, so total>prev).
     items.rejections = (items.rejections || []).filter(function (x) { return !rejSeen(x.id); });
     n.rejections = items.rejections.length;
+    // A126: answers this device already gave — same rule as rejections' local
+    // seen-list, so counts, dots and the "🔔 new" toast all fall at once and a
+    // pre-answer poll cannot re-announce a settled card.
+    items.approvals = (items.approvals || []).filter(function (a) { return !answeredNotifs['user|' + a.userId]; });
+    n.approvals = items.approvals.length;
+    items.handovers = (items.handovers || []).filter(function (h) { return !answeredNotifs['ho|' + h.id]; });
+    n.handovers = items.handovers.length;
     const total = (n.handovers || 0) + (n.approvals || 0) + (n.corrections || 0) + (n.rejections || 0);
     const prev = (notifCounts.handovers || 0) + (notifCounts.approvals || 0) + (notifCounts.corrections || 0) +
       (notifCounts.rejections || 0);
@@ -4743,6 +4756,13 @@
   // lagged). Recorded only after the server says ok; consulted by the desk's
   // list filter so no stale re-render can resurrect an answered flag.
   const resolvedFlags = {};
+  // A126: the notification banner's twin. Its ✅/🚫 buttons used to succeed on
+  // the server and then re-render from the STALE notifItems still in memory —
+  // the approval card came back, buttons re-enabled, until the forced pull
+  // landed (1–3 s live); an in-flight poll could re-apply the pre-answer feed
+  // even later. Same trio as the two desks: record after server-ok, settle the
+  // row in place, filter on every apply/render.
+  const answeredNotifs = {};
   function anomalyAnswered(a) {
     const k = a.type === 'overpaid' ? 'parties|' + a.partyId + '|pledgeOk'
       : a.type === 'possible_duplicate_payment' ? 'payments|' + a.id + '|dupOk'

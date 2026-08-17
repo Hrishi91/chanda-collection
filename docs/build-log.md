@@ -11266,3 +11266,37 @@ to the source screen from down there. Tests **1,808** (CSS-only).
 Probed clean first try: `chanda-v4.34.12 / schema 5` (the pull-first habit
 held). `js/config.js` rebaked. A117–A125 live fleet-wide — the sticky ← rides
 to every phone on its next open.
+
+## v4.34.13 — A126: the notification feed, checked from every side
+
+Hrishi: *"check the notifications with all sides, test its presence and all —
+need to make it perfect."* The whole system was mapped (server `notifData_`
+per role → feed riding every pull → banner with inline actions → counts, tile
+dots, toast, OS notification, the local seen-list for rejections) and then
+driven role by role on the CK_SLOW=1200 harness.
+
+**The one defect, found by inspection before any drill:** the banner's ✅/🚫
+action buttons carried the exact A117/A120 disease — on server-ok they
+re-rendered from the STALE `notifItems` still in memory, resurrecting the card
+just answered until the pull landed, and an in-flight poll could re-apply the
+pre-answer feed even later. The same trio fixed it: `answeredNotifs` recorded
+only after the server acks; the card settles in place (per card — its
+neighbours stay); filtered at BOTH the builder and `applyNotifications`, so
+counts, dots and the "🔔 new" toast fall immediately and a stale poll cannot
+re-announce. Both mutations caught.
+
+**Then every side was driven live (1.2 s server, poll deliberately in flight):**
+
+- admin: pending-registration card present → ✅ approve → settles at the
+  server's ack, never returns through nine seconds; server confirms 0 left
+- cashier: both 💰 cards present, tile dot lit → ✅ one → that card alone
+  settles, the other stays → real-offline tap (fetch rejecting, not an
+  `onLine` stub — the stub let the local fetch through and lied) → card stays,
+  button re-enables, and one tap after the net returns settles it
+- sender: ❌ rejection notice arrives with amount and reason → "বুঝলাম"
+  dismisses → survives the next poll (the rejSeen list is the ancestor of this
+  whole answered-set pattern, and it already worked)
+- osNotify fires only with permission granted, deduped by tag; the 🔔 settings
+  button requests permission and reports the answer
+
+Tests **1,808 → 1,812**. **⚠️ One redeploy: v4.34.13 supersedes v4.34.12.**

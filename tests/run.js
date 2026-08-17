@@ -4632,7 +4632,21 @@ try {
     eq(/ভুল entry শোধরানো/.test(help121) && /নালিশের রায়/.test(help121) &&
        /জানানো হয়েছে — অপেক্ষায়/.test(help121), true,
        'A121: the guide walks the flag→fix→ruling chain, naming the tags the user will see');
-    // A124 (trial: dues → donor → 💰 → back landed on HOME): a flow may declare
+    // A126: the notification banner's answers follow the same trio as the two
+  // desks — recorded only after server-ok, settled in place, filtered at BOTH
+  // the builder and applyNotifications (counts/dots/toast fall immediately,
+  // and a pre-answer poll cannot re-announce).
+  {
+    eq(/const answeredNotifs = \{\};/.test(app), true, 'A126: the answered-set exists');
+    eq(/answeredNotifs\[\(act === 'confirm-handover' \? 'ho\|' : 'user\|'\) \+ id\] = 1;/.test(app), true,
+       'A126: …recorded only after the server said ok');
+    eq((app.match(/!answeredNotifs\['user\|' \+ a\.userId\]/g) || []).length, 2,
+       'A126: …approvals filtered at builder AND at apply (counts fall too)');
+    eq((app.match(/!answeredNotifs\['ho\|' \+ h\.id\]/g) || []).length, 2,
+       'A126: …handovers likewise');
+  }
+
+  // A124 (trial: dues → donor → 💰 → back landed on HOME): a flow may declare
   // where backing out of its first question returns, and paymentFlow returns
   // to the donor it was opened from.
   {
