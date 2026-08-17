@@ -6332,7 +6332,11 @@
   function renderAdmin(force) {
     if (admCache && !force) { paintAdmin(admCache); return; }
     admMoneyFailed = false; // a fresh fetch decides this again
-    $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(t('loading')) + '</div>';
+    // A129b: a forced refresh with a cache in hand REPAINTS the cache and
+    // fetches behind it — the "আনা হচ্ছে…" card is only for a panel we have
+    // nothing to show for, or the screen blinks blank on every header 🔄.
+    if (admCache) paintAdmin(admCache);
+    else $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(t('loading')) + '</div>';
     Promise.all([
       // A100: the year is what asks the server for each person's money. The
       // other two listUsers callers deliberately do not send it — they show no
@@ -6366,7 +6370,20 @@
       Auth.call('listSubjects', { token: Auth.token() }).catch(function () { return { subjects: [] }; }),
       Auth.call('listItems', { token: Auth.token() }).catch(function () { return { items: [] }; }),
     ]).then(function (res) { admCache = res; paintAdmin(res); })
-      .catch(function (e) { $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(errMsg(e)) + '</div>'; });
+      .catch(function (e) {
+        // A129b: a failed REFRESH must not eat a panel we already have. With
+        // the header 🔄 on every screen an offline tap here is now easy, and
+        // this catch used to replace the whole panel with an error card while
+        // admCache still held everything it had just been showing. Repaint the
+        // cache and say why it is not fresher. bad-token/blocked still fall
+        // through to the error card: that session is gone, and painting a
+        // panel that can only fail on every next tap would lie about it.
+        const m = String((e && e.message) || '');
+        if (admCache && m !== 'bad-token' && m !== 'blocked' && m !== 'pending') {
+          paintAdmin(admCache); toast(errMsg(e)); return;
+        }
+        $view().innerHTML = backBar('settings') + '<div class="empty">' + esc(errMsg(e)) + '</div>';
+      });
   }
   function paintAdmin(res) {
     {

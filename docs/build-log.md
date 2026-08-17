@@ -11415,3 +11415,34 @@ walked past it. Tests **1,820 → 1,826**.
 
 **⚠️ One redeploy: v4.34.16 supersedes v4.34.15 (never deployed — paste it
 directly, skipping .15).**
+
+## v4.34.17 — A129b: the scenario sweep Hrishi asked for, and what it caught (2026-08-17)
+
+*"Have you checked all possible scenarios — offline, data available in mobile
+local, everything?"* No — and the sweep caught one real hole. OFFLINE on the
+admin panel, the new header 🔄 ran `renderAdmin(true)`, which wiped the painted
+panel to "আনা হচ্ছে…" and, when all three fetches failed, replaced it with an
+error card — while `admCache` still held everything it had just been showing.
+A failed refresh must never eat a screen we already have. Now: with a cache in
+hand a forced refresh REPAINTS the cache and fetches behind it (no loading
+blink at all), and a failed refetch repaints the cache with a toast saying why
+— except bad-token/blocked/pending, where the session is dead and painting a
+working-looking panel would lie. Mutations 3/3; tests **1,826 → 1,828**.
+
+Scenarios driven in the browser (9433 normal, 9434 CK_SLOW=2500):
+logged-out 🔄 = true no-op (zero fetches); report-with-data offline 🔄 =
+local repaint, no error card; admin offline 🔄 = panel stays + "Internet/সার্ভার
+সমস্যা" toast; road entry SAVED OFFLINE (₹333, badge ⏳) appears in ✏️ আমার
+লেখা entry, in home's আজ আমার তোলা and in report totals, and survives an
+offline 🔄; slow server: report paints from local in ~50 ms, admin cache
+instantly with fresh data landing ~2.5 s behind.
+
+Two false alarms burned an hour and are worth their lesson: home said ₹0
+offline because the SYNTHETIC harness login sets ck_* but not
+Settings.collectorUsername — home's `meId` filter matched nothing (real login
+sets it at auth.js:131; app was right, harness login was the liar). And
+"report missing 333" was grepping for the raw number in a screen that shows
+SUMS (₹555). Recorded in memory: synthetic logins must set the Settings pair.
+
+**⚠️ One redeploy: v4.34.17 supersedes v4.34.16 (never deployed — paste .17
+directly).**

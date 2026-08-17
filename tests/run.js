@@ -4679,6 +4679,16 @@ try {
     eq(app.indexOf('adm-refresh') < 0, true, 'A129: the panel button is fully gone, wiring included');
     eq(/hdrRefresh\.title = t\('refresh_hint'\)/.test(app), true,
        'A129: the icon explains itself via tooltip/accessible name');
+
+    // A129b: what the icon made easy — an OFFLINE tap on the admin panel —
+    // exposed that a forced renderAdmin wiped the painted panel to "আনা
+    // হচ্ছে…" and, on failure, replaced it with an error card while admCache
+    // still held everything it had just been showing. A failed refresh must
+    // never eat a screen we already have.
+    eq(/if \(admCache\) paintAdmin\(admCache\);\n    else \$view\(\)\.innerHTML = backBar\('settings'\) \+ '<div class="empty">' \+ esc\(t\('loading'\)\)/.test(app), true,
+       'A129b: a forced refresh with a cache repaints the cache and fetches behind it');
+    eq(/if \(admCache && m !== 'bad-token' && m !== 'blocked' && m !== 'pending'\) \{\n          paintAdmin\(admCache\); toast\(errMsg\(e\)\); return;/.test(app), true,
+       'A129b: a failed refetch repaints the cache and says why — except a dead session, which must not be papered over');
   }
 
   // A128 (trial: "previously on top it was showing [both versions]"): the top
