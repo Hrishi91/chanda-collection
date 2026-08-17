@@ -610,7 +610,9 @@ What this buys, and the plan for the week:
   order: the freeze-gates decision (#2 below), fmtMoney memoization, and — now
   affordable because a redeploy no longer risks live money — possibly the
   SW-cache-key decoupling and the UI pass (px→rem, dark mode), which would then
-  get a real-phones week of testing for free.
+  get a real-phones week of testing for free. Also riding the next shell bump,
+  whatever it is: one line in js/help.js's sync section mentioning the header
+  🔄 (A129) — the markdown guides already say it; not worth a bump of its own.
 - **Last 2 days: stable.** No deploys; the committee practices on what will go
   live.
 - **After the trial:** 🧹/🚀 (wipes entries, keeps Users/permissions/posts) →

@@ -155,8 +155,8 @@ Refreshes every minute and whenever you return to the app.
 ## 👑 Admin panel (Settings → 👑)
 
 - A newly registered user appears under **"Awaiting approval"** → tap
-  **✅ Approve**. **Tap "🔄 Refresh" after someone new registers** — the panel
-  does not auto-update.
+  **✅ Approve**. The panel refreshes itself when the notification arrives;
+  the header **🔄** re-fetches it on demand.
 - Per approved user: **💰 Make cashier**, **👑 Make/remove admin**, **🔑 Reset
   password** (gives a temporary password — tell them verbally), **🚫 Block**,
   **✏️ Can collect** (one chip per category — shop, person, member, bus, road,
@@ -207,6 +207,12 @@ Refreshes every minute and whenever you return to the app.
 
 - Top-right badge: **✅** = all synced, **⏳ number** = entries not yet uploaded
   (auto-syncs when online, or tap the badge / "Sync now").
+- **🔄 next to the badge** — refreshes any screen on demand: fetches the latest
+  from the server and redraws (pulling the screen down from the top does the
+  same). It changes nothing, and it stays quiet while you are mid-entry.
+- **Settings shows both versions** — the phone's under it the server's, with
+  **✅** when they match. If the phone falls behind, a red bar with an update
+  button appears on its own.
 - **⚠️ Do not delete the app before entries sync** — unsynced entries are lost.
 - **💾 Backup** — export a JSON file from Settings; import it back if needed.
 - **🌐 Language** — Bengali/English toggle at the top or in Settings. **🎤 Voice**
