@@ -11446,3 +11446,25 @@ SUMS (₹555). Recorded in memory: synthetic logins must set the Settings pair.
 
 **⚠️ One redeploy: v4.34.17 supersedes v4.34.16 (never deployed — paste .17
 directly).**
+
+### v4.34.17 deployed (2026-08-17) — and the probe rig lied for an hour
+
+The deployment saga: the first .17 URL probed as `Page not found`, and so did
+the next three — and then so did the LIVE .14 URL, which read as "the trial
+server is down" and triggered a full false alarm (Drive-trash theory, wrong
+access-setting theory — Hrishi checked: file present, data visible, access
+Anyone; every theory died against his answers). The tell in the end:
+`curl -v` showed every /exec answering a healthy 302 to
+script.googleusercontent.com, and only THAT hop returned 404 — and the same
+URL opened in a real browser returned the JSON envelope perfectly. **Google
+now serves "Page not found" to curl-shaped clients on googleusercontent
+(browser User-Agent string does not help), while real browsers and the twelve
+phones were never blocked.** The trial was never interrupted; four of today's
+five "dead" deployments were probably fine (the fifth, this one, is).
+
+Probed IN THE BROWSER: `chanda-v4.34.17 / schema 5`, and .14 alive beside it.
+`js/config.js` rebaked to the .17 URL. **The deploy-probe habit changes
+permanently: probe via the Browser pane, never via curl** — recorded in the
+apps-script-deploy-quirks memory. One real casualty of the day stands: the
+first .15 paste truly was broken (`cha` at line 3418 — that probe EXECUTED,
+which is how we know those four were rig-lies, not script deaths).
