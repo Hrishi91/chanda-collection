@@ -11300,3 +11300,9 @@ re-announce. Both mutations caught.
   button requests permission and reports the answer
 
 Tests **1,808 → 1,812**. **⚠️ One redeploy: v4.34.13 supersedes v4.34.12.**
+
+### v4.34.13 deployed (2026-08-17)
+
+Probed clean: `chanda-v4.34.13 / schema 5`. `js/config.js` rebaked — the fleet
+is back on one number, and the notification banner's settled answers (A126)
+are live end to end.
