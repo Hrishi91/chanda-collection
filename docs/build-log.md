@@ -11506,3 +11506,8 @@ reverted, message reverted, bus hits severed, generic placeholder, filter
 drawn-but-inert, cue wired on one screen). Tests **1,828 → 1,846**.
 
 **⚠️ One redeploy: v4.34.18 supersedes v4.34.17.**
+
+### v4.34.18 deployed (2026-08-18)
+
+Probed in the browser (the new habit): `chanda-v4.34.18 / schema 5`, first
+try. `js/config.js` rebaked. The search package is in the fleet's hands.
