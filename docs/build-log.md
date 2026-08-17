@@ -11335,3 +11335,8 @@ at 2.5 s, logged in at 3.3 s. Mutations caught (⏳ text removed → red; admin
 runner's button severed → red). Tests **1,812 → 1,815**.
 
 **⚠️ One redeploy: v4.34.14 supersedes v4.34.13.**
+
+### v4.34.14 deployed (2026-08-17)
+
+Probed clean: `chanda-v4.34.14 / schema 5`. `js/config.js` rebaked. Every
+server-bound tap in the fleet now answers with ⏳ the instant it is pressed.
