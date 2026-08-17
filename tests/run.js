@@ -860,16 +860,20 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     const confusable = /🔄 *নতুন.*আনো/;
     eq(confusable.test(D108.refresh.bn) && confusable.test(D108.rollover_btn.bn), false,
        'A115: the harmless 🔄 and the one that WRITES cannot be read as the same button');
-    // and the read-only one explains itself where it stands, not in a confirm:
-    // a question with nothing behind it is what teaches people to tap through
-    // the confirms on 🧹, 🚀 and freeze, which are the ones that cost money.
+    // and the read-only one explains itself, not in a confirm: a question with
+    // nothing behind it is what teaches people to tap through the confirms on
+    // 🧹, 🚀 and freeze, which are the ones that cost money. (A129 moved the
+    // control into the header as an icon — no room for a subtitle there, so
+    // the explanation travels as its tooltip/accessible name.)
     eq(/refresh_hint/.test(app108) && BN108.test(D108.refresh_hint.bn) &&
        !BN108.test(D108.refresh_hint.en), true,
-       'A115: …and the read-only one says so on the screen, in both languages');
-    // the money-fallback message names that button. A message telling you to
-    // press something no longer on the screen is worse than no message.
-    eq(D108.adm_money_off.bn.indexOf(D108.refresh.bn) >= 0, true,
-       'A115: …and every message that names the button uses its CURRENT name');
+       'A115: …and the read-only one still carries its explanation, in both languages');
+    // the money-fallback message names that control. A message telling you to
+    // press something no longer on the screen is worse than no message —
+    // exactly what deleting the panel button would have done to this string.
+    eq(D108.adm_money_off.bn.indexOf('উপরের 🔄') >= 0 &&
+       D108.adm_money_off.en.indexOf('🔄 at the top') >= 0, true,
+       'A115: …and every message that names the control points at WHERE IT NOW IS');
 
     // seven labels that stayed English in Bengali mode. "Approve" survives as a
     // loan word because the app already uses it that way in pending_users.
@@ -4648,6 +4652,33 @@ try {
        'A127: the admin action runner shows busy centrally');
     eq(/const btn = this, undo = busyBtn\(btn\);\n      Auth\.login/.test(app), true,
        'A127: …and the login button — everyone\'s first tap — says ⏳');
+  }
+
+  // A129 (trial: "refresh after live — what is use of it", then "don't we need
+  // it on every screen"): refresh had one visible door (a button on the admin
+  // panel, sitting under the go-live card where it read as a STEP of go-live)
+  // and one invisible door everywhere (pull-down). Now ONE function behind a
+  // header icon present on every screen; the panel button is gone. Pinned:
+  // both doors run the same function (they can never drift), the admin branch
+  // refetches admCache (a forced pull alone leaves that cache stale — the
+  // whole reason the old button forced), mid-flow is a no-op, and no message
+  // still points at the deleted button.
+  {
+    const html129 = require('fs').readFileSync(__dirname + '/../index.html', 'utf8');
+    eq(/id="hdr-refresh"/.test(html129), true, 'A129: the header carries the 🔄 icon');
+    eq(/function manualRefresh\(\) \{\n    if \(!Auth\.loggedIn\(\) \|\| flowState\) return;/.test(app), true,
+       'A129: one refresh function, a no-op mid-flow and logged out');
+    eq(/hdrRefresh\.onclick = manualRefresh;/.test(app) &&
+       /\) > 80\) manualRefresh\(\);/.test(app), true,
+       'A129: header icon AND pull-down gesture both run it — two doors, one behavior');
+    eq(/if \(current\.view === 'admin'\) \{\n      Lists\.refresh\(\); pullCentral\(\{ force: true \}\); renderAdmin\(true\); return;/.test(app), true,
+       'A129: on the admin panel it refetches admCache, which a forced pull never touches');
+    // any spelling at all — a first draft of this pin required the SINGLE-
+    // QUOTED form and a resurrected button written as id="adm-refresh" walked
+    // straight past it in the mutation drill
+    eq(app.indexOf('adm-refresh') < 0, true, 'A129: the panel button is fully gone, wiring included');
+    eq(/hdrRefresh\.title = t\('refresh_hint'\)/.test(app), true,
+       'A129: the icon explains itself via tooltip/accessible name');
   }
 
   // A128 (trial: "previously on top it was showing [both versions]"): the top

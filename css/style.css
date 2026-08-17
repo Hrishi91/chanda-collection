@@ -21,6 +21,12 @@ header {
   display: flex; justify-content: space-between; align-items: center;
   padding-top: calc(14px + env(safe-area-inset-top));
 }
+.hdr-right { display: flex; align-items: center; gap: 8px; }
+/* A129: the visible form of pull-to-refresh — same pill as the sync badge so
+   the header reads as one "sync corner", not two unrelated controls */
+#hdr-refresh { background: rgba(255,255,255,.2); border: 0; color: #fff;
+  font-size: 14px; padding: 4px 10px; border-radius: 99px; cursor: pointer; line-height: 1.4; }
+#hdr-refresh:active { background: rgba(255,255,255,.35); }
 .badge { font-size: 13px; padding: 4px 10px; border-radius: 99px; cursor: pointer; font-weight: 600; }
 .badge.ok { background: rgba(255,255,255,.2); }
 .badge.warn { background: var(--gold); color: var(--ink); }

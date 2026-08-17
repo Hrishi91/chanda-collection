@@ -796,6 +796,22 @@
     Lists.refresh(); // populate the areas/locations cache
     pullCentral({ force: true }); // pull the central snapshot on login
   }
+  // A129: one refresh, two doors — the invisible pull-down gesture and the
+  // visible 🔄 in the header. Both run THIS, so they can never drift apart.
+  // Mid-flow it is a no-op: the pull itself is safe, but a 🔄 toast while
+  // someone is answering entry questions reads as "something happened to my
+  // entry", and onAppFocus already refuses to repaint over a flow anyway.
+  function manualRefresh() {
+    if (!Auth.loggedIn() || flowState) return;
+    toast('🔄');
+    // The admin panel reads its own server lists (users + subjects + posts)
+    // into admCache; a forced pull refreshes the central snapshot but never
+    // that cache, so here — and only here — the refetch must be explicit.
+    if (current.view === 'admin') {
+      Lists.refresh(); pullCentral({ force: true }); renderAdmin(true); return;
+    }
+    onAppFocus();
+  }
   // Minimal pull-to-refresh: pull down > ~80px from the very top → refresh.
   function wirePullToRefresh() {
     let startY = 0, pulling = false;
@@ -804,9 +820,7 @@
       if (pulling) startY = e.touches[0].clientY;
     }, { passive: true });
     document.addEventListener('touchend', function (e) {
-      if (pulling && (e.changedTouches[0].clientY - startY) > 80 && !flowState) {
-        toast('🔄'); onAppFocus();
-      }
+      if (pulling && (e.changedTouches[0].clientY - startY) > 80) manualRefresh();
       pulling = false;
     }, { passive: true });
   }
@@ -6686,17 +6700,10 @@
       };
 
       if (!admSection) {
+        // A129: the panel's own 🔄 button is gone — sitting directly under the
+        // training card it read as a STEP of go-live ("refresh after live"),
+        // and its whole job is now done by the header 🔄 on every screen.
         $view().innerHTML = head('admin_panel') + trainCard +
-          '<button id="adm-refresh" class="ghost block">' + esc(t('refresh')) + '</button>' +
-          '<div class="hint" style="margin:-4px 4px 10px">' + esc(t('refresh_hint')) + '</div>' +
-          // A115c: said under the button, permanently, rather than in a confirm.
-          // Hrishi stopped at this control and asked for a popup explaining
-          // itself — the instinct was right and the diagnosis was not: it reads
-          // only, so a confirm here would be a question with nothing behind it,
-          // and two of those teach somebody to tap through the confirms on 🧹,
-          // 🚀 and freeze, which are the ones that cost money. A subtitle
-          // answers "what does this do?" every time, before the tap.
-
           menuRow('users', '👥', 'adm_users',
             t('adm_sub_users').replace('{n}', groups.approved.length)
               .replace('{p}', groups.pending.length).replace('{s}', staleN),
@@ -6951,7 +6958,6 @@
           admSave(resp.users.filter(function (x) { return x.id === admUserId; })[0]);
         };
       }
-      admEl('adm-refresh').onclick = renderAdmin;
       const clearBtn = document.getElementById('clear-tr-btn');
       if (clearBtn) clearBtn.onclick = function () {
         if (isLive()) { toast(t('already_live')); return; }
@@ -7391,6 +7397,14 @@
     document.querySelectorAll('#bottomnav button').forEach(function (b) {
       b.onclick = function () { Voice.stop(); flowState = null; navigate(b.dataset.nav); };
     });
+    const hdrRefresh = document.getElementById('hdr-refresh');
+    if (hdrRefresh) {
+      hdrRefresh.onclick = manualRefresh;
+      // no room for a subtitle in the header — the explanation travels as the
+      // accessible name / tooltip instead, and the guide covers the rest
+      hdrRefresh.title = t('refresh_hint');
+      hdrRefresh.setAttribute('aria-label', t('refresh'));
+    }
     document.getElementById('sync-badge').onclick = function () {
       Sync.syncNow().then(function (r) {
         toast(r.ok ? t('all_synced') : (r.reason === 'not-configured' ? t('sync_not_configured') : t('sync_fail')));

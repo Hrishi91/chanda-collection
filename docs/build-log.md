@@ -11373,3 +11373,45 @@ i18n key removed → all red). Tests **1,815 → 1,820**.
 
 **⚠️ One redeploy: v4.34.15 supersedes v4.34.14** (tri-equality; nothing
 server-side changed beyond the version string).
+
+### v4.34.15 deploy attempt failed (2026-08-17)
+
+Probe of the new /exec answered `ReferenceError: cha is not defined (line
+3418, file "Code")` — our Code.gs ends at line 3417, so the paste carried a
+stray fragment after the final `}` and every request died at global eval.
+config.js NOT rebaked. Fix sent: select-all → fresh paste → last line must be
+3417's `}` → New deployment. Superseded by v4.34.16 before the redo, so the
+redo should paste .16.
+
+## v4.34.16 — A129: refresh gets one function and a visible door (2026-08-17)
+
+Two trial questions in a row: *"admin portal → refresh after live — what is
+use of it"* (the panel's 🔄 button sat directly under the training card, so it
+read as a STEP of go-live), then *"don't we need it on every possible screen?"*
+The capability already existed everywhere — pull-down-from-top has always
+forced a refresh on any screen — but it was invisible, and its only visible
+form was one button on one screen, parked where it impersonated a go-live
+control.
+
+Now: `manualRefresh()`, one function, two doors — the pull-down gesture and a
+new 🔄 icon in the header (same pill styling as the ✅ sync badge, so the
+header's corner reads as one sync corner). Present on every screen; explains
+itself via tooltip/aria (`refresh_hint`). Mid-flow and logged-out it is a
+no-op — a 🔄 toast over someone mid-entry reads as "something happened to my
+entry". On the admin panel it also refetches admCache (users + subjects +
+posts) — the forced pull never touches that cache, which was the whole reason
+the old button existed. The panel button is gone; `adm_money_off` repointed
+("উপরের 🔄 চেপে দেখো" — a message naming a deleted button is worse than no
+message; the A115 pin now asserts the message points at where the control IS).
+
+Browser-proven on 9432: icon wired with tooltip; home tap → 🔄 toast; admin
+tap → pull + listUsers + listSubjects + listItems fired fresh, panel stays
+put, old button absent; mid-flow tap (রোড কালেকশন, "কীভাবে দিল?") → nothing,
+screen byte-identical. First mid-flow attempt accidentally proved the
+NEIGHBOR: ✏️ আমার লেখা entry is a list, not a flow, and correctly DID toast.
+Mutation drill 6/6 — after widening one pin: the "button fully gone" check
+required the single-quoted spelling and a resurrected `id="adm-refresh"`
+walked past it. Tests **1,820 → 1,826**.
+
+**⚠️ One redeploy: v4.34.16 supersedes v4.34.15 (never deployed — paste it
+directly, skipping .15).**

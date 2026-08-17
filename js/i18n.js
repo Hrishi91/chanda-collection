@@ -608,8 +608,8 @@ const I18N = {
   freeze_entry_toast: { bn: '🛑 admin সব entry থামিয়েছেন', en: '🛑 The admin has paused entries' },
   // A115c: this names the button above it, so it moved with it. A message that
   // tells you to press something no longer on the screen is worse than none.
-  adm_money_off: { bn: '⚠️ হাতের টাকার হিসাব আনা গেল না — বাকি সব কাজ করছে। 🔄 আবার দেখাও চেপে দেখো।',
-                   en: '⚠️ Could not load who is holding what — everything else works. Try 🔄 Refresh.' },
+  adm_money_off: { bn: '⚠️ হাতের টাকার হিসাব আনা গেল না — বাকি সব কাজ করছে। উপরের 🔄 চেপে দেখো।',
+                   en: '⚠️ Could not load who is holding what — everything else works. Tap 🔄 at the top.' },
   adm_sub_users: { bn: '{n} জন approved · {p} জন অপেক্ষায় · {s} জনের ফোন পিছিয়ে', en: '{n} approved · {p} waiting · {s} phones behind' },
   adm_sub_positions: { bn: '{n}টি পদ — কোন পদে কী করা যাবে', en: '{n} posts — what each one may do' },
   adm_sub_lists: { bn: 'রসিদের নকশা · খরচের বিষয় · এলাকা · location', en: 'Receipt design · expense subjects · areas · locations' },
