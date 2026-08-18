@@ -3772,16 +3772,6 @@
       }
     });
   }
-  // A135: the receipt straight into the DONOR'S OWN WhatsApp chat — the number
-  // is already on the party row, so nobody types it again. wa.me carries text
-  // only; that is the trade, and the screen says so rather than leaving the
-  // collector to discover it. Never auto-sent: WhatsApp opens with the message
-  // written and the collector taps send.
-  function shareReceiptWA(rc, phone) {
-    const num = waNumber(phone);
-    if (!num) { toast(t('no_phone')); return; }
-    window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(receiptMessage(rc)), '_blank');
-  }
   // 💬 text receipt → SMS/message (an image can't ride SMS). Opens the messaging
   // app with the text pre-filled; the collector taps send.
   function shareReceiptText(rc, phone) {
@@ -3857,27 +3847,20 @@
         });
       }
       const paint = function () {
-        // A135: when we KNOW the donor's number, lead with the button that
-        // needs no typing. The image cannot be pre-addressed by any phone —
-        // the share sheet has no recipient — so it says so under itself
-        // instead of being reported as a bug every season.
-        const waNum = waNumber(phone);
+        // A135b (Hrishi's call): the receipt IS the picture — one form of a
+        // money document, not two. So the image keeps the WhatsApp button to
+        // itself. What stays from A135 is the one line that ANSWERS the
+        // question this screen kept raising ("why must I pick the name
+        // again?"): no phone lets a web page pre-address a picture, so the
+        // share sheet must ask. Said once, on the screen, instead of being
+        // rediscovered every season.
         $view().innerHTML = backBar(backView, backParams) + '<div class="flow-title">' + esc(t('receipt_title')) + '</div>' +
           '<img id="rcp-img" alt="" style="width:100%;max-width:420px;display:block;margin:0 auto 12px;border:1px solid #eee;border-radius:10px">' +
           (rc.receiptNo ? '' : '<div class="hint" style="text-align:center">' + esc(t('receipt_no_pending')) + '</div>') +
-          (waNum
-            ? '<button id="rcp-wadirect" class="primary big block">📲 ' + esc(t('receipt_send_wa')) + '</button>' +
-              '<div class="hint" style="margin:-4px 4px 10px">' + esc(t('receipt_wa_hint').replace('{phone}', phone)) + '</div>'
-            : (party ? '<div class="hint" style="margin:0 4px 8px">' + esc(t('receipt_no_phone')) +
-                ' <button id="rcp-addphone" class="chip">📞 ' + esc(t('receipt_add_phone')) + '</button></div>' : '')) +
-          '<button id="rcp-wa" class="' + (waNum ? 'ghost' : 'primary') + ' big block">📷 ' + esc(t('receipt_send_img')) + '</button>' +
+          '<button id="rcp-wa" class="primary big block">📷 ' + esc(t('receipt_send_img')) + '</button>' +
           '<div class="hint" style="margin:-4px 4px 10px">' + esc(t('receipt_img_hint')) + '</div>' +
           '<button id="rcp-sms" class="ghost big block">💬 ' + esc(t('receipt_send_sms')) + '</button>' + contHtml;
         buildReceiptCanvas(rc).then(function (cv) { const im = document.getElementById('rcp-img'); if (im) im.src = cv.toDataURL('image/png'); });
-        const waBtn = document.getElementById('rcp-wadirect');
-        if (waBtn) waBtn.onclick = function () { shareReceiptWA(rc, phone); };
-        const addPh = document.getElementById('rcp-addphone');
-        if (addPh) addPh.onclick = function () { navigate('partyform', { id: party.id }); };
         document.getElementById('rcp-wa').onclick = function () { shareReceiptImage(rc); };
         document.getElementById('rcp-sms').onclick = function () { shareReceiptText(rc, phone); };
         contWire();

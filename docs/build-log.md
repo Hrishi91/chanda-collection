@@ -11708,3 +11708,32 @@ dropped, add-phone door removed, image hint silenced). Tests
 **1,885 → 1,895**.
 
 **⚠️ One redeploy: v4.34.24 supersedes v4.34.23.**
+
+## v4.34.25 — A135b: the direct text path withdrawn, the answer kept (2026-08-18)
+
+Shown exactly what the wa.me path would deliver — the full receipt as TEXT
+(committee line, donor, amount in words, paid/pledged/due, serial, date,
+collector) — Hrishi's verdict: *"then no need of the 📲 WhatsApp
+implementation."* His call, and the reasoning is sound: a receipt is a money
+document, and two different-looking receipts in circulation is a worse cost
+than the typing it saved. Donors who need text still get it through 💬 SMS,
+which has always sent the same lines to the same stored number.
+
+So .24's button is gone (function, wiring, strings — nothing half-removed;
+mutation-checked) and the picture is the primary action again. What survives
+is the sentence that answers the question this screen kept provoking:
+*"WhatsApp নিজেই জিজ্ঞেস করবে কাকে পাঠাবে — ছবি সরাসরি কারো নামে পাঠানোর রাস্তা
+ফোন দেয় না।"* The limit is real (no web API carries a file AND a recipient),
+so the only fix available was ever to say so, once, where it is asked.
+
+Recorded for the product decision: a native wrapper COULD pre-address an
+image via an Android intent. That is a reason to want one, not a reason to
+promise one.
+
+Mutations 4/4 (stray button left behind, explanation dropped, image demoted,
+SMS losing the stored number). Tests **1,895 → 1,890** (the A135 pins for the
+withdrawn path went with it). Browser-checked: the screen is the old one plus
+one honest line.
+
+**⚠️ One redeploy: v4.34.25 supersedes v4.34.24 (never deployed — paste .25
+directly).**

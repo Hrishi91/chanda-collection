@@ -4704,21 +4704,22 @@ try {
   // picked by hand. Now a direct wa.me button leads when the donor's number is
   // known; the image keeps its place and finally says WHY it cannot be
   // pre-addressed; a donor with no number gets a door to add one.
+  // A135b (Hrishi's call after seeing what the direct path could carry): a
+  // receipt is a money document and should have ONE form — the picture. So
+  // the wa.me text button is gone again and the image keeps the WhatsApp
+  // button to itself. What survives is the ANSWER to the original question,
+  // said on the screen where it was asked.
   {
-    eq(/function shareReceiptWA\(rc, phone\) \{\n\s+const num = waNumber\(phone\);\n\s+if \(!num\) \{ toast\(t\('no_phone'\)\); return; \}/.test(app), true,
-       'A135: the receipt has a direct-to-donor WhatsApp path, refusing an unusable number');
-    eq(/window\.open\('https:\/\/wa\.me\/' \+ num \+ '\?text=' \+ encodeURIComponent\(receiptMessage\(rc\)\), '_blank'\);/.test(app), true,
-       'A135: …carrying the receipt text into the donor\'s own chat');
     const rp = app.slice(app.indexOf('const paint = function () {'), app.indexOf('contWire();\n      };'));
-    eq(/const waNum = waNumber\(phone\);/.test(rp) && /waNum\n\s+\? '<button id="rcp-wadirect"/.test(rp), true,
-       'A135: the direct button leads only when we actually know the number');
-    eq(/id="rcp-addphone"/.test(rp) && /navigate\('partyform', \{ id: party\.id \}\);/.test(rp), true,
-       'A135: …and a donor without a number gets a door to add one, not a dead end');
     eq(/receipt_img_hint/.test(rp), true,
-       'A135: the image button says why the share sheet asks who — no platform can pre-address a picture');
-    ['receipt_send_wa', 'receipt_wa_hint', 'receipt_no_phone', 'receipt_add_phone', 'receipt_img_hint'].forEach(function (k) {
-      eq(a25I18n.indexOf('  ' + k + ':') >= 0, true, 'A135: ' + k + ' has a bilingual message');
-    });
+       'A135b: the screen says why the share sheet asks who — no platform can pre-address a picture');
+    eq(a25I18n.indexOf('  receipt_img_hint:') >= 0, true, 'A135b: …in both languages');
+    eq(app.indexOf('shareReceiptWA') < 0 && app.indexOf('rcp-wadirect') < 0, true,
+       'A135b: the direct-text path is fully gone — no half-removed button left wired');
+    eq(/'<button id="rcp-wa" class="primary big block">📷 '/.test(rp), true,
+       'A135b: …and the picture receipt is the primary action again');
+    eq(/document\.getElementById\('rcp-sms'\)\.onclick = function \(\) \{ shareReceiptText\(rc, phone\); \};/.test(app), true,
+       'A135b: SMS still carries the text receipt to the stored number — the text path was never lost');
   }
 
   // A134 (trial: "member new entry should show the same as add-payment/dues
