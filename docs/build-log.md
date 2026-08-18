@@ -11647,3 +11647,8 @@ self-save not updating meId, prefill overwriting typed work). Tests
 
 **⚠️ One redeploy: v4.34.22 supersedes v4.34.21 — and this one needs
 `setup()` run once after pasting (new Users column).**
+
+### v4.34.22 deployed (2026-08-18)
+
+Browser-probed: `chanda-v4.34.22 / schema 5`, first try. `js/config.js`
+rebaked. Profile editing is in the fleet's hands.
