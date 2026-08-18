@@ -2898,6 +2898,10 @@
         const u = memberUser(form.appUser);
         if (u) {
           if (!form.name.trim()) form.name = u.name || '';
+          // A133: the roster now carries the account's contact — same
+          // blank-only rule, so a typed number is never overwritten
+          if (!form.phone.trim()) form.phone = u.phone || '';
+          if (!form.email.trim()) form.email = u.email || '';
           // A115: and the post comes with them. Picking an account that already
           // holds সম্পাদক must SHOW সম্পাদক — the post is theirs, not this
           // row's, and a form that quietly showed "পদ নেই" would be offering to
@@ -3985,6 +3989,62 @@
       try { localStorage.removeItem('ck_wiped_entries'); } catch (e) {}
       toast('✅ ' + t('saved'));
       navigate('settings');
+    };
+  }
+  // A133: name/phone/email — display identity only; money is keyed by
+  // username, which this screen deliberately cannot touch. Two doors, one
+  // form: no params = my own card (anyone), params.username = that user's
+  // card (admin only — the server re-checks).
+  function renderProfileForm(params) {
+    const target = (params || {}).username || '';
+    let src = Auth.current() || {};
+    if (target) {
+      src = (admCache && (admCache[0].users || []).filter(function (u) { return u.username === target; })[0]) ||
+            memberUser(target) || { username: target };
+    }
+    // "আমার তথ্য" on someone ELSE's card would read as the admin editing
+    // their own — the target's form is titled by the fields instead
+    $view().innerHTML = backBar(target ? 'admin' : 'settings') +
+      '<div class="flow-title">✏️ ' + esc(target ? t('profile_btn') + ' — @' + target : t('profile_title')) + '</div>' +
+      '<div class="hint" style="margin-bottom:8px">' + esc(t('profile_hint')) + '</div>' +
+      '<div class="card">' +
+      '<div class="field"><label>' + esc(t('full_name')) + '</label>' +
+      '<input id="pf-name" value="' + esc(src.name || '') + '" autocomplete="off"></div>' +
+      '<div class="field"><label>📞 ' + esc(t('member_f_phone')) + '</label>' +
+      '<input id="pf-phone" value="' + esc(src.phone || '') + '" inputmode="tel" autocomplete="off"></div>' +
+      '<div class="field"><label>✉️ ' + esc(t('member_f_email')) + '</label>' +
+      '<input id="pf-email" value="' + esc(src.email || '') + '" inputmode="email" autocapitalize="none" autocomplete="off"></div>' +
+      '<div id="pf-err" class="perm-warn" style="display:none"></div></div>' +
+      '<button id="pf-save" class="primary big block">' + esc(t('save')) + '</button>';
+    const err = function (msg) {
+      const el = document.getElementById('pf-err');
+      el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+    };
+    document.getElementById('pf-save').onclick = function () {
+      err('');
+      const name = document.getElementById('pf-name').value.trim();
+      const phone = document.getElementById('pf-phone').value.trim();
+      const email = document.getElementById('pf-email').value.trim();
+      if (!name) { err(t('fill_all')); return; }
+      if (phone && phoneErrIN(phone)) { err(t('err_phone_in')); return; }
+      if (email && !/^\S+@\S+\.\S+$/.test(email)) { err(t('err_email')); return; }
+      const btn = this, undo = busyBtn(btn);
+      Auth.call('updateProfile', { token: Auth.token(), username: target,
+        name: name, phone: phone ? cleanPhoneIN(phone) : '', email: email })
+        .then(function (r) {
+          if (!target) {
+            // my own card: the stored session and the meId-name every screen
+            // reads must follow, or the header greets the OLD name until the
+            // next login
+            try { localStorage.setItem('ck_user', JSON.stringify(r.user)); } catch (e) {}
+            Settings.set('collectorName', r.user.name || name);
+          } else if (admCache) {
+            admPut(r.user);
+          }
+          toast('✅ ' + t('saved'));
+          navigate(target ? 'admin' : 'settings');
+        })
+        .catch(function (e) { undo(); err(errMsg(e)); });
     };
   }
   function renderVoidReason(targetStore, targetId, backFn) {
@@ -5371,7 +5431,8 @@
     if (Auth.isAdmin()) fields.push(['year', 'year', 'number'], ['scriptUrl', 'script_url', 'text']);
     $view().innerHTML = '<div class="card"><div class="card-title">👤 ' + esc(user.name) +
       (user.role === 'admin' ? ' 👑' : '') + (Auth.isCashier() ? ' 💰' : '') + '</div>' +
-      '<div class="row-sub">' + esc(t('logged_in_as')) + ': @' + esc(user.username) + '</div></div>' +
+      '<div class="row-sub">' + esc(t('logged_in_as')) + ': @' + esc(user.username) + '</div>' +
+      '<button id="profile-btn" class="chip" style="margin-top:8px">✏️ ' + esc(t('profile_btn')) + '</button></div>' +
       iosInstallHint() +
       (Auth.isAdmin() ? '<button id="adm-btn" class="primary big block">' + esc(t('admin_panel')) + '</button>' : '') +
       '<button id="help-btn" class="ghost big block">' + esc(t('help_btn')) + '</button>' +
@@ -5430,6 +5491,8 @@
     document.getElementById('help-btn').onclick = function () { navigate('help'); };
     const graveB = document.getElementById('grave-btn');
     if (graveB) graveB.onclick = function () { navigate('graveyard'); };
+    const profB = document.getElementById('profile-btn');
+    if (profB) profB.onclick = function () { navigate('profile'); };
     const notifBtn = document.getElementById('notif-btn');
     if (notifBtn) notifBtn.onclick = function () {
       if (Notification.permission === 'granted') { toast(t('notif_on')); checkNotifications(); return; }
@@ -5844,6 +5907,7 @@
       '<input id="rg-user" autocapitalize="none" autocorrect="off" spellcheck="false">' +
       '<div class="hint" id="rg-user-hint">' + esc(t('username_rule')) + '</div></div>' +
       '<div class="field"><label>' + esc(t('q_phone')) + '</label><input id="rg-phone" inputmode="tel"></div>' +
+      '<div class="field"><label>✉️ ' + esc(t('member_f_email')) + '</label><input id="rg-email" inputmode="email" autocapitalize="none"></div>' +
       '<div class="field"><label>' + esc(t('password')) + '</label><input id="rg-pw" type="password">' +
       '<div class="hint">' + esc(t('password_rule')) + '</div></div>' +
       '<div class="field"><label>' + esc(t('confirm_password')) + '</label><input id="rg-pw2" type="password"></div>' +
@@ -5872,9 +5936,11 @@
       if (pw !== pw2) { authError(t('pw_mismatch')); return; }
       const phone = document.getElementById('rg-phone').value.trim();
       if (phone && phoneErrIN(phone)) { authError(t('err_phone_in')); return; }
+      const email = document.getElementById('rg-email').value.trim();
+      if (email && !/^\S+@\S+\.\S+$/.test(email)) { authError(t('err_email')); return; }
       const btn = this, undo = busyBtn(btn);
       Auth.register({ name: name, username: username,
-        phone: phone ? cleanPhoneIN(phone) : '', password: pw,
+        phone: phone ? cleanPhoneIN(phone) : '', email: email, password: pw,
       }).then(function (resp) {
         if (resp && resp.first) { authView = 'login'; toast(t('reg_admin_msg')); }
         else authView = 'regdone';
@@ -6562,7 +6628,8 @@
                     '<button class="chip" data-act="role" data-id="' + u.id + '" data-v="' + (u.role === 'admin' ? 'user' : 'admin') + '">' +
                     esc(u.role === 'admin' ? t('remove_admin') : t('make_admin')) + '</button>';
           }
-          btns += '<button class="chip" data-act="reset" data-id="' + u.id + '">' + esc(t('reset_pw')) + '</button>' +
+          btns += '<button class="chip" data-act="editinfo" data-id="' + u.id + '" data-u="' + esc(u.username) + '">✏️ ' + esc(t('profile_btn')) + '</button>' +
+                  '<button class="chip" data-act="reset" data-id="' + u.id + '">' + esc(t('reset_pw')) + '</button>' +
                   '<button class="chip" data-act="release" data-id="' + u.id + '">' + esc(t('release_session')) + '</button>' +
                   (u.role === 'admin' ? '' : '<button class="chip" data-act="block" data-id="' + u.id + '">' + esc(t('block')) + '</button>');
         } else {
@@ -7337,6 +7404,7 @@
           // cash, and says how much. That refusal is not an error to shrug at —
           // it is the decision the committee has to make, so it is put to the
           // admin in the amount's own words, and the answer is recorded.
+          else if (b.dataset.act === 'editinfo') navigate('profile', { username: b.dataset.u });
           else if (b.dataset.act === 'block') blockUser(id);
           else if (b.dataset.act === 'unblock') adminAction('setStatus', { userId: id, status: 'approved', year: Settings.get('year') }, null, b);
           else if (b.dataset.act === 'exit') exitUser(resp.users.filter(function (x) { return x.id === id; })[0]);
@@ -7501,6 +7569,7 @@
     else if (current.view === 'receipt') renderReceiptShare(current.params);
     else if (current.view === 'help') renderHelp(current.params);
     else if (current.view === 'graveyard') renderGraveyard();
+    else if (current.view === 'profile') renderProfileForm(current.params);
     else renderHome();
     updateBadge();
   }

@@ -382,6 +382,9 @@ const I18N = {
   // A92: the epoch wipe used to take queued entries in silence.
   epoch_wiped_unsynced: { bn: '⚠️ কেন্দ্রীয় খাতা নতুন করে শুরু হয়েছে (Live/restore)।\n\nতোমার ফোনে {n}টি এন্ট্রি তখনো পাঠানো হয়নি — হিসাব থেকে সেগুলো মুছে গেছে, কিন্তু তালিকাটা রাখা আছে: ⚙️ সেটিংস → "🪦 মুছে-যাওয়া entry"।\n\nদেখে দেখে আবার তুলে দাও, আর ক্যাশিয়ারকে জানিয়ে রাখো।',
                           en: '⚠️ The central book was restarted (Go Live / restore).\n\n{n} entries on this phone had not been sent yet — they left the accounts, but the list is kept: ⚙️ Settings → "🪦 Wiped entries".\n\nRe-enter them from that list, and tell the cashier.' },
+  profile_btn: { bn: 'নাম / ফোন / email', en: 'Name / phone / email' },
+  profile_title: { bn: 'আমার তথ্য', en: 'My details' },
+  profile_hint: { bn: 'নাম, ফোন আর email — শুধু দেখানোর তথ্য। Username আর টাকার হিসাব এতে বদলায় না; পুরনো entry-তে পুরনো নামই থাকবে।', en: 'Name, phone and email — display details only. The username and the money accounts do not change; old entries keep the old name.' },
   graveyard_btn: { bn: 'মুছে-যাওয়া entry ({n})', en: 'Wiped entries ({n})' },
   graveyard_title: { bn: 'মুছে-যাওয়া entry', en: 'Wiped entries' },
   graveyard_hint: { bn: 'কেন্দ্রীয় খাতা নতুন করে শুরুর সময় এই entry-গুলো তখনো পাঠানো হয়নি। এগুলো শুধু দেখার জন্য — কোনো হিসাবে নেই। দেখে দেখে স্বাভাবিক নিয়মে আবার তুলে দাও, শেষ হলে নিচের বোতামে তালিকা মুছে দিও।', en: 'These entries were still unsent when the central book was restarted. They are for reference only — counted nowhere. Re-enter them through the normal doors, then clear this list below.' },

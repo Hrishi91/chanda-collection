@@ -11605,3 +11605,45 @@ Browser-probed: `chanda-v4.34.21 / schema 5`, first try. `js/config.js`
 rebaked. The whole epoch family — A131 panel-cache clear, A132 🪦 list,
 A132b honest 🧹/restore — is now live. The real 🚀 at trial's end will be
 this machinery's first full live run; the rule stands: everyone ✅ first.
+
+## v4.34.22 — A133: profile details, at last editable (2026-08-18)
+
+Trial: *"user profile details update is not there"* — and checking proved it
+worse than missing: a typo in the name at registration was PERMANENT. No
+action could change name or phone — not the user's, not even the admin's —
+and email did not exist at all.
+
+Now `updateProfile` (server): name/phone/email — the DISPLAY identity; money
+stays keyed by username, which the action cannot touch. Self-service for your
+own card, admin for anyone's (server re-checks — a non-admin naming someone
+else gets `not-allowed`), audit-logged old→new, `touchData_()` so the
+corrected name rides the roster to every phone. Old ledger rows keep the name
+they were written under — history stays honest.
+
+The pieces around it: `email` joins USER_COLS (APPENDED LAST — readers map by
+position, so an old sheet just has one unlabeled trailing column until
+setup()'s Users migration writes the header; **Hrishi: run setup() once after
+pasting**); register collects an optional email (phone was already there);
+the committee roster carries phone+email (widening the "deliberately narrow"
+projection by two contact fields — exposure equivalent to the member rows the
+parties store already ships); and the member form's blank-only prefill now
+fills contact too, so linking an account stops the double typing (Hrishi:
+"use the same at member creation also").
+
+Doors: ⚙️ 👤-card grows "✏️ নাম / ফোন / email" → আমার তথ্য form; the admin's
+user card grows the same chip, titled by the fields + @username (the first
+draft said "আমার তথ্য — @kali", which reads as the admin editing themselves).
+Self-save updates ck_user and Settings.collectorName in place, or the header
+greets the old name until next login.
+
+Browser-driven end-to-end as kali then hrishi: self-edit (header, ck_user,
+Settings all follow) → non-admin hitting bimal's card refused by the server →
+admin edits kali's phone from the user card (prefilled from admCache, lands
+back on the card showing the new number) → member form picks @kali and
+prefills name/phone/email through the roster → register with email accepted.
+Mutations 5/5 (guard dropped, audit dropped, email inserted MID-list,
+self-save not updating meId, prefill overwriting typed work). Tests
+**1,867 → 1,881**.
+
+**⚠️ One redeploy: v4.34.22 supersedes v4.34.21 — and this one needs
+`setup()` run once after pasting (new Users column).**

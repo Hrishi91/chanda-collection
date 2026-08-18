@@ -104,7 +104,13 @@ var USER_COLS = ['id', 'username', 'name', 'phone', 'passwordHash', 'salt', 'rol
                  // rewrites history backwards, so replaying to the exit date
                  // would not reproduce what the committee actually saw. A record
                  // that moves is not a record.
-                 'exitSnap'];
+                 'exitSnap',
+                 // A133: contact for the committee's records — the app sends no
+                 // mail, same policy as the member registry's email. APPENDED
+                 // LAST: readers and saveUser_ map by USER_COLS position, so an
+                 // old sheet simply has one unlabeled trailing column until
+                 // setup()'s Users migration writes the header.
+                 'email'];
 var AUDIT_COLS = ['id', 'ts', 'actor', 'actorId', 'action', 'detail'];
 
 // Per-report access: admin sees all; cashier gets 'inhand' by default;
@@ -320,8 +326,13 @@ function committeeRoster_() {
       // blocked and pending rows are INCLUDED, with their status: the picker
       // filters them out, but a member row linked to an account that was
       // blocked last week must still show a name rather than go blank.
+      // A133: phone/email widen the "deliberately narrow" projection by two
+      // CONTACT fields, so the member form can prefill from a linked account.
+      // The exposure is nothing new — member rows already carry phone+email to
+      // every phone via the parties store. Grants and money stay out.
       out.push({ username: String(row.username), name: String(row.name),
                  role: String(row.role), status: String(row.status),
+                 phone: String(row.phone || ''), email: String(row.email || ''),
                  position: String(row.position || ''), cashier: effPerms_(row).cashier });
     });
   }
@@ -484,6 +495,7 @@ function hasYear_(years, y) {
 function publicUser_(row) {
   var eff = effPerms_(row);
   return { id: row.id, username: row.username, name: row.name, phone: row.phone,
+           email: String(row.email || ''),
            role: row.role, cashier: eff.cashier,
            reports: eff.reports.join(','), status: row.status,
            years: String(row.years || ''), mustChange: Number(row.mustChange) || 0,
@@ -983,7 +995,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.34.21';
+var CODE_VERSION = 'chanda-v4.34.22';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1011,7 +1023,8 @@ var ACTIONS = {
       usersSheet_().appendRow(USER_COLS.map(function (c) {
         var row = {
           id: Utilities.getUuid(), username: username, name: name,
-          phone: String(b.phone || ''), passwordHash: hash_(salt, password), salt: salt,
+          phone: String(b.phone || ''), email: String(b.email || ''),
+          passwordHash: hash_(salt, password), salt: salt,
           role: first ? 'admin' : 'user', cashier: 0, reports: '',
           status: first ? 'approved' : 'pending',
           years: first ? String(new Date().getFullYear()) : '', token: '',
@@ -2479,6 +2492,36 @@ var ACTIONS = {
     saveUser_(u);
     logAudit_(me.row, 'session:release', '@' + u.row.username);
     return { ok: true };
+  },
+
+  // A133: name/phone/email — the DISPLAY identity. Money never moves: it is
+  // keyed by username (collectorId), which this action cannot touch. Self-
+  // service for your own card; admin for anyone's (a typo made at registration
+  // was permanent before this — no action could fix it, not even the admin's).
+  // Old ledger rows keep the name they were written under; that is history
+  // being honest, not a bug.
+  updateProfile: function (b) {
+    var me = requireUser_(b.token);
+    var target = { rowIndex: me.rowIndex, row: me.row };
+    var uname = String(b.username || '').trim().toLowerCase();
+    if (uname && uname !== String(me.row.username).toLowerCase()) {
+      if (String(me.row.role) !== 'admin') throw new Error('not-allowed');
+      target = findUser_('username', uname);
+      if (!target) throw new Error('user not found');
+    }
+    var name = String(b.name || '').trim();
+    if (!name) throw new Error('bad-input');
+    var was = target.row.name + ' · ' + (target.row.phone || '—') + ' · ' + (target.row.email || '—');
+    target.row.name = name;
+    target.row.phone = String(b.phone || '').trim();
+    target.row.email = String(b.email || '').trim();
+    saveUser_(target);
+    // names ride the roster on every pull — without this, other phones keep
+    // the old spelling until a ledger row happens to change
+    touchData_();
+    logAudit_(me.row, 'profile:update', '@' + target.row.username + ': [' + was + '] → [' +
+      target.row.name + ' · ' + (target.row.phone || '—') + ' · ' + (target.row.email || '—') + ']');
+    return { ok: true, user: publicUser_(target.row) };
   },
 
   setCashier: function (b) {

@@ -4696,6 +4696,44 @@ try {
        'A129b: a failed refetch repaints the cache and says why — except a dead session, which must not be papered over');
   }
 
+  // A133 (trial: "user profile details update is not there / mail id / use the
+  // same at member creation"): a registration typo in the name was PERMANENT —
+  // no action could fix it, not even the admin's. Now: updateProfile
+  // (name/phone/email — display identity; money stays keyed by username),
+  // self-service or admin, audit-logged; email joins Users and register; the
+  // roster carries contact so the member form can prefill from a linked
+  // account, blank-only.
+  {
+    const gs = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+    eq(/'exitSnap',\n[\s\S]{0,400}?'email'\];/.test(gs), true,
+       'A133: email is APPENDED LAST to USER_COLS — position-mapped readers stay aligned');
+    eq(/updateProfile: function \(b\) \{\n    var me = requireUser_\(b\.token\);/.test(gs), true,
+       'A133: updateProfile exists behind a real token');
+    eq(/if \(String\(me\.row\.role\) !== 'admin'\) throw new Error\('not-allowed'\);/.test(gs), true,
+       'A133: …someone ELSE\'s card needs the admin — the server checks, not the screen');
+    eq(/logAudit_\(me\.row, 'profile:update'/.test(gs) && /touchData_\(\);\n    logAudit_\(me\.row, 'profile:update'/.test(gs), true,
+       'A133: …audited old→new, and data_ts bumped so the roster re-rides to every phone');
+    eq(/username: username, name: name,\n          phone: String\(b\.phone \|\| ''\), email: String\(b\.email \|\| ''\)/.test(gs), true,
+       'A133: register stores the email it is given');
+    eq(/phone: String\(row\.phone \|\| ''\), email: String\(row\.email \|\| ''\),\n\s+position: String\(row\.position \|\| ''\)/.test(gs), true,
+       'A133: the roster carries contact for the member-form prefill');
+    eq(/id="rg-email"/.test(app) && /email: email, password: pw,/.test(app), true,
+       'A133: the register form collects and SENDS the email');
+    eq(/function renderProfileForm\(params\)/.test(app) &&
+       /else if \(current\.view === 'profile'\) renderProfileForm\(current\.params\);/.test(app), true,
+       'A133: the profile form exists and survives a re-render');
+    eq(/localStorage\.setItem\('ck_user', JSON\.stringify\(r\.user\)\)/.test(app) &&
+       /Settings\.set\('collectorName', r\.user\.name \|\| name\);/.test(app), true,
+       'A133: saving MY card updates the session copy and the meId name every screen reads');
+    eq(/data-act="editinfo"/.test(app) && /navigate\('profile', \{ username: b\.dataset\.u \}\);/.test(app), true,
+       'A133: the admin door on the user card is wired');
+    eq(/if \(!form\.phone\.trim\(\)\) form\.phone = u\.phone \|\| '';\n\s+if \(!form\.email\.trim\(\)\) form\.email = u\.email \|\| '';/.test(app), true,
+       'A133: member-form prefill is blank-only for contact too — typed work is never overwritten');
+    ['profile_btn', 'profile_title', 'profile_hint'].forEach(function (k) {
+      eq(a25I18n.indexOf('  ' + k + ':') >= 0, true, 'A133: ' + k + ' has a bilingual message');
+    });
+  }
+
   // A132b (Hrishi: "have you checked for going live the same?"): 🚀 always
   // took the honest path — server bumps the epoch, the forced pull's epoch
   // branch wipes WITH the 🪦 list and the A92 alert. But 🧹 and restore ran
