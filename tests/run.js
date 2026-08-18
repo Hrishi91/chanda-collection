@@ -4696,6 +4696,29 @@ try {
        'A129b: a failed refetch repaints the cache and says why — except a dead session, which must not be papered over');
   }
 
+  // A132b (Hrishi: "have you checked for going live the same?"): 🚀 always
+  // took the honest path — server bumps the epoch, the forced pull's epoch
+  // branch wipes WITH the 🪦 list and the A92 alert. But 🧹 and restore ran
+  // their own DB.clearAll() BEFORE that branch could look, so the ADMIN's own
+  // unsynced entries — on the one phone guaranteed present for the reset —
+  // were destroyed with no list and no alert. Both now defer to the branch.
+  {
+    // both fixes carry a comment that NAMES DB.clearAll — the A32 lesson
+    // again: strip comments before asserting, or the pin reads its own prose
+    const noComments = function (s) { return s.replace(/\/\/[^\n]*/g, ''); };
+    const ct = noComments(app.slice(app.indexOf("Auth.call('clearTraining', { token: Auth.token(), confirm: 'CLEAR' })"),
+                         app.indexOf("const goLiveBtn")));
+    eq(ct.indexOf('DB.clearAll') < 0 && /return pullCentral\(\{ force: true \}\);/.test(ct), true,
+       'A132b: 🧹 defers the wipe to the epoch branch — list and alert included');
+    const rs = noComments(app.slice(app.indexOf("Auth.call('restoreBackup'"), app.indexOf("admEl('rollover-btn')") > 0
+      ? app.indexOf("admEl('rollover-btn')") : app.indexOf('rollover-btn')));
+    eq(rs.indexOf('DB.clearAll') < 0 && /location\.reload\(\);/.test(rs), true,
+       'A132b: restore likewise — the reload\'s first pull wipes through the branch');
+    eq(/goLiveBtn[\s\S]{0,1600}?pullCentral\(\{ force: true \}\)/.test(app) &&
+       !/goLiveBtn[\s\S]{0,1600}?DB\.clearAll/.test(app), true,
+       'A132b: and 🚀 keeps the path it always had');
+  }
+
   // A132 (Hrishi, after walking the offline-return story: the wipe alert
   // "re-enter them if you remember" is a memory test — after a mid-season
   // restore the collector was not even there). The DETAILS are now saved

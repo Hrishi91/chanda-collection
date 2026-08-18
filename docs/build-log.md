@@ -11574,3 +11574,27 @@ by number). Tests **1,849 → 1,864**.
 
 **⚠️ One redeploy: v4.34.20 supersedes v4.34.19 (never deployed — paste .20
 directly).**
+
+## v4.34.21 — A132b: 🧹 and restore join 🚀 on the honest path (2026-08-18)
+
+Hrishi: *"have you checked for going live the same?"* Checking found the gap
+the question deserved. 🚀 goLive always deferred the local wipe to the forced
+pull's epoch branch — the only place that saves the 🪦 list and raises the
+A92 alert. But 🧹 clearTraining and restore ran their own `DB.clearAll()`
+BEFORE that branch could look, so the ADMIN's own unsynced entries — on the
+one phone guaranteed present for the reset — were destroyed with no list and
+no alert. Both handlers now just force the pull and let the epoch branch do
+the wiping (the manual clear was redundant on top of harmful).
+
+Drilled both on 9440, admin's own phone, push-blocked so the queue could not
+drain mid-drill (the first 🧹 run taught that: the fix looked dead because
+autoSync had already shipped the test entry — drill artifact, not bug):
+🧹 with queued ₹777 → alert + 🪦(১); then 🚀 with queued ₹888 → the three
+gates, the alert, 🪦 grown to (২) [777, 888 — appended across wipes],
+live_mode on, training strip gone. Mutations 2/2 (each manual clearAll
+resurrected → red). One pin fixed mid-write: the fix's own comment names
+DB.clearAll, and the first draft of the pin read its own prose — the A32
+lesson, stripped comments before asserting. Tests **1,864 → 1,867**.
+
+**⚠️ One redeploy: v4.34.21 supersedes v4.34.20 (never deployed — paste .21
+directly).**

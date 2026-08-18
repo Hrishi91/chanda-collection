@@ -7126,12 +7126,15 @@
         const undoClear = busyBtn(clearBtn);
         Auth.call('clearTraining', { token: Auth.token(), confirm: 'CLEAR' })
           .then(function (r) {
-            // the server bumped data_epoch, so this device must drop its own
-            // copy too — otherwise the phone keeps showing rows the sheet lost
-            return DB.clearAll().then(function () {
-              toast(t('clear_training_done') + (r && r.backup ? ' · ' + r.backup : ''));
-              return pullCentral({ force: true });
-            });
+            toast(t('clear_training_done') + (r && r.backup ? ' · ' + r.backup : ''));
+            // A132b: do NOT DB.clearAll() here. The server bumped data_epoch,
+            // so the forced pull's epoch branch wipes this device — and that
+            // branch is the ONLY place that saves the 🪦 list and raises the
+            // A92 alert first. Wiping by hand here destroyed the admin's own
+            // unsynced entries with no list and no alert, on the one phone
+            // guaranteed to be present for the reset. (🚀 goLive has always
+            // taken this exact path.)
+            return pullCentral({ force: true });
           })
           .then(function () { updateBadge(); navigate('home'); })
           .catch(function (e) { undoClear(); toast(errMsg(e)); });
@@ -7218,7 +7221,11 @@
           Auth.call('restoreBackup', { token: Auth.token(), fileId: list[idx].id, confirm: 'RESTORE' })
             .then(function (res) {
               alert(t('restore_done').replace('{n}', (res.restored || []).join(', ')).replace('{s}', res.safetyBackup));
-              DB.clearAll().then(function () { location.reload(); }); // re-pull the restored data
+              // A132b: no manual DB.clearAll — the reload's first pull sees the
+              // bumped data_epoch and wipes THROUGH the epoch branch, which
+              // saves the 🪦 list and raises the A92 alert first. The manual
+              // wipe destroyed this admin's own unsynced entries silently.
+              location.reload(); // re-pull the restored data
             }).catch(function (e) { toast(errMsg(e)); });
         }).catch(function (e) { toast(errMsg(e)); });
       };
