@@ -2649,9 +2649,16 @@
         const pos = memberPost(m);
         if (pos) bits.push('🎖️ ' + Lists.labelOf('position', pos));
         if (m.phone) bits.push('📞 ' + m.phone);
+        // A134: the SAME money language as the ledger row — this is the screen
+        // where you ask for money, and it used to show one bare number that
+        // never said whether it was paid, pledged or due. A member with no
+        // pledge shows just the paid figure, not a fake /₹0.
+        const paid = paidBy[m.id] || 0, pledged = Number(m.pledged) || 0, due = pledged - paid;
         return '<div class="row" data-mpay="' + esc(m.id) + '"><div><b>' + esc(m.name) + '</b>' +
           '<div class="row-sub">' + esc(bits.join(' · ')) + '</div></div>' +
-          '<b class="cat-tot">' + fmtMoney(paidBy[m.id] || 0) + '</b></div>';
+          '<div class="row-right">' + fmtMoney(paid) + (pledged ? '/' + fmtMoney(pledged) : '') +
+          (pledged ? (due > 0 ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
+                             : '<span class="ok-chip">✅</span>') : '') + '</div></div>';
       }).join('') : '<div class="empty">' + esc(t('member_none')) + '</div>';
       el.querySelectorAll('[data-mpay]').forEach(function (row) {
         row.onclick = function () {

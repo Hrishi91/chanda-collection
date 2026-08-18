@@ -4696,6 +4696,23 @@ try {
        'A129b: a failed refetch repaints the cache and says why — except a dead session, which must not be papered over');
   }
 
+  // A134 (trial: "member new entry should show the same as add-payment/dues
+  // member rows"): the 🤝 picker — the screen where you ASK for money — showed
+  // one bare number that never said paid, pledged or due, while the ledger row
+  // for the same member said ₹200/₹500 + বাকি. Same money language now; a
+  // member with no pledge shows just the paid figure, never a fake /₹0.
+  {
+    const mp = app.slice(app.indexOf('function paintMembers'), app.indexOf("el.querySelectorAll('[data-mpay]')"));
+    eq(/const paid = paidBy\[m\.id\] \|\| 0, pledged = Number\(m\.pledged\) \|\| 0, due = pledged - paid;/.test(mp), true,
+       'A134: the member picker computes the ledger row\'s three figures');
+    eq(/fmtMoney\(paid\) \+ \(pledged \? '\/' \+ fmtMoney\(pledged\) : ''\)/.test(mp), true,
+       'A134: …paid/pledged shown together, and no fake /₹0 without a pledge');
+    eq(/due > 0 \? '<span class="due-chip">' \+ esc\(t\('due'\)\)/.test(mp) && /ok-chip/.test(mp), true,
+       'A134: …with the same বাকি chip and ✅ the ledger row uses');
+    eq(mp.indexOf('cat-tot') < 0, true,
+       'A134: the old bare-number style is gone from the picker');
+  }
+
   // A133 (trial: "user profile details update is not there / mail id / use the
   // same at member creation"): a registration typo in the name was PERMANENT —
   // no action could fix it, not even the admin's. Now: updateProfile

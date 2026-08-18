@@ -11652,3 +11652,21 @@ self-save not updating meId, prefill overwriting typed work). Tests
 
 Browser-probed: `chanda-v4.34.22 / schema 5`, first try. `js/config.js`
 rebaked. Profile editing is in the fleet's hands.
+
+## v4.34.23 — A134: the member picker speaks the ledger's money language (2026-08-18)
+
+Trial: *"member amount new entry — the same we should see as it shows in add
+payment/dues member row."* Right on target: the 🤝 সদস্য picker — the screen
+where you ASK a member for money — showed one bare number (the paid total,
+unlabeled), while the ledger row for the same member said ₹200/₹500 + বাকি.
+Two screens, same member, different figures: the A121/A130 confusion class
+again. The picker's right side is now the ledger row verbatim — ₹paid/₹pledged
+with the বাকি chip or ✅ — keeping its own 🎖️ post and 📞 phone on the left.
+A member with no pledge shows just the paid figure, never a fake /₹0.
+
+Browser-proven side by side: picker row and ledger member-tab row render the
+identical `₹0/₹1,000 · বাকি ₹1,000`. Mutations 2/2 (fake /₹0 reintroduced;
+chip dropped back to a bare number). Tests **1,881 → 1,885**.
+
+**⚠️ One redeploy: v4.34.23 supersedes v4.34.22 (no setup() needed this
+time — version string only on the server side).**
