@@ -11511,3 +11511,33 @@ drawn-but-inert, cue wired on one screen). Tests **1,828 → 1,846**.
 
 Probed in the browser (the new habit): `chanda-v4.34.18 / schema 5`, first
 try. `js/config.js` rebaked. The search package is in the fleet's hands.
+
+## v4.34.19 — A131: the wipe that spared the panel cache (2026-08-18)
+
+Hrishi ran 🧹 on the live book and reported: *"after clearing, the users are
+showing with cash data."* Reproduced exactly on the harness: after
+clearTraining, 📒 খাতা honestly said "এখনো কোনো এন্ট্রি নেই" while 👑 কমিটি
+still showed every user with "হাতে ₹3,800" — because the data_epoch wipe
+clears the central snapshot and IndexedDB but `admCache` is MODULE state and
+nothing ever set it back to null (not the epoch branch, not logout, nothing
+since the day it was born).
+
+Fix, two sites: the epoch-wipe branch drops `admCache` (+ section/user id so
+a detail view of a deleted row cannot repaint) and empties the three
+settled-answer sets (stampedAnswers / resolvedFlags / answeredNotifs — every
+id they remember died with the old book); logout drops the panel cache so the
+next login on the same phone cannot inherit the previous admin's numbers.
+
+The rest of the module-state audit, for the record: viewMemo is keyed by
+DB.dataVersion (clearAll bumps it) — safe; the entry draft re-checks its
+party on resume and says draft_gone — safe; the sync queue is cleared WITH
+the A92 count alert — by design; Lists/subjects/receipt-config survive the
+wipe — by design (the 🧹 button says so); the committee roster rides every
+pull — self-healing; findparty refetches per open — safe.
+
+Proven in the browser (9437 sick → 9438 healed): the same drill that showed
+₹3,800 after 🧹 now shows the same users at ₹0. Mutations 3/3. Tests
+**1,846 → 1,849**.
+
+**⚠️ One redeploy: v4.34.19 supersedes v4.34.18.** Until a phone has .19, the
+stale-panel symptom self-heals with the header 🔄 on the panel, or a reload.

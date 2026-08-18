@@ -359,6 +359,15 @@
         if (resp.config) { centralConfig = resp.config; try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {} }
         setCentral(null); centralCursor = '';
         try { localStorage.removeItem('ck_central'); localStorage.removeItem('ck_central_cursor'); } catch (e) {}
+        // A131 (trial, the morning after 🧹: "the users are showing with cash
+        // data"): the admin panel's cache is MODULE state, not DB state — this
+        // wipe cleared every row everywhere else while 👑 kept painting the
+        // old users with their old হাতে-₹ from admCache. Same class for the
+        // settled-answer sets: every id they remember died with the old book.
+        admCache = null; admSection = ''; admUserId = '';
+        [stampedAnswers, resolvedFlags, answeredNotifs].forEach(function (m) {
+          Object.keys(m).forEach(function (k) { delete m[k]; });
+        });
         // A69: the flag is cleared BEFORE the recursive call, or the clean
         // re-pull is swallowed by the guard this very call set — and the device
         // would sit on an empty book until the next tick.
@@ -5389,6 +5398,9 @@
         // destroy money that has not reached the server. That ordering is the
         // whole reason this is a three-line change and not a dangerous one.
         DB.clearAll().catch(function () {}).then(function () {
+          // A131: the panel cache outlives the DB wipe — without this, the
+          // NEXT login on this phone opens 👑 on the previous admin's numbers
+          admCache = null; admSection = ''; admUserId = '';
           Auth.logout(); authView = 'login'; navigate('home');
         });
         return;

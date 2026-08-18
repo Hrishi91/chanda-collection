@@ -4693,6 +4693,21 @@ try {
        'A129b: a failed refetch repaints the cache and says why — except a dead session, which must not be papered over');
   }
 
+  // A131 (trial, the morning after 🧹: "the users are showing with cash
+  // data"): the data_epoch wipe cleared the snapshot and IndexedDB but not
+  // MODULE state — 👑 kept painting old users with old হাতে-₹ from admCache
+  // (reproduced: খাতা said "no entries" while the panel said ₹3,800). Pinned:
+  // the epoch branch clears the panel cache and the settled-answer sets, and
+  // logout clears the panel cache so the next login cannot inherit it.
+  {
+    eq(/localStorage\.removeItem\('ck_central_cursor'\); \} catch \(e\) \{\}\n[\s\S]{0,600}?admCache = null; admSection = ''; admUserId = '';/.test(app), true,
+       'A131: the epoch wipe clears the admin panel cache too');
+    eq(/\[stampedAnswers, resolvedFlags, answeredNotifs\]\.forEach\(function \(m\) \{\n\s+Object\.keys\(m\)\.forEach\(function \(k\) \{ delete m\[k\]; \}\);\n\s+\}\);/.test(app), true,
+       'A131: …and the settled-answer sets — their ids died with the old book');
+    eq(/DB\.clearAll\(\)\.catch\(function \(\) \{\}\)\.then\(function \(\) \{\n[\s\S]{0,300}?admCache = null;[\s\S]{0,120}?Auth\.logout\(\);/.test(app), true,
+       'A131: logout drops the panel cache — the next login starts clean');
+  }
+
   // A130 (trial: "user is not able to see the search criteria / sort should be
   // date and time wise, my data at first / tabs going out of the screen"):
   // search's powers existed but were secret, the order was alphabetical, the
