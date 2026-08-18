@@ -11670,3 +11670,8 @@ chip dropped back to a bare number). Tests **1,881 → 1,885**.
 
 **⚠️ One redeploy: v4.34.23 supersedes v4.34.22 (no setup() needed this
 time — version string only on the server side).**
+
+### v4.34.23 deployed (2026-08-18)
+
+Browser-probed: `chanda-v4.34.23 / schema 5`, first try. `js/config.js`
+rebaked. The member picker now speaks money like the ledger everywhere.
