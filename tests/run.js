@@ -4696,6 +4696,31 @@ try {
        'A129b: a failed refetch repaints the cache and says why — except a dead session, which must not be papered over');
   }
 
+  // A135 (trial: "receipt sharing in WhatsApp — why do we need to type the
+  // mobile number again? it should take the number… I think it was there
+  // previously"): the number WAS there — on the party row, and the 📞 remind
+  // button has always used wa.me with it. The receipt screen only ever offered
+  // the image, which goes through the OS share sheet, where the recipient is
+  // picked by hand. Now a direct wa.me button leads when the donor's number is
+  // known; the image keeps its place and finally says WHY it cannot be
+  // pre-addressed; a donor with no number gets a door to add one.
+  {
+    eq(/function shareReceiptWA\(rc, phone\) \{\n\s+const num = waNumber\(phone\);\n\s+if \(!num\) \{ toast\(t\('no_phone'\)\); return; \}/.test(app), true,
+       'A135: the receipt has a direct-to-donor WhatsApp path, refusing an unusable number');
+    eq(/window\.open\('https:\/\/wa\.me\/' \+ num \+ '\?text=' \+ encodeURIComponent\(receiptMessage\(rc\)\), '_blank'\);/.test(app), true,
+       'A135: …carrying the receipt text into the donor\'s own chat');
+    const rp = app.slice(app.indexOf('const paint = function () {'), app.indexOf('contWire();\n      };'));
+    eq(/const waNum = waNumber\(phone\);/.test(rp) && /waNum\n\s+\? '<button id="rcp-wadirect"/.test(rp), true,
+       'A135: the direct button leads only when we actually know the number');
+    eq(/id="rcp-addphone"/.test(rp) && /navigate\('partyform', \{ id: party\.id \}\);/.test(rp), true,
+       'A135: …and a donor without a number gets a door to add one, not a dead end');
+    eq(/receipt_img_hint/.test(rp), true,
+       'A135: the image button says why the share sheet asks who — no platform can pre-address a picture');
+    ['receipt_send_wa', 'receipt_wa_hint', 'receipt_no_phone', 'receipt_add_phone', 'receipt_img_hint'].forEach(function (k) {
+      eq(a25I18n.indexOf('  ' + k + ':') >= 0, true, 'A135: ' + k + ' has a bilingual message');
+    });
+  }
+
   // A134 (trial: "member new entry should show the same as add-payment/dues
   // member rows"): the 🤝 picker — the screen where you ASK for money — showed
   // one bare number that never said paid, pledged or due, while the ledger row

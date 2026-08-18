@@ -11675,3 +11675,36 @@ time — version string only on the server side).**
 
 Browser-probed: `chanda-v4.34.23 / schema 5`, first try. `js/config.js`
 rebaked. The member picker now speaks money like the ledger everywhere.
+
+## v4.34.24 — A135: the receipt goes to the donor's own chat (2026-08-18)
+
+Trial: *"receipt sharing in WhatsApp — why do we need to type the mobile
+number again? It should take the number and open that chat. I think it was
+there previously."* He was remembering correctly — 📞 মনে করাও has used
+`wa.me/<number>` from the donor's row since the beginning. The RECEIPT screen
+never did: its only WhatsApp path was the image, which goes through the OS
+share sheet, and a share sheet has no recipient — you pick the person by hand
+every time.
+
+Now, when the donor's number is on file, the receipt screen leads with
+**📲 WhatsApp-এ পাঠাও** → `wa.me/<91…>?text=<receipt>`: the donor's own chat
+opens with the text receipt written, collector taps send. Nothing is ever
+auto-sent.
+
+The honest part, which is why this should not come back as a report next
+season: **an image cannot be pre-addressed by any phone** — no web API
+carries a file AND a recipient, so the picture receipt must go through the
+share sheet. It keeps its place (now secondary when a direct path exists) and
+finally says so in one line under itself. A donor with no number saved gets
+the reason plus a **📞 নম্বর যোগ করো** chip straight into the donor form,
+instead of a dead end.
+
+Browser-driven on 9445 (a fixture party given a number first): direct button
+opens `wa.me/919876500011?text=…` carrying the real receipt text ("চাঁদা
+পেয়েছি — ধন্যবাদ 🙏 / শ্রী/শ্রীমতী…"); the no-number donor shows the line,
+the chip lands on ✏️ ডোনরের তথ্য সংশোধন, and the image button correctly
+becomes primary there. Mutations 4/4 (button shown without a number, guard
+dropped, add-phone door removed, image hint silenced). Tests
+**1,885 → 1,895**.
+
+**⚠️ One redeploy: v4.34.24 supersedes v4.34.23.**
