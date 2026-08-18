@@ -357,8 +357,11 @@
       if (newEpoch && newEpoch !== seenEpoch) {
         try { localStorage.setItem('ck_epoch', newEpoch); } catch (e) {}
         if (resp.config) { centralConfig = resp.config; try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {} }
-        setCentral(null); centralCursor = '';
-        try { localStorage.removeItem('ck_central'); localStorage.removeItem('ck_central_cursor'); } catch (e) {}
+        setCentral(null); centralCursor = ''; centralYear = '';
+        try {
+          localStorage.removeItem('ck_central'); localStorage.removeItem('ck_central_cursor');
+          localStorage.removeItem('ck_central_year'); // A132: meaningless without ck_central, but leave no orphan
+        } catch (e) {}
         // A131 (trial, the morning after 🧹: "the users are showing with cash
         // data"): the admin panel's cache is MODULE state, not DB state — this
         // wipe cleared every row everywhere else while 👑 kept painting the
@@ -389,12 +392,32 @@
         // server has discarded, which is worse. So it counts first and tells the
         // person afterwards, by name and number, instead of leaving them to
         // notice a missing ₹800 next week.
-        return DB.unsyncedCount().then(function (lost) {
+        return DB.allData().then(function (all) {
+          // A132: the alert used to give only a COUNT — "re-enter them if you
+          // remember" is a memory test, and after a mid-season restore the
+          // collector was not even present for the reset. Save the DETAILS
+          // before the wipe: ⚙️ grows a read-only 🪦 list to re-enter from.
+          // Same rows sync would have pushed (unsynced, not rejected);
+          // appended across wipes, capped so storage can never choke.
+          const lostRows = [];
+          DB.STORES.forEach(function (s) {
+            (all[s] || []).forEach(function (r) {
+              if (!r.synced && !r.rejected) lostRows.push({ store: s, row: r });
+            });
+          });
+          if (lostRows.length) {
+            let prev = [];
+            try { prev = JSON.parse(localStorage.getItem('ck_wiped_entries') || '[]') || []; } catch (e) { prev = []; }
+            try {
+              localStorage.setItem('ck_wiped_entries',
+                JSON.stringify(prev.concat(lostRows).slice(-200)));
+            } catch (e) { /* storage full — the wipe itself must still run */ }
+          }
           return DB.clearAll().then(function () {
-            if (lost > 0) {
+            if (lostRows.length > 0) {
               // alert, not toast: 2.2s is not long enough to read something you
               // may have to report to the cashier
-              try { window.alert(t('epoch_wiped_unsynced').replace('{n}', toBengaliDigits(String(lost)))); } catch (e) {}
+              try { window.alert(t('epoch_wiped_unsynced').replace('{n}', toBengaliDigits(String(lostRows.length)))); } catch (e) {}
             }
             pullBusy = false;
             return pullCentral({ force: true }); // clean full pull
@@ -3932,6 +3955,38 @@
     if (store === 'handovers') return '🤝 ' + t('handover') + ' → ' + (r.to || '?') + ' — ' + amt;
     return amt;
   }
+  // A132: what the epoch wipe could not keep. Read-only by design — these rows
+  // belong to a book the server has discarded; the ONLY correct action is to
+  // re-enter them through the normal doors, which stamps them with the new
+  // book's epoch and a real receipt serial.
+  function graveyardRead() {
+    try { return JSON.parse(localStorage.getItem('ck_wiped_entries') || '[]') || []; } catch (e) { return []; }
+  }
+  function renderGraveyard() {
+    const list = graveyardRead();
+    $view().innerHTML = backBar('settings') +
+      '<div class="flow-title">🪦 ' + esc(t('graveyard_title')) + '</div>' +
+      '<div class="hint" style="margin-bottom:8px">' + esc(t('graveyard_hint')) + '</div>' +
+      (list.length ? list.map(function (x) {
+        const r = x.row || {};
+        const head = x.store === 'parties'
+          ? '👥 ' + (r.name || '?') + (Number(r.pledged) ? ' · ' + fmtMoney(r.pledged) : '')
+          : entrySummary(x.store, r);
+        return '<div class="row" style="cursor:default"><div><b>' + esc(head) + '</b>' +
+          '<div class="row-sub">' + esc(fmtDate(r.date || r.createdAt)) +
+          (r.note ? ' • ' + esc(r.note) : '') + '</div></div>' +
+          (Number(r.amount) ? '<div class="row-right">' + fmtMoney(r.amount) + '</div>' : '') +
+          '</div>';
+      }).join('') : '<div class="empty">' + esc(t('graveyard_empty')) + '</div>') +
+      (list.length ? '<button id="grave-clear" class="ghost big block">' + esc(t('graveyard_clear')) + '</button>' : '');
+    const gc = document.getElementById('grave-clear');
+    if (gc) gc.onclick = function () {
+      if (!window.confirm(t('graveyard_clear_confirm'))) return;
+      try { localStorage.removeItem('ck_wiped_entries'); } catch (e) {}
+      toast('✅ ' + t('saved'));
+      navigate('settings');
+    };
+  }
   function renderVoidReason(targetStore, targetId, backFn) {
     $view().innerHTML = '<button class="ghost back-bar" id="void-back">← ' + esc(t('back')) + '</button>' +
       '<div class="card center onboard"><div class="big-emoji">✖️</div>' +
@@ -5348,6 +5403,11 @@
       // no reason a collector would ever need it.
       (Auth.isAdmin() ? '<button id="import-btn" class="ghost big block">' + esc(t('import_backup')) + '</button>' +
         '<input type="file" id="import-file" accept=".json" hidden>' : '') +
+      // A132: only exists while there is something to show — a permanent
+      // graveyard door on every phone would be noise about a disaster that
+      // almost never happens
+      (graveyardRead().length ? '<button id="grave-btn" class="ghost big block">🪦 ' +
+        esc(t('graveyard_btn').replace('{n}', toBengaliDigits(String(graveyardRead().length)))) + '</button>' : '') +
       '<button id="chpw-btn" class="ghost big block">🔑 ' + esc(t('change_pw_title')) + '</button>' +
       '<button id="logout-btn" class="ghost big block">🚪 ' + esc(t('logout')) + '</button>' +
       // A28: which version is THIS PHONE actually running? There was no way to
@@ -5368,6 +5428,8 @@
     const admB = document.getElementById('adm-btn');
     if (admB) admB.onclick = function () { admSection = ''; admUserId = ''; admDraft = null; navigate('admin'); };
     document.getElementById('help-btn').onclick = function () { navigate('help'); };
+    const graveB = document.getElementById('grave-btn');
+    if (graveB) graveB.onclick = function () { navigate('graveyard'); };
     const notifBtn = document.getElementById('notif-btn');
     if (notifBtn) notifBtn.onclick = function () {
       if (Notification.permission === 'granted') { toast(t('notif_on')); checkNotifications(); return; }
@@ -7431,6 +7493,7 @@
     else if (current.view === 'receiptcfg') { Auth.isAdmin() ? renderReceiptConfig() : renderHome(); }
     else if (current.view === 'receipt') renderReceiptShare(current.params);
     else if (current.view === 'help') renderHelp(current.params);
+    else if (current.view === 'graveyard') renderGraveyard();
     else renderHome();
     updateBadge();
   }

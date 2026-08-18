@@ -11541,3 +11541,36 @@ Proven in the browser (9437 sick → 9438 healed): the same drill that showed
 
 **⚠️ One redeploy: v4.34.19 supersedes v4.34.18.** Until a phone has .19, the
 stale-panel symptom self-heals with the header 🔄 on the panel, or a reload.
+
+## v4.34.20 — A132: the 🪦 list — the wipe keeps the details (2026-08-18)
+
+Walking the offline-return story with Hrishi surfaced the one human gap in
+the epoch machinery: the alert counted the wiped entries but destroyed the
+details — *"re-enter them if you remember"* is a memory test, and the wipe
+also fires on a mid-season RESTORE, where the collector was not even present.
+(The admin's mandatory pre-wipe Drive backup meant the money was never truly
+unrecoverable — but recovery meant the admin digging through a backup file.)
+
+Now, in the epoch branch, BEFORE `DB.clearAll()`: the unsynced-and-not-
+rejected rows (exactly what sync would have pushed) are saved to
+`ck_wiped_entries` — appended across wipes, capped at 200. The alert names
+the place: *"তালিকাটা রাখা আছে: ⚙️ সেটিংস → 🪦 মুছে-যাওয়া entry"*. Settings
+grows the 🪦 door ONLY while the list is non-empty; the screen is read-only
+(these rows belong to a discarded book — the only correct action is re-entry
+through the normal doors, which stamps the new epoch and a real serial), each
+row rendered kind-first via entrySummary, with a confirm-guarded
+"সব তোলা হয়ে গেছে — তালিকা মুছি". Also: the epoch wipe now removes
+`ck_central_year` (the harmless orphan from the A131 audit).
+
+Browser-proven on 9439, the full story end-to-end: offline রোড-entry ₹444
+(⏳1) → 🧹 fired server-side behind the app's back → reconnect → the alert
+names the list → `ck_wiped_entries` holds daily:444 → ⚙️ shows
+"🪦 মুছে-যাওয়া entry (১)" → the screen shows 🛣️ রোড — ₹444 with date →
+confirmed clear → door gone, storage empty. Mutations 6/6 — one drill lied
+first (M1's anchor matched TWO clearAll sites, so the mutation never applied
+and green was vacuous; re-run with a unique anchor, caught). The A92 pins
+were repointed at the same property in the new shape (read before wipe, tell
+by number). Tests **1,849 → 1,864**.
+
+**⚠️ One redeploy: v4.34.20 supersedes v4.34.19 (never deployed — paste .20
+directly).**

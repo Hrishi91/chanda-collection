@@ -1536,11 +1536,14 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
   {
     const from = appSrc.indexOf('const newEpoch =');
     const blk = appSrc.slice(from, appSrc.indexOf('resetPullBackoff()', from));
-    eq(/DB\.unsyncedCount\(\)\.then\(function \(lost\)/.test(blk), true,
-       'A92: the wipe counts what is queued BEFORE clearing it');
-    eq(blk.indexOf('DB.unsyncedCount()') < blk.indexOf('DB.clearAll()'), true,
+    // (A132 replaced the bare COUNT with a saved DETAILS list — the property
+    // pinned here is unchanged: what is queued is read before the wipe, and
+    // the collector is told by number.)
+    eq(/DB\.allData\(\)\.then\(function \(all\)/.test(blk) && /lostRows\.push\(/.test(blk), true,
+       'A92: the wipe reads what is queued BEFORE clearing it');
+    eq(blk.indexOf('DB.allData()') < blk.indexOf('DB.clearAll()'), true,
        'A92: …in that order, or the count is always zero');
-    eq(/if \(lost > 0\)/.test(blk) && /epoch_wiped_unsynced/.test(blk), true,
+    eq(/if \(lostRows\.length > 0\)/.test(blk) && /epoch_wiped_unsynced/.test(blk), true,
        'A92: …and tells the collector, by number, so a missing ₹800 is not found next week');
     eq(/window\.alert\(/.test(blk), true,
        'A92: …with an alert, not a toast — 2.2s is not long enough to read something you must report');
@@ -4693,6 +4696,39 @@ try {
        'A129b: a failed refetch repaints the cache and says why — except a dead session, which must not be papered over');
   }
 
+  // A132 (Hrishi, after walking the offline-return story: the wipe alert
+  // "re-enter them if you remember" is a memory test — after a mid-season
+  // restore the collector was not even there). The DETAILS are now saved
+  // before the wipe and ⚙️ grows a read-only 🪦 list to re-enter from.
+  {
+    eq(/if \(!r\.synced && !r\.rejected\) lostRows\.push\(\{ store: s, row: r \}\);/.test(app), true,
+       'A132: the wipe keeps exactly the rows sync would have pushed');
+    eq(/JSON\.stringify\(prev\.concat\(lostRows\)\.slice\(-200\)\)/.test(app), true,
+       'A132: …appended across wipes and capped, so storage can never choke');
+    eq(app.indexOf("localStorage.setItem('ck_wiped_entries'") >= 0 &&
+       app.indexOf("localStorage.setItem('ck_wiped_entries'") <
+       app.indexOf('DB.clearAll().then(function () {\n            if (lostRows.length'), true,
+       'A132: …saved BEFORE clearAll, or there is nothing left to save');
+    eq(/window\.alert\(t\('epoch_wiped_unsynced'\)\.replace\('\{n\}', toBengaliDigits\(String\(lostRows\.length\)\)\)\)/.test(app), true,
+       'A132: the alert still counts, from the same list it saved');
+    eq(/else if \(current\.view === 'graveyard'\) renderGraveyard\(\);/.test(app) &&
+       /graveB\.onclick = function \(\) \{ navigate\('graveyard'\); \};/.test(app), true,
+       'A132: the 🪦 screen is reachable from ⚙️ and survives a re-render');
+    eq(/\(graveyardRead\(\)\.length \? '<button id="grave-btn"/.test(app), true,
+       'A132: the door only exists while there is something behind it');
+    eq(/if \(!window\.confirm\(t\('graveyard_clear_confirm'\)\)\) return;\n\s+try \{ localStorage\.removeItem\('ck_wiped_entries'\); \} catch \(e\) \{\}/.test(app), true,
+       'A132: clearing the list asks first — it cannot be brought back');
+    eq(/localStorage\.removeItem\('ck_central_year'\)/.test(app), true,
+       'A132: the epoch wipe no longer leaves ck_central_year orphaned');
+    eq(a25I18n.indexOf('সেটিংস → "🪦 মুছে-যাওয়া entry"') >= 0 &&
+       a25I18n.indexOf('Settings → "🪦 Wiped entries"') >= 0, true,
+       'A132: the alert tells the collector WHERE the list is, not just how many');
+    ['graveyard_btn', 'graveyard_title', 'graveyard_hint', 'graveyard_empty',
+     'graveyard_clear', 'graveyard_clear_confirm'].forEach(function (k) {
+      eq(a25I18n.indexOf('  ' + k + ':') >= 0, true, 'A132: ' + k + ' has a bilingual message');
+    });
+  }
+
   // A131 (trial, the morning after 🧹: "the users are showing with cash
   // data"): the data_epoch wipe cleared the snapshot and IndexedDB but not
   // MODULE state — 👑 kept painting old users with old হাতে-₹ from admCache
@@ -4700,7 +4736,7 @@ try {
   // the epoch branch clears the panel cache and the settled-answer sets, and
   // logout clears the panel cache so the next login cannot inherit it.
   {
-    eq(/localStorage\.removeItem\('ck_central_cursor'\); \} catch \(e\) \{\}\n[\s\S]{0,600}?admCache = null; admSection = ''; admUserId = '';/.test(app), true,
+    eq(/localStorage\.removeItem\('ck_central_year'\);[\s\S]{0,700}?admCache = null; admSection = ''; admUserId = '';/.test(app), true,
        'A131: the epoch wipe clears the admin panel cache too');
     eq(/\[stampedAnswers, resolvedFlags, answeredNotifs\]\.forEach\(function \(m\) \{\n\s+Object\.keys\(m\)\.forEach\(function \(k\) \{ delete m\[k\]; \}\);\n\s+\}\);/.test(app), true,
        'A131: …and the settled-answer sets — their ids died with the old book');

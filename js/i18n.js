@@ -380,8 +380,14 @@ const I18N = {
                   en: 'What is this year’s collection target?\n\nLeave empty to clear it — the bar disappears.' },
   target_cleared:{ bn: 'লক্ষ্য মুছে দেওয়া হল', en: 'Target cleared' },
   // A92: the epoch wipe used to take queued entries in silence.
-  epoch_wiped_unsynced: { bn: '⚠️ কেন্দ্রীয় খাতা নতুন করে শুরু হয়েছে (Live/restore)।\n\nতোমার ফোনে {n}টি এন্ট্রি তখনো পাঠানো হয়নি — সেগুলো আর নেই।\n\nওই entry-গুলো মনে থাকলে আবার তুলে দাও, আর ক্যাশিয়ারকে জানিয়ে রাখো।',
-                          en: '⚠️ The central book was restarted (Go Live / restore).\n\n{n} entries on this phone had not been sent yet — they are gone.\n\nRe-enter them if you remember, and tell the cashier.' },
+  epoch_wiped_unsynced: { bn: '⚠️ কেন্দ্রীয় খাতা নতুন করে শুরু হয়েছে (Live/restore)।\n\nতোমার ফোনে {n}টি এন্ট্রি তখনো পাঠানো হয়নি — হিসাব থেকে সেগুলো মুছে গেছে, কিন্তু তালিকাটা রাখা আছে: ⚙️ সেটিংস → "🪦 মুছে-যাওয়া entry"।\n\nদেখে দেখে আবার তুলে দাও, আর ক্যাশিয়ারকে জানিয়ে রাখো।',
+                          en: '⚠️ The central book was restarted (Go Live / restore).\n\n{n} entries on this phone had not been sent yet — they left the accounts, but the list is kept: ⚙️ Settings → "🪦 Wiped entries".\n\nRe-enter them from that list, and tell the cashier.' },
+  graveyard_btn: { bn: 'মুছে-যাওয়া entry ({n})', en: 'Wiped entries ({n})' },
+  graveyard_title: { bn: 'মুছে-যাওয়া entry', en: 'Wiped entries' },
+  graveyard_hint: { bn: 'কেন্দ্রীয় খাতা নতুন করে শুরুর সময় এই entry-গুলো তখনো পাঠানো হয়নি। এগুলো শুধু দেখার জন্য — কোনো হিসাবে নেই। দেখে দেখে স্বাভাবিক নিয়মে আবার তুলে দাও, শেষ হলে নিচের বোতামে তালিকা মুছে দিও।', en: 'These entries were still unsent when the central book was restarted. They are for reference only — counted nowhere. Re-enter them through the normal doors, then clear this list below.' },
+  graveyard_empty: { bn: 'তালিকা খালি', en: 'Nothing here' },
+  graveyard_clear: { bn: '🗑️ সব তোলা হয়ে গেছে — তালিকা মুছি', en: '🗑️ All re-entered — clear the list' },
+  graveyard_clear_confirm: { bn: 'তালিকাটা মুছে দেব? এটা আর ফেরানো যাবে না।', en: 'Clear this list? It cannot be brought back.' },
   target_bad:   { bn: 'অঙ্কটা বুঝলাম না — সংখ্যা লেখো (যেমন 200000 বা "দুই লাখ")',
                   en: 'Could not read that — type a number (e.g. 200000)' },
   // A78d: the composer is replaced by this, not left to fail on send.
