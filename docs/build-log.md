@@ -11598,3 +11598,10 @@ lesson, stripped comments before asserting. Tests **1,864 → 1,867**.
 
 **⚠️ One redeploy: v4.34.21 supersedes v4.34.20 (never deployed — paste .21
 directly).**
+
+### v4.34.21 deployed (2026-08-18)
+
+Browser-probed: `chanda-v4.34.21 / schema 5`, first try. `js/config.js`
+rebaked. The whole epoch family — A131 panel-cache clear, A132 🪦 list,
+A132b honest 🧹/restore — is now live. The real 🚀 at trial's end will be
+this machinery's first full live run; the rule stands: everyone ✅ first.
