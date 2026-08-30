@@ -3972,6 +3972,61 @@
     if (store === 'handovers') return '🤝 ' + t('handover') + ' → ' + (r.to || '?') + ' — ' + amt;
     return amt;
   }
+  // A140: one pot, opened. The equation comes first and DERIVES the figure the
+  // caller tapped — same discipline as A136's season line — then the rows that
+  // make up each term, in the app's usual kind-first shape.
+  function renderPotDetail(params) {
+    const cat = (params || {}).cat || '';
+    const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
+    $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('loading')) + '</div>';
+    viewData().then(function (data) {
+      const p = Aggregate.potDetail(data, ident, cat);
+      const name = t(CAT_LABEL_KEYS[cat] || 'cat_other');
+      const rowsOf = function (b, negative) {
+        return b.rows.map(function (x) {
+          const head = x.store === 'handovers'
+            ? '🤝 ' + (String(x.r.fromId || x.r.from) === String(ident)
+                ? t('my_handed') + ' → ' + (x.r.to || '?')
+                : t('my_received') + ' ← ' + (x.r.from || '?'))
+            : entrySummary(x.store, x.r);
+          return '<div class="row" style="cursor:default"><div><b>' + esc(head) + '</b>' +
+            '<div class="row-sub">' + esc(fmtDate(x.r.date || x.r.createdAt)) + '</div></div>' +
+            '<div class="row-right">' + (negative ? '−' : '') + fmtMoney(x.amount) + '</div></div>';
+        }).join('');
+      };
+      const block = function (titleKey, b, negative) {
+        if (!b.rows.length) return '';
+        return '<div class="card"><div class="card-title">' + esc(t(titleKey)) + ' — ' +
+          (negative ? '−' : '') + fmtMoney(b.total) + '</div>' + rowsOf(b, negative) + '</div>';
+      };
+      const term = function (label, amt) {
+        return '<span class="term">' + esc(label) + ' <b>' + fmtMoney(amt) + '</b></span>';
+      };
+      $view().innerHTML = backBar('report') +
+        '<div class="flow-title">' + esc(name) + ' — ' + esc(t('pot_title')) + '</div>' +
+        '<div class="hint" style="margin:0 4px 8px">' + esc(t('pot_hint')) + '</div>' +
+        '<div class="tillnow"><div class="eqrow">' +
+          term(t('my_collected'), p.collected.total) +
+          (p.receivedIn.total ? '<span class="op">+</span>' + term(t('my_received'), p.receivedIn.total) : '') +
+          (p.expenses.total ? '<span class="op">−</span>' + term(t('expense'), p.expenses.total) : '') +
+          (p.handedOut.total ? '<span class="op">−</span>' + term(t('my_handed'), p.handedOut.total) : '') +
+          // legacy rows the old drain rule spread across pots: named, not hidden
+          (p.unattributed ? '<span class="op">' + (p.unattributed < 0 ? '−' : '+') + '</span>' +
+            term(t('pot_other'), Math.abs(p.unattributed)) : '') +
+          '<span class="op">=</span><span class="term res">' + esc(t('eq_inhand')) + ' <b>' +
+            fmtMoney(p.total.total) + '</b> ✓</span>' +
+        '</div><span class="sub">💵 ' + esc(t('cash')) + ' ' + fmtMoney(p.total.cash) +
+          ' · 📱 ' + esc(t('upi')) + ' ' + fmtMoney(p.total.upi) + '</span></div>' +
+        block('my_collected', p.collected, false) +
+        block('my_received', p.receivedIn, false) +
+        block('expense', p.expenses, true) +
+        block('my_handed', p.handedOut, true) +
+        (p.collected.rows.length || p.receivedIn.rows.length || p.expenses.rows.length || p.handedOut.rows.length
+          ? '' : '<div class="empty">' + esc(t('no_entries')) + '</div>') +
+        '<button class="ghost big block" data-go="entries">✏️ ' + esc(t('my_entries_title')) + ' ›</button>';
+      wireNav();
+    });
+  }
   // A132: what the epoch wipe could not keep. Read-only by design — these rows
   // belong to a book the server has discarded; the ONLY correct action is to
   // re-enter them through the normal doors, which stamps them with the new
@@ -4426,10 +4481,13 @@
   function potKidsHTML(pots) {
     return pots.map(function (p) {
       const neg = p.total < 0;
-      return '<div class="kid' + (neg ? ' neg' : '') + '"><span class="k">' +
+      // A140: the pot opens. It is a BUTTON, not a div, because a figure you
+      // cannot open is a figure people learn to distrust — and this is the
+      // level where "where did my ₹3,400 come from" is actually asked.
+      return '<button class="kid open-pot' + (neg ? ' neg' : '') + '" data-pot="' + esc(p.key) + '"><span class="k">' +
         esc(t(CAT_LABEL_KEYS[p.key] || 'cat_other')) +
         (neg ? '<span class="note">' + esc(t('sum_pot_debt')) + '</span>' : '') +
-        '</span><span class="v">' + fmtMoney(p.total) + '</span></div>';
+        '</span><span class="v">' + fmtMoney(p.total) + ' ›</span></button>';
     }).join('');
   }
   // level 2 of a handover slot: one row per HANDOVER, not per person. A cashier
@@ -4576,6 +4634,9 @@
     };
     root.querySelectorAll('[data-grp]').forEach(function (h) {
       h.onclick = function () { h.parentNode.classList.toggle('open'); };
+    });
+    root.querySelectorAll('[data-pot]').forEach(function (b) {
+      b.onclick = function () { navigate('pot', { cat: b.dataset.pot }); };
     });
     // A136: the খরচ term's rows live on THIS screen (the 🧾 card inside the
     // working) — open the working and land there, rather than a navigation
@@ -7657,6 +7718,7 @@
     else if (current.view === 'help') renderHelp(current.params);
     else if (current.view === 'graveyard') renderGraveyard();
     else if (current.view === 'profile') renderProfileForm(current.params);
+    else if (current.view === 'pot') renderPotDetail(current.params);
     else renderHome();
     updateBadge();
   }

@@ -581,6 +581,12 @@ b.msg-at { color: var(--saffron); }
 .tillnow button.term { cursor: pointer; border-style: solid; border-color: var(--saffron-dark); }
 .tillnow .term.res { background: none; border: 0; font-weight: 700; padding-left: 2px; }
 .tillnow .op { font-weight: 700; color: var(--sub); }
+/* A140: a pot row is now a door. It keeps the .kid layout it has always had —
+   only the affordance changes, so the working still reads as a table and not
+   as a row of buttons. */
+button.kid.open-pot { width: 100%; font: inherit; text-align: left; background: none;
+  border: 0; border-bottom: 1px dashed var(--line); cursor: pointer; color: inherit; }
+button.kid.open-pot:active { background: #fff6ec; }
 
 /* over the per-money-type ceiling on the handover sheet — see
    Aggregate.handoverable(): Σ chips can exceed what is really held */

@@ -557,6 +557,68 @@
     };
     return { in: wrap(out.in), out: wrap(out.out) };
   }
+  // A140: what makes up ONE pot, with the rows behind each term.
+  //
+  // The trap this is written around: a pot is NOT "my entries in that
+  // category". দোকান ₹3,400 is what is LEFT there —
+  //     collected + received-in − handed-out − spent-from-it
+  // — so a screen that simply filtered my shop payments would list ₹5,900 under
+  // a heading that says ₹3,400, and the collector would be right to distrust
+  // both. Every figure here is therefore built from the same rules myAvailable
+  // uses, and `total` is taken FROM myAvailable rather than re-added, so the
+  // detail can never disagree with the summary that opened it.
+  //
+  // `unattributed` is the honest remainder: rows written before breakdown/srcCat
+  // existed are spread across pots by the old drain rule and belong to no single
+  // category. It is almost always 0; when it is not, the screen says so instead
+  // of quietly showing an equation that does not close.
+  function potDetail(data, ident, cat) {
+    const av = myAvailable(data, ident);
+    const d = activeData(data);
+    const me = String(ident);
+    const mine = function (r) { return ck(r) === String(ident); };
+    const potOf = av.byCat[cat] || { cash: 0, upi: 0 };
+    const total = { cash: potOf.cash, upi: potOf.upi, total: potOf.cash + potOf.upi };
+    const partyType = {};
+    (d.parties || []).forEach(function (p) { if (p && p.id) partyType[p.id] = p.type; });
+    const bucket = function () { return { total: 0, rows: [] }; };
+    const collected = bucket(), receivedIn = bucket(), handedOut = bucket(), expenses = bucket();
+    const push = function (b, store, r, amt) { b.total += amt; b.rows.push({ store: store, r: r, amount: amt }); };
+    (d.payments || []).filter(mine).forEach(function (r) {
+      const ty = partyType[r.partyId];
+      const k = ['shop', 'person', 'member'].indexOf(ty) >= 0 ? ty : 'payment';
+      if (k === cat) push(collected, 'payments', r, Number(r.amount) || 0);
+    });
+    (d.daily || []).filter(mine).forEach(function (r) {
+      const k = ['road', 'toto', 'bus'].indexOf(r.type) >= 0 ? r.type : 'road';
+      if (k === cat) push(collected, 'daily', r, Number(r.amount) || 0);
+    });
+    (d.expenses || []).filter(mine).forEach(function (e) {
+      const target = (e.srcCat && AVAIL_CATS.indexOf(e.srcCat) >= 0) ? e.srcCat
+        : ((e.source === 'collection' && AVAIL_CATS.indexOf(e.collectionType) >= 0) ? e.collectionType : null);
+      if (target === cat) push(expenses, 'expenses', e, Number(e.amount) || 0);
+    });
+    (d.handovers || []).filter(function (h) { return h.status === 'confirmed'; }).forEach(function (h) {
+      let bd = null;
+      try { const b = JSON.parse(h.breakdown || 'null');
+        if (b && typeof b === 'object') { bd = {}; Object.keys(b).forEach(function (k) { if (k.slice(0, 2) !== '__') bd[k] = b[k]; }); }
+      } catch (e) { bd = null; }
+      if (!bd || !Object.keys(bd).length) return;   // legacy: lands in unattributed
+      let part = 0;
+      Object.keys(bd).forEach(function (k) {
+        const c = AVAIL_CATS.indexOf(k) >= 0 ? k : 'received';
+        if (c !== cat) return;
+        part += (Number(bd[k].cash) || 0) + (Number(bd[k].upi) || 0);
+      });
+      if (!part) return;
+      if (String(h.toId || h.to || '?') === me) push(receivedIn, 'handovers', h, part);
+      else if (String(h.fromId || h.from || '?') === me) push(handedOut, 'handovers', h, part);
+    });
+    const explained = collected.total + receivedIn.total - handedOut.total - expenses.total;
+    return { cat: cat, total: total, collected: collected, receivedIn: receivedIn,
+             handedOut: handedOut, expenses: expenses,
+             unattributed: total.total - explained };
+  }
   function mySummary(data, ident, todayIso) {
     const av = myAvailable(data, ident);
     const ps = personalSummary(data, ident);
@@ -1466,7 +1528,7 @@
                 permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,
-                samePaymentsOn: samePaymentsOn, dayOf: dayOf,
+                samePaymentsOn: samePaymentsOn, dayOf: dayOf, potDetail: potDetail,
                 mentionsMe: mentionsMe, messageFeed: messageFeed,
                 activeData: activeData, chatLoad: chatLoad, homeTiles: homeTiles,
                 // A60: exported because js/app.js was rebuilding this same map

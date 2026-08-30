@@ -11789,6 +11789,44 @@ alone tripped 8 pins. Tests **1,890 → 1,911**.
 **⚠️ One redeploy: v4.34.26 supersedes .25/.24 (both undeployed) — paste .26
 directly over the live .23. No setup() needed.**
 
+## v4.34.30 — A140: every pot opens, and derives the figure you tapped (2026-08-31)
+
+Hrishi: *"clicking a row in the working should open that user's full detail."*
+Right — the pot rows (দোকান ₹3,400, রোড −₹300) were the last dead figures on
+the money screen, and this is the level where "where did my ₹3,400 come from"
+is actually asked.
+
+**The obvious build was the wrong one.** Filtering ✏️ আমার লেখা entry by
+category would list ₹5,900 of shop payments under a heading that says ₹3,400,
+because a pot is what is LEFT in it:
+
+    collected + received-in − handed-out − spent-from-it
+
+That is the A121/A130/A134 disease — two screens, one fact, two numbers — so
+it was raised with Hrishi before building, and the answer is a pot screen that
+opens with the EQUATION and then the rows behind each term. `total` is taken
+FROM `myAvailable`, never re-added, so the detail cannot contradict the summary
+that opened it. `unattributed` names the honest remainder — rows written before
+`breakdown`/`srcCat` existed are spread by the old drain rule and belong to no
+one pot; almost always 0, and said out loud when it is not, rather than
+printing an equation that does not close.
+
+Pinned as an invariant over **every** category of the seeded book: the four
+terms plus the remainder reproduce myAvailable's figure exactly, for the sender
+AND the receiver. Plus the three that matter in the field: a PENDING parcel has
+not left the pot (so it is not deducted), an overspent pot stays negative and
+still closes, and a pre-breakdown parcel lands in the remainder instead of
+being silently attributed.
+
+Drilled in the browser on a pot with four live terms: দোকান = 2,000 collected
++ 700 received = ₹2,700 ✓ with the ₹1,200 pending parcel correctly NOT
+deducted; রোড = 500 − 800 = −₹300 ✓; ← returns to the report. Mutations 6/6 —
+one of them (pot total taken from the whole account) reddened thirteen pins at
+once. First attempt at that mutation was invalid JS and crashed, which is not
+a test; re-run as valid-but-wrong. Tests **1,938 → 1,971**.
+
+**⚠️ One redeploy: v4.34.30 supersedes v4.34.29.**
+
 ## v4.34.29 — A139: the report's two floors become two ZONES (2026-08-31)
 
 Hrishi, twice: *"where did you segregate the user report and the committee

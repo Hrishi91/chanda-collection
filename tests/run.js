@@ -3,7 +3,7 @@ const { parseAmount } = require('../js/numparse.js');
 const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
         roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed,
         cashierView, handoverReport, allowedReports, mySummary, handoverSlots, handoverable, samePaymentsOn,
-        mentionsMe, messageFeed, activeData, chatLoad, homeTiles, dayOf,
+        mentionsMe, messageFeed, activeData, chatLoad, homeTiles, dayOf, potDetail,
         REPORT_IDS, POSITION_PERM_KEYS, splitPositionPerms } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
@@ -4704,6 +4704,67 @@ try {
   // picked by hand. Now a direct wa.me button leads when the donor's number is
   // known; the image keeps its place and finally says WHY it cannot be
   // pre-addressed; a donor with no number gets a door to add one.
+  // A140 (Hrishi: "clicking a row in the working should open the user's full
+  // detail"): the pot rows were dead ends. They open now — but NOT as "my
+  // entries filtered by category", which was the obvious build and the wrong
+  // one: দোকান ₹3,400 is what is LEFT in the pot, while my shop payments come
+  // to ₹5,900, and a screen headed 3,400 listing 5,900 teaches distrust of
+  // both. So the detail derives the figure it was opened with.
+  {
+    // THE invariant, on every pot of the seeded book: the four terms and the
+    // remainder must reproduce myAvailable's figure exactly.
+    const cats = ['shop', 'person', 'member', 'payment', 'bus', 'road', 'toto', 'received', 'other'];
+    const avY = myAvailable(msData, 'y');
+    cats.forEach(function (c) {
+      const p = potDetail(msData, 'y', c);
+      const sum = p.collected.total + p.receivedIn.total - p.handedOut.total - p.expenses.total + p.unattributed;
+      eq(sum, p.total.total, 'A140: ' + c + ' — the working closes on the pot figure');
+      eq(p.total.total, ((avY.byCat[c] || { cash: 0, upi: 0 }).cash + (avY.byCat[c] || { cash: 0, upi: 0 }).upi),
+         'A140: ' + c + ' — …and that figure IS myAvailable\'s, not a second opinion');
+    });
+    // the pot this was written for: shop = collected 2000 − 1200 handed (h1)
+    const shop = potDetail(msData, 'y', 'shop');
+    eq([shop.collected.total, shop.handedOut.total, shop.total.total], [2000, 1200, 800],
+       'A140: shop — collected and handed-out are read from the rows, not guessed');
+    eq(shop.collected.rows.length && shop.handedOut.rows.length, 1,
+       'A140: …and each term carries its rows');
+    // a pending parcel is NOT out of the pot yet — only confirmed ones move
+    const person = potDetail(msData, 'y', 'person');
+    eq([person.collected.total, person.handedOut.total, person.total.total], [500, 0, 500],
+       'A140: person — a PENDING handover has not left the pot, so it is not deducted');
+    // an overspent pot stays negative and still closes
+    const road = potDetail(msData, 'y', 'road');
+    eq([road.collected.total, road.expenses.total, road.total.total], [300, 400, -100],
+       'A140: road — the debt is shown, not hidden or borrowed from a neighbour');
+    // the receiver's side: money that arrived is a PLUS term
+    const jShop = potDetail(msData, 'j', 'shop');
+    eq([jShop.receivedIn.total, jShop.total.total], [1200, 1200],
+       'A140: the receiver sees the same parcel as an incoming term');
+    // legacy rows (no breakdown) cannot be attributed — named, never hidden
+    const legacy = { parties: [{ id: 's1', type: 'shop' }], voids: [], corrections: [], expenses: [], daily: [],
+      payments: [{ id: 'a', collectorId: 'y', partyId: 's1', amount: 1000, cashAmount: 1000, upiAmount: 0 }],
+      handovers: [{ id: 'h', fromId: 'y', toId: 'j', amount: 400, cashAmount: 400, upiAmount: 0, status: 'confirmed' }] };
+    const lp = potDetail(legacy, 'y', 'shop');
+    eq(lp.handedOut.rows.length, 0, 'A140: a pre-breakdown parcel is attributed to no pot…');
+    eq(lp.collected.total + lp.unattributed, lp.total.total,
+       'A140: …and shows up as the named remainder, so the equation still closes');
+    // the screen
+    eq(/<button class="kid open-pot' \+ \(neg \? ' neg' : ''\) \+ '" data-pot="'/.test(app), true,
+       'A140: the pot row is a real button carrying its category');
+    eq(/b\.onclick = function \(\) \{ navigate\('pot', \{ cat: b\.dataset\.pot \}\); \};/.test(app) &&
+       /else if \(current\.view === 'pot'\) renderPotDetail\(current\.params\);/.test(app), true,
+       'A140: …wired, and the screen survives a re-render');
+    const pd = app.slice(app.indexOf('function renderPotDetail'), app.indexOf('// A132: what the epoch wipe'));
+    eq(/Aggregate\.potDetail\(data, ident, cat\)/.test(pd), true,
+       'A140: the screen asks aggregate — it does not re-add the money itself');
+    eq(/p\.unattributed \?/.test(pd) && /pot_other/.test(pd), true,
+       'A140: …and prints the remainder when there is one, rather than an equation that does not close');
+    eq(/backBar\('report'\)/.test(pd), true, 'A140: ← returns to the report it was opened from');
+    ['pot_title', 'pot_hint', 'pot_other'].forEach(function (k) {
+      eq(a25I18n.indexOf('  ' + k + ':') >= 0, true, 'A140: ' + k + ' has a bilingual message');
+    });
+  }
+
   // A139 (Hrishi, twice: "the segregation is still weak — make the band"):
   // A136's headers were the right WORDS in the wrong FORM — 13px grey
   // uppercase, invisible beside a ₹7,450 hero. Each floor is now a zone: a
