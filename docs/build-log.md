@@ -11832,6 +11832,12 @@ Mutations 4/4; restoring the original bug turns five pins red at once. Tests
 
 **⚠️ One redeploy: v4.34.28 supersedes v4.34.27.**
 
+### v4.34.28 deployed (2026-08-31)
+
+Browser-probed: `chanda-v4.34.28 / schema 5`, first try. `js/config.js`
+rebaked. The duplicate guard can now see across the sync boundary on every
+phone, and today's figures name the right day.
+
 ## v4.34.27 — A137: one colour, one meaning, on the cashier's screen too (2026-08-31)
 
 Hrishi asked to see the FULL admin report, so a complete book was seeded on
