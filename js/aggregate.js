@@ -526,10 +526,29 @@
     };
     return { in: wrap(out.in), out: wrap(out.out) };
   }
-  function mySummary(data, ident) {
+  function mySummary(data, ident, todayIso) {
     const av = myAvailable(data, ident);
     const ps = personalSummary(data, ident);
     const sl = handoverSlots(data, ident);
+    // A136: collectors think in DAYS — the hero is all-time and tillNow is the
+    // season, so "আজ কত তুললাম" had no answer on the money screen. The date
+    // comes in as a parameter (never from a clock in here) so tests stay
+    // deterministic; no date, no today block.
+    let today = null;
+    if (todayIso) {
+      const d0 = String(todayIso);
+      const act = activeData(data);
+      const mine = function (r) { return ck(r) === String(ident); };
+      const isToday = function (r) {
+        return String(r.date || '') === d0 || String(r.createdAt || '').slice(0, 10) === d0;
+      };
+      const sum = function (rows) {
+        return rows.filter(mine).filter(isToday)
+          .reduce(function (a, r) { return a + (Number(r.amount) || 0); }, 0);
+      };
+      today = { collected: sum((act.payments || []).concat(act.daily || [])),
+                expense: sum(act.expenses || []) };
+    }
     const hero = { cash: av.cash, upi: av.upi, total: av.cash + av.upi };
     const groups = SUMMARY_GROUPS.map(function (g) {
       let cash = 0, upi = 0; const pots = [];
@@ -545,6 +564,7 @@
     return {
       hero: hero,
       groups: groups,
+      today: today,
       // what hero becomes once every pending handover is confirmed
       afterApprove: hero.total - sl.out.pending.total,
       out: sl.out,

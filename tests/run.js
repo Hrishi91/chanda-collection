@@ -4704,6 +4704,64 @@ try {
   // picked by hand. Now a direct wa.me button leads when the donor's number is
   // known; the image keeps its place and finally says WHY it cannot be
   // pre-addressed; a donor with no number gets a door to add one.
+  // A136 (deep-research on the collector's own report): the season line used
+  // to list four figures and then FORBID reconciling them — while
+  // collected + received − expenses − handed equals the hero by construction.
+  // Now the line IS the equation, every moneyed term is a door to its proof
+  // rows, the day gets its own line, group names speak money not app-jargon,
+  // the debt note says what to DO, the report screen finally has a hint and a
+  // guide door, and the আমার/সবার floors got visible headers.
+  {
+    // THE new invariant, in real arithmetic on the existing fixture: the
+    // equation the screen now prints must hold for a sender and a receiver.
+    eq(ms.tillNow.collected + (ms.tillNow.received || 0) - ms.tillNow.expenseTotal - ms.tillNow.handedOver,
+       ms.hero.total, 'A136: sender — collected − spent − handed IS the hero, to the rupee');
+    eq(msJ.tillNow.collected + (msJ.tillNow.received || 0) - msJ.tillNow.expenseTotal - msJ.tillNow.handedOver,
+       msJ.hero.total, 'A136: receiver — with received in the sum, same equation, same rupee');
+    // today: parameter-fed, deterministic — the fixture expense is dated
+    const msT = mySummary(msData, 'y', '2026-07-24');
+    eq([msT.today.collected, msT.today.expense], [0, 400],
+       'A136: the day line counts only that DAY\'s rows, mine only');
+    eq(mySummary(msData, 'y', '2026-07-25').today.expense, 0,
+       'A136: …a different day counts none of them');
+    eq(mySummary(msData, 'y').today, null,
+       'A136: …and no date passed means no today block — tests stay deterministic');
+    // the screen: equation rendered with doors, zero terms stay plain text
+    eq(/function eqTerm\(label, amount, go, id\) \{/.test(app) &&
+       /if \(!amount\) return '<span class="term">'/.test(app), true,
+       'A136: a zero term is plain text — a dead button teaches people to stop pressing');
+    eq(/eqTerm\(t\('my_collected'\), m\.tillNow\.collected, 'entries', ''\)/.test(app) &&
+       /eqTerm\(t\('my_handed'\), m\.tillNow\.handedOver, 'hbook', ''\)/.test(app), true,
+       'A136: তুলেছি opens my entries, জমা opens the handover book');
+    eq(/=== hero \? '✓' : '⚠️'/.test(app), true,
+       'A136: the screen derives the hero and says ✓ only when the sum truly lands on it');
+    eq(/const ex = root\.querySelector\('#eq-exp'\);/.test(app) &&
+       /card\.scrollIntoView\(/.test(app), true,
+       'A136: খরচ opens the working and lands on the 🧾 card on this same screen');
+    eq(app.indexOf("id=\"my-exp-card\"") >= 0, true, 'A136: …which now has an anchor to land on');
+    eq(/mySummary\(data, ident, todayISO\(\)\)/.test(app), true,
+       'A136: the live screen feeds the real date in — aggregate never reads a clock');
+    // words: money language, honest debt note, headers, hint+door
+    eq(a25I18n.indexOf('দাতাদের চাঁদা') >= 0 && a25I18n.indexOf('নতুন এন্ট্রি (চাঁদা') < 0, true,
+       'A136: the entry group is named after the MONEY, not the app concept');
+    eq(a25I18n.indexOf('দোষ নয়: পরে নগদ অদল-বদল') >= 0, true,
+       'A136: the debt note now says what to DO, not just that it owes');
+    eq(a25I18n.indexOf('মেলানোর জিনিস নয়') < 0, true,
+       'A136: the "do not reconcile" sentence is gone — the screen reconciles itself');
+    eq(/'<div class="section">🙋 ' \+ esc\(t\('sec_mine'\)\)/.test(app) &&
+       a25I18n.indexOf('👥 সবার হিসাব — কমিটির রিপোর্ট') >= 0, true,
+       'A136: both floors of the report carry a human header');
+    eq(/esc\(t\('report_hint'\)\) \+ ' ' \+ guideDoor\('ledger'\)/.test(app) &&
+       /wireGuideDoors\(\);\n    loadMySummary\(\);/.test(app), true,
+       'A136: the report screen finally has its hint and a WIRED guide door');
+    eq(app.indexOf("? '“' + esc(h.rejectReason)") >= 0 &&
+       app.indexOf("' · “' + esc(h.rejectReason)") < 0, true,
+       'A136: the ❌ row separator is written once — no more "· ·"');
+    ['eq_inhand', 'today_short', 'sec_mine', 'report_hint'].forEach(function (k) {
+      eq(a25I18n.indexOf('  ' + k + ':') >= 0, true, 'A136: ' + k + ' has a bilingual message');
+    });
+  }
+
   // A135b (Hrishi's call after seeing what the direct path could carry): a
   // receipt is a money document and should have ONE form — the picture. So
   // the wa.me text button is gone again and the image keeps the WhatsApp

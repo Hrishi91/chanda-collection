@@ -4432,8 +4432,10 @@
       // A refused parcel carries the receiver's REASON — that is the whole point
       // of the slot, and it is the only thing the sender can act on. Falling back
       // to the pending wording ("hasn't confirmed yet") would be a plain lie.
+      // A136 (G6): the template below already writes the ' · ' separator — a
+      // leading one here printed "2026-08-31 · · “reason”" on every ❌ row
       const tail = noteKey === 'slot_rejected_row'
-        ? (h.rejectReason ? ' · “' + esc(h.rejectReason) + '”' : ' · ' + esc(t('slot_rejected_norsn')))
+        ? (h.rejectReason ? '“' + esc(h.rejectReason) + '”' : esc(t('slot_rejected_norsn')))
         : esc(t(noteKey)) + (noteKey === 'slot_got_row' ? split : '');
       return '<div class="kid"><span class="k">' + esc(h.to || h.toId || h.from || '?') +
         '<span class="note">' + esc(fmtDate(h.date)) + ' · ' + tail + '</span></span>' +
@@ -4451,6 +4453,16 @@
             esc(t(r[1])) + '<span class="note">' + esc(t(r[2])) + '</span></span></div>';
         }).join('') + '<div class="expl">' + esc(t('legend_note')) + '</div>') + '</div>';
   }
+  // A136: one term of the season equation. A term with money behind it is a
+  // BUTTON to its proof rows (data-go view, or an id the caller wires); a zero
+  // term is plain text — a button that does nothing teaches people to stop
+  // pressing buttons.
+  function eqTerm(label, amount, go, id) {
+    const inner = esc(label) + ' <b>' + fmtMoney(amount) + '</b>';
+    if (!amount) return '<span class="term">' + inner + '</span>';
+    if (id) return '<button class="term" id="' + id + '">' + inner + '</button>';
+    return '<button class="term" data-go="' + go + '">' + inner + '</button>';
+  }
   // m = Aggregate.mySummary(). Three levels: the hero alone, then the group
   // totals, then each group's pots. Everything below the hero is a slice OF the
   // hero, so no figure on this screen can contradict the one at the top.
@@ -4462,6 +4474,12 @@
         '<div class="big' + (hero < 0 ? ' neg' : '') + '">' + fmtMoney(hero) + '</div>' +
         '<div class="split">💵 ' + esc(t('cash')) + ' <b>' + fmtMoney(m.hero.cash) + '</b> · 📱 ' +
           esc(t('upi')) + ' <b>' + fmtMoney(m.hero.upi) + '</b></div>' +
+        // A136: the day's own line — collectors think in days, the hero is
+        // all-time, and "আজ কত তুললাম" had no answer on the money screen
+        (m.today ? '<div class="split">📅 ' + esc(t('today_short')) + ' — ' + esc(t('my_collected')) +
+          ' <b>' + fmtMoney(m.today.collected) + '</b>' +
+          (m.today.expense ? ' · ' + esc(t('expense')) + ' <b>' + fmtMoney(m.today.expense) + '</b>' : '') +
+          '</div>' : '') +
         (deviceOnly ? '<div class="sub" style="font-size:12px;color:var(--sub);margin-top:6px">' +
           esc(t('my_device_note')) + '</div>' : '') +
         '<button class="sum-more" id="sum-toggle">' + esc(t('sum_open')) + '</button>' +
@@ -4498,14 +4516,27 @@
               '<div class="expl">' + tMoney('slot_confirmed_note', hero) + '</div>', 'okbox') : '') +
           '</div>' : '') +
         legendHTML() +
-        '<div class="tillnow">' + esc(t('till_now')) + ' — ' +
-          esc(t('my_collected')) + ' <b>' + fmtMoney(m.tillNow.collected) + '</b>' +
-          (m.tillNow.received ? ' · ' + esc(t('my_received')) + ' <b>' + fmtMoney(m.tillNow.received) + '</b>' : '') +
-          ' · ' + esc(t('expense')) + ' <b>' + fmtMoney(m.tillNow.expenseTotal) + '</b>' +
-          ' · ' + esc(t('my_handed')) + ' <b>' + fmtMoney(m.tillNow.handedOver) + '</b>' +
+        // A136 (G1+G8): the season line IS the account now. It used to list the
+        // same four figures and then say "don't try to reconcile them" — while
+        // collected + received − expenses − handed EQUALS the hero by
+        // construction (asserted in tests). The one sentence that teaches a
+        // collector to TRUST the screen is the equation itself, so it is
+        // written out and ends by deriving the number at the top. Every term
+        // with rows behind it is a DOOR to those rows (the 🩺 lesson: a figure
+        // you cannot open is a figure you learn to ignore); a zero term is
+        // plain text, because a button that does nothing teaches the opposite.
+        '<div class="tillnow">' + esc(t('till_now')) +
+          '<div class="eqrow">' +
+          eqTerm(t('my_collected'), m.tillNow.collected, 'entries', '') +
+          (m.tillNow.received ? '<span class="op">+</span>' + eqTerm(t('my_received'), m.tillNow.received, 'hbook', '') : '') +
+          '<span class="op">−</span>' + eqTerm(t('expense'), m.tillNow.expenseTotal, '', 'eq-exp') +
+          '<span class="op">−</span>' + eqTerm(t('my_handed'), m.tillNow.handedOver, 'hbook', '') +
+          '<span class="op">=</span><span class="term res">' + esc(t('eq_inhand')) + ' <b>' + fmtMoney(hero) + '</b> ' +
+            ((m.tillNow.collected + (m.tillNow.received || 0) - m.tillNow.expenseTotal - m.tillNow.handedOver) === hero ? '✓' : '⚠️') +
+          '</span></div>' +
           '<span class="sub">' + esc(t('till_now_sub')) + '</span></div>' +
         (m.expenses.length ?
-          '<div class="card" style="margin-top:12px"><div class="card-title">' + esc(t('my_expenses')) +
+          '<div class="card" id="my-exp-card" style="margin-top:12px"><div class="card-title">' + esc(t('my_expenses')) +
           ' — ' + fmtMoney(m.tillNow.expenseTotal) + '</div>' +
           // A106: an expense is named by its SUBJECT — the comment is optional
           // for every subject except "অন্য কিছু", so this row printed an empty
@@ -4537,6 +4568,17 @@
     root.querySelectorAll('[data-grp]').forEach(function (h) {
       h.onclick = function () { h.parentNode.classList.toggle('open'); };
     });
+    // A136: the খরচ term's rows live on THIS screen (the 🧾 card inside the
+    // working) — open the working and land there, rather than a navigation
+    if (tog && body) {
+      const ex = root.querySelector('#eq-exp');
+      if (ex) ex.onclick = function () {
+        body.hidden = false;
+        tog.textContent = t('sum_close');
+        const card = root.querySelector('#my-exp-card');
+        if (card) queueMicrotask(function () { card.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+      };
+    }
   }
   function reportCollectorsHTML(d) {
     const rows = d.rows || [];
@@ -4907,11 +4949,18 @@
     // one aggregation path, instant, offline-capable, no per-report round-trip.
     // A person's own summary is their own money, so it stays whatever else is
     // withheld; the central-reports picker already says so when it is empty.
+    // A136 (G9): the split was always there — own money on top, everyone's
+    // below — but the top floor had NO title at all and the bottom one was
+    // named in machine language ("কেন্দ্রীয়"). Two plain headers make the
+    // আমার/সবার boundary visible without hiding either behind a tab.
     $view().innerHTML = '<div id="reconcile-warn"></div>' +
+      '<div class="section">🙋 ' + esc(t('sec_mine')) + '</div>' +
+      '<div class="hint" style="margin:0 4px 8px">' + esc(t('report_hint')) + ' ' + guideDoor('ledger') + '</div>' +
       '<div id="my-summary"><div class="empty">' + esc(t('loading')) + '</div></div>' +
       '<div class="section">' + esc(t('central_reports')) + '</div>' +
       '<div id="report-picker"></div>' +
       '<div id="report-body"></div>';
+    wireGuideDoors();
     loadMySummary();
     // A66 (audit 2.14): was a local myReports() — a hand copy of
     // Aggregate.allowedReports with `u.cashier === 1` where the tested one has
@@ -5268,9 +5317,9 @@
     viewData().then(function (data) {
       const el = document.getElementById('my-summary');
       if (!el) return; // view changed while computing
-      el.innerHTML = mySummaryHTML(Aggregate.mySummary(data, ident), false);
+      el.innerHTML = mySummaryHTML(Aggregate.mySummary(data, ident, todayISO()), false);
       wireSummary(el);
-      wireNav(); // the pending-in strip's CTA is a data-go button
+      wireNav(); // the pending-in strip's CTA and the equation terms are data-go buttons
     });
   }
   function showReportButtons(ids) {

@@ -11737,3 +11737,54 @@ one honest line.
 
 **⚠️ One redeploy: v4.34.25 supersedes v4.34.24 (never deployed — paste .25
 directly).**
+
+## v4.34.26 — A136: the own-report speaks the collector's language (2026-08-31)
+
+Hrishi: *"there are some gaps for user understanding in reports — specifically
+the user's own report. Do deep research on this."* The research: seeded কালী's
+full messy day on the harness (five kinds of collection, an over-spent pot,
+⏳/❌/✅ handovers), then read every line of আমার হিসাব as কালী and as a
+brand-new collector. The mechanics were sound — hero-slices consistent, strips
+honest, ❌ carries the receiver's reason — the gaps were of LANGUAGE and
+BRIDGES. Two of Hrishi's own on top: figures should open their rows, and the
+আমার/সবার split should be visible. Nine changes, one release:
+
+- **The season line IS the equation now** (G1): `আমি তুলেছি ₹4,450 − খরচ ₹300
+  − জমা ₹300 = হাতে ₹3,850 ✓` — it used to list the same figures and then say
+  "মেলানোর জিনিস নয়", forbidding the one sum that builds trust. The invariant
+  (collected + received − expenses − handed = hero) is now asserted in tests
+  with real arithmetic for both a sender and a receiver; the ✓ renders only
+  when the sum truly lands on the hero (⚠️ otherwise — mutation-proved).
+- **Every moneyed term is a door** (G8): তুলেছি → ✏️ আমার লেখা entry, জমা →
+  📗 জমা-খাতা, খরচ → opens the working and lands on the 🧾 card on the same
+  screen. Zero terms render as plain text — a dead button teaches people to
+  stop pressing buttons.
+- **📅 আজ gets its own line** (G2) under the hero — collectors think in days;
+  the date is a PARAMETER into Aggregate.mySummary (no clock in the pure
+  module, tests stay deterministic).
+- **Group renamed to money-language** (G3): "📥 দাতাদের চাঁদা (দোকান / ব্যক্তি
+  / সদস্য / বাস)" — "নতুন এন্ট্রি" was the app's concept, not the money's.
+- **The debt note now says what to DO** (G4): "…দোষ নয়: পরে নগদ অদল-বদল করে
+  মিলিয়ে নিলেই মিটবে, মোট হিসাব ঠিকই আছে।" — Hrishi's rule, which lived only
+  in a code comment while the screen just said "ঋণ আছে".
+- **The report screen finally has a hint + guide door** (G5) — the A122 sweep
+  had skipped exactly the screen that most needed one.
+- **Two visible floors** (G9): "🙋 আমার হিসাব — শুধু আমার টাকা" over the top,
+  "👥 সবার হিসাব — কমিটির রিপোর্ট" over the central picker (was the untitled
+  hero straight into "☁️ কেন্দ্রীয়"). Headers, not tabs — a tab hides the
+  second floor from the half of the committee that never finds tabs.
+- **G6**: the ❌ row's "· ·" double separator fixed.
+
+Research byproducts, recorded: the ❌-slot "bug" in the first drill was the
+DRILL's (confirmHandover ignores ok:false — reject is its own action), and a
+first Page-not-found probe of the live /exec was Google's flaky hop again —
+second try answered .23 fine. G7 (a wider হিসাব-দেখি button) noted as
+optional, not taken.
+
+Browser-driven end-to-end as কালী: equation with ✓, all four doors, আজ-line
+(₹650/₹300), new debt note, renamed group, single-dot ❌, headers and the
+guide door there-and-back. Mutations 6/6 — the equation-invariant mutation
+alone tripped 8 pins. Tests **1,890 → 1,911**.
+
+**⚠️ One redeploy: v4.34.26 supersedes .25/.24 (both undeployed) — paste .26
+directly over the live .23. No setup() needed.**
