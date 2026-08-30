@@ -797,7 +797,7 @@ const I18N = {
   total_cash: { bn: 'মোট নগদ', en: 'Total cash' },
   total_upi: { bn: 'মোট UPI', en: 'Total UPI' },
   // --- per-report access ---
-  central_reports: { bn: '👥 সবার হিসাব — কমিটির রিপোর্ট', en: '👥 Everyone — committee reports' },
+  central_reports: { bn: '👥 সবার হিসাব', en: '👥 Everyone\'s account' },
   report_overview: { bn: '📊 মোট হিসাব', en: '📊 Overview' },
   report_dues: { bn: '📋 বাকির তালিকা', en: '📋 Dues list' },
   report_inhand: { bn: '💰 কার হাতে কত', en: '💰 Cash in hand' },
@@ -926,7 +926,8 @@ const I18N = {
                   en: 'Tap any figure to open the rows behind it.' },
   eq_inhand: { bn: 'হাতে', en: 'in hand' },
   today_short: { bn: 'আজ', en: 'Today' },
-  sec_mine: { bn: 'আমার হিসাব — শুধু আমার টাকা', en: 'My account — my money only' },
+  sec_mine: { bn: 'আমার হিসাব', en: 'My account' },
+  sec_all_sub: { bn: 'সবার টাকা — যা দেখার অনুমতি আছে', en: 'everyone\'s money — what you may see' },
   report_hint: { bn: 'উপরে শুধু তোমার নিজের টাকার হিসাব; নিচে কমিটির সবার রিপোর্ট।',
                  en: 'Your own money on top; the committee-wide reports below.' },
   received_col: { bn: 'জমা নিয়েছে', en: 'Received' },

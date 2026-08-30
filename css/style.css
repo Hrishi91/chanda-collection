@@ -103,6 +103,25 @@ nav#bottomnav {
 }
 
 .section { margin: 18px 4px 8px; font-weight: 700; color: var(--sub); font-size: 13px; text-transform: uppercase; letter-spacing: .4px; }
+/* A139: the report screen's two floors — "my money" and "everyone's" — drawn
+   as ZONES, not as labels. The band is full width and the zone carries a tint
+   and a left edge all the way down, so the boundary is still visible after
+   three screens of scrolling, which is where a header at the top is of no use
+   whatever. Warm = mine, cool = the committee's. */
+.zone { border-radius: 16px; padding: 10px 10px 12px; margin: 14px 0; }
+.zone.mine { background: #fff4ea; border: 1px solid #f3d9c2; border-left: 5px solid var(--saffron); }
+.zone.all  { background: #f2f5fa; border: 1px solid #dbe4f0; border-left: 5px solid #5b7fae; }
+.zone-hd {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px;
+  font-size: 16.5px; font-weight: 800; color: var(--ink);
+  margin: 2px 2px 8px; padding-bottom: 8px; border-bottom: 1px solid;
+}
+.zone.mine .zone-hd { border-bottom-color: #f0d0b4; }
+.zone.all  .zone-hd { border-bottom-color: #d3ddeb; }
+.zone-hd .who { font-size: 12.5px; font-weight: 600; color: var(--sub); }
+/* the cards inside a zone sit ON the tint, so they keep their own white */
+.zone .card, .zone .sum-hero { background: var(--card); }
+@media print { .zone { background: none; border: 0; padding: 0; } }
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .grid.one { grid-template-columns: 1fr; margin-top: 10px; }
 .tile {

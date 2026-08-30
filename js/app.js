@@ -4962,13 +4962,27 @@
     // below — but the top floor had NO title at all and the bottom one was
     // named in machine language ("কেন্দ্রীয়"). Two plain headers make the
     // আমার/সবার boundary visible without hiding either behind a tab.
+    // A139 (Hrishi, twice: "I can't see any segregation"): A136's two .section
+    // labels were 13px grey uppercase — correct words, no boundary. Beside a
+    // ₹7,450 hero and a wall of cards nobody reads a thin grey line as "you are
+    // now in a different account". So each floor gets a full-width BAND and its
+    // own tinted zone: yours warm (the app's own saffron), everyone's cool. Not
+    // tabs — a tab hides the committee's figures from the half of the committee
+    // that never finds tabs.
+    const me = Auth.current() || {};
     $view().innerHTML = '<div id="reconcile-warn"></div>' +
-      '<div class="section">🙋 ' + esc(t('sec_mine')) + '</div>' +
-      '<div class="hint" style="margin:0 4px 8px">' + esc(t('report_hint')) + ' ' + guideDoor('ledger') + '</div>' +
-      '<div id="my-summary"><div class="empty">' + esc(t('loading')) + '</div></div>' +
-      '<div class="section">' + esc(t('central_reports')) + '</div>' +
-      '<div id="report-picker"></div>' +
-      '<div id="report-body"></div>';
+      '<div class="zone mine">' +
+        '<div class="zone-hd">🙋 ' + esc(t('sec_mine')) +
+          '<span class="who">' + esc(me.name || Settings.get('collectorName') || '') + '</span></div>' +
+        '<div class="hint" style="margin:0 2px 8px">' + esc(t('report_hint')) + ' ' + guideDoor('ledger') + '</div>' +
+        '<div id="my-summary"><div class="empty">' + esc(t('loading')) + '</div></div>' +
+      '</div>' +
+      '<div class="zone all">' +
+        '<div class="zone-hd">' + esc(t('central_reports')) +
+          '<span class="who">' + esc(t('sec_all_sub')) + '</span></div>' +
+        '<div id="report-picker"></div>' +
+        '<div id="report-body"></div>' +
+      '</div>';
     wireGuideDoors();
     loadMySummary();
     // A66 (audit 2.14): was a local myReports() — a hand copy of

@@ -4704,6 +4704,38 @@ try {
   // picked by hand. Now a direct wa.me button leads when the donor's number is
   // known; the image keeps its place and finally says WHY it cannot be
   // pre-addressed; a donor with no number gets a door to add one.
+  // A139 (Hrishi, twice: "the segregation is still weak — make the band"):
+  // A136's headers were the right WORDS in the wrong FORM — 13px grey
+  // uppercase, invisible beside a ₹7,450 hero. Each floor is now a zone: a
+  // full-width band, a tint, and a coloured left edge that runs the whole
+  // height, so the boundary survives three screens of scrolling.
+  {
+    const rr = app.slice(app.indexOf('function renderReport'), app.indexOf('function checkReconcile'));
+    eq(/<div class="zone mine">/.test(rr) && /<div class="zone all">/.test(rr), true,
+       'A139: two zones, not two labels');
+    // NESTING, not mere ordering. The first draft of this pin sliced the source
+    // between the two zone openers and asked whether my-summary appeared in it
+    // — which is true whether the div is INSIDE the warm zone or sitting after
+    // its closing tag. The mutation that moved it out stayed green. So the pin
+    // now demands the exact shape: my-summary, then the zone's own closing
+    // line, then the cool zone opening.
+    eq(/'<div id="my-summary">[^\n]*\n\s+'<\/div>' \+\n\s+'<div class="zone all">' \+\n\s+'<div class="zone-hd">' \+ esc\(t\('central_reports'\)\)/.test(rr), true,
+       'A139: …my money lives INSIDE the warm zone, closed before the cool one opens');
+    eq(/'<div class="zone all">' \+[\s\S]{0,400}?'<div id="report-picker">[\s\S]{0,200}?'<div id="report-body">[\s\S]{0,80}?'<\/div>';/.test(rr), true,
+       'A139: …and both pickers live inside the cool zone, closed at the end');
+    eq(/esc\(me\.name \|\| Settings\.get\('collectorName'\) \|\| ''\)/.test(rr), true,
+       'A139: the warm band names whose account it is');
+    const css139 = require('fs').readFileSync(__dirname + '/../css/style.css', 'utf8');
+    eq(/\.zone\.mine \{[^}]*border-left: 5px solid var\(--saffron\)/.test(css139) &&
+       /\.zone\.all\s+\{[^}]*border-left: 5px solid #5b7fae/.test(css139), true,
+       'A139: the edge runs the height of each zone — a header at the top helps nobody mid-scroll');
+    eq(/\.zone \.card, \.zone \.sum-hero \{ background: var\(--card\); \}/.test(css139), true,
+       'A139: cards keep their white ON the tint, or every card reads as disabled');
+    eq(/@media print \{ \.zone \{ background: none; border: 0; padding: 0; \} \}/.test(css139), true,
+       'A139: …and the tint does not eat a committee\'s printer ink');
+    eq(a25I18n.indexOf('  sec_all_sub:') >= 0, true, 'A139: the cool band says what "everyone" means, bilingually');
+  }
+
   // A138 — THE LIVE SHAPE. Found by reading Hrishi's real book: a date written
   // as "2026-08-18" becomes a DATE CELL in the Sheet and comes back as
   // "2026-08-17T18:30:00.000Z" — which IS 18 Aug in IST. So a row carries a
@@ -4822,8 +4854,9 @@ try {
        'A136: the debt note now says what to DO, not just that it owes');
     eq(a25I18n.indexOf('মেলানোর জিনিস নয়') < 0, true,
        'A136: the "do not reconcile" sentence is gone — the screen reconciles itself');
-    eq(/'<div class="section">🙋 ' \+ esc\(t\('sec_mine'\)\)/.test(app) &&
-       a25I18n.indexOf('👥 সবার হিসাব — কমিটির রিপোর্ট') >= 0, true,
+    // (A139 turned the headers into zone BANDS — same property, stronger form)
+    eq(/'<div class="zone-hd">🙋 ' \+ esc\(t\('sec_mine'\)\)/.test(app) &&
+       a25I18n.indexOf('👥 সবার হিসাব') >= 0, true,
        'A136: both floors of the report carry a human header');
     eq(/esc\(t\('report_hint'\)\) \+ ' ' \+ guideDoor\('ledger'\)/.test(app) &&
        /wireGuideDoors\(\);\n    loadMySummary\(\);/.test(app), true,

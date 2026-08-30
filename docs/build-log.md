@@ -11789,6 +11789,34 @@ alone tripped 8 pins. Tests **1,890 → 1,911**.
 **⚠️ One redeploy: v4.34.26 supersedes .25/.24 (both undeployed) — paste .26
 directly over the live .23. No setup() needed.**
 
+## v4.34.29 — A139: the report's two floors become two ZONES (2026-08-31)
+
+Hrishi, twice: *"where did you segregate the user report and the committee
+reports — I can't see any"*, then after seeing .28: *"still weak, make the
+band."* Fair, and my own doing: A136 put the right WORDS in the wrong FORM —
+two `.section` labels, 13px grey uppercase, beside a ₹7,450 hero and a wall of
+cards. Nobody reads a thin grey line as "you are now in a different account".
+
+Each floor is now a zone, not a label: a full-width band (16.5px, 800 weight,
+its own rule underneath), a tint, and — the part that actually does the work —
+a **5px coloured left edge running the whole height**, so the boundary is
+still visible three screens into a scroll, which is exactly where a header at
+the top is of no use. Warm (the app's saffron) is yours and carries your name;
+cool (#5b7fae) is the committee's and says what "everyone" means. Cards keep
+their white ON the tint, and print drops the tint entirely.
+
+Still not tabs, for the reason recorded in A136: a tab hides the committee's
+figures from the half of the committee that never finds tabs.
+
+**The drill caught my own verifier lying.** The first "my money lives inside
+the warm zone" pin sliced the source between the two zone openers and asked
+whether `my-summary` appeared in it — true whether the div is INSIDE the zone
+or sitting after its closing tag. The mutation that moved it out stayed green.
+The pin now demands the exact nesting shape, and a fifth mutation (the picker
+escaping the cool zone) was added; 5/5 red. Tests **1,930 → 1,938**.
+
+**⚠️ One redeploy: v4.34.29 supersedes v4.34.28.**
+
 ## v4.34.28 — A138: the date the Sheet gives back is not the date we wrote (2026-08-31)
 
 Hrishi handed over his live session token and asked for a full set of entries
