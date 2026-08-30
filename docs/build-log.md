@@ -11827,6 +11827,13 @@ a test; re-run as valid-but-wrong. Tests **1,938 → 1,971**.
 
 **⚠️ One redeploy: v4.34.30 supersedes v4.34.29.**
 
+### v4.34.30 deployed (2026-08-31)
+
+Browser-probed: `chanda-v4.34.30 / schema 5`, first try. `js/config.js`
+rebaked. Five releases in one day — A136 (the self-reconciling own-report),
+A137 (in-hand colours), A138 (the date shape, found in the live book),
+A139 (the report's two zones), A140 (every pot opens).
+
 ## v4.34.29 — A139: the report's two floors become two ZONES (2026-08-31)
 
 Hrishi, twice: *"where did you segregate the user report and the committee
