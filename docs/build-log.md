@@ -11788,3 +11788,11 @@ alone tripped 8 pins. Tests **1,890 → 1,911**.
 
 **⚠️ One redeploy: v4.34.26 supersedes .25/.24 (both undeployed) — paste .26
 directly over the live .23. No setup() needed.**
+
+### v4.34.26 deployed (2026-08-31)
+
+Browser-probed: `chanda-v4.34.26 / schema 5`, first try. `js/config.js`
+rebaked. Three releases land on the phones at once: A134 (member picker
+money language), A135b (receipt screen's honest share line), A136 (the
+self-reconciling own-report). Server and fleet agree again after eight days
+on .23.
