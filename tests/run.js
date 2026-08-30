@@ -1050,11 +1050,15 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     // one rule, used by every renderer — three of them each had their own and a
     // fourth had none
     eq(/function expenseTitle\(e\) \{/.test(app106), true, 'A106: what an expense is called lives in one function');
-    eq((app106.match(/expenseTitle\(/g) || []).length, 4,
-       'A106: …defined once and used by all three renderers');
-    eq(/const subj = \(raw === 'Other' \|\| raw === OTHER_SUBJECT\) \? t\('subject_other'\) : raw;/.test(app106), true,
-       'A106: …and “Other” is a stored marker, translated on the way out');
-    eq(/return subj \|\| \(e && e\.desc\) \|\| t\('expense'\);/.test(app106), true,
+    eq((app106.match(/expenseTitle\(/g) || []).length >= 4, true,
+       'A106: …defined once and used by every renderer');
+    // (A142 made the marker resolve to the COMMENT first — the comment is
+    // mandatory for exactly that reason — so the pins move to the new shape.
+    // Same two properties: the marker never reaches a screen, and the title
+    // never comes out empty.)
+    eq(/if \(raw === 'Other' \|\| raw === OTHER_SUBJECT\) return desc \|\| t\('subject_other'\);/.test(app106), true,
+       'A106: …and “Other” is a stored marker, never printed raw');
+    eq(/return raw \|\| desc \|\| t\('expense'\);/.test(app106), true,
        'A106: …falling back to the comment, then to the word খরচ — never to nothing');
     // the old per-renderer versions must be gone, or one screen keeps its own rule
     eq(/esc\(r\.subject \|\| '—'\)/.test(app106), false, 'A106: the central list no longer has its own version');
@@ -4704,6 +4708,35 @@ try {
   // picked by hand. Now a direct wa.me button leads when the donor's number is
   // known; the image keeps its place and finally says WHY it cannot be
   // pre-addressed; a donor with no number gets a door to add one.
+  // A142 (Hrishi: "wherever OTHER is used the comment should be mandatory, and
+  // shown in the report too"): mandatory it already was — expenseFlow marks
+  // that step required, and it is the app's only "other" choice. SHOWN it was
+  // not. expenseTitle printed the marker and dropped the comment, so every
+  // screen fed by entrySummary — ✏️ আমার লেখা entry, the 🩺 desk, the pot
+  // detail, 🪦, the void list — read "🧾 খরচ · ➕ অন্য কিছু — ₹800": an amount
+  // and a shrug. The by-subject report was worse: it printed the raw English
+  // marker on a Bengali screen.
+  {
+    // the entry side of the promise, still true
+    eq(/\{ key: 'comment', qKey: 'q_comment_req', kind: 'text', required: true,\n\s+showIf: function \(a\) \{ return a\.subject === OTHER_SUBJECT; \} \}/.test(app), true,
+       'A142: the comment is mandatory for অন্য কিছু');
+    eq(/\{ key: 'desc', qKey: 'q_desc', kind: 'text' \},/.test(app), true,
+       'A142: …and a collection expense names itself too (no `optional`, so the flow demands it)');
+    // the showing side — the part that was missing
+    eq(/if \(raw === 'Other' \|\| raw === OTHER_SUBJECT\) return desc \|\| t\('subject_other'\);/.test(app), true,
+       'A142: for অন্য কিছু the COMMENT is the name — that is what it was collected for');
+    eq(/function expenseNote\(e\) \{[\s\S]{0,220}?return d && expenseTitle\(e\) !== d \? d : '';/.test(app), true,
+       'A142: …and the second line is empty when it would repeat the title');
+    eq((app.match(/expenseNote\(/g) || []).length >= 5, true,
+       'A142: …used by the expense report AND the my-expenses card, not one of them');
+    eq(app.indexOf("(e.subject && e.desc ?") < 0 && app.indexOf("(r.desc ? ' <span class=\"row-sub\">— '") < 0, true,
+       'A142: neither renderer keeps its own rule about when to print the comment');
+    eq(/esc\(expenseTitle\(\{ subject: s\.subject \}\)\)/.test(app), true,
+       'A142: the by-subject group is LABELLED through the same rule — no raw "Other" on a Bengali screen');
+    eq(/const s = r\.subject \|\| '—';/.test(require('fs').readFileSync(__dirname + '/../js/aggregate.js', 'utf8')), true,
+       'A142: …while the GROUPING still keys on the stored marker, which is correct');
+  }
+
   // A141 (Hrishi, straight after A140: "coming back, show-working is not
   // opened"): giving the working somewhere to GO exposed that it folds itself
   // shut on every re-render — so reading a second pot cost four taps instead

@@ -11789,6 +11789,38 @@ alone tripped 8 pins. Tests **1,890 → 1,911**.
 **⚠️ One redeploy: v4.34.26 supersedes .25/.24 (both undeployed) — paste .26
 directly over the live .23. No setup() needed.**
 
+## v4.34.32 — A142: "অন্য কিছু" says what it was (2026-08-31)
+
+Hrishi: *"wherever OTHER is used the comment should be mandatory, and shown in
+the report also."*
+
+Half of it was already true and worth verifying rather than assuming: the
+expense subject is the app's ONLY "other" choice (checked — nothing else
+offers one), and its comment step carries `required: true`, while a collection
+expense's `desc` has no `optional` flag, so the flow already refuses an empty
+one. Mandatory: yes.
+
+Shown: no. `expenseTitle` translated the stored marker and **threw the comment
+away**, so every screen fed by `entrySummary` — ✏️ আমার লেখা entry, the 🩺
+desk, A140's pot detail, 🪦, the void list — printed "🧾 খরচ · ➕ অন্য কিছু —
+₹800". An amount, a shrug, and a question nobody could answer a week later.
+The comment was being collected under a promise the app never kept.
+
+Now the comment IS the name for that subject — which is what it was collected
+for — and `expenseNote()` prints it as a second line only where it would not
+repeat the title, so no row says the same words twice. Found while fixing it:
+the expense report's **by-subject group printed the raw English marker**
+("Other") on a Bengali screen; the label now goes through the same rule while
+the grouping still keys on the stored marker, which is correct.
+
+Two A106 pins were repointed — same two properties (the marker never reaches a
+screen; the title is never empty), new shape. Browser-proved on a real "অন্য
+কিছু ₹800 · চেয়ার ভাড়া — ৫০টা": my-expenses card, expense report rows,
+by-subject label, and the pot detail all name it now, none twice. Mutations
+5/5. Tests **1,976 → 1,984**.
+
+**⚠️ One redeploy: v4.34.32 supersedes v4.34.31.**
+
 ## v4.34.31 — A141: the working stays open (2026-08-31)
 
 Hrishi, minutes after A140 reached his phone: *"in back, show working is not

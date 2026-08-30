@@ -3306,10 +3306,24 @@
   // 'Other' is a stored MARKER, not a name — expenseFlow writes it for the
   // "➕ অন্য কিছু" choice, so it has to be translated on the way out or a
   // Bengali screen reads "Other".
+  // A142: for "➕ অন্য কিছু" the COMMENT is the name. It is mandatory at entry
+  // (expenseFlow marks that step required) precisely so this line can say what
+  // the money went on — and then this function threw it away and printed the
+  // marker instead. Every screen entrySummary touches said "🧾 খরচ · ➕ অন্য
+  // কিছু — ₹800": an amount, a shrug, and a question nobody could answer a
+  // week later. ✏️ আমার লেখা entry, the 🩺 desk, the pot detail, 🪦, the void
+  // list — all of them, all season.
   function expenseTitle(e) {
     const raw = String((e && e.subject) || '');
-    const subj = (raw === 'Other' || raw === OTHER_SUBJECT) ? t('subject_other') : raw;
-    return subj || (e && e.desc) || t('expense');
+    const desc = String((e && e.desc) || '').trim();
+    if (raw === 'Other' || raw === OTHER_SUBJECT) return desc || t('subject_other');
+    return raw || desc || t('expense');
+  }
+  // The comment as a SECOND line — empty when the title is already the comment,
+  // so no row ever prints the same words twice.
+  function expenseNote(e) {
+    const d = String((e && e.desc) || '').trim();
+    return d && expenseTitle(e) !== d ? d : '';
   }
   function drawParty(p, pays, central, voidedOf, from) {
     voidedOf = voidedOf || {};
@@ -4621,7 +4635,7 @@
           m.expenses.map(function (e) {
             return '<div class="row" style="cursor:default"><div><b>' +
               esc(expenseTitle(e)) + '</b>' +
-              (e.subject && e.desc ? ' <span class="row-sub">— ' + esc(e.desc) + '</span>' : '') +
+              (expenseNote(e) ? ' <span class="row-sub">— ' + esc(expenseNote(e)) + '</span>' : '') +
               '<div class="row-sub">' + esc(fmtDate(e.date)) + '</div></div><b>' +
               fmtMoney(e.amount) + '</b></div>';
           }).join('') + '</div>' : '') +
@@ -4676,14 +4690,18 @@
       '<div class="row-sub">💵' + fmtMoney(d.totalCash || 0) + ' · 📱' + fmtMoney(d.totalUpi || 0) + '</div></div>' +
       (bySubject.length ? '<div class="row-sub" style="margin-bottom:6px">' + esc(t('by_subject')) + '</div>' +
         bySubject.map(function (s) {
-          return '<div class="row" style="cursor:default"><div><b>' + esc(s.subject) + '</b>' +
+          // A142: the by-subject group printed the stored MARKER — a Bengali
+          // screen listing a line called "Other". Grouping still keys on the
+          // marker (correct); only the label is translated.
+          return '<div class="row" style="cursor:default"><div><b>' +
+            esc(expenseTitle({ subject: s.subject })) + '</b>' +
             '<div class="row-sub">' + s.count + ' ' + esc(t('entries')) +
             ' • 💵' + fmtMoney(s.cash || 0) + ' · 📱' + fmtMoney(s.upi || 0) + '</div></div><b>' + fmtMoney(s.total) + '</b></div>';
         }).join('') : '') + '</div>' +
       '<div class="card"><div class="card-title">' + esc(t('entries')) + '</div>' +
       (rows.length ? rows.map(function (r) {
         return '<div class="row" style="cursor:default"><div><b>' + esc(expenseTitle(r)) + '</b>' +
-          (r.desc ? ' <span class="row-sub">— ' + esc(r.desc) + '</span>' : '') +
+          (expenseNote(r) ? ' <span class="row-sub">— ' + esc(expenseNote(r)) + '</span>' : '') +
           '<div class="row-sub">' + esc(fmtDate(r.date)) + (r.spentBy ? ' • ' + esc(r.spentBy) : '') +
           (r.source === 'collection' ? ' • ' + esc(t('coll_expense')) : '') +
           ' • 💵' + fmtMoney(r.cash) + ' · 📱' + fmtMoney(r.upi) +
