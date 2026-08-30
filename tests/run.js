@@ -4704,6 +4704,23 @@ try {
   // picked by hand. Now a direct wa.me button leads when the donor's number is
   // known; the image keeps its place and finally says WHY it cannot be
   // pre-addressed; a donor with no number gets a door to add one.
+  // A141 (Hrishi, straight after A140: "coming back, show-working is not
+  // opened"): giving the working somewhere to GO exposed that it folds itself
+  // shut on every re-render — so reading a second pot cost four taps instead
+  // of one. The state is remembered, exactly like the back button's promise to
+  // return you where you were.
+  {
+    eq(/let sumOpen = false;/.test(app), true, 'A141: the working remembers whether it is open');
+    eq(/'<div id="sum-body"' \+ \(sumOpen \? '' : ' hidden'\) \+ '>'/.test(app), true,
+       'A141: …the markup honours it');
+    eq(/esc\(t\(sumOpen \? 'sum_close' : 'sum_open'\)\)/.test(app), true,
+       'A141: …and so does the button\'s own label, or it lies about what a tap will do');
+    eq(/body\.hidden = !body\.hidden;\n[\s\S]{0,400}?sumOpen = !body\.hidden;/.test(app), true,
+       'A141: the toggle records the new state');
+    eq(/body\.hidden = false;\n        sumOpen = true;/.test(app), true,
+       'A141: …and so does the খরচ door, which opens the working as a side effect');
+  }
+
   // A140 (Hrishi: "clicking a row in the working should open the user's full
   // detail"): the pot rows were dead ends. They open now — but NOT as "my
   // entries filtered by category", which was the obvious build and the wrong

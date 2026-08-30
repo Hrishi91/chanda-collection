@@ -11789,6 +11789,28 @@ alone tripped 8 pins. Tests **1,890 → 1,911**.
 **⚠️ One redeploy: v4.34.26 supersedes .25/.24 (both undeployed) — paste .26
 directly over the live .23. No setup() needed.**
 
+## v4.34.31 — A141: the working stays open (2026-08-31)
+
+Hrishi, minutes after A140 reached his phone: *"in back, show working is not
+opened."* Giving the working somewhere to GO exposed that it folds itself shut
+on every re-render — so reading a second pot cost four taps (open the working,
+scroll, tap, read) instead of one. The report re-renders on every pull, every
+notification and every return from a pot, and each of those took the reader
+back to a closed accordion.
+
+`sumOpen` is now remembered across renders: the markup honours it, the toggle
+records it, and the খরচ door — which opens the working as a side effect —
+records it too. The button's own label follows, or it would promise the
+opposite of what a tap does. Closing it still means closed: the state is
+remembered, not forced open.
+
+The same rule the back button has followed since A122: return the person to
+where they were. Browser-walked end to end (open → pot → back → still open →
+another screen and back → still open → close → stays closed). Mutations 4/4.
+Tests **1,971 → 1,976**.
+
+**⚠️ One redeploy: v4.34.31 supersedes v4.34.30.**
+
 ## v4.34.30 — A140: every pot opens, and derives the figure you tapped (2026-08-31)
 
 Hrishi: *"clicking a row in the working should open that user's full detail."*

@@ -4530,6 +4530,10 @@
     if (id) return '<button class="term" id="' + id + '">' + inner + '</button>';
     return '<button class="term" data-go="' + go + '">' + inner + '</button>';
   }
+  // A141: whether "হিসাব দেখি" is open, kept across renders — the report is
+  // re-rendered on every pull, every notification and every return from a pot,
+  // and each of those used to fold it shut under the reader.
+  let sumOpen = false;
   // m = Aggregate.mySummary(). Three levels: the hero alone, then the group
   // totals, then each group's pots. Everything below the hero is a slice OF the
   // hero, so no figure on this screen can contradict the one at the top.
@@ -4549,7 +4553,7 @@
           '</div>' : '') +
         (deviceOnly ? '<div class="sub" style="font-size:12px;color:var(--sub);margin-top:6px">' +
           esc(t('my_device_note')) + '</div>' : '') +
-        '<button class="sum-more" id="sum-toggle">' + esc(t('sum_open')) + '</button>' +
+        '<button class="sum-more" id="sum-toggle">' + esc(t(sumOpen ? 'sum_close' : 'sum_open')) + '</button>' +
         // money that is NOT in the hero but needs an action from this person
         (pin.total ? '<div class="strip act">' + tMoney('strip_pend_in', pin.total) +
           '<span class="sub">' + esc(t('strip_pend_in_sub')) + '</span>' +
@@ -4562,7 +4566,7 @@
         (rej.total ? '<div class="strip act">' + tMoney('strip_rejected', rej.total) +
           '<span class="sub">' + tMoney('strip_rejected_sub', hero) + '</span></div>' : '') +
       '</div>' +
-      '<div id="sum-body" hidden>' +
+      '<div id="sum-body"' + (sumOpen ? '' : ' hidden') + '>' +
         '<div class="secttl">' + esc(t('sum_where')) + '</div><div class="calc">' +
           m.groups.map(function (g) {
             return grpHTML(true, esc(t(SUM_GROUP_KEYS[g.key] || 'cat_other')), fmtMoney(g.total), potKidsHTML(g.pots));
@@ -4630,6 +4634,11 @@
     const body = root.querySelector('#sum-body'), tog = root.querySelector('#sum-toggle');
     if (tog && body) tog.onclick = function () {
       body.hidden = !body.hidden;
+      // A141: remembered, because A140 gave the working somewhere to GO. You
+      // open it, tap a pot, read it, come back — and it had folded itself shut
+      // again, so the road back to the next pot was four taps instead of one.
+      // Same rule as the back button: return the person to where they were.
+      sumOpen = !body.hidden;
       tog.textContent = t(body.hidden ? 'sum_open' : 'sum_close');
     };
     root.querySelectorAll('[data-grp]').forEach(function (h) {
@@ -4644,6 +4653,7 @@
       const ex = root.querySelector('#eq-exp');
       if (ex) ex.onclick = function () {
         body.hidden = false;
+        sumOpen = true;
         tog.textContent = t('sum_close');
         const card = root.querySelector('#my-exp-card');
         if (card) queueMicrotask(function () { card.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
