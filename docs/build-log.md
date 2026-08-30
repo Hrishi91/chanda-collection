@@ -11811,6 +11811,12 @@ Tests **1,971 → 1,976**.
 
 **⚠️ One redeploy: v4.34.31 supersedes v4.34.30.**
 
+### v4.34.31 deployed (2026-08-31)
+
+Browser-probed: `chanda-v4.34.31 / schema 5`, first try. `js/config.js`
+rebaked. Six releases today, every one of them from a trial report:
+A136–A141.
+
 ## v4.34.30 — A140: every pot opens, and derives the figure you tapped (2026-08-31)
 
 Hrishi: *"clicking a row in the working should open that user's full detail."*
