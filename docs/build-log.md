@@ -11789,6 +11789,49 @@ alone tripped 8 pins. Tests **1,890 → 1,911**.
 **⚠️ One redeploy: v4.34.26 supersedes .25/.24 (both undeployed) — paste .26
 directly over the live .23. No setup() needed.**
 
+## v4.34.28 — A138: the date the Sheet gives back is not the date we wrote (2026-08-31)
+
+Hrishi handed over his live session token and asked for a full set of entries
+in his own book so he could see every report with data. Sixteen demo rows went
+in (all ids prefixed `demo-`, live_mode verified as training FIRST) — and
+reading them back exposed a bug that eight weeks of harness work could never
+have shown.
+
+**A date written as `"2026-08-18"` becomes a real DATE CELL in the Sheet.**
+Apps Script hands it back as a UTC datetime — `"2026-08-17T18:30:00.000Z"` —
+which IS 18 August in IST. So every money row carries a plain day while it is
+still local and unsynced, and an ISO datetime for the PREVIOUS UTC day once it
+has synced. Measured on Hrishi's live book: **16 of 16 money rows carried the
+ISO shape**, including rows the app itself wrote weeks ago.
+
+Every `date === 'YYYY-MM-DD'` and every `.slice(0, 10)` was therefore false —
+or off by one — for the synced half of the book:
+
+- **the duplicate-payment guard** (`samePaymentsOn`, run before a second entry
+  is written) could not see a duplicate that had already synced — precisely
+  the case where two collectors are most likely to have entered the same donor
+  twice. The money-safety one.
+- **the 🩺 desk's same-day duplicate groups** split into two keys, one per
+  shape, so neither reached the threshold.
+- **"আজ আমার তোলা"** and A136's 📅 আজ line and A130's my-today-first ledger
+  order read the wrong day. On his live book today's figure read **₹0 against
+  a true ₹8,800**.
+
+`fmtDate` had known about the round-trip since it was written ("an ISO
+round-tripped through the Sheet") — display was right and every comparison was
+wrong, which is why nothing looked broken. The rule now lives once, as
+`Aggregate.dayOf`, and fmtDate delegates to it; all eight comparison sites go
+through it. createdAt too: it is a UTC instant, so `.slice(0, 10)` named the
+wrong day for anything entered between midnight and 5:30 am IST.
+
+Every pin is written in the LIVE shape on purpose — a fake server returns the
+strings it was given, so the harness would have gone on agreeing with the bug
+for ever. Verified on the real book, old rule vs new, side by side: ₹0 → ₹8,800.
+Mutations 4/4; restoring the original bug turns five pins red at once. Tests
+**1,917 → 1,930**.
+
+**⚠️ One redeploy: v4.34.28 supersedes v4.34.27.**
+
 ## v4.34.27 — A137: one colour, one meaning, on the cashier's screen too (2026-08-31)
 
 Hrishi asked to see the FULL admin report, so a complete book was seeded on

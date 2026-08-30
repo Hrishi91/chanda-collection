@@ -90,14 +90,11 @@
   // a plain "2026-07-24", an ISO round-tripped through the Sheet
   // ("2026-07-23T18:30:00.000Z" = 24 Jul IST), or a Date.toString(). Falls back
   // to the raw string if unparseable, so it never blanks a value.
-  function fmtDate(v) {
-    if (!v) return '';
-    const s = String(v);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;          // already a plain day
-    const d = new Date(s);
-    if (isNaN(d.getTime())) return s;
-    return new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
-  }
+  // A138: the rule now lives in aggregate.js as dayOf — display and every
+  // date COMPARISON must agree about which day a row belongs to, and they did
+  // not: this function always knew about the Sheet's round-trip while the
+  // comparison sites still tested the raw string.
+  function fmtDate(v) { return Aggregate.dayOf(v); }
   // Indian mobile: strip spaces/dashes/brackets and an optional +91 / 91 / 0
   // prefix, leaving the 10-digit national number.
   // A80: the rule itself now lives in aggregate.js, so the 🩺 desk and this
@@ -2159,7 +2156,8 @@
       const today = todayISO();
       const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
       const myToday = data.payments.concat(data.daily).filter(function (r) {
-        return (r.collectorId || r.collector) === meId && (r.date === today || (r.createdAt || '').slice(0, 10) === today);
+        return (r.collectorId || r.collector) === meId &&
+          (Aggregate.dayOf(r.date) === today || Aggregate.dayOf(r.createdAt) === today);
       }).reduce(function (a, r) { return a + Number(r.amount || 0); }, 0);
       // Aggregate.homeTiles decides WHAT appears (pure, and pinned by tests);
       // this only decides how each one is drawn. Keeping the decision out of
@@ -2502,12 +2500,12 @@
       const today = todayISO();
       const lastAct = {}, mineToday = {};
       liveParties(data).forEach(function (p) {
-        lastAct[p.id] = String(p.createdAt || '').slice(0, 10);
+        lastAct[p.id] = Aggregate.dayOf(p.createdAt);
         if (lastAct[p.id] === today && (p.collectorId || p.collector) === meId) mineToday[p.id] = 1;
       });
       (data.payments || []).forEach(function (r) {
         if (!r.partyId) return;
-        const d = String(r.date || (r.createdAt || '').slice(0, 10) || '');
+        const d = Aggregate.dayOf(r.date) || Aggregate.dayOf(r.createdAt);
         if (d > (lastAct[r.partyId] || '')) lastAct[r.partyId] = d;
         if (d === today && (r.collectorId || r.collector) === meId) mineToday[r.partyId] = 1;
       });
@@ -4680,7 +4678,7 @@
       const last = {}, who = {};
       (data.payments || []).forEach(function (p) {
         if (v[p.id] || !p.partyId) return;
-        const day = String(p.date || p.createdAt || '').slice(0, 10);
+        const day = Aggregate.dayOf(p.date) || Aggregate.dayOf(p.createdAt);
         if (!last[p.partyId] || day > last[p.partyId]) { last[p.partyId] = day; who[p.partyId] = p.collector || ''; }
       });
       const byName = {}; liveParties(data).forEach(function (p) { byName[p.name] = p; });

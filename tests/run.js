@@ -3,7 +3,7 @@ const { parseAmount } = require('../js/numparse.js');
 const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, reconcile, computeReport,
         roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed,
         cashierView, handoverReport, allowedReports, mySummary, handoverSlots, handoverable, samePaymentsOn,
-        mentionsMe, messageFeed, activeData, chatLoad, homeTiles,
+        mentionsMe, messageFeed, activeData, chatLoad, homeTiles, dayOf,
         REPORT_IDS, POSITION_PERM_KEYS, splitPositionPerms } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
@@ -4704,6 +4704,59 @@ try {
   // picked by hand. Now a direct wa.me button leads when the donor's number is
   // known; the image keeps its place and finally says WHY it cannot be
   // pre-addressed; a donor with no number gets a door to add one.
+  // A138 — THE LIVE SHAPE. Found by reading Hrishi's real book: a date written
+  // as "2026-08-18" becomes a DATE CELL in the Sheet and comes back as
+  // "2026-08-17T18:30:00.000Z" — which IS 18 Aug in IST. So a row carries a
+  // plain day while unsynced and an ISO datetime for the PREVIOUS UTC day once
+  // synced, and every date comparison was false (or off by one) for the synced
+  // half of the book. The harness never showed it: a fake server returns the
+  // strings it was given, so every one of these pins is written in the LIVE
+  // shape on purpose.
+  {
+    const SYNCED = '2026-08-17T18:30:00.000Z';   // = 2026-08-18 IST
+    const LOCAL = '2026-08-18';                   // same day, not yet synced
+    eq(dayOf(SYNCED), LOCAL, 'A138: the Sheet round-trip and the local string name the SAME day');
+    eq(dayOf(LOCAL), LOCAL, 'A138: …a plain day passes through untouched');
+    eq(dayOf(''), '', 'A138: …empty stays empty');
+    eq(dayOf('কিছু-একটা'), 'কিছু-একটা', 'A138: …unparseable is returned as-is, never blanked');
+    // createdAt is a UTC instant: 01:23 IST on the 18th is still the 17th in UTC
+    eq(dayOf('2026-08-17T19:53:20.495Z'), '2026-08-18',
+       'A138: …and createdAt lands on the IST day, not the UTC one');
+    // the money-safety one: a duplicate that has already synced must still be
+    // found by the guard that runs before the second entry is written
+    const dupData = { parties: [{ id: 'q1', type: 'shop' }], voids: [], corrections: [],
+      payments: [{ id: 'old', partyId: 'q1', amount: 500, date: SYNCED, collectorId: 'y' }],
+      daily: [], expenses: [], handovers: [] };
+    eq(samePaymentsOn(dupData, 'q1', 500, LOCAL).length, 1,
+       'A138: the duplicate guard sees a SYNCED same-day payment — the case it was blind to');
+    // …and the 🩺 desk groups both shapes of the same day together
+    const mixed = { parties: [{ id: 'q1', type: 'shop', name: 'X', pledged: 5000, collectorId: 'y' }],
+      voids: [], corrections: [], daily: [], expenses: [], handovers: [],
+      payments: [{ id: 'a', partyId: 'q1', amount: 500, date: SYNCED, collectorId: 'y' },
+                 { id: 'b', partyId: 'q1', amount: 500, date: LOCAL, collectorId: 'y' }] };
+    eq(reconcile(mixed, {}).anomalies.filter(function (a) { return a.type === 'possible_duplicate_payment'; }).length, 1,
+       'A138: …one duplicate group across the sync boundary, not two lonely halves');
+    // the day line reads the live shape too
+    const liveDay = mySummary({ parties: [], voids: [], corrections: [], handovers: [], expenses: [],
+      daily: [], payments: [{ id: 'p', collectorId: 'y', amount: 700, date: SYNCED }] }, 'y', LOCAL);
+    eq(liveDay.today.collected, 700, 'A138: 📅 আজ counts a synced row entered today');
+    // every comparison site goes through the one rule
+    eq(/function fmtDate\(v\) \{ return Aggregate\.dayOf\(v\); \}/.test(app), true,
+       'A138: display and comparison share one definition of "which day"');
+    eq(/Aggregate\.dayOf\(r\.date\) === today \|\| Aggregate\.dayOf\(r\.createdAt\) === today/.test(app), true,
+       'A138: home\'s আজ আমার তোলা');
+    eq(/lastAct\[p\.id\] = Aggregate\.dayOf\(p\.createdAt\);/.test(app) &&
+       /const d = Aggregate\.dayOf\(r\.date\) \|\| Aggregate\.dayOf\(r\.createdAt\);/.test(app), true,
+       'A138: the ledger\'s my-today-first order');
+    eq(app.indexOf("String(r.date || '') === d0") < 0 &&
+       app.indexOf("(r.createdAt || '').slice(0, 10) === today") < 0, true,
+       'A138: no raw date comparison left in app.js');
+    const agg138 = require('fs').readFileSync(__dirname + '/../js/aggregate.js', 'utf8');
+    eq(agg138.indexOf("String(p.date || '').slice(0, 10) === day") < 0 &&
+       (agg138.match(/const day = dayOf\(/g) || []).length >= 3, true,
+       'A138: …nor in aggregate.js — every day-key is built by dayOf');
+  }
+
   // A137 (found while walking the full admin report for Hrishi): 💰 কার হাতে
   // কত painted every POSITIVE in-hand red — while the app's own legend, two
   // screens away, says red means shortfall. It also painted a NEGATIVE in-hand

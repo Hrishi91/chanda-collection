@@ -72,6 +72,37 @@
       return !r || r.year === undefined || r.year === null || r.year === '' || Number(r.year) === year;
     });
   }
+  // A138: THE day of a row, whatever shape the date arrived in.
+  //
+  // A date written as "2026-08-18" becomes a real DATE CELL in the Sheet, and
+  // Apps Script hands it back as a UTC datetime: "2026-08-17T18:30:00.000Z" —
+  // which IS 18 August in IST. So the same row carries a plain day while it is
+  // still local and unsynced, and an ISO datetime for the previous UTC day once
+  // it has synced. Every `date === 'YYYY-MM-DD'` and every `.slice(0, 10)` in
+  // this app was therefore false — or off by one — for the synced half of the
+  // book, and the harness never showed it because a fake server returns exactly
+  // the strings it was given.
+  //
+  // What that silently cost, before this existed:
+  //   · the duplicate-payment guard could not see a duplicate that had already
+  //     synced — the one case where two collectors are most likely to have
+  //     entered the same donor twice;
+  //   · the 🩺 desk's same-day duplicate groups split into two keys, one per
+  //     shape, so neither reached the threshold;
+  //   · "আজ আমার তোলা" and the ledger's my-today-first order read the previous
+  //     UTC day, so between midnight and 5:30 am IST they answered for
+  //     yesterday.
+  // createdAt goes through here too: it is a UTC instant, and .slice(0, 10) on
+  // it names the wrong day for anything entered after 5:30 am IST… of the next
+  // day. One rule, one place.
+  function dayOf(v) {
+    if (v === 0 || v === null || v === undefined || v === '') return '';
+    const s = String(v);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;            // already a plain IST day
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return s;                        // unparseable: never blank a value
+    return new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+  }
   function activeData(data, year) {
     const v = voidedIds(data);
     const keep = function (rows) { return ofYear(rows, year).filter(function (r) { return r && !v[r.id]; }); };
@@ -540,7 +571,7 @@
       const act = activeData(data);
       const mine = function (r) { return ck(r) === String(ident); };
       const isToday = function (r) {
-        return String(r.date || '') === d0 || String(r.createdAt || '').slice(0, 10) === d0;
+        return dayOf(r.date) === d0 || dayOf(r.createdAt) === d0;
       };
       const sum = function (rows) {
         return rows.filter(mine).filter(isToday)
@@ -971,12 +1002,12 @@
   // than refuse. `exceptId` lets the edit path exclude the row being replaced.
   function samePaymentsOn(data, partyId, amount, date, exceptId) {
     const amt = Number(amount) || 0;
-    const day = String(date || '').slice(0, 10);
+    const day = dayOf(date);
     if (!partyId || !amt || !day) return [];
     return (activeData(data).payments || []).filter(function (p) {
       return String(p.partyId) === String(partyId) &&
              (Number(p.amount) || 0) === amt &&
-             String(p.date || '').slice(0, 10) === day &&
+             dayOf(p.date) === day &&
              (!exceptId || String(p.id) !== String(exceptId));
     });
   }
@@ -1060,7 +1091,7 @@
     // half the time. A group is settled if ANY member carries the answer.
     const dupGroups = {};
     payments.forEach(function (p) {
-      const day = String(p.date || '').slice(0, 10);
+      const day = dayOf(p.date);
       if (!p.partyId || !(Number(p.amount) || 0) || !day) return;
       const k = String(p.partyId) + '|' + (Number(p.amount) || 0) + '|' + day;
       (dupGroups[k] || (dupGroups[k] = [])).push(p);
@@ -1094,7 +1125,7 @@
     //          avoid (A19/A23).
     const dailyGroups = {};
     (daily || []).forEach(function (r) {
-      const day = String(r.date || '').slice(0, 10);
+      const day = dayOf(r.date);
       const amt = Number(r.amount) || 0;
       if (!amt || !day || !r.type) return;
       const k = r.type === 'bus'
@@ -1435,7 +1466,7 @@
                 permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,
-                samePaymentsOn: samePaymentsOn,
+                samePaymentsOn: samePaymentsOn, dayOf: dayOf,
                 mentionsMe: mentionsMe, messageFeed: messageFeed,
                 activeData: activeData, chatLoad: chatLoad, homeTiles: homeTiles,
                 // A60: exported because js/app.js was rebuilding this same map
