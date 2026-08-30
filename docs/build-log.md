@@ -11821,6 +11821,11 @@ text falling back to the background colour). Tests **1,911 → 1,917**.
 
 **⚠️ One redeploy: v4.34.27 supersedes v4.34.26.**
 
+### v4.34.27 deployed (2026-08-31)
+
+Browser-probed: `chanda-v4.34.27 / schema 5`, first try. `js/config.js`
+rebaked.
+
 ### v4.34.26 deployed (2026-08-31)
 
 Browser-probed: `chanda-v4.34.26 / schema 5`, first try. `js/config.js`
