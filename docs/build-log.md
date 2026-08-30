@@ -11817,6 +11817,13 @@ escaping the cool zone) was added; 5/5 red. Tests **1,930 → 1,938**.
 
 **⚠️ One redeploy: v4.34.29 supersedes v4.34.28.**
 
+### v4.34.29 deployed (2026-08-31)
+
+Browser-probed `chanda-v4.34.29 / schema 5` — the FIRST probe answered "Page
+not found" and the second answered correctly, the same flaky googleusercontent
+hop as 2026-08-18. One dead verdict is still never trustworthy; two tries
+cost nothing. `js/config.js` rebaked.
+
 ## v4.34.28 — A138: the date the Sheet gives back is not the date we wrote (2026-08-31)
 
 Hrishi handed over his live session token and asked for a full set of entries
