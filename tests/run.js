@@ -4704,6 +4704,27 @@ try {
   // picked by hand. Now a direct wa.me button leads when the donor's number is
   // known; the image keeps its place and finally says WHY it cannot be
   // pre-addressed; a donor with no number gets a door to add one.
+  // A137 (found while walking the full admin report for Hrishi): 💰 কার হাতে
+  // কত painted every POSITIVE in-hand red — while the app's own legend, two
+  // screens away, says red means shortfall. It also painted a NEGATIVE in-hand
+  // green, which is the one row that genuinely needs red. Hrishi chose gold:
+  // "counted now, will leave" is exactly what money still with a collector is.
+  {
+    const ih = app.slice(app.indexOf('function reportInhandHTML'), app.indexOf('// order = how every report lists'));
+    eq(/r\.inHand > 0 \? 'gold' : r\.inHand < 0 \? 'red' : 'green'/.test(ih), true,
+       'A137: positive = gold (still out), negative = red (shortfall), zero = green (settled)');
+    eq(ih.indexOf("r.inHand > 0 ? 'red'") < 0, true,
+       'A137: …the old healthy-collector-is-red rule is gone');
+    eq(/inhand_colour_note/.test(ih), true,
+       'A137: the card says what its colours mean — the cashier has no legend on this screen');
+    const css137 = require('fs').readFileSync(__dirname + '/../css/style.css', 'utf8');
+    eq(/--gold-ink: #8a5a00;/.test(css137) && /\.stat3 \.gold b, \.gold b \{ color: var\(--gold-ink\); \}/.test(css137), true,
+       'A137: gold TEXT gets its own readable ink — --gold is a background colour (1.9:1 on white)');
+    eq(/#print-area \.gold b \{ color: #000; \}/.test(css137), true,
+       'A137: …and prints black, like the other two');
+    eq(a25I18n.indexOf('  inhand_colour_note:') >= 0, true, 'A137: the note is bilingual');
+  }
+
   // A136 (deep-research on the collector's own report): the season line used
   // to list four figures and then FORBID reconciling them — while
   // collected + received − expenses − handed equals the hero by construction.

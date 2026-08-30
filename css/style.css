@@ -1,6 +1,6 @@
 * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
 :root {
-  --saffron: #d9531e; --saffron-dark: #b03e12; --gold: #f6b93b;
+  --saffron: #d9531e; --saffron-dark: #b03e12; --gold: #f6b93b; --gold-ink: #8a5a00;
   --bg: #fdf6ee; --card: #ffffff; --ink: #2d2418; --sub: #7f6f5b; /* A64 (audit 2.13): was #8a7a66 = 3.88:1 on --bg, below WCAG AA,
      and it is the colour of every secondary line in the app — the collector's
      name, every row-sub, every hint, the dues under each donor. Read outdoors,
@@ -230,6 +230,10 @@ select.chip { appearance: none; -webkit-appearance: none; max-width: 52vw; }
 .stat3 b { font-size: 15.5px; }
 .stat3 .green b, .green b { color: var(--green); }
 .stat3 .red b, .red b { color: var(--red); }
+/* A137: gold as TEXT, not as a swatch. --gold (#f6b93b) is a background colour
+   — on white it measures about 1.9:1, unreadable outdoors, which is exactly
+   where this app is used. This is the same hue taken dark enough to pass. */
+.stat3 .gold b, .gold b { color: var(--gold-ink); }
 .empty { text-align: center; color: var(--sub); padding: 26px 10px; font-size: 14px; }
 .field { margin-bottom: 14px; text-align: left; }
 .field label { display: block; font-size: 13px; font-weight: 700; color: var(--sub); margin-bottom: 6px; }
@@ -333,6 +337,7 @@ button.adm-stick {
   #print-area .stat3 { display: flex; gap: 6px; }
   #print-area .stat3 > div { flex: 1; border: 1px solid #ccc; border-radius: 6px; padding: 6px; text-align: center; background: #fff; }
   #print-area .green b { color: #000; } #print-area .red b { color: #000; }
+  #print-area .gold b { color: #000; }
 }
 
 /* ---- admin panel collapsible groups ---- */

@@ -789,6 +789,8 @@ const I18N = {
   collected_col: { bn: 'তুলেছে', en: 'Collected' },
   handed_col: { bn: 'জমা দিয়েছে', en: 'Handed over' },
   inhand_col: { bn: 'হাতে', en: 'In hand' },
+  inhand_colour_note: { bn: 'হলুদ = এখনও ওই ব্যক্তির হাতে, জমা পড়েনি · সবুজ = সব জমা হয়ে গেছে · লাল = ঘাটতি (খরচ বেশি হয়েছে)।',
+                        en: 'Yellow = still with that person, not handed in · Green = all settled · Red = shortfall (overspent).' },
   needs_net: { bn: 'এটার জন্য internet লাগবে', en: 'This needs internet' },
   not_cashier: { bn: 'তুমি ক্যাশিয়ার নও — admin-কে বলো', en: 'You are not a cashier — ask the admin' },
   amount_zero: { bn: 'মোট টাকা ০ হতে পারে না', en: 'Total cannot be zero' },

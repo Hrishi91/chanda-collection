@@ -4370,6 +4370,9 @@
     const rows = d.rows || [];
     if (!rows.length) return '<div class="empty">' + esc(t('no_entries')) + '</div>';
     return '<div class="card"><div class="card-title">' + esc(t('report_inhand')) + '</div>' +
+      // A137: the colour, said in words on the card that uses it — the cashier
+      // reads this screen without the collector's legend in front of them
+      '<div class="row-sub" style="margin:-4px 4px 8px">' + esc(t('inhand_colour_note')) + '</div>' +
       rows.map(function (r) {
         const parts = [esc(t('collected_col')) + ' ' + fmtMoney(r.collected)];
         if (r.received) parts.push(esc(t('received_col')) + ' ' + fmtMoney(r.received));
@@ -4379,7 +4382,15 @@
           '<div class="row-sub">' + parts.join(' • ') + '</div>' +
           (r.pending ? '<div class="row-sub">⏳ ' + esc(t('my_pending')) + ': ' + fmtMoney(r.pending) + '</div>' : '') +
           byCatInline(r.byCat) +
-          '</div><div class="row-right"><span class="' + (r.inHand > 0 ? 'red' : 'green') + '"><b>' +
+          // A137: one colour, one meaning — the rule the legend states and this
+          // report broke. Money still with a collector is GOLD ("counted now,
+          // will leave"), not red: red is the app's word for a shortfall, and
+          // painting every healthy collector red taught the cashier to read red
+          // as ordinary. Settled is green. And a NEGATIVE in-hand — someone who
+          // overspent — used to come out green with everything else at zero,
+          // which is the one row that genuinely needs red.
+          '</div><div class="row-right"><span class="' +
+          (r.inHand > 0 ? 'gold' : r.inHand < 0 ? 'red' : 'green') + '"><b>' +
           fmtMoney(r.inHand) + '</b></span><div class="row-sub">' + esc(t('inhand_col')) + '</div></div></div>';
       }).join('') + '</div>';
   }

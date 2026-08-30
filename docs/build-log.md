@@ -11789,6 +11789,38 @@ alone tripped 8 pins. Tests **1,890 → 1,911**.
 **⚠️ One redeploy: v4.34.26 supersedes .25/.24 (both undeployed) — paste .26
 directly over the live .23. No setup() needed.**
 
+## v4.34.27 — A137: one colour, one meaning, on the cashier's screen too (2026-08-31)
+
+Hrishi asked to see the FULL admin report, so a complete book was seeded on
+the harness as admin — four donors across four areas, cash+UPI payments, road
+/ toto / two buses, three expenses (one overspending its pot), and four
+handovers in all three states — and every one of the seven central cards was
+walked. The reports were sound; one thing was not.
+
+**💰 কার হাতে কত painted every POSITIVE in-hand red**, while the app's own
+legend — printed two screens away, on the collector's own summary — says red
+means *shortfall*. Every healthy collector therefore came out red, which is
+the fastest way to teach a cashier that red means nothing. Worse the other
+way: a NEGATIVE in-hand (somebody who overspent) came out GREEN, and that is
+the one row that genuinely needs red.
+
+Hrishi's call (option খ): gold. It is precisely what the legend already says
+gold means — "counted now, will leave". So: **> 0 gold · < 0 red · = 0
+green**, and the card states its own colour code in one line, because the
+cashier reads this screen without the collector's legend in front of them.
+
+`--gold` (#f6b93b) is a BACKGROUND colour — about 1.9:1 on white, unreadable
+in the sun this app is used in — so gold text got its own ink, `--gold-ink`
+#8a5a00, with the matching print rule the other two already had.
+
+Browser-proved with all three states on one screen (bimal ₹3,800 gold, কালী
+−₹500 red after handing everything in and spending ₹500 more, settled rows
+green) and the computed ink read back from the DOM: rgb(138,90,0). Mutations
+4/4 (red-for-positive restored, negative back to green, note removed, gold
+text falling back to the background colour). Tests **1,911 → 1,917**.
+
+**⚠️ One redeploy: v4.34.27 supersedes v4.34.26.**
+
 ### v4.34.26 deployed (2026-08-31)
 
 Browser-probed: `chanda-v4.34.26 / schema 5`, first try. `js/config.js`
