@@ -4708,6 +4708,36 @@ try {
   // picked by hand. Now a direct wa.me button leads when the donor's number is
   // known; the image keeps its place and finally says WHY it cannot be
   // pre-addressed; a donor with no number gets a door to add one.
+  // A143 (Hrishi, after the "where is OTHER used" sweep turned to places): the
+  // area picker offers no "other" and should not — an admin adds the real road
+  // to the master list, and a collector standing in front of a donor must not
+  // be blocked by a list missing one. So the entry stays skippable and the gap
+  // is REPORTED: a shop with no এলাকা makes 📍 এলাকা-ভিত্তিক under-count a road.
+  {
+    const noArea = { voids: [], corrections: [], payments: [], daily: [], expenses: [], handovers: [],
+      parties: [{ id: 'a1', type: 'shop', name: 'ক স্টোর্স', side: '', pledged: 0 },
+                { id: 'a2', type: 'shop', name: 'খ স্টোর্স', side: 'main_malda', pledged: 0 },
+                { id: 'a3', type: 'person', name: 'গ বাবু', side: '', pledged: 0 },
+                { id: 'a4', type: 'member', name: 'ঘ দা', side: '', appUser: 'x', pledged: 0 }] };
+    const an = reconcile(noArea, {}).anomalies.filter(function (x) { return x.type === 'party_no_area'; });
+    eq(an.length, 1, 'A143: exactly the SHOP with no area is flagged');
+    // guarded reads: a failed assertion must REPORT, not crash the file and
+    // hide every check below it — the mutation drill found this the hard way
+    eq((an[0] || {}).party, 'ক স্টোর্স', 'A143: …by name');
+    eq(!!(an[0] || {}).partyId, true, 'A143: …and it carries its own 👁 door');
+    // the narrowing IS the rule: the app asks shops for an area and nobody else
+    const agg143 = require('fs').readFileSync(__dirname + '/../js/aggregate.js', 'utf8');
+    eq(/if \(p\.type !== 'shop' \|\| String\(p\.side \|\| ''\)\) return;/.test(agg143), true,
+       'A143: a person is never flagged for a field the app never asks them for');
+    eq(/const k = p\.side \|\| '—'; \/\/ shops carry an area/.test(agg143), true,
+       'A143: …which is the same rule the area report itself states');
+    // and it says something a person can act on, in both languages
+    eq(a25I18n.indexOf('  anom_party_no_area:') >= 0 && a25I18n.indexOf('  anom_party_no_area_t:') >= 0, true,
+       'A143: the row has a title and a message');
+    eq(/a\.type === 'party_no_area' \? t\('anom_party_no_area'\)\.replace\('\{who\}', a\.party \|\| '\?'\)/.test(app), true,
+       'A143: …and the desk renders it rather than printing the raw type');
+  }
+
   // A142 (Hrishi: "wherever OTHER is used the comment should be mandatory, and
   // shown in the report too"): mandatory it already was — expenseFlow marks
   // that step required, and it is the app's only "other" choice. SHOWN it was

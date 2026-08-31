@@ -1306,6 +1306,26 @@
       if (p.type !== 'member' || String(p.appUser || '')) return;
       anomalies.push({ type: 'member_no_account', id: p.id, partyId: p.id, party: p.name || p.id });
     });
+    // A143: a donor with no এলাকা. The area picker offers no "other" and never
+    // will — an admin adds the real road to the master list instead, and a
+    // collector standing in front of a donor must not be blocked by a list
+    // that is missing one. So the entry stays SKIPPABLE and the gap is
+    // reported here: 📍 এলাকা-ভিত্তিক silently under-counts every such donor,
+    // and that report is how the committee decides which road to push.
+    // One row per donor, like every other anomaly, so each carries its own
+    // 👁 door to the row that fixes it.
+    // SHOPS ONLY, and that is not a simplification — it is the whole rule. The
+    // entry flow asks for an area when `type === 'shop'` and never otherwise
+    // (js/app.js), and computeReport('areas') says the same in its own comment:
+    // "shops carry an area; person/member fall in 'no area'". Flagging a person
+    // for a field the app never asks them is how a desk full of unactionable
+    // rows teaches people to stop reading it — the A19/A23 failure this screen
+    // exists to avoid. The first draft of this check did exactly that, and the
+    // clean-books fixture caught it.
+    parties.forEach(function (p) {
+      if (p.type !== 'shop' || String(p.side || '')) return;
+      anomalies.push({ type: 'party_no_area', id: p.id, partyId: p.id, party: p.name || p.id });
+    });
     // same id appearing twice in a store (would double-count)
     ['parties', 'payments', 'daily', 'expenses', 'handovers'].forEach(function (store) {
       const seen = {};

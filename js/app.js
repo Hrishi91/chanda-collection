@@ -5282,6 +5282,7 @@
           : a.type === 'breakdown_mismatch' ? t('anom_breakdown').replace('{n}', fmtMoney(a.amount || 0)).replace('{s}', fmtMoney(a.breakdownSum || 0))
           : a.type === 'position_over_max' ? t('anom_position_over_max').replace('{pos}', Lists.labelOf('position', a.position)).replace('{n}', a.count).replace('{max}', a.max).replace('{names}', (a.who || []).join(', '))
           : a.type === 'member_no_account' ? t('anom_member_no_account').replace('{who}', a.party || '?')
+          : a.type === 'party_no_area' ? t('anom_party_no_area').replace('{who}', a.party || '?')
           : a.type;
         return '<div class="card"><div class="card-title">⚠️ ' + esc(t('anom_' + a.type + '_t') || a.type) + '</div>' +
           '<div class="row-sub">' + esc(line) + '</div>' +

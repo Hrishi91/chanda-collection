@@ -170,10 +170,18 @@ member contribution would raise an anomaly and drown the 🩺 desk.
 
 ## When something IS wrong: the anomaly desk (A23)
 
-`reconcile` raises **twelve** anomaly types. Do not hand-count them: the suite
+`reconcile` raises **thirteen** anomaly types. Do not hand-count them: the suite
 reads the list out of `js/aggregate.js` and demands a title and a message for
 each, and this sentence drifted twice before anyone noticed (it said eight when
 the code raised nine, and again when A61 added `possible_duplicate_daily`).
+
+The newest is `party_no_area` (A143), and it is worth reading as an example of
+what belongs here: a SHOP with no এলাকা makes 📍 এলাকা-ভিত্তিক under-count a
+road, so it is reported — but the entry itself stays skippable, because a
+collector standing in front of a donor must not be blocked by a master list
+that is missing a road. Persons and members are never asked for an area at all
+(see `computeReport('areas')`), so they are never flagged: a desk full of rows
+nobody can act on is how people learn to stop reading it.
 
 The ⚠️ banner on 📊 রিপোর্ট is a button onto **🩺 অসঙ্গতি পরীক্ষা**
 (cashier/admin), where each one is a sentence plus the rows involved.

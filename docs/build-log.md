@@ -11789,6 +11789,41 @@ alone tripped 8 pins. Tests **1,890 → 1,911**.
 **⚠️ One redeploy: v4.34.26 supersedes .25/.24 (both undeployed) — paste .26
 directly over the live .23. No setup() needed.**
 
+## v4.34.33 — A143: a shop with no এলাকা is reported, not blocked (2026-08-31)
+
+The "where is OTHER used" sweep turned to places, and the answer was: nowhere.
+The area and road pickers offer only the admin's master list — no "other", no
+free text — and for a shop the area is required, while a person is never asked
+for one at all (`computeReport('areas')` says so in its own comment: "shops
+carry an area; person/member fall in 'no area'").
+
+So the honest gap is not a missing "other" option — it is a shop that got
+SKIPPED past its area (old rows, imports), because it silently under-counts a
+road in 📍 এলাকা-ভিত্তিক, and that report is how the committee decides where to
+push. Making the entry mandatory would block a collector standing in front of a
+donor when the master list is missing a road; the right answer is to REMIND,
+not to block. New anomaly `party_no_area`: one row per shop, named, with its
+own 👁 door, and a sentence that says both fixes — pick an area, or ask the
+admin to add the road.
+
+**The first draft flagged every party**, and the clean-books fixture caught it
+within a minute: a person would have been nagged about a field the app never
+asks them for, which is exactly the "desk full of rows nobody can act on"
+failure the 🩺 screen exists to avoid (A19/A23). Narrowed to shops, which IS
+the rule rather than a simplification.
+
+Also caught by the drill: one of my own pins crashed the suite on a failed
+assertion (`an[0].party` on an empty array), hiding every check below it.
+Guarded — a failing test must report, not die. money-model.md's hand-written
+anomaly count moved twelve → thirteen; that sentence is test-pinned precisely
+because it has drifted twice before.
+
+Browser-walked the whole loop: shop flagged, person NOT flagged, 👁 → donor →
+✏️ → pick এলাকা → save → the row is gone from the desk (6 cards → 5).
+Mutations 5/5. Tests **1,984 → 1,992**.
+
+**⚠️ One redeploy: v4.34.33 supersedes v4.34.32.**
+
 ## v4.34.32 — A142: "অন্য কিছু" says what it was (2026-08-31)
 
 Hrishi: *"wherever OTHER is used the comment should be mandatory, and shown in

@@ -175,6 +175,9 @@ const I18N = {
   anom_member_no_account: { bn: '👤 {who} — কমিটির সদস্য, কিন্তু app-অ্যাকাউন্ট জোড়া নেই। অ্যাকাউন্ট এখন বাধ্যতামূলক, তাই এই সারিটা আর সেভ করা যাবে না যতক্ষণ না একটা অ্যাকাউন্ট বসানো হয় — 🎖️ কমিটির সদস্য পর্দা থেকে ঠিক করে নাও।',
                             en: '👤 {who} is a committee member with no app account linked. An account is required now, so this row cannot be saved again until one is picked — fix it from the 🎖️ Committee members screen.' },
   anom_member_no_account_t: { bn: 'সদস্যের অ্যাকাউন্ট নেই', en: 'Member has no account' },
+  anom_party_no_area: { bn: '📍 {who} — এলাকা বসানো নেই। এই দাতা 📍 এলাকা-ভিত্তিক রিপোর্টে "এলাকা ছাড়া"-য় পড়ে আছে, তাই কোন রাস্তায় কত উঠল সেই হিসাব অসম্পূর্ণ। 👁 দেখো → ✏️ তথ্য সংশোধন-এ এলাকা বেছে দাও; তালিকায় রাস্তাটা না থাকলে admin ⚙️ → 🧾 রসিদ ও তালিকা-য় যোগ করে নেবে।',
+                       en: '📍 {who} — no area set. This donor sits under "No area" in the 📍 by-area report, so the road-wise totals are incomplete. 👁 View → ✏️ Edit and pick an area; if the road is missing, the admin adds it in ⚙️ → 🧾 receipts & lists.' },
+  anom_party_no_area_t: { bn: 'দাতার এলাকা বসানো নেই', en: 'Donor has no area' },
   // The duplicate-payment anomaly draws its own card with its own heading, so
   // this one is a fallback. It exists anyway: if that special card is ever
   // dropped, the desk must not head the row with a raw key.
