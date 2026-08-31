@@ -11824,6 +11824,11 @@ Mutations 5/5. Tests **1,984 → 1,992**.
 
 **⚠️ One redeploy: v4.34.33 supersedes v4.34.32.**
 
+### v4.34.33 deployed (2026-08-31)
+
+Browser-probed: `chanda-v4.34.33 / schema 5`, first try. `js/config.js`
+rebaked. Eight releases today, A136–A143, every one from a trial question.
+
 ## v4.34.32 — A142: "অন্য কিছু" says what it was (2026-08-31)
 
 Hrishi: *"wherever OTHER is used the comment should be mandatory, and shown in
