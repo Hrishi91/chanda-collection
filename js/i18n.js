@@ -14,6 +14,7 @@ const I18N = {
   // A148: the two ভাঁড়ার.
   sector_puja: { bn: '🙏 পুজো', en: '🙏 Puja' },
   sector_program: { bn: '🎭 অনুষ্ঠান', en: '🎭 Programme' },
+  sector_both: { bn: 'দুটোতেই', en: 'Both funds' },
   q_sector: { bn: 'কোন ভাঁড়ারের টাকা?', en: 'Which fund?' },
   report_program: { bn: '🎭 অনুষ্ঠানের হিসাব', en: '🎭 Programme account' },
   prog_income: { bn: 'অনুষ্ঠানের আয়', en: 'Programme income' },

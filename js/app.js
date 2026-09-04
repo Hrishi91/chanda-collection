@@ -2182,17 +2182,47 @@
   // A COLLECTION expense is different and still carries its category: whoever
   // is running a road round knows the money came from that round, so
   // collectionExpenseFlow sets srcCat itself without asking anybody.
-  function expenseFlow(subjects) {
-    const opts = (subjects || []).map(function (s) { return { v: s.name, label: s.name }; });
-    opts.push({ v: OTHER_SUBJECT, labelKey: 'subject_other' });
+  function expenseFlow(subjects, duties) {
+    // A152: the ভাঁড়ার is asked FIRST now, and that order is the feature. It used
+    // to come after the subject, so the list could not be narrowed — the cashier
+    // recording an artist's fee scrolled past প্যান্ডেল and লাইট, and a programme
+    // spend filed under a puja subject went unnoticed. Same lesson as A146: ask
+    // the thing that narrows the next question BEFORE that question.
+    //
+    // A subject with no ভাঁড়ার belongs to BOTH, so every subject that exists
+    // today stays available to every expense — nothing to migrate.
+    const forSector = function (sec) {
+      const list = (subjects || []).filter(function (x) {
+        const xs = String(x.sector || '');
+        return !xs || xs === (sec || 'puja');
+      });
+      return list.map(function (x) { return { v: x.name, label: x.name }; })
+        .concat([{ v: OTHER_SUBJECT, labelKey: 'subject_other' }]);
+    };
+    // A152 (fixing A151): paying an instalment against a দায়. The list was
+    // already being passed in and the flow ignored it — so no expense ever
+    // carried a commitmentId, every promise stayed at "paid ₹0", and the দায়
+    // could never come down. The pins were built from hand-written rows that
+    // already had the id, so they never noticed the flow could not produce one.
+    const openDuties = (duties || []).filter(function (d) { return d.owed > 0; });
     return {
       title: t('expense'),
       resume: { fn: 'expense', label: t('expense') },
       steps: [
-        { key: 'subject', qKey: 'q_subject', kind: 'choice', options: opts },
         { key: 'sector', qKey: 'q_sector', kind: 'choice',
           options: [{ v: 'puja', labelKey: 'sector_puja' }, { v: 'program', labelKey: 'sector_program' }],
           showIf: function () { return programOn(); } },
+        { key: 'subject', qKey: 'q_subject', kind: 'choice',
+          optionsFn: function (a) { return forSector(a.sector); } },
+        { key: 'commitmentId', qKey: 'q_duty_against', kind: 'choice',
+          optionsFn: function (a) {
+            return openDuties.filter(function (d) { return d.sector === (a.sector || 'puja'); })
+              .map(function (d) { return { v: d.id, label: d.payee + ' — ' + fmtMoney(d.owed) }; })
+              .concat([{ v: '', labelKey: 'duty_against_none' }]);
+          },
+          showIf: function (a) {
+            return openDuties.some(function (d) { return d.sector === (a.sector || 'puja'); });
+          } },
       ].concat(moneySteps(false), [
         { key: 'comment', qKey: 'q_comment_req', kind: 'text', required: true,
           showIf: function (a) { return a.subject === OTHER_SUBJECT; } },
@@ -2205,6 +2235,7 @@
         const isOther = a.subject === OTHER_SUBJECT;
         const row = DB.newRow({
           subject: isOther ? 'Other' : a.subject, desc: a.comment || '',
+          commitmentId: a.commitmentId || '', // A152: an instalment against a দায়
           // A148: which ভাঁড়ার paid for it. (A149's ticket clause belongs to the
           // DAILY flow, which has a `type`; a copy of it landed here, where
           // `type` is not in scope — so every general খরচ threw ReferenceError
@@ -2296,17 +2327,19 @@
       },
     };
   }
-  let expenseDuties = [];
   function startExpense(edit) {
-    // read once, before the flow opens — viewData resolves a tick later and the
-    // step list is built synchronously
-    viewData().then(function (d) { expenseDuties = Aggregate.commitmentRows(d); }).catch(function () {});
     // no myAvailable() here any more — the flow stopped asking which pot the
     // money came from, so there is nothing to compute before opening it
+    //
+    // A152: the open দায় list is AWAITED, not fired off alongside. The first
+    // version kicked viewData() off and built the step list on the next line —
+    // so `duties` was always empty, the "কোন দায়ের টাকা?" step never appeared,
+    // and a promise could still never be paid down. Comment claimed it was read
+    // first; the code did not. Found by driving it, one release after the same
+    // feature shipped with the list ignored entirely.
+    let duties = [];
     const go = function (subjects) {
-      // A151: the open দায় list travels with the subject list, so a spend can be
-      // recorded as an instalment against a promise in the same breath.
-      const def = expenseFlow(subjects, expenseDuties);
+      const def = expenseFlow(subjects, duties);
       if (edit) {
         def.presets = edit.presets; def.editing = edit.editing;
         def.title = t('edit_title') + ' — ' + def.title; def.returnTo = 'entries';
@@ -2329,8 +2362,14 @@
           if (after) after(subs);
         }).catch(function () { if (after) after(null); });
     };
-    if (cached && cached.length) { go(cached); refresh(null); }
-    else refresh(go);
+    // viewData() is local (IndexedDB + the cached snapshot), so this resolves in
+    // a tick — it does not put the round-trip back that A118b removed.
+    const withDuties = function (fn) {
+      return viewData().then(function (d) { duties = Aggregate.commitmentRows(d); })
+        .catch(function () {}).then(fn);
+    };
+    if (cached && cached.length) { withDuties(function () { go(cached); }); refresh(null); }
+    else refresh(function (subs) { withDuties(function () { go(subs); }); });
   }
   // Collector's own spend while collecting — free text, no subject.
   function collectionExpenseFlow(collectionType) {
@@ -7555,6 +7594,14 @@
       const subjectsCard = '<div class="card"><div class="card-title">' + esc(t('manage_subjects')) + '</div>' +
         '<div class="input-row"><input id="subj-input" placeholder="' + esc(t('add_subject_ph')) + '" autocomplete="off">' +
         '<button id="subj-add" class="primary">' + esc(t('add_btn')) + '</button></div>' +
+        // A152: which ভাঁড়ার the new subject belongs to. Only offered once the
+        // programme is running — otherwise it is a choice with one answer.
+        // "দুটোতেই" is the default and what every existing subject already is.
+        (programOn() ? '<div class="chips" id="subj-sector">' +
+          [['', 'sector_both'], ['puja', 'sector_puja'], ['program', 'sector_program']].map(function (o, i) {
+            return '<button class="chip' + (i === 0 ? ' on' : '') + '" data-subj-sec="' + o[0] + '">' +
+              esc(t(o[1])) + '</button>';
+          }).join('') + '</div>' : '') +
         // A101: the same search every other list on this screen has had since
         // A41, and the only one that was missing it — on the list most likely
         // to grow, because a season adds an expense subject every time somebody
@@ -7562,7 +7609,9 @@
         admFilterBox('adm-f-subject', subjects.length) +
         (subjects.length ? subjects.map(function (s) {
           return '<div class="row li-row-subject" data-q="' + esc(s.name) +
-            '" style="cursor:default"><div><b>' + esc(s.name) + '</b></div><div class="chips" style="margin:0">' +
+            '" style="cursor:default"><div><b>' + esc(s.name) + '</b>' +
+            (s.sector ? '<div class="row-sub">' + esc(t('sector_' + s.sector)) + '</div>' : '') +
+            '</div><div class="chips" style="margin:0">' +
             '<button class="chip" data-subj-edit="' + esc(s.id) + '">' + esc(t('edit_btn')) + '</button>' +
             '<button class="chip" data-subj-del="' + esc(s.id) + '">' + esc(t('del_btn')) + '</button></div></div>';
         }).join('') : '<div class="empty">' + esc(t('no_subjects')) + '</div>') + '</div>';
@@ -8065,10 +8114,18 @@
             .catch(function (e) { toast(errMsg(e)); });
         }).catch(function (e) { toast(errMsg(e)); });
       };
+      // A152: the fund chips are a one-of-three picker, like every other chip row
+      document.querySelectorAll('[data-subj-sec]').forEach(function (b) {
+        b.onclick = function () {
+          document.querySelectorAll('[data-subj-sec]').forEach(function (o) { o.classList.remove('on'); });
+          b.classList.add('on');
+        };
+      });
       admEl('subj-add').onclick = function () {
         const name = admEl('subj-input').value.trim();
         if (!name) return;
-        admListAction('addSubject', { name: name });
+        const secBtn = document.querySelector('[data-subj-sec].on');
+        admListAction('addSubject', { name: name, sector: secBtn ? secBtn.dataset.subjSec : '' });
       };
       admEl('subj-input').onkeydown = function (e) {
         if (e.key === 'Enter') admEl('subj-add').click();

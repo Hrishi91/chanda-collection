@@ -12664,3 +12664,48 @@ I also tried to probe the WRITE path with a bad token to be sure, and the tool
 refused — correctly. Attempting an unauthorised write against Hrishi's live book,
 even one I expected to bounce, is not a thing to do casually; the read probes are
 the habit for a reason.
+
+## A152 — expense subjects belong to a ভাঁড়ার, and the দায় nobody could pay
+
+Hrishi asked what had been done about programme *spending*. The money side was
+complete — a spend carries its fund, the programme report breaks it down by
+subject, দায় covers what is promised. The rough edge was the subject list:
+`ExpenseSubjects` was a flat `id, name` sheet with no fund, so the cashier
+recording an artist's fee scrolled past প্যান্ডেল and লাইট, and a programme spend
+filed under a puja subject went unnoticed.
+
+`sector` appended to that sheet (empty = **both funds**, so nothing that exists
+today disappears and nothing migrates), the admin picks a fund when adding one,
+and the expense flow narrows the list to what the chosen fund uses.
+
+**That meant reordering the flow: the ভাঁড়ার is asked BEFORE the subject.** Same
+lesson as A146's "কাকে?" moved last — ask the question that narrows the next one
+first, and the narrowing writes itself.
+
+### The hole this uncovered: A151 shipped a দায় that could not be paid
+
+`startExpense` passed the open promises to `expenseFlow`, and `expenseFlow`
+**took one parameter and ignored them**. No expense ever carried a
+`commitmentId`, so every promise sat at "paid ₹0" and the দায় could never come
+down. My earlier edit had failed on an assertion and written nothing; I did not
+re-check.
+
+The A151 pins did not notice because they were built from hand-written rows that
+*already had* the id — they proved the arithmetic and never asked whether the
+screen could produce one. **A fixture that supplies the thing under test is not
+a test of it.**
+
+### And then the same shape again, one layer down
+
+With the parameter wired, the step still never appeared: `startExpense` fired
+`viewData()` off and built the step list on the very next line, so the list was
+always empty — under a comment reading *"read once, before the flow opens"*.
+Now awaited (a local read; A118's cache-first open is intact and its pin was
+repointed from the frozen literal to the property it was actually buying).
+
+Both failures were the same shape: **the plumbing existed and nothing connected
+it**, and both were found by driving, not by reading. Driven end to end
+afterwards: ₹25,000 promised → ₹5,000 paid → **₹20,000 still owed**, carried into
+spokenFor as it should be.
+
+Mutations 5/5 red. Tests **2,222 → 2,237**. Schema unchanged at 5.

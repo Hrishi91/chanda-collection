@@ -5328,9 +5328,16 @@ try {
     eq(/Auth\.call\('pendingCorrections'/.test(rr), false,
        'A118: the review desk paints from the snapshot — no pendingCorrections gate');
     const se = app.slice(app.indexOf('function startExpense'), app.indexOf('function collectionExpenseFlow'));
-    const iCache = se.indexOf('if (cached && cached.length) { go(cached); refresh(null); }');
-    eq(iCache >= 0, true,
+    // A152 repointed this: the literal grew a withDuties() wrapper. The PROPERTY
+    // is what A118 bought — the flow opens from the CACHE with the refresh
+    // running behind it, never gated on a round trip — so that is what is
+    // asserted now, plus the fact that the new wrapper is a LOCAL read.
+    eq(/if \(cached && cached\.length\) \{ withDuties\(function \(\) \{ go\(cached\); \}\); refresh\(null\); \}/.test(se), true,
        'A118: the expense flow opens from the cached subject list, refreshing behind');
+    eq(/const withDuties = function \(fn\) \{\s*\n\s*return viewData\(\)/.test(se), true,
+       'A118/A152: …and what it waits for is viewData — local, not a round trip');
+    eq(/withDuties[\s\S]{0,200}?Auth\.call/.test(se), false,
+       'A118/A152: …so nothing server-side gates the open');
   }
 
   // A117's second half: the answered-set. The desk re-renders on every pull,
@@ -6542,6 +6549,61 @@ try {
   // it must be NAMED, never subtracted — the committee does hold that money
   eq(/inHand: totalColl - totalExp,/.test(fs.readFileSync(__dirname + '/../js/aggregate.js', 'utf8')), true,
      'A151: in-hand is still what the committee HOLDS — a book that shrank its own cash would lie differently');
+}
+
+// ---- A152: expense subjects belong to a ভাঁড়ার -----------------------------
+//
+// And the hole it uncovered: A151 shipped a দায় nobody could PAY. The caller
+// passed the list of open promises and expenseFlow ignored it, so no expense
+// ever carried a commitmentId — every promise stayed at "paid ₹0" and the দায়
+// could never come down. The A151 pins were built from hand-written rows that
+// already had the id, so they proved the arithmetic and never asked whether the
+// screen could produce one. A fixture that supplies the thing under test is not
+// a test of it.
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+
+  eq(/function expenseFlow\(subjects, duties\) \{/.test(app), true,
+     'A152: the expense flow RECEIVES the open promises…');
+  eq(/commitmentId: a\.commitmentId \|\| '', \/\/ A152: an instalment against a দায়/.test(app), true,
+     'A152: …and writes the one it was told, so a দায় can actually be paid down');
+  eq(/key: 'commitmentId', qKey: 'q_duty_against'/.test(app), true,
+     'A152: …with a step to choose it');
+  // …and the list must be RESOLVED before the step list is built. The first
+  // version fired viewData() off and built the flow on the next line, so the
+  // list was always empty and the step never appeared — a comment saying "read
+  // once, before the flow opens" sitting directly above code that did not.
+  // Both driving failures in this feature were this same shape: the plumbing
+  // existed, nothing connected it.
+  {
+    const se = app.slice(app.indexOf('function startExpense'), app.indexOf('function collectionExpenseFlow'));
+    eq(/duties = Aggregate\.commitmentRows\(d\); \}\)\s*\n?\s*\.catch\(function \(\) \{\}\)\.then\(fn\)/.test(se), true,
+       'A152: the promises are AWAITED, and only then is the flow built');
+    eq(/viewData\(\)\.then\(function \(d\) \{ expenseDuties/.test(se), false,
+       'A152: …not fired off alongside it, which is what made the step never appear');
+  }
+  // the flow must reach the money steps AFTER the fund, or the subject list
+  // cannot be narrowed — the A146 lesson, one screen over
+  eq(/steps: \[\s*\n\s*\{ key: 'sector'[\s\S]{0,400}?\{ key: 'subject'/.test(app), true,
+     'A152: the ভাঁড়ার is asked BEFORE the subject, which is what makes narrowing possible');
+  eq(/optionsFn: function \(a\) \{ return forSector\(a\.sector\); \}/.test(app), true,
+     'A152: …and the subject list is read when the step is reached, from that answer');
+  eq(/return !xs \|\| xs === \(sec \|\| 'puja'\);/.test(app), true,
+     'A152: a subject with no ভাঁড়ার belongs to BOTH — so nothing that exists today disappears');
+  // a দায় is only offered against the fund being spent from
+  eq(/showIf: function \(a\) \{\s*\n\s*return openDuties\.some\(function \(d\) \{ return d\.sector === \(a\.sector \|\| 'puja'\); \}\);/.test(app), true,
+     'A152: …and only promises of THAT fund are offered, never another fund\'s');
+
+  eq(/es\.appendRow\(\['id', 'name', 'createdAt', 'sector'\]\)/.test(gs), true,
+     'A152: the subjects sheet carries the fund…');
+  eq(/else ensureCols_\(es, \['id', 'name', 'createdAt', 'sector'\]\);/.test(gs), true,
+     'A152: …and a book written by an older deploy heals itself');
+  eq(/out\.push\(\{ id: String\(r\[0\]\), name: String\(r\[1\]\), sector: String\(r\[3\] \|\| ''\) \}\);/.test(gs), true,
+     'A152: …listSubjects returns it');
+  eq(/var sec = SECTORS\.indexOf\(String\(b\.sector \|\| ''\)\) >= 0 \? String\(b\.sector\) : '';/.test(gs), true,
+     'A152: …and addSubject only accepts a fund that exists');
 }
 
 try {

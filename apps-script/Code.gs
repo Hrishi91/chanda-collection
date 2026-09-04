@@ -436,7 +436,12 @@ function setup() {
     if (uMiss.length) us.getRange(1, uHave.length + 1, 1, uMiss.length).setValues([uMiss]);
   }
   var es = ss.getSheetByName('ExpenseSubjects') || ss.insertSheet('ExpenseSubjects');
-  if (es.getLastRow() === 0) { es.appendRow(['id', 'name', 'createdAt']); es.setFrozenRows(1); }
+  // A152: `sector` appended LAST, per the header rule — a sheet written by an
+  // older deploy keeps working and heals itself here. An EMPTY sector means the
+  // subject belongs to BOTH ভাঁড়ার, so every subject that exists today stays
+  // available to every expense, which is why this needs no migration.
+  if (es.getLastRow() === 0) { es.appendRow(['id', 'name', 'createdAt', 'sector']); es.setFrozenRows(1); }
+  else ensureCols_(es, ['id', 'name', 'createdAt', 'sector']);
   var au = ss.getSheetByName('Audit') || ss.insertSheet('Audit');
   if (au.getLastRow() === 0) { au.appendRow(AUDIT_COLS); au.setFrozenRows(1); }
   var cf = ss.getSheetByName('Config') || ss.insertSheet('Config');
@@ -1176,7 +1181,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.42.0';
+var CODE_VERSION = 'chanda-v4.43.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -2381,8 +2386,11 @@ var ACTIONS = {
     var sh = SpreadsheetApp.getActive().getSheetByName('ExpenseSubjects');
     var out = [];
     if (sh && sh.getLastRow() > 1) {
-      sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(function (r) {
-        out.push({ id: String(r[0]), name: String(r[1]) });
+      // A152: four columns now — the fourth is the ভাঁড়ার this subject belongs
+      // to, or '' for both. Reading it wide is safe on a narrow sheet: Sheets
+      // pads the missing cell, which reads as ''.
+      sh.getRange(2, 1, sh.getLastRow() - 1, 4).getValues().forEach(function (r) {
+        out.push({ id: String(r[0]), name: String(r[1]), sector: String(r[3] || '') });
       });
     }
     return { ok: true, subjects: out };
@@ -2398,8 +2406,9 @@ var ACTIONS = {
       });
       if (exists) throw new Error('subject-exists');
     }
-    sh.appendRow([Utilities.getUuid(), safeCell_(name), new Date().toISOString()]);
-    logAudit_(me.row, 'subject:add', name);
+    var sec = SECTORS.indexOf(String(b.sector || '')) >= 0 ? String(b.sector) : '';
+    sh.appendRow([Utilities.getUuid(), safeCell_(name), new Date().toISOString(), sec]);
+    logAudit_(me.row, 'subject:add', name + (sec ? ' [' + sec + ']' : ''));
     return { ok: true };
   },
   editSubject: function (b) {
