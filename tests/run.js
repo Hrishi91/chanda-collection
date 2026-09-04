@@ -5690,8 +5690,11 @@ try {
   // the printed report is a different document from the screen one: a phone
   // held one-handed vs a sheet read at a table and kept in a file
   eq(/function printReportHTML\(id, d, data\)/.test(app), true, 'A77: print has its own renderer');
-  eq(/printReportHTML\(id, Aggregate\.computeReport\(id, data\), data\)/.test(app), true,
-     'A77: …and printReport uses it');
+  // A154: the printed copy must be the SAME SLICE as the screen, or paper and
+  // phone disagree about the same report — which is the worst kind of
+  // disagreement, because the paper is what gets filed and quoted.
+  eq(/printReportHTML\(id, Aggregate\.computeReport\(id, bookFor\(id, data\)\), data\)/.test(app), true,
+     'A77/A154: …and printReport uses it, on the same book the screen used');
   // built from the SNAPSHOT, never by widening computeReport — that function is
   // mirrored byte-for-byte in Code.gs, so changing it would mean a redeploy for
   // a formatting improvement
@@ -6699,6 +6702,58 @@ try {
    'startExpense\\(null, \'program\'\\)', 'dutyFlow\\(\'program\'\\)'].forEach(function (rx) {
     eq(new RegExp(rx).test(app), true, 'A153: the tab starts ' + rx.split('\\(')[0] + ' as programme money');
   });
+}
+
+// ---- A154: the puja's screens show the puja's book ------------------------
+//
+// A153 gave the programme its own tab; until this, the puja's screens still
+// showed everything, so the same টিকিট and the same শিল্পী bill appeared in both
+// places and the separation was decoration.
+{
+  const A = require('../js/aggregate.js');
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+
+  eq(/const WHOLE_BOOK_REPORTS = \['inhand', 'collectors'\];/.test(app), true,
+     'A154: two reports stay WHOLE — a note in a pocket has no ভাঁড়ার…');
+  eq(/return Aggregate\.ofSector\(data, 'puja'\);/.test(app), true,
+     'A154: …and every other one is the puja\'s book');
+  eq(/if \(id === 'program'\) return data; \/\/ computeReport\('program'\) filters itself/.test(app), true,
+     'A154: …except the programme\'s own, which filters itself');
+  eq(/const data = Aggregate\.ofSector\(all, 'puja'\);\s*\n\s*drawList\(data/.test(app), true,
+     'A154: the 📒 খাতা is the puja\'s book too — the programme has its own');
+  // one place, not a column everywhere: that was A148's mistake
+  eq(/if \(id === 'overview'\) rep\.bySector = Aggregate\.sectorSplit\(data\);/.test(app), true,
+     'A154: the combined figure is computed from the WHOLE book…');
+  eq(/esc\(t\('both_books_total'\)\)/.test(app), true,
+     'A154: …and printed in exactly one place');
+  eq((app.match(/both_books_total/g) || []).length, 1,
+     'A154: …once, not smeared across every screen');
+  // a kind with nothing in it is not news — the puja book will never hold a টিকিট
+  eq(/Object\.keys\(tt\.dailyByType \|\| \{\}\)\.filter\(function \(k\) \{ return tt\.dailyByType\[k\]; \}\)/.test(app), true,
+     'A154: …and an empty kind prints no row at all');
+
+  // the arithmetic the combined line rests on
+  const book = {
+    parties: [{ id: 'a', type: 'shop', pledged: 5000 }, { id: 'b', type: 'sponsor', pledged: 50000, sector: 'program' }],
+    payments: [{ id: 'p1', partyId: 'a', amount: 4000 }, { id: 'p2', partyId: 'b', amount: 30000 }],
+    daily: [{ id: 'd1', type: 'ticket', amount: 9000, sector: 'program' }],
+    expenses: [{ id: 'e1', amount: 1000 }, { id: 'e2', amount: 6000, sector: 'program' }],
+    handovers: [], voids: [], corrections: [],
+  };
+  const sp = A.sectorSplit(book), whole = A.computeTotals(book);
+  eq(sp.puja.balance + sp.program.balance, whole.inHand,
+     'A154: the two books\' balances ARE what the committee holds — that is why one line can say so');
+  const pujaOnly = A.computeReport('overview', A.ofSector(book, 'puja'));
+  eq(pujaOnly.totalCollection, 4000, 'A154: the puja overview counts only the puja…');
+  eq(pujaOnly.byType.sponsor.count, 0, 'A154: …and its breakdown drops the programme\'s sponsor');
+  eq(pujaOnly.dailyByType.ticket, 0, 'A154: …and its টিকিট');
+  eq(A.computeReport('dues', A.ofSector(book, 'puja')).rows.length, 1,
+     'A154: …its dues list chases only its own donors');
+  // pockets stay whole
+  eq(A.computeReport('collectors', book).rows.length,
+     A.computeReport('collectors', A.ofSector(book, 'puja')).rows.length,
+     'A154: (a collector total is the same whichever slice you hand it — people are not split)');
 }
 
 try {

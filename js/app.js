@@ -2842,7 +2842,11 @@
     // committee. What their grants control is what they can ENTER, which is
     // the home screen's tiles and the chips below.
     // reads the central snapshot (+ own rows) locally — instant, all-collector
-    viewData().then(function (data) {
+    viewData().then(function (all) {
+      // A154: the 📒 tab is the PUJA's book. The programme's donors live in the
+      // 🎭 tab's own খাতা, and showing them here too would be the same donor in
+      // two lists with two different meanings — the thing the tab exists to end.
+      const data = Aggregate.ofSector(all, 'puja');
       drawList(data, Aggregate.computeTotals(data).paidByParty);
     });
   }
@@ -4967,23 +4971,39 @@
       // explain it. Fifth copy of the same list in this codebase; the fix is
       // always the same one: read what the data says instead of retyping it.
       Object.keys(tt.byType || {}).filter(function (k) { return tt.byType[k].count; }).map(typeRow).join('') +
-      Object.keys(tt.dailyByType || {}).map(dailyRow).join('') +
+      // A154: a kind with nothing in it is not news. The puja's book will never
+      // hold a টিকিট, so printing "টিকিট ₹0" on its overview is a row that only
+      // teaches people to skim past rows.
+      Object.keys(tt.dailyByType || {}).filter(function (k) { return tt.dailyByType[k]; })
+        .map(dailyRow).join('') +
       dutyBlockHTML(tt.commitments, (tt.spokenFor || {}).total) +
       (Auth.isCashier() && !frozen() ? '<button id="duty-btn" class="ghost big block">' +
         esc(t('duty_add')) + '</button>' : '') +
-      // A148: the two ভাঁড়ার, side by side, and ONLY once the programme is in
-      // use — a committee with no programme sees the screen it always saw.
-      // The two columns add up to মোট আদায় / মোট খরচ above by construction
-      // (sectorSplit walks the same rows), and tests assert exactly that.
+      // A154: THE one place the committee's combined figure lives.
+      //
+      // Everything above it is the puja's own book now — the programme has its
+      // own tab. But somebody at the meeting will ask "সব মিলিয়ে কমিটির হাতে
+      // কত?", and there has to be exactly one screen that answers it. One place,
+      // not a second column on every screen: that was the mistake A148 made and
+      // this replaces.
+      //
+      // Only drawn once the programme is actually in use — a committee without
+      // one sees the screen it always saw.
       (tt.bySector && tt.bySector.program &&
        (tt.bySector.program.collected || tt.bySector.program.expense)
-        ? '<div class="secttl">' + esc(t('by_sector')) + '</div>' +
+        ? '<div class="secttl">' + esc(t('both_books')) + '</div>' +
           ['puja', 'program'].map(function (k) {
             const b = tt.bySector[k];
             return '<div class="row"><div>' + esc(t('sector_' + k)) + '</div>' +
               '<div class="row-right">' + fmtMoney(b.collected) + ' − ' + fmtMoney(b.expense) +
               ' = <b>' + fmtMoney(b.balance) + '</b></div></div>';
-          }).join('')
+          }).join('') +
+          (function () {
+            const p = tt.bySector.puja, g = tt.bySector.program;
+            return '<div class="row"><div><b>' + esc(t('both_books_total')) + '</b></div>' +
+              '<div class="row-right"><b>' + fmtMoney(p.balance + g.balance) + '</b></div></div>';
+          })() +
+          '<div class="hint" style="margin-top:6px">' + esc(t('both_books_note')) + '</div>'
         : '') + '</div>';
   }
 
@@ -6117,12 +6137,35 @@
       };
     });
   }
+  // A154: which slice of the book a report is about.
+  //
+  // Now that the অনুষ্ঠান has its own tab, the puja's screens must show the
+  // puja's rows — otherwise the same টিকিট and the same শিল্পী bill appear in
+  // both places and the separation is decoration.
+  //
+  // TWO reports are deliberately left WHOLE, and this is the line worth
+  // remembering: **a note in somebody's pocket has no ভাঁড়ার.** "কার হাতে কত"
+  // and "কে কত তুলল" are about people, not books, and splitting them would
+  // invent a fact that does not exist — nobody can say which ₹500 of the ₹3,000
+  // in Ramesh's pocket is programme money, because it is not true of the notes.
+  const WHOLE_BOOK_REPORTS = ['inhand', 'collectors'];
+  function bookFor(id, data) {
+    if (WHOLE_BOOK_REPORTS.indexOf(id) >= 0) return data;
+    if (id === 'program') return data; // computeReport('program') filters itself
+    return Aggregate.ofSector(data, 'puja');
+  }
   function loadReport(id) {
     viewData().then(function (data) {
       const body = document.getElementById('report-body');
       if (!body) return; // view changed while computing
       try {
-        body.innerHTML = reportHTML(id, Aggregate.computeReport(id, data)) +
+        const rep = Aggregate.computeReport(id, bookFor(id, data));
+        // A154: the puja's overview shows the puja's numbers — and carries the
+        // ONE place the committee's combined figure lives, computed from the
+        // WHOLE book. Hrishi's call: separate everywhere, added up in one place,
+        // never a second column smeared across every screen.
+        if (id === 'overview') rep.bySector = Aggregate.sectorSplit(data);
+        body.innerHTML = reportHTML(id, rep) +
           '<button id="report-pdf" class="ghost big block">📄 ' + esc(t('report_pdf_btn')) + '</button>';
         document.getElementById('report-pdf').onclick = function () { printReport(id); };
         // A150: the transfer button only exists on the programme report, and
@@ -6148,7 +6191,7 @@
         '<div class="p-head"><div class="p-puja">' + esc(pujaName()) + '</div>' +
         '<div class="p-sub">' + esc(t('report_' + id)) + ' · ' + esc(String(Settings.get('year'))) + '</div>' +
         '<div class="p-meta">' + esc(t('printed_on')) + ': ' + esc(now) + (isLive() ? '' : ' · ' + esc(t('training_mode'))) + '</div></div>' +
-        printReportHTML(id, Aggregate.computeReport(id, data), data);
+        printReportHTML(id, Aggregate.computeReport(id, bookFor(id, data)), data);
       window.print();
     });
   }

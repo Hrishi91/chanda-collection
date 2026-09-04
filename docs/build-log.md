@@ -12786,3 +12786,42 @@ the fund path was proved through the ticket flow, which has no dialog. Same
 mechanism, and the call site is pinned.)*
 
 Mutations 5/5 red. Tests **2,237 → 2,275**. Schema unchanged at 5.
+
+## A154 — the puja's screens show the puja's book
+
+A153 gave the programme its own tab, but only half the separation: the filter
+existed and was wired in exactly ONE place. The puja's screens still showed
+everything, so the same টিকিট and the same শিল্পী bill appeared in both books and
+the split was decoration. This is the other half.
+
+Every classic report and the 📒 খাতা now run on `ofSector(data, 'puja')`. Driven
+on the seeded book: মোট আদায় dropped from ₹86,600 (whole) to **₹47,600** (puja
+alone), the স্পনসর row left the breakdown, the dues list stopped chasing a
+programme sponsor, and the 📒 tab stopped listing Bose Motors — who now appears
+only in 🎭.
+
+**Two reports stay WHOLE, and this is the line worth remembering: a note in
+somebody's pocket has no ভাঁড়ার.** "কার হাতে কত" and "কে কত তুলল" are about
+people, not books. Nobody can say which ₹500 of the ₹3,000 in Ramesh's pocket is
+programme money, because it is not true of the notes — splitting those two would
+invent a fact that does not exist.
+
+**One place adds the two up**, which is what Hrishi asked for and the correction
+to what A148 did:
+
+    🙏 পুজো      ₹47,600 − ₹6,200  = ₹37,400
+    🎭 অনুষ্ঠান   ₹39,000 − ₹13,000 = ₹30,000
+    সব মিলিয়ে কমিটির হাতে          ₹67,400
+
+computed from the WHOLE book, printed once, with a line saying every other
+figure above it is the puja's alone. A148 put a second column on the overview;
+this replaces it, because a split smeared across every screen is what made the
+question "which number am I looking at?" possible in the first place.
+
+The printed copy takes the same slice as the screen — paper and phone
+disagreeing about one report is the worst kind of disagreement, because the
+paper is what gets filed and quoted. Also: a daily kind with nothing in it now
+prints no row (the puja book will never hold a টিকিট, and "টিকিট ₹0" is a row
+that only teaches people to skim).
+
+Mutations 4/4 red. Tests **2,275 → 2,289**. Schema unchanged at 5.

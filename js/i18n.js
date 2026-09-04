@@ -44,6 +44,12 @@ const I18N = {
                          en: 'The programme has spent more than it raised — ordinary enough, but worth knowing.' },
   prog_none: { bn: 'অনুষ্ঠানের খাতে এখনো কিছু নেই', en: 'Nothing in the programme fund yet' },
   by_sector: { bn: 'ভাঁড়ার অনুযায়ী', en: 'By fund' },
+  // A154: the ONE place the committee's combined figure lives — every other
+  // screen is one book or the other.
+  both_books: { bn: 'দুই ভাঁড়ার মিলিয়ে', en: 'Both funds together' },
+  both_books_total: { bn: 'সব মিলিয়ে কমিটির হাতে', en: 'The committee holds, in total' },
+  both_books_note: { bn: 'উপরের বাকি সব সংখ্যা শুধু পুজোর — অনুষ্ঠানের নিজের হিসাব 🎭 tab-এ। এই এক জায়গাতেই দুটো যোগ করা হয়।',
+                     en: "Everything else above is the puja's book alone — the programme has its own in the 🎭 tab. This is the one place the two are added." },
   // A150: money moved BETWEEN the two ভাঁড়ার — not a spend, so it never touches
   // মোট খরচ or anybody's hand.
   transfer_title: { bn: 'ভাঁড়ার থেকে ভাঁড়ারে দাও', en: 'Move between funds' },
