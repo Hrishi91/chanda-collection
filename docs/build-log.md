@@ -12580,3 +12580,24 @@ has; the mutation putting it back on the donor flow reddens.
 Also cosmetic: the programme report's card repeated the picker's own words. The
 card now names the FUND and the picker the REPORT, so the two read as heading
 and subject rather than the same phrase twice.
+
+### v4.41.1 deployed (2026-09-05)
+
+Browser-probed: `chanda-v4.41.1 / schema 5`, first try. `js/config.js` rebaked.
+Three releases reach the phones at once: A148 (the অনুষ্ঠান ভাঁড়ার), A149
+(🎟️ টিকিট) and A150 (moving money between the funds), plus the A149 fix that
+driving found.
+
+**Two things Hrishi must do in the app before any of it is visible:**
+
+1. ⚙️ admin → **🎭 অনুষ্ঠানের ভাঁড়ার → চালু করো**. Until then no entry screen
+   asks "কোন ভাঁড়ার?" at all — deliberately, so a committee with no programme is
+   never asked a question with one possible answer.
+2. Grant **`ticket`** to whoever sells tickets. The grant is that tile's switch.
+
+Still open, and unbuilt: **দায়** — money promised but not yet paid (an artist
+booked at ₹25,000 with ₹5,000 advance leaves ₹20,000 spoken for while the
+in-hand figure reads healthy). It is the only piece of this family that needs a
+new store, and so **schema 6**, which blocks any phone that has not updated.
+Its timing depends on a question Hrishi has not answered: when is the অনুষ্ঠান,
+and have bookings/advances already started?
