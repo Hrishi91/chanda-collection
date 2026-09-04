@@ -12915,3 +12915,9 @@ Driven: the total reads `1 অনুষ্ঠানের দাতা · ₹30,
 flips 🔴 on and off, and the PDF button is present AND wired.
 
 Mutations 2/2 red. Tests **2,296 → 2,304**. Schema unchanged at 5.
+
+### v4.46.0 deployed (2026-09-05)
+
+Browser-probed three times: `chanda-v4.46.0 / schema 5`, each rejecting the bad
+token cleanly. `js/config.js` rebaked. Carries A156 — the 🎭 tab's account can
+now be printed, and its খাতা has a total, a "who still owes" filter and a search.
