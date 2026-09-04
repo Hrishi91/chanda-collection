@@ -12062,3 +12062,100 @@ rebaked. Three releases land on the phones at once: A134 (member picker
 money language), A135b (receipt screen's honest share line), A136 (the
 self-reconciling own-report). Server and fleet agree again after eight days
 on .23.
+
+## A144 — স্পনসর: a confidential entry kind, and the machinery for the next one
+
+Hrishi asked for three new entry kinds (sponsor, গুপ্ত দান, cultural-programme
+spending) and, after two rounds of discussion, settled the rule himself:
+
+> "dont show in any report or ledger if no permission … if entry permission
+> then will show user's entry … if view permission then will see other's entry"
+
+I argued against it once, on the grounds that a smaller book would break
+reconcile. **I was wrong and said so.** The invariant is
+`totalInHand === totalCollected − totalExpenses`, and BOTH sides are derived
+from the same rows — remove rows consistently and both sides shrink by the same
+amount, so the equation still closes. Verified against the live-shaped harness
+book: an admin's pull and a blind collector's pull raise **the identical
+anomaly set** (4 pre-existing seed orphans + 1 member_no_account), while the
+totals differ by exactly the sponsor's ₹30,000.
+
+What this release actually builds is not "sponsors" — it is
+`RESTRICTED_TYPES`, the machinery, with স্পনসর as its first tenant. গুপ্ত দান
+(A145) hangs on the same hooks and adds no new mechanism.
+
+**The rule, in one place.** `canSeeParty(user, party)`: admin, or the person
+who wrote it, or the matching `*view* ` grant. Mirrored in `Code.gs`
+`canSeeParty_`. The server is the guard — `pull` calls `visible_(all, u)` and a
+row a reader may not see never leaves it; the client's copy only keeps its own
+screens and unsynced local rows honest.
+
+**Whole parcels, never halves.** Party + its payments + any expense from that
+pot + any handover carrying it go together. Half-filtering does not hide less,
+it accuses: a payment whose party is missing raises `orphan_payment`, and a
+handover with a trimmed breakdown raises `breakdown_mismatch` — a 🩺 desk full
+of complaints about rows the reader cannot see.
+
+**Four traps found by reading the code, not by guessing:**
+
+1. `computeReport('overview')` byType named only shop/person/member, so a
+   sponsor's money was inside `totalCollection` while the breakdown below it
+   was not — one screen contradicting itself. byType now names sponsor, and
+   the totals are summed over the keys rather than three named terms.
+2. `computeReport('areas')` counted every party. One ₹50,000 sponsor in "—"
+   would have outweighed the zones A139 exists to compare. Excluded.
+3. `permForRow` says `payments` needs no grant — correct, until a party is
+   confidential, at which point any valid token could collect against a
+   sponsor it may not see. Closed on the SERVER at the push gate
+   (`canWritePayment` client-side is the mirror), reading this push's own rows
+   first so a new sponsor and its first payment still travel together (A59).
+4. A delta pull can never carry a row older than the cursor, and cannot express
+   a deletion. So a GRANTED view key would deliver nothing and a REVOKED one
+   would leave the rows cached. `viewGrantsOf` compares before/after and takes
+   one clean full pull, both directions.
+
+**Money physically moves, and hiding cannot stop that.** Sponsor cash handed to
+a cashier without the grant would vanish from their book while the sender's
+in-hand went negative — `negative_inhand`, accusing an honest person. So a
+confidential pot travels ALONE (never mixed into an ordinary handover, or the
+breakdown checksum breaks when it is withheld) and only to somebody who can see
+it. Both halves enforced server-side; the client refuses earlier and explains
+why, because a server-rejected row is dropped from the queue in silence. The
+roster gained one derived field, `sees` — the answer, not the grant list.
+
+**The 👁️ curtain** (Hrishi's idea, for when somebody is reading over your
+shoulder) deliberately does NOT go through `canSeeParty`. It hides names and
+rows and leaves every amount standing, because that cash is still in the
+holder's hand: a curtain that changed the arithmetic would have them quote a
+wrong total and hand over short. Module state, so reopening the app always
+lifts it; a gold pill in the header, because an icon swap alone is too quiet to
+notice.
+
+**The cost, stated on the screen.** A reader without the grant sees a smaller
+committee total than the admin. The danger is not the gap, it is somebody
+quoting it in a meeting, so the committee zone carries one line — no amount, no
+count, no kind named: "এই হিসাবে সব ধরনের entry ধরা নেই".
+
+`sponsorview` is absent from `POSITION_PERM_KEYS` and must stay absent: hung on
+a post it would change hands the day somebody is made কোষাধ্যক্ষ, silently.
+**Consequence for Hrishi's hand-list: the কোষাধ্যক্ষ needs `sponsorview`
+granted by name, or sponsor money cannot be handed to them.**
+
+Schema unchanged at 5 — no phone is locked out.
+
+Browser-driven on a fresh port: 🎪 tile → sponsor saved (₹50,000 agreed,
+₹30,000 taken, no এলাকা/location asked) → its own band on আমার হিসাব with the
+equation closing ✓ → curtain drawn (band shows `🎪 স্পনসর 🙈 ₹30,000`, hero
+unchanged) → logged in as a collector without the grant: no tile, no curtain
+button, the ℹ️ partial line, and the same five anomalies as the admin.
+
+One bug found by DRIVING, not reading: `paintCurtain()` ran only at
+DOMContentLoaded, when nobody is logged in yet, so the button stayed hidden for
+the whole session. Now repainted in `render()`, and pinned.
+
+Mutations 10/10 red (payments unfiltered → orphan accusations; handover
+unfiltered → checksum accusations; areas exclusion removed; sponsor pot removed
+from `AVAIL_CATS` → money still "in hand" after being handed over; server
+filter removed; payment hole reopened; cursor read after the filter; curtain
+covering removed; regrant full-pull removed; curtain painted only at load).
+Tests **2,002 → 2,049**.

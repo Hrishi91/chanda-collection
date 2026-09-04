@@ -4,7 +4,9 @@ const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, recon
         roleOf, rowRole, ENTRY_KINDS, PERM_KEYS, permForRow, permAllowed,
         cashierView, handoverReport, allowedReports, mySummary, handoverSlots, handoverable, samePaymentsOn,
         mentionsMe, messageFeed, activeData, chatLoad, homeTiles, dayOf, potDetail,
-        REPORT_IDS, POSITION_PERM_KEYS, splitPositionPerms } = require('../js/aggregate.js');
+        REPORT_IDS, POSITION_PERM_KEYS, splitPositionPerms,
+        RESTRICTED_TYPES, VIEW_PERM_KEYS, isRestrictedType, viewPermFor,
+        canSeeParty, visibleData, canWritePayment } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -477,7 +479,7 @@ eq(mayCashierAct('cashier'), false, 'duties: cashier may not act on another cash
 eq(mayCashierAct('admin'), false, 'duties: cashier may not act on an admin entry');
 
 // ---- collection permissions: one key per thing a person actually collects ----
-eq(ENTRY_KINDS, ['shop', 'person', 'member', 'bus', 'road', 'toto'], 'perms: six collection keys, bus with the new-entry types');
+eq(ENTRY_KINDS, ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor'], 'perms: seven collection keys, bus with the new-entry types, স্পনসর last (A144)');
 eq(PERM_KEYS.indexOf('review') >= 0, true, 'perms: the correction desk rides the same field');
 eq(PERM_KEYS.indexOf('otherdonor') >= 0, true, 'perms: reaching somebody else\'s donor is its own grant');
 eq(PERM_KEYS.indexOf('payment'), -1, 'perms: taking a later instalment is NOT a permission');
@@ -708,7 +710,7 @@ eq(tilesFor('bus').role, [], 'tiles: a plain collector gets neither');
 // an admin is never narrowed, whatever the field says
 const admTiles = tilesFor('', 0, 'admin');
 eq(admTiles.setUp, true, 'tiles: an admin is always set up');
-eq(admTiles.entry, ['shop', 'person', 'member', 'bus'], 'tiles: …and gets every category');
+eq(admTiles.entry, ['shop', 'person', 'member', 'bus', 'sponsor'], 'tiles: …and gets every category');
 eq(admTiles.role, ['cashier', 'review', 'anomalies', 'memberadmin'], 'tiles: …and every desk');
 // ---- A29: collecting from members ≠ keeping the member register --------------
 // Hrishi: "the member entry screen ... that was as previous to collect the
@@ -4862,8 +4864,15 @@ try {
     // line, then the cool zone opening.
     eq(/'<div id="my-summary">[^\n]*\n\s+'<\/div>' \+\n\s+'<div class="zone all">' \+\n\s+'<div class="zone-hd">' \+ esc\(t\('central_reports'\)\)/.test(rr), true,
        'A139: …my money lives INSIDE the warm zone, closed before the cool one opens');
-    eq(/'<div class="zone all">' \+[\s\S]{0,400}?'<div id="report-picker">[\s\S]{0,200}?'<div id="report-body">[\s\S]{0,80}?'<\/div>';/.test(rr), true,
+    // window widened for A144's comment block; the SHAPE is what is pinned —
+    // picker then body then the end of the markup, all inside the cool zone
+    eq(/'<div class="zone all">' \+[\s\S]{0,1600}?'<div id="report-picker">[\s\S]{0,200}?'<div id="report-body">[\s\S]{0,80}?'<\/div>';/.test(rr), true,
        'A139: …and both pickers live inside the cool zone, closed at the end');
+    // A144: the "this book is partial" line belongs to the COMMITTEE zone and
+    // must come before the picker — after it, it reads as a note about whichever
+    // report happens to be open rather than about the whole section.
+    eq(/'<div class="zone all">' \+[\s\S]{0,1600}?partialBook\(\)[\s\S]{0,200}?report_partial[\s\S]{0,200}?'<div id="report-picker">/.test(rr), true,
+       'A144: …with the partial-book notice inside the committee zone, above the picker');
     eq(/esc\(me\.name \|\| Settings\.get\('collectorName'\) \|\| ''\)/.test(rr), true,
        'A139: the warm band names whose account it is');
     const css139 = require('fs').readFileSync(__dirname + '/../css/style.css', 'utf8');
@@ -5471,7 +5480,7 @@ try {
   // line — the exact line checked before go-live — prints a raw key
   {
     const CAT = { shop: 'new_shop', person: 'new_person', member: 'new_member', bus: 'daily_bus',
-                  road: 'daily_road', toto: 'daily_toto' };
+                  road: 'daily_road', toto: 'daily_toto', sponsor: 'new_sponsor' };
     const missing = A.POSITION_PERM_KEYS.filter(function (k) {
       const key = k === 'cashier' ? 'cashier'
         : A.REPORT_IDS.indexOf(k) >= 0 ? 'report_' + k
@@ -5782,6 +5791,153 @@ try {
 // It still cannot continue past the throw — these blocks share a book and
 // carrying on would test nothing — but it is now counted, named and printed
 // like any other failure instead of vanishing.
+// ---- A144: confidential entry kinds (স্পনসর) --------------------------------
+//
+// The property this whole block exists to protect: a reader without the view
+// grant gets a SMALLER book — and that smaller book must still be INTERNALLY
+// TRUE. Every figure on their screen has to agree with every other figure on
+// their screen. What must never happen is a reader being shown a 🩺 desk full
+// of accusations about rows they cannot see.
+{
+  eq(RESTRICTED_TYPES, ['sponsor'], 'A144: স্পনসর is the confidential kind');
+  eq(VIEW_PERM_KEYS, ['sponsorview'], 'A144: …and its view grant is named after it');
+  eq(viewPermFor('gupt'), 'guptview', 'A144: …the naming rule is a rule, not a literal');
+  eq(isRestrictedType('shop'), false, 'A144: …an ordinary kind is not confidential');
+
+  const admin = { username: 'boss', role: 'admin', entries: '' };
+  const mine = { username: 'ram', role: 'user', entries: 'sponsor' };      // writes them, sees own
+  const viewer = { username: 'jadav', role: 'user', entries: 'sponsorview' }; // sees all, writes none
+  const blind = { username: 'sita', role: 'user', entries: 'shop,person' };
+  const sp = { id: 'sp1', type: 'sponsor', name: 'Bose Motors', collectorId: 'ram', pledged: 50000 };
+
+  eq(canSeeParty(admin, sp), true, 'A144: admin sees every sponsor');
+  eq(canSeeParty(mine, sp), true, 'A144: …the person who wrote it sees their own');
+  eq(canSeeParty(viewer, sp), true, 'A144: …the view grant opens somebody else\'s');
+  eq(canSeeParty(blind, sp), false, 'A144: …and nobody else sees it at all');
+  eq(canSeeParty(mine, { id: 'sp2', type: 'sponsor', collectorId: 'other' }), false,
+     'A144: the ENTRY grant is not a view grant — sponsor+own-row only, never a colleague\'s');
+  eq(canSeeParty(blind, { id: 's1', type: 'shop' }), true,
+     'A144: …and an ordinary donor is nobody\'s secret');
+
+  // The book: one shop, one sponsor, a payment against each, and a handover of
+  // the sponsor money to the cashier who may see it.
+  const book = {
+    parties: [{ id: 's1', type: 'shop', name: 'Maa Tara', collectorId: 'ram', pledged: 2000, side: 'main_malda' }, sp],
+    payments: [{ id: 'p1', partyId: 's1', amount: 2000, collectorId: 'ram', date: '2026-09-01' },
+               { id: 'p2', partyId: 'sp1', amount: 30000, collectorId: 'ram', date: '2026-09-01' }],
+    daily: [], expenses: [], voids: [], corrections: [],
+    handovers: [{ id: 'h1', fromId: 'ram', toId: 'jadav', amount: 30000, cashAmount: 30000, upiAmount: 0,
+                  status: 'confirmed', date: '2026-09-02',
+                  breakdown: JSON.stringify({ sponsor: { cash: 30000, upi: 0 } }) }],
+  };
+
+  const seen = visibleData(book, blind);
+  eq(seen.parties.map(function (p) { return p.id; }), ['s1'], 'A144: the sponsor party is withheld');
+  eq(seen.payments.map(function (p) { return p.id; }), ['p1'],
+     'A144: …and its payment goes WITH it — a payment whose party is missing is an orphan_payment accusation');
+  eq(seen.handovers.length, 0,
+     'A144: …and so does the handover carrying that pot — a trimmed breakdown is a breakdown_mismatch accusation');
+  eq(visibleData(book, admin).parties.length, 2, 'A144: admin\'s book is whole');
+  eq(visibleData(book, viewer).handovers.length, 1, 'A144: …so is the viewer\'s');
+
+  // THE pin. Both books must reconcile — the invariant survives BECAUSE both
+  // sides of it are derived from the same rows, so removing rows shrinks both.
+  eq(reconcile(book).anomalies.filter(function (a) { return a.type === 'unbalanced'; }).length, 0,
+     'A144: the whole book balances');
+  eq(reconcile(seen).anomalies.length, 0,
+     'A144: …and the SMALLER book raises nothing at all — no unbalanced, no orphan_payment, no breakdown_mismatch');
+  eq(computeTotals(seen).totalCollection < computeTotals(book).totalCollection, true,
+     'A144: …it is honestly smaller (which is why the report says so in words)');
+
+  // reports: the breakdown must never add up to less than the total above it
+  const ov = computeReport('overview', book);
+  eq(ov.byType.sponsor.paid, 30000, 'A144: overview names স্পনসর, so its breakdown still sums to the total');
+  eq(ov.totalPledged, 52000, 'A144: …and a sponsor\'s agreed figure counts as pledged');
+  eq(computeReport('areas', book).rows.map(function (r) { return r.area; }), ['main_malda'],
+     'A144: এলাকা leaves স্পনসর out — nobody walked a street for it');
+  eq(computeReport('dues', book).rows.map(function (r) { return r.name; }), ['Bose Motors'],
+     'A144: …but the dues list keeps it, because ₹20,000 is still owed and somebody must chase it');
+
+  // the payments hole: permForRow says a payment needs no grant, which stops
+  // being safe the moment a party is confidential
+  eq(permForRow('payments', book.payments[1]), null,
+     'A144: permForRow alone still says a payment needs no grant…');
+  eq(canWritePayment(blind, book.parties, book.payments[1]), false,
+     'A144: …so canWritePayment resolves the party: a blind reader may not collect against a sponsor they cannot see');
+  eq(canWritePayment(blind, book.parties, book.payments[0]), true,
+     'A144: …while an ordinary donor stays open to everyone, as it must');
+  eq(canWritePayment(mine, book.parties, book.payments[1]), true,
+     'A144: …the person who wrote the sponsor may take its next instalment');
+  eq(canWritePayment(viewer, book.parties, book.payments[1]), true,
+     'A144: …and so may a cashier who can see it — the rule is the READING rule, one rule, no second copy to drift');
+
+  // a view grant is a confidence given to a PERSON, never to a post
+  eq(POSITION_PERM_KEYS.indexOf('sponsorview'), -1,
+     'A144: a committee POST cannot carry sponsorview — it would change hands with the post, silently');
+  eq(PERM_KEYS.indexOf('sponsorview') >= 0, true, 'A144: …an admin still grants it per person');
+
+  // the pot must exist, or the money lands nowhere the handover screen can see
+  const av = myAvailable(book, 'ram');
+  eq(av.byCat.sponsor.cash + av.byCat.sponsor.upi, 0,
+     'A144: sponsor money handed over in full leaves an EMPTY pot — the band then drops out of the summary');
+  const held = myAvailable({ parties: book.parties, payments: book.payments, daily: [], expenses: [],
+                             handovers: [], voids: [] }, 'ram');
+  eq(held.byCat.sponsor.cash, 30000, 'A144: …and before the handover it sits in its OWN pot, not in "payment"');
+  const sum = mySummary({ parties: book.parties, payments: book.payments, daily: [], expenses: [],
+                          handovers: [], voids: [] }, 'ram', '2026-09-04');
+  eq(sum.groups.map(function (g) { return g.key; }), ['entry', 'sponsor'],
+     'A144: …and it gets its own band, so one negotiation never rewrites what the চাঁদা band records');
+  eq(sum.groups.reduce(function (a, g) { return a + g.total; }, 0), sum.hero.total,
+     'A144: …with the bands still summing to the hero exactly');
+}
+
+// ---- A144: the client/server halves that must not drift ---------------------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+
+  eq(/var RESTRICTED_TYPES = \['sponsor'\];/.test(gs), true,
+     'A144 mirror: the server names the same confidential kind');
+  eq(/all = visible_\(all, u\);/.test(gs), true,
+     'A144: the server WITHHOLDS — hiding on the client would be decoration');
+  eq(/var cursor = stamp \|\| maxReceivedAt_\(all\);[\s\S]{0,900}?all = visible_\(all, u\);/.test(gs), true,
+     'A144: …and the cursor is read BEFORE the filter — a cursor from a filtered book parks a phone in the past');
+  eq(/if \(r\.store === 'payments'\) \{[\s\S]{0,400}?canSeeParty_\(user, pRow\)/.test(gs), true,
+     'A144: the payments hole is closed on the SERVER, where a tampered client cannot reach');
+  eq(/batchParties\[pid\] \|\| partyIndex_\(\)\[pid\]/.test(gs), true,
+     'A144: …reading this push first, or a new sponsor and its first payment would bounce (A59\'s lesson)');
+  eq(/if \(r\.store === 'handovers' && handoverConfidentialErr_\(r\.row\)\)/.test(gs), true,
+     'A144: a mixed or blind-recipient handover is refused by the server too');
+
+  // the client half of each promise
+  eq(/if \(mix\.mixed\) return Promise\.reject\(new Error\('mix-confidential'\)\)/.test(app), true,
+     'A144: the app refuses to MIX a confidential pot into an ordinary handover');
+  eq(/if \(mix\.cats\.length && !recipientSees\(a\.to, mix\.cats\)\)/.test(app), true,
+     'A144: …and refuses to send it to somebody who could never see it arrive');
+  eq(/viewGrantsOf\(before\) !== viewGrantsOf\(resp\.me\)/.test(app), true,
+     'A144: a changed view grant is noticed…');
+  eq(/if \(regrant\) \{[\s\S]{0,600}?centralCursor = '';[\s\S]{0,400}?return pullCentral\(\{ force: true \}\);/.test(app), true,
+     'A144: …and forces ONE full pull, because no delta can carry rows older than the cursor (or express a deletion)');
+  // the curtain is NOT the permission — this is the line that keeps a wrong
+  // total out of somebody's mouth
+  eq(/function canSeeParty\(user, party\) \{/.test(fs.readFileSync(__dirname + '/../js/aggregate.js', 'utf8')), true,
+     'A144: canSeeParty takes no curtain flag — the curtain must never remove money from a hero figure');
+  eq(/if \(curtainOn && CURTAIN_GROUPS\[g\.key\]\) \{[\s\S]{0,400}?fmtMoney\(g\.total\)/.test(app), true,
+     'A144: …the covered band still prints its real total');
+  eq(/let curtainOn = false;/.test(app), true,
+     'A144: …and the curtain is module state, so reopening the app always lifts it');
+  // Found by DRIVING it, not by reading it: paintCurtain ran only at
+  // DOMContentLoaded, when nobody is logged in yet, so the button stayed hidden
+  // for the entire session. Whether it is offered depends on WHO is logged in,
+  // so it has to repaint on the same rhythm as the title.
+  {
+    const body = app.slice(app.indexOf('\n  function render() {'));
+    eq(body.slice(0, body.indexOf('\n  }\n')).indexOf('paintCurtain();') > 0, true,
+       'A144: render() repaints the curtain button — painting it once at load left it hidden all session');
+  }
+}
+
 try {
   require('./backend.js')(eq);
 } catch (e) {

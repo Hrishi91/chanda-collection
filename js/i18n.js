@@ -9,6 +9,7 @@ const I18N = {
   new_shop: { bn: 'দোকান', en: 'Shop' },
   new_person: { bn: 'ব্যক্তি', en: 'Person' },
   new_member: { bn: 'সদস্য', en: 'Member' },
+  new_sponsor: { bn: 'স্পনসর', en: 'Sponsor' },
   add_payment: { bn: 'টাকা জমা', en: 'Add payment' },
   daily_road: { bn: 'রোড কালেকশন', en: 'Road collection' },
   daily_toto: { bn: 'টোটো কালেকশন', en: 'Toto collection' },
@@ -18,6 +19,8 @@ const I18N = {
   central_report: { bn: 'কেন্দ্রীয় রিপোর্ট (সবার)', en: 'Central report (all)' },
   local_report: { bn: 'এই মোবাইলের হিসাব', en: 'This device only' },
   q_shop_name: { bn: 'দোকানের নাম কী?', en: 'Shop name?' },
+  q_sponsor_name: { bn: 'স্পনসরের নাম কী? (ব্যানারে যেভাবে লেখা হবে)',
+                    en: 'Sponsor name? (as it goes on the banner)' },
   q_owner_name: { bn: 'মালিকের নাম কী?', en: "Owner's name?" },
   q_side: { bn: 'কোন দিকে / রাস্তায়?', en: 'Which side / road?' },
   q_person_name: { bn: 'নাম কী?', en: 'Name?' },
@@ -208,6 +211,7 @@ const I18N = {
   type_road: { bn: 'রোড', en: 'Road' },
   type_toto: { bn: 'টোটো', en: 'Toto' },
   type_bus: { bn: 'বাস', en: 'Bus' },
+  type_sponsor: { bn: 'স্পনসর', en: 'Sponsor' },
   // A70 (audit #2 U7): the second-most-tapped button in the app, and it was
   // never translated.
   skip: { bn: 'বাদ দাও', en: 'Skip' },
@@ -713,6 +717,12 @@ const I18N = {
   home_call_admin: { bn: '📞 ফোন করো', en: '📞 Call' },
   home_wa_admin: { bn: '💬 WhatsApp', en: '💬 WhatsApp' },
   perm_otherdonor: { bn: '🔍 অন্য কারো দাতা', en: "🔍 Others' donors" },
+  // A144: the grant that opens OTHER people's স্পনসর rows — and the one a
+  // cashier must hold to receive sponsor money at all. Person-only, never on a
+  // committee post, so it never changes hands without somebody deciding to.
+  perm_sponsorview: { bn: '🎪 সবার স্পনসর দেখা', en: '🎪 See all sponsors' },
+  perm_sponsorview_hint: { bn: 'স্পনসরের টাকা নিতে হলে এটা লাগবেই — কোষাধ্যক্ষকে দিতে ভুলো না',
+                           en: 'Required to receive sponsor money — remember the cashier' },
   perm_none_yet: { bn: 'কিছুই দেওয়া হয়নি — এই user কোনো entry করতে পারবে না', en: 'Nothing granted — this user cannot make any entry' },
   bulk_all: { bn: 'সব দাও', en: 'All' },
   bulk_none: { bn: 'সব নাও', en: 'None' },
@@ -758,6 +768,25 @@ const I18N = {
   grp_entry: { bn: '📥 দাতাদের চাঁদা (দোকান / ব্যক্তি / সদস্য / বাস)', en: '📥 Donor chanda (shop / person / member / bus)' },
   grp_daily: { bn: '🛣️ রোড / টোটো কালেকশন', en: '🛣️ Road / Toto collection' },
   grp_received: { bn: '🤝 অন্যের কাছ থেকে পাওয়া', en: '🤝 Received from others' },
+  // A144: স্পনসর — its own band, and the band the 👁️ curtain closes.
+  grp_sponsor: { bn: '🎪 স্পনসর', en: '🎪 Sponsors' },
+  // A144: the 👁️ curtain — one tap when somebody is looking at your screen.
+  curtain_off: { bn: 'স্পনসর লুকাও', en: 'Hide sponsors' },
+  curtain_on: { bn: 'স্পনসর দেখাও', en: 'Show sponsors' },
+  curtain_off_hint: { bn: 'পাশে কেউ থাকলে এক চাপে স্পনসরের নাম ঢেকে দাও — টাকার হিসাব বদলায় না',
+                      en: 'One tap covers sponsor names when somebody is beside you — the figures do not change' },
+  curtain_on_hint: { bn: 'এখন স্পনসর ঢাকা আছে (🙈) — দেখতে আবার চাপো',
+                     en: 'Sponsors are covered now (🙈) — tap again to show them' },
+  curtain_covered: { bn: '🙈 ঢাকা আছে — টাকার অঙ্ক উপরে ঠিকই আছে, শুধু নামগুলো লুকানো',
+                     en: '🙈 Covered — the amount above is unchanged, only the names are hidden' },
+  // A144: no amount, no count, no kind — only "this is not the whole book", so
+  // nobody quotes an honestly partial figure as the committee's total.
+  report_partial: { bn: 'ℹ️ এই হিসাবে সব ধরনের entry ধরা নেই — সম্পূর্ণ হিসাব কোষাধ্যক্ষ / admin-এর কাছে।',
+                    en: 'ℹ️ This account does not include every kind of entry — the cashier / admin holds the complete one.' },
+  err_mix_confidential: { bn: '🎪 স্পনসরের টাকা আলাদা করে জমা দিতে হবে — একসঙ্গে অন্য টাকার সঙ্গে মেশানো যাবে না।\n\nদুটো জমা করো: একটাতে শুধু স্পনসর, আর একটাতে বাকিগুলো।',
+                          en: 'Sponsor money must be handed over on its own — it cannot be mixed with other collections.\n\nMake two handovers: one with only sponsor money, one with the rest.' },
+  err_recipient_blind: { bn: '🎪 স্পনসরের টাকা এঁকে দেওয়া যাবে না — তাঁর স্পনসর দেখার অনুমতি নেই, তাই টাকাটা তাঁর খাতায় উঠবে না।\n\nঅন্য কোষাধ্যক্ষ বাছো, বা admin-কে বলো অনুমতিটা দিতে।',
+                        en: 'Sponsor money cannot go to this person — they may not see sponsors, so it would never appear in their book.\n\nPick another cashier, or ask the admin to grant it.' },
   total: { bn: 'মোট', en: 'Total' },
   q_handover_sheet: { bn: 'কোনগুলো জমা দিচ্ছ? (নগদ / UPI আলাদা বাছো)', en: 'Which are you handing over? (pick cash / UPI separately)' },
   sheet_all: { bn: 'সব', en: 'All' },

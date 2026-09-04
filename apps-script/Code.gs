@@ -330,10 +330,20 @@ function committeeRoster_() {
       // CONTACT fields, so the member form can prefill from a linked account.
       // The exposure is nothing new — member rows already carry phone+email to
       // every phone via the parties store. Grants and money stay out.
+      // A144: `sees` is which CONFIDENTIAL kinds this person may read — not the
+      // raw grant list, just the answer the handover screen needs, because
+      // sponsor money may only be handed to somebody who can see it. Keeping it
+      // to this one derived answer is the whole point: the rest of a person's
+      // permissions stay off every other phone.
+      var sees = RESTRICTED_TYPES.filter(function (ty) {
+        return String(row.role) === 'admin' ||
+          effPerms_(row).entries.indexOf(viewPermFor_(ty)) >= 0;
+      }).join(',');
       out.push({ username: String(row.username), name: String(row.name),
                  role: String(row.role), status: String(row.status),
                  phone: String(row.phone || ''), email: String(row.email || ''),
-                 position: String(row.position || ''), cashier: effPerms_(row).cashier });
+                 position: String(row.position || ''), cashier: effPerms_(row).cashier,
+                 sees: sees });
     });
   }
   return out;
@@ -807,14 +817,23 @@ function notifData_(u, d) {
 // Bus sits with the new-entry types (it names a donor and issues a receipt).
 // NOT permissions, because everyone needs them: চাঁদা নেওয়া (a later instalment
 // from a donor anyone may have created), জমা দেওয়া, আমার entry / সংশোধন, বাকি.
-var ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto'];
+// A144: entry kinds whose rows are CONFIDENTIAL — a reader gets them only if
+// they wrote them, hold the matching *view* grant, or are admin. Mirrors
+// js/aggregate.js RESTRICTED_TYPES; the filtering itself is in pull/visible_.
+var RESTRICTED_TYPES = ['sponsor'];
+function viewPermFor_(type) { return String(type) + 'view'; }
+var VIEW_PERM_KEYS = RESTRICTED_TYPES.map(viewPermFor_);
+var ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor'];
 // 'review' is the cashier's correction desk; 'otherdonor' is reaching donors
 // somebody ELSE wrote down, to take a later instalment. Neither is an entry
 // kind, but both ride the same field so granting stays one screen.
 // 'memberadmin' keeps the committee-member register (add a member, set the
 // post, link the app account) — separate from 'member', which only allows
 // COLLECTING from members.
-var PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin']);
+// 'sponsorview' (A144) reads SOMEBODY ELSE's স্পনসর rows, and is what lets a
+// cashier RECEIVE that money. Not an entry kind — it grants no right to write
+// one — but it rides the same field so granting stays one screen.
+var PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin']).concat(VIEW_PERM_KEYS);
 
 // ---------- what a committee POST may carry ----------
 // A position (সভাপতি / সম্পাদক / কোষাধ্যক্ষ / সদস্য) holds a permission set, so
@@ -833,7 +852,11 @@ var PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin']);
 //   The three key spaces must stay DISJOINT — a position stores one flat list
 //   and resolution decides the bucket by membership, so a key appearing in two
 //   of them would land in the wrong one silently. tests/run.js asserts it.
-var POSITION_PERM_KEYS = PERM_KEYS.concat(REPORT_IDS).concat(['cashier']);
+//   A144: the *view* keys are NOT here, deliberately. Seeing every sponsor is a
+//   confidence given to a PERSON; hung on a post it would change hands the day
+//   somebody is made কোষাধ্যক্ষ, silently. Admin grants those one name at a time.
+var POSITION_PERM_KEYS = PERM_KEYS.filter(function (k) { return VIEW_PERM_KEYS.indexOf(k) < 0; })
+  .concat(REPORT_IDS).concat(['cashier']);
 // The committee's four posts, seeded server-side so they EXIST as rows the
 // admin can edit. js/lists.js seeds the same four ids for offline display; if
 // the sheet had none, those client-side rows would show in the UI and every
@@ -876,6 +899,118 @@ function permForRow_(store, row) {
   }
   return null;
 }
+// ---------- A144: confidential entry kinds ----------
+// Mirrors js/aggregate.js canSeeParty. THIS side is the guard; the client's copy
+// only keeps screens honest. A row a reader may not see never leaves the server.
+function canSeeParty_(u, party) {
+  var ty = String((party && party.type) || '');
+  if (RESTRICTED_TYPES.indexOf(ty) < 0) return true;
+  if (!u || !u.row) return false;
+  if (u.row.role === 'admin') return true;
+  if (entryAllowed_(u, viewPermFor_(ty))) return true;
+  var own = String((party && (party.collectorId || party.collector)) || '');
+  return !!own && own === String(u.row.username || '');
+}
+var PARTY_CACHE = null;
+function partyIndex_() {
+  if (PARTY_CACHE) return PARTY_CACHE;
+  var idx = {};
+  var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES['parties']);
+  if (sh && sh.getLastRow() >= 2) {
+    var values = sh.getDataRange().getValues(), header = values[0];
+    var idCol = header.indexOf('id'), tyCol = header.indexOf('type');
+    var whoCol = header.indexOf('collectorId'), nmCol = header.indexOf('collector');
+    for (var i = 1; i < values.length; i++) {
+      idx[String(values[i][idCol])] = {
+        type: String(tyCol >= 0 ? values[i][tyCol] : ''),
+        collectorId: String(whoCol >= 0 ? values[i][whoCol] : ''),
+        collector: String(nmCol >= 0 ? values[i][nmCol] : ''),
+      };
+    }
+  }
+  PARTY_CACHE = idx;
+  return idx;
+}
+// Drop every confidential row this reader may not see — party, its payments, any
+// expense spent out of that pot, and any handover carrying it.
+//
+// WHOLE PARCELS, never halves. A payment whose party was withheld raises
+// `orphan_payment` on the reader's 🩺 desk; a handover whose breakdown was
+// trimmed raises `breakdown_mismatch`. Half-filtering does not hide less, it
+// accuses the reader of corruption in rows they cannot see.
+//
+// Handovers therefore go whole, which is only sound because the handover screen
+// refuses to mix a confidential pot with an open one. Those two rules are halves
+// of one promise; neither is safe by itself.
+function visible_(all, u) {
+  if (!all) return all;
+  var hidden = {}, hiddenCat = {}, any = false;
+  (all.parties || []).forEach(function (p) {
+    if (p && !canSeeParty_(u, p)) { hidden[String(p.id)] = 1; any = true; }
+  });
+  RESTRICTED_TYPES.forEach(function (ty) {
+    if (u && u.row && u.row.role === 'admin') return;
+    // a pot has no "my own" half: the money in it came from rows the reader may
+    // not see, so it opens on the view grant alone
+    if (!entryAllowed_(u, viewPermFor_(ty))) { hiddenCat[ty] = 1; any = true; }
+  });
+  if (!any) return all;
+  var touches = function (h) {
+    var bd = null;
+    try { bd = JSON.parse((h && h.breakdown) || 'null'); } catch (e) { bd = null; }
+    if (!bd || typeof bd !== 'object') return false;
+    return Object.keys(bd).some(function (k) { return k.slice(0, 2) !== '__' && hiddenCat[k]; });
+  };
+  var out = {};
+  Object.keys(all).forEach(function (k) { out[k] = all[k]; });
+  out.parties = (all.parties || []).filter(function (p) { return !p || !hidden[String(p.id)]; });
+  out.payments = (all.payments || []).filter(function (p) { return !p || !hidden[String(p.partyId)]; });
+  out.expenses = (all.expenses || []).filter(function (e) { return !e || !hiddenCat[String(e.srcCat || '')]; });
+  out.handovers = (all.handovers || []).filter(function (h) { return !h || !touches(h); });
+  return out;
+}
+
+// Does this handover's breakdown carry confidential money, and does it MIX that
+// with open money? Mirrors js/app.js confidentialMix.
+function confidentialMix_(breakdown) {
+  var bd = null;
+  try { bd = JSON.parse(breakdown || 'null'); } catch (e) { bd = null; }
+  if (!bd || typeof bd !== 'object') return { cats: [], mixed: false };
+  var cats = [], open = [];
+  Object.keys(bd).forEach(function (k) {
+    if (k.slice(0, 2) === '__') return;
+    var v = bd[k] || {};
+    if (!((Number(v.cash) || 0) + (Number(v.upi) || 0))) return;
+    (RESTRICTED_TYPES.indexOf(k) >= 0 ? cats : open).push(k);
+  });
+  return { cats: cats, mixed: cats.length > 0 && open.length > 0 };
+}
+// A144: the two rules that make a confidential handover survivable.
+//
+//  1. NEVER MIXED. visible_ withholds such a row whole; it can only do that if
+//     the row is wholly confidential. Trim one category out of a mixed
+//     breakdown and the checksum stops summing to `amount`, and the recipient's
+//     🩺 desk accuses them of a broken row they cannot see.
+//  2. THE RECIPIENT MUST BE ABLE TO SEE IT. Money physically changes hands, and
+//     hiding a row cannot stop that. Sent to a cashier without the view grant,
+//     the parcel vanishes from their book while the sender's in-hand drops —
+//     and the sender then reads as NEGATIVE on every screen, which is the
+//     `negative_inhand` anomaly accusing an honest person.
+// Returns '' when fine, or a reason (rejection is what the caller does).
+function handoverConfidentialErr_(row) {
+  var mix = confidentialMix_(row && row.breakdown);
+  if (mix.mixed) return 'mixed';
+  if (!mix.cats.length) return '';
+  var toId = String((row && row.toId) || '');
+  if (!toId) return 'no-recipient'; // a typed-free name cannot be checked, and this money may not be guessed at
+  var rec = findUser_('username', toId);
+  if (!rec) return 'no-recipient';
+  var ok = mix.cats.every(function (ty) {
+    return rec.row.role === 'admin' || entryAllowed_({ row: rec.row }, viewPermFor_(ty));
+  });
+  return ok ? '' : 'recipient-blind';
+}
+
 // May this user do this? A permission is something you are GIVEN: an empty
 // field grants nothing. admin = everything; a null key is common to everyone.
 // Mirrors js/aggregate.js permAllowed.
@@ -995,7 +1130,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.34.33';
+var CODE_VERSION = 'chanda-v4.35.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1129,6 +1264,17 @@ var ACTIONS = {
       (b.records || []).forEach(function (r) {
         if (r && SHEETS[r.store] && r.row && r.row.id) noteIncomingOwner_(r.store, r.row.id, user);
       });
+      // A144, same lesson one store over: a new স্পনসর and its first payment
+      // travel in ONE push, so the party is not on the sheet when the payment is
+      // judged. Attribution comes from the TOKEN — the write loop stamps it that
+      // way — so recording the pusher here grants nothing the gate would not.
+      var batchParties = {};
+      (b.records || []).forEach(function (r) {
+        if (r && r.store === 'parties' && r.row && r.row.id) {
+          batchParties[String(r.row.id)] = { type: String(r.row.type || ''),
+                                             collectorId: String(user.row.username || '') };
+        }
+      });
       var exiting = isExiting_(user.row);
       (b.records || []).forEach(function (r) {
         // A116h (pre-go-live review): a malformed record — unknown store, no
@@ -1257,6 +1403,25 @@ var ACTIONS = {
         // a phone with the screen still cached could keep writing after the
         // admin turned it off
         if (r.store === 'messages' && chatOff) { rejectedIds.push(r.row.id); return; }
+        // A144: the hole this whole family of rules would otherwise have had.
+        //
+        // permForRow_ says `payments` needs no grant, and that was right —
+        // taking a further instalment from a donor is the job. But a payment
+        // NAMES A PARTY, and once some parties are confidential, "no grant
+        // needed" means any valid token may collect against a স্পনসর it is not
+        // allowed to see. Withholding it from the screen guards nothing; this
+        // does. The rule is exactly the reading rule: you may write a payment
+        // against a confidential donor only if you may SEE that donor.
+        //
+        // A59's lesson applies: a new sponsor and its first payment travel in
+        // ONE push, so the party may not be on the sheet yet. batchParties is
+        // consulted first, or the collector's own first entry would bounce.
+        if (r.store === 'payments') {
+          var pid = String(r.row.partyId || '');
+          var pRow = batchParties[pid] || partyIndex_()[pid];
+          if (pRow && !canSeeParty_(user, pRow)) { rejectedIds.push(r.row.id); return; }
+        }
+        if (r.store === 'handovers' && handoverConfidentialErr_(r.row)) { rejectedIds.push(r.row.id); return; }
         if (!entryAllowed_(user, permForRow_(r.store, r.row))) { rejectedIds.push(r.row.id); return; }
         (byStore[r.store] = byStore[r.store] || []).push(r.row);
       });
@@ -1610,6 +1775,17 @@ var ACTIONS = {
     var stamp = dataTs_();
     var all = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
     var cursor = stamp || maxReceivedAt_(all);
+    // A144: withhold confidential rows HERE — before the cursor is read from
+    // them, before the delta is sliced, before notifications are built. The
+    // cursor is deliberately taken from the UNFILTERED book: it is a clock, not
+    // a fact about this reader, and computing it from a filtered set would park
+    // a phone in the past and re-deliver for ever.
+    //
+    // Consequence a client must handle: when somebody is GRANTED a view key,
+    // the rows they could not see are old, so no delta will ever carry them.
+    // js/sync.js drops the cursor and takes one full pull when its own grants
+    // change. Without that, a granted permission looks broken.
+    all = visible_(all, u);
     var me = publicUser_(u.row); // fresh user → permission changes reach devices without re-login
     var notif = notifData_(u, all); // ride the notification feed in the same call (halves polling)
     if (b.since != null && b.since !== '') {

@@ -357,7 +357,12 @@
   // of calculation — so the same ₹198 bill sat under টোটো until a shop handover
   // arrived, then silently moved to দোকান. The total was always right; the
   // split was not reproducible.
-  const AVAIL_CATS = ['shop', 'person', 'member', 'payment', 'bus', 'road', 'toto', 'received', 'other'];
+  // A144: the confidential pots sit LAST on purpose. This order is the drain
+  // order for a legacy handover that names no pot, and open money must be spent
+  // first — a blind drain that reached into স্পনসর would put confidential money
+  // inside an ordinary handover, which is exactly what visibleData cannot then
+  // withhold without breaking that handover's checksum.
+  const AVAIL_CATS = ['shop', 'person', 'member', 'payment', 'bus', 'road', 'toto', 'received', 'other', 'sponsor'];
   // The reserved source id for money a person collected themselves, as opposed
   // to a parcel handed to them by someone else. It can never collide with a
   // username: usernames are /^[a-z0-9._-]{3,20}$/ (Code.gs register).
@@ -416,7 +421,11 @@
     (data.parties || []).forEach(function (p) { if (p && p.id) partyType[p.id] = p.type; });
     (data.payments || []).filter(mine).forEach(function (r) {
       const ty = partyType[r.partyId];
-      add(['shop', 'person', 'member'].indexOf(ty) >= 0 ? ty : 'payment', splitOf(r));
+      // A144: 'sponsor' is named here rather than falling into 'payment'. It has
+      // to keep its own pot, because that pot is what the handover screen
+      // refuses to mix and what the 👁️ curtain closes — money that landed in
+      // the general 'payment' pot could be neither.
+      add(['shop', 'person', 'member', 'sponsor'].indexOf(ty) >= 0 ? ty : 'payment', splitOf(r));
     });
     (data.daily || []).filter(mine).forEach(function (r) {
       add(['road', 'toto', 'bus'].indexOf(r.type) >= 0 ? r.type : 'road', splitOf(r));
@@ -529,6 +538,11 @@
   const SUMMARY_GROUPS = [
     { key: 'entry', cats: ['shop', 'person', 'member', 'payment', 'bus'] },
     { key: 'daily', cats: ['road', 'toto'] },
+    // A144: স্পনসর gets its own band rather than sitting with the চাঁদা it is
+    // not. One sponsor can outweigh a week of ten people walking, and folding
+    // it into the entry band would quietly rewrite what that band is a record
+    // of. It is also the band the 👁️ curtain closes, so it has to be one band.
+    { key: 'sponsor', cats: ['sponsor'] },
     { key: 'other', cats: ['received', 'other'] },
   ];
   function slotOf(h) {
@@ -1005,7 +1019,7 @@
       if (opts.holding) out.common = ['handover', 'hbook'];
       return out; // nothing granted → the "ask the admin" card (+ a way to hand in cash)
     }
-    ['shop', 'person', 'member', 'bus'].forEach(function (k) { if (granted(k)) out.entry.push(k); });
+    ['shop', 'person', 'member', 'bus', 'sponsor'].forEach(function (k) { if (granted(k)) out.entry.push(k); });
     ['road', 'toto'].forEach(function (k) { if (granted(k)) out.daily.push(k); });
     const isCashier = Number(user.cashier) === 1 || user.role === 'admin';
     if (isCashier) out.daily.push('expense');
@@ -1368,7 +1382,15 @@
   // Reaching somebody ELSE's donor is a separate grant ('otherdonor').
   // `review` is not an entry kind — it gates the cashier's correction desk —
   // but it rides the same field so granting stays one screen for the admin.
-  const ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto'];
+  // A144: entry kinds whose rows are CONFIDENTIAL — withheld from anyone who
+  // did not write them and holds no matching *view* grant. The mechanism, and
+  // why a whole ROW is withheld rather than a field, is documented at
+  // canSeeParty/visibleData below; these two names sit up here only because
+  // PERM_KEYS and POSITION_PERM_KEYS are built out of them.
+  const RESTRICTED_TYPES = ['sponsor'];
+  function viewPermFor(type) { return String(type) + 'view'; }
+  const VIEW_PERM_KEYS = RESTRICTED_TYPES.map(viewPermFor);
+  const ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor'];
   // 'review' is the cashier's correction desk; 'otherdonor' is reaching donors
   // somebody ELSE wrote down, to take a later instalment. Neither is an entry
   // kind, but both ride the same field so granting stays one screen.
@@ -1376,7 +1398,11 @@
   // their post and linking their app account. Deliberately separate from the
   // 'member' entry grant, which only lets someone COLLECT from members: one
   // person keeps the register, many people take the money.
-  const PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin']);
+  // 'sponsorview' (A144) reads SOMEBODY ELSE's স্পনসর rows and is what lets a
+  // cashier receive that money. It is NOT an entry kind — holding it grants no
+  // right to write a sponsor — but it rides the same field so granting stays
+  // one screen for the admin. See RESTRICTED_TYPES/viewPermFor.
+  const PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin']).concat(VIEW_PERM_KEYS);
   // What a committee POST may carry, so granting is one dropdown per person
   // instead of ~16 checkboxes each. Mirrors Code.gs POSITION_PERM_KEYS.
   //
@@ -1391,7 +1417,13 @@
   // The three spaces are stored FLAT in one comma list and split back apart by
   // membership, so they must stay disjoint; tests/run.js asserts that, because a
   // key in two of them would land in the wrong bucket without a word.
-  const POSITION_PERM_KEYS = PERM_KEYS.concat(REPORT_IDS).concat(['cashier']);
+  //
+  // A144: the *view* keys are absent, and must stay absent. Seeing every
+  // sponsor is a confidence the board gives to a PERSON; hung on a post it
+  // would change hands silently the day somebody is made কোষাধ্যক্ষ, and
+  // nobody would be told. Admin grants those one name at a time.
+  const POSITION_PERM_KEYS = PERM_KEYS.filter(function (k) { return VIEW_PERM_KEYS.indexOf(k) < 0; })
+    .concat(REPORT_IDS).concat(['cashier']);
   // Split a post's flat permission list into the three fields the app actually
   // reads. One place decides which bucket a key belongs to — the UI, the server
   // resolver and the tests all come back here rather than each guessing.
@@ -1424,13 +1456,126 @@
     if (!key) return true; // common to everyone — handover, own donors, dues…
     return String(user.entries || '').split(',').indexOf(key) >= 0;
   }
+
+  // ---- confidential entry kinds (A144) -----------------------------------
+  // Not every entry belongs to the committee's open book. Two kinds, opposite
+  // halves of the same coin:
+  //   sponsor — the NAME is public (it goes on the hoarding); the AMOUNT is a
+  //             negotiated figure the board keeps to a few people.
+  //   গুপ্ত দান — the AMOUNT is ordinary; the NAME is secret by definition.
+  // One mechanism serves both, because what is withheld is the whole ROW.
+  //
+  // WHY THE ROW AND NOT THE FIELD. reconcile's invariant is
+  //   totalInHand === totalCollected − totalExpenses
+  // and BOTH sides are derived from the same rows. Drop a row and both sides
+  // shrink by the same amount, so the equation still closes on every phone —
+  // silently, with no red banner. Blank a FIELD instead and the money stays in
+  // every total while the name goes missing, which is the opposite of what the
+  // committee asked for.
+  //
+  // THE COST, decided by Hrishi and stated in words on the reports themselves:
+  // a reader without the grant sees a SMALLER committee total than an admin
+  // does. That is deliberate. What must never happen is a reader quoting it as
+  // the committee's total, so the report says it is partial.
+  // RESTRICTED_TYPES and viewPermFor are declared with the permission keys
+  // above, because PERM_KEYS is built from them. The *view* grant is
+  // deliberately a different key from the entry grant: writing a sponsor and
+  // reading every sponsor are different powers, and the cashier who must
+  // RECEIVE that cash needs the second one without the first.
+  function isRestrictedType(type) { return RESTRICTED_TYPES.indexOf(String(type)) >= 0; }
+  function userIdent(user) { return String((user && (user.username || user.name)) || ''); }
+  // The ONE decision, mirrored in Code.gs canSeeParty_. The server is the guard
+  // — a row a reader may not see never leaves it — and this copy keeps the
+  // client's own screens and its unsynced local rows honest about the same rule.
+  //
+  // NOT the 👁️ curtain. The curtain is a different thing and deliberately does
+  // NOT come through here: it hides NAMES AND ROWS from a shoulder-surfer while
+  // leaving every amount in place, because its holder still has that cash and
+  // still has to hand it over. Routing it through this function would remove
+  // the money from their own hero figure — a wrong total, quoted out loud, and
+  // a short handover. Two jobs, two mechanisms; what they share is
+  // RESTRICTED_TYPES, which is the part that must never drift.
+  function canSeeParty(user, party) {
+    if (!party || !isRestrictedType(party.type)) return true;
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    if (permAllowed(user, viewPermFor(party.type))) return true;
+    return !!userIdent(user) && ck(party) === userIdent(user); // one's own row
+  }
+  // Every store, filtered together. Half-filtering is not a smaller bug, it is a
+  // louder one: a payment whose party is missing raises `orphan_payment`, and a
+  // handover whose breakdown was trimmed raises `breakdown_mismatch` — so a
+  // reader without the grant would get a 🩺 desk full of accusations about rows
+  // they cannot even see. Party, its payments, its expenses and any handover of
+  // that money go as one parcel or not at all.
+  //
+  // A handover is therefore withheld WHOLE. That is only sound because the
+  // handover screen refuses to mix a restricted pot with an open one — the two
+  // rules are halves of one promise; neither is safe alone.
+  function visibleData(data, user) {
+    if (!data) return data;
+    const hidden = {};
+    let any = false;
+    (data.parties || []).forEach(function (p) {
+      if (p && !canSeeParty(user, p)) { hidden[p.id] = 1; any = true; }
+    });
+    const hiddenCat = {};
+    RESTRICTED_TYPES.forEach(function (ty) {
+      if (user && user.role === 'admin') return;
+      // A pot can only be seen whole: unlike a party there is no "my own"
+      // handover pot — the money in it came from rows the reader may not see.
+      if (!permAllowed(user, viewPermFor(ty))) { hiddenCat[ty] = 1; any = true; }
+    });
+    if (!any) return data;
+    const out = {};
+    Object.keys(data).forEach(function (k) { out[k] = data[k]; });
+    out.parties = (data.parties || []).filter(function (p) { return !p || !hidden[p.id]; });
+    out.payments = (data.payments || []).filter(function (p) { return !p || !hidden[p.partyId]; });
+    out.expenses = (data.expenses || []).filter(function (e) { return !e || !hiddenCat[String(e.srcCat || '')]; });
+    out.handovers = (data.handovers || []).filter(function (h) { return !h || !handoverTouches(h, hiddenCat); });
+    return out;
+  }
+  // Does this handover carry money out of any of these pots? Read from the
+  // stored breakdown, the same field reconcile checksums.
+  function handoverTouches(h, cats) {
+    let bd = null;
+    try { bd = JSON.parse((h && h.breakdown) || 'null'); } catch (e) { bd = null; }
+    if (!bd || typeof bd !== 'object') return false;
+    return Object.keys(bd).some(function (k) { return k.slice(0, 2) !== '__' && cats[k]; });
+  }
+  // A144: the hole this whole family of rules would otherwise have.
+  //
+  // permForRow says `payments` needs no grant, and that was right: taking a
+  // further instalment from a donor is the job, and asking for a grant per donor
+  // would stop the app working. But a payment names a PARTY, and once some
+  // parties are confidential, "no grant needed" means any valid token may
+  // collect against a সপনসর it is not allowed to see. Withholding the row from
+  // the screen guards nothing; the server does.
+  //
+  // The rule is EXACTLY the reading rule — canSeeParty, not a second test of its
+  // own. That matters more than it looks: a separate rule here would drift from
+  // the one in Code.gs the first time either changed, and the two would then
+  // disagree about the same payment. Mirrors Code.gs canSeeParty_ at the push
+  // gate, character for character in intent.
+  function canWritePayment(user, parties, payment) {
+    const pid = String((payment && payment.partyId) || '');
+    if (!pid) return true;
+    let party = null;
+    (parties || []).forEach(function (p) { if (p && String(p.id) === pid) party = p; });
+    return !party || canSeeParty(user, party);
+  }
   function computeReport(id, data) {
     const d = activeData(data);
     const money = (d.payments || []).concat(d.daily || []);
     if (id === 'overview') {
+      // A144: স্পনসর is here too. It has to be: its payments are already inside
+      // `money` (and therefore inside totalCollection), so a byType that did not
+      // name it would leave one screen contradicting itself — a breakdown that
+      // adds up to less than the total printed above it, with nothing to say why.
       const byType = { shop: { count: 0, pledged: 0, paid: 0 },
                        person: { count: 0, pledged: 0, paid: 0 },
-                       member: { count: 0, pledged: 0, paid: 0 } };
+                       member: { count: 0, pledged: 0, paid: 0 },
+                       sponsor: { count: 0, pledged: 0, paid: 0 } };
       const paidBy = {};
       (d.payments || []).forEach(function (p) { paidBy[p.partyId] = (paidBy[p.partyId] || 0) + (Number(p.amount) || 0); });
       (d.parties || []).forEach(function (p) {
@@ -1444,8 +1589,10 @@
         if (isCashOnly(r)) cash += Number(r.amount) || 0;
         else { cash += Number(r.cashAmount) || 0; upi += Number(r.upiAmount) || 0; }
       });
-      const totalPledged = byType.shop.pledged + byType.person.pledged + byType.member.pledged;
-      const totalPaid = byType.shop.paid + byType.person.paid + byType.member.paid;
+      // summed over the keys, not named one by one: the day a seventh kind is
+      // added, the total must move with it or this screen starts lying quietly.
+      const totalPledged = Object.keys(byType).reduce(function (a, k) { return a + byType[k].pledged; }, 0);
+      const totalPaid = Object.keys(byType).reduce(function (a, k) { return a + byType[k].paid; }, 0);
       const totalColl = sum(money, function (r) { return r.amount; });
       const totalExp = sum(d.expenses, function (r) { return r.amount; });
       return { totalCollection: totalColl, totalExpense: totalExp, inHand: totalColl - totalExp,
@@ -1482,6 +1629,11 @@
       (d.payments || []).forEach(function (p) { paid[p.partyId] = (paid[p.partyId] || 0) + (Number(p.amount) || 0); });
       const agg = {};
       (d.parties || []).forEach(function (p) {
+        // A144: স্পনসর never belongs to an এলাকা — nobody walked a street for it.
+        // Left in, one sponsor would land in "—" and outweigh the zones this
+        // report exists to compare, turning a leaderboard of effort into a
+        // leaderboard of one negotiation.
+        if (isRestrictedType(p.type)) return;
         const k = p.side || '—'; // shops carry an area; person/member fall in "no area"
         if (!agg[k]) agg[k] = { area: k, count: 0, pledged: 0, paid: 0 };
         agg[k].count++; agg[k].pledged += Number(p.pledged) || 0; agg[k].paid += paid[p.id] || 0;
@@ -1546,6 +1698,10 @@
                 ENTRY_KINDS: ENTRY_KINDS, PERM_KEYS: PERM_KEYS,
                 POSITION_PERM_KEYS: POSITION_PERM_KEYS, splitPositionPerms: splitPositionPerms,
                 permForRow: permForRow, permAllowed: permAllowed, OWN_SRC: OWN_SRC,
+                RESTRICTED_TYPES: RESTRICTED_TYPES, VIEW_PERM_KEYS: VIEW_PERM_KEYS,
+                isRestrictedType: isRestrictedType, viewPermFor: viewPermFor,
+                canSeeParty: canSeeParty, visibleData: visibleData,
+                canWritePayment: canWritePayment,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,
                 samePaymentsOn: samePaymentsOn, dayOf: dayOf, potDetail: potDetail,

@@ -330,6 +330,15 @@
   let pullQueued = false;
   let storageWarned = false; // A73/V12: the quota warning is worth saying once, not every minute
   function resetPullBackoff() { pullSkip = 0; pullFails = 0; }
+  // A144: which confidential kinds this person may READ, as one comparable
+  // string. `role` is part of it because admin sees everything — being made, or
+  // unmade, admin changes the visible book exactly the way a view grant does,
+  // and a comparison that watched only `entries` would miss it.
+  function viewGrantsOf(u) {
+    const ent = String((u && u.entries) || '').split(',');
+    return String((u && u.role) || '') + '|' +
+      Aggregate.VIEW_PERM_KEYS.filter(function (k) { return ent.indexOf(k) >= 0; }).join(',');
+  }
   function pullCentral(opts) {
     if (!navigator.onLine || !Sync.configured() || !Auth.loggedIn()) return Promise.resolve();
     const forced = !!(opts && opts.force);
@@ -448,12 +457,39 @@
       // adopt the fresh user: admin's permission/role changes land within a
       // pull (≤60s) instead of waiting for a re-login
       if (resp.me && Auth.loggedIn()) {
-        const prev = JSON.stringify(Auth.current() || {});
+        const before = Auth.current() || {};
+        const prev = JSON.stringify(before);
         if (prev !== JSON.stringify(resp.me)) {
+          // A144: has a *view* grant changed? Read it BEFORE adopting the new
+          // user, or the comparison is against itself.
+          const regrant = viewGrantsOf(before) !== viewGrantsOf(resp.me);
           try { localStorage.setItem('ck_user', JSON.stringify(resp.me)); } catch (e) {}
           Settings.set('collectorName', resp.me.name);
           Settings.set('collectorRole', Aggregate.roleOf(resp.me.role, resp.me.cashier));
           changed = true; // re-render below so hidden/shown tiles update
+          // A144: this snapshot is now the wrong shape and no delta can fix it.
+          //
+          // GRANTED — the rows this person may now see were withheld when they
+          // were written, so their receivedAt is older than our cursor and a
+          // `since` pull skips them for ever. A granted permission would simply
+          // look broken.
+          // REVOKED — they must LEAVE, and a delta has no way to say "delete".
+          // Without this, confidential rows stay cached on a phone whose access
+          // the committee just took away.
+          //
+          // So: drop the cursor and take ONE clean full pull, the same shape the
+          // epoch branch above uses. Returning here skips persisting a snapshot
+          // that is about to be replaced.
+          if (regrant) {
+            setCentral(null); centralCursor = ''; centralYear = '';
+            try {
+              localStorage.removeItem('ck_central');
+              localStorage.removeItem('ck_central_cursor');
+              localStorage.removeItem('ck_central_year');
+            } catch (e) {}
+            pullBusy = false;
+            return pullCentral({ force: true });
+          }
         }
       }
       // A70 (audit #2 P1): this sat ABOVE the `changed` guard, so an idle poll
@@ -1126,6 +1162,16 @@
       savingFlow = false;
       const msg = String(e && e.message);
       if (msg === 'zero') { toast(t('amount_zero')); rewindToAmount() || goBack(); }
+      // A144: alert, not toast — this one asks the collector to redo the sheet,
+      // and 2.2 s is not long enough to read an instruction you must act on.
+      else if (msg === 'mix-confidential') {
+        try { window.alert(t('err_mix_confidential')); } catch (e2) {}
+        goBack();
+      }
+      else if (msg === 'recipient-blind') {
+        try { window.alert(t('err_recipient_blind')); } catch (e2) {}
+        goBack();
+      }
       else if (msg === 'cancelled') {
         // A54 (audit 1.2): saying "no, that IS a duplicate" must END the entry.
         // rewindToKey('name') works in newPartyFlow, which has a name step —
@@ -1595,14 +1641,17 @@
       // factory, not at the fourteen call sites, so none can be forgotten.
       resume: { fn: 'newParty', type: type, presets: presets || {}, label: t('type_' + type) },
       steps: [
-        { key: 'name', qKey: type === 'shop' ? 'q_shop_name' : 'q_person_name', kind: 'text' },
+        { key: 'name', qKey: type === 'shop' ? 'q_shop_name' : type === 'sponsor' ? 'q_sponsor_name' : 'q_person_name', kind: 'text' },
         { key: 'owner', qKey: 'q_owner_name', kind: 'text', optional: true,
           showIf: function () { return type === 'shop'; } },
         // optionsFn, not options: read when the user REACHES this step, so a
         // background list refresh that finishes meanwhile is already included.
         { key: 'side', qKey: 'q_side', kind: 'choice', optionsFn: sideOptions, showIf: function () { return type === 'shop'; } },
+        // A144: স্পনসর is excluded. A sponsor has no locality in this book —
+        // nobody walked a street for it — and every extra field on a
+        // confidential row is one more place its figures can surface.
         { key: 'location', qKey: 'q_location', kind: 'choice', optionsFn: locationOptions, optional: true,
-          showIf: function () { return type !== 'shop' && Lists.get('location').length > 0; } },
+          showIf: function () { return type !== 'shop' && type !== 'sponsor' && Lists.get('location').length > 0; } },
         // --- committee-member registry fields (v4.7.0), members only ---
         // Asked here rather than on a separate admin screen because the person
         // filling this in is the one talking to the member; a second screen
@@ -1863,6 +1912,22 @@
           m = { cash: cash, upi: upi, total: cash + upi };
         } else m = moneyOf(a);
         if (m.total <= 0) return Promise.reject(new Error('zero'));
+        // A144: a confidential pot travels ALONE. visibleData withholds such a
+        // handover whole, and it can only do that if the row is wholly
+        // confidential — trimming one category out of a mixed breakdown would
+        // leave a checksum that no longer sums to `amount`, and reconcile would
+        // accuse the recipient of a broken row they cannot see. The server
+        // refuses a mixed row too; this is the half that explains why.
+        const mix = confidentialMix(breakdown);
+        if (mix.mixed) return Promise.reject(new Error('mix-confidential'));
+        // A144: and it may only go to somebody who can SEE it. The recipient is
+        // asked BEFORE the sheet in this flow, so the check lands here rather
+        // than by shortening the picker — the server refuses it either way, and a
+        // row the server refuses is a row dropped from the queue in silence. Far
+        // better to say so now, while the collector is still holding the cash.
+        if (mix.cats.length && !recipientSees(a.to, mix.cats)) {
+          return Promise.reject(new Error('recipient-blind'));
+        }
         // when picked from the list, a.to is a username → resolve name + id;
         // when typed free (offline), a.to is a name with no id.
         const toId = byUser[a.to] !== undefined ? a.to : '';
@@ -2174,6 +2239,7 @@
         frozen: frozen(), // A110: admin paused entries for everyone
       });
       const ICON = { shop: ['🏪', 'new_shop'], person: ['🙍', 'new_person'], member: ['🤝', 'new_member'],
+                     sponsor: ['🎪', 'new_sponsor'],
                      bus: ['🚌', 'daily_bus'], road: ['🛣️', 'daily_road'], toto: ['🛺', 'daily_toto'],
                      expense: ['🧾', 'expense'], cashier: ['💰', 'confirm_handover'],
                      review: ['🛠️', 'review_title'], handover: ['', 'handover'], hbook: ['📗', 'hb_title'],
@@ -2394,7 +2460,7 @@
         // Registering the member is a different job with a different
         // permission (memberadmin) — see renderMemberAdmin.
         if (g === 'member') freshThen(function () { navigate('memberpay'); });
-        else if (g === 'shop' || g === 'person') freshThen(function () { startFlow(newPartyFlow(g)); });
+        else if (g === 'shop' || g === 'person' || g === 'sponsor') freshThen(function () { startFlow(newPartyFlow(g)); });
         else if (g === 'road' || g === 'toto' || g === 'bus') startFlow(dailyFlow(g));
         else if (g === 'expense') startExpense();
         else if (g === 'handover') startHandover();
@@ -2445,9 +2511,13 @@
   // must be able to look ANY donor up. `withBus` is off on find-party — you take
   // instalments from donors, and a bus pays once with a receipt.
   function typeChips(current, withBus) {
-    const kinds = [['shop', t('type_shop')], ['person', t('type_person')], ['member', t('type_member')]]
+    const kinds = [['shop', t('type_shop')], ['person', t('type_person')], ['member', t('type_member')],
+                   ['sponsor', t('type_sponsor')]]
       .concat(withBus ? [['bus', t('daily_bus')]] : []);
-    const tabs = [['all', t('all')]].concat(kinds.filter(function (k) { return canEntry(k[0]); }));
+    // A144: canSeeKind, not canEntry — a cashier holding only 'sponsorview'
+    // writes no sponsors but is already being sent those rows, and a ledger with
+    // no chip for them is a book you can hold but not open.
+    const tabs = [['all', t('all')]].concat(kinds.filter(function (k) { return canSeeKind(k[0]); }));
     const valid = tabs.some(function (tb) { return tb[0] === current; }) ? current : 'all';
     // A87: buttons only. The row they sit in is built by filterBar(), because
     // the type filter and the "শুধু বাকি" toggle used to be two stacked .chips
@@ -3476,6 +3546,78 @@
     if (key && frozen()) return false;
     return Aggregate.permAllowed(Auth.current(), key);
   }
+  // A144: may this person SEE rows of this kind at all? Different question from
+  // canEntry, and only for the confidential kinds: a cashier holding
+  // 'sponsorview' writes no sponsors but must be able to read and filter them,
+  // while canEntry alone would give them a ledger with no way to reach the rows
+  // the server is already sending. Reading is also not stopped by a freeze or a
+  // stale version — those hold WRITES, and hiding a book nobody may write to
+  // would be a second, unrelated punishment.
+  // A144: does this breakdown carry confidential money, and does it mix it with
+  // open money? Mirrors Code.gs confidentialMix_ — the server refuses the mixed
+  // row; this side refuses it earlier and says so in Bengali.
+  function confidentialMix(bd) {
+    if (!bd || typeof bd !== 'object') return { cats: [], mixed: false };
+    const cats = [], open = [];
+    Object.keys(bd).forEach(function (k) {
+      if (k.slice(0, 2) === '__') return; // reserved metadata, not a category
+      const v = bd[k] || {};
+      if (!((Number(v.cash) || 0) + (Number(v.upi) || 0))) return;
+      (Aggregate.isRestrictedType(k) ? cats : open).push(k);
+    });
+    return { cats: cats, mixed: cats.length > 0 && open.length > 0 };
+  }
+  // A144: is this reader's book missing rows the committee's book has? True when
+  // any confidential kind is closed to them — the server withheld those rows, so
+  // every committee total they see is honestly smaller than the admin's. It is
+  // deliberately NOT true for the curtain: that hides names, not money.
+  function partialBook() {
+    const me = Auth.current();
+    if (me && me.role === 'admin') return false;
+    return Aggregate.RESTRICTED_TYPES.some(function (ty) {
+      return !Aggregate.permAllowed(me, Aggregate.viewPermFor(ty));
+    });
+  }
+  // A144: the 👁️ curtain — for the moment somebody is reading over your shoulder.
+  //
+  // MODULE state, never persisted, and that is the design. A curtain that
+  // survived a restart would be found days later by a collector hunting for
+  // money that was never missing; reopening the app is the one moment we can be
+  // sure the shoulder has gone. It is also NOT a permission: it hides names and
+  // rows from the person's own screen and leaves every amount standing, because
+  // that cash is still theirs to hand over.
+  let curtainOn = false;
+  function curtainAvailable() {
+    return Aggregate.RESTRICTED_TYPES.some(function (ty) { return canSeeKind(ty); });
+  }
+  function paintCurtain() {
+    const b = document.getElementById('hdr-curtain');
+    if (!b) return;
+    const on = curtainAvailable();
+    b.hidden = !on;
+    if (!on) { curtainOn = false; return; }
+    b.textContent = curtainOn ? '🙈' : '👁️';
+    b.title = t(curtainOn ? 'curtain_on_hint' : 'curtain_off_hint');
+    b.setAttribute('aria-label', t(curtainOn ? 'curtain_on' : 'curtain_off'));
+    b.setAttribute('aria-pressed', curtainOn ? 'true' : 'false');
+  }
+  // A144: may this recipient read every confidential pot in this parcel? Answered
+  // from the committee roster's `sees` — the one derived field the server sends
+  // for exactly this question. An unknown recipient (a name typed free while
+  // offline) answers NO: confidential money is not handed to a guess.
+  function recipientSees(toId, cats) {
+    if (!cats || !cats.length) return true;
+    let row = null;
+    (committee || []).forEach(function (c) { if (c && String(c.username) === String(toId)) row = c; });
+    if (!row) return false;
+    const sees = String(row.sees || '').split(',');
+    return cats.every(function (ty) { return sees.indexOf(ty) >= 0; });
+  }
+  function canSeeKind(key) {
+    if (!Aggregate.isRestrictedType(key)) return canEntry(key);
+    const me = Auth.current();
+    return Aggregate.permAllowed(me, key) || Aggregate.permAllowed(me, Aggregate.viewPermFor(key));
+  }
   // The cashier's correction desk is now its own grant. Base requirement is
   // unchanged (cashier or admin); on top of that the admin may withhold it.
   function canReview() { return Auth.isCashier() && canEntry('review'); }
@@ -4465,6 +4607,7 @@
   // types to match the home screen and the handover sheet
   const OWN_SRC = Aggregate.OWN_SRC;
   const CAT_LABEL_KEYS = { shop: 'new_shop', person: 'new_person', member: 'new_member',
+                           sponsor: 'new_sponsor',
                            payment: 'cat_payment', bus: 'daily_bus',
                            road: 'daily_road', toto: 'daily_toto', received: 'cat_received',
                            other: 'cat_other' };
@@ -4483,7 +4626,10 @@
     for (let i = 1; i < parts.length; i++) out += '<b>' + fmtMoney(nums[i - 1] || 0) + '</b>' + parts[i];
     return out;
   }
-  const SUM_GROUP_KEYS = { entry: 'grp_entry', daily: 'grp_daily', other: 'grp_received' };
+  const SUM_GROUP_KEYS = { entry: 'grp_entry', daily: 'grp_daily', other: 'grp_received',
+                           sponsor: 'grp_sponsor' };
+  // A144: which summary bands the 👁️ curtain covers.
+  const CURTAIN_GROUPS = { sponsor: 1 };
   function grpHTML(open, name, amt, kids, cls) {
     return '<div class="grp' + (open ? ' open' : '') + (cls ? ' ' + cls : '') + '">' +
       '<button class="head" data-grp="1"><span class="car">▶</span><span class="nm">' + name + '</span>' +
@@ -4583,7 +4729,17 @@
       '<div id="sum-body"' + (sumOpen ? '' : ' hidden') + '>' +
         '<div class="secttl">' + esc(t('sum_where')) + '</div><div class="calc">' +
           m.groups.map(function (g) {
-            return grpHTML(true, esc(t(SUM_GROUP_KEYS[g.key] || 'cat_other')), fmtMoney(g.total), potKidsHTML(g.pots));
+            const name = esc(t(SUM_GROUP_KEYS[g.key] || 'cat_other'));
+            // A144: the curtain covers the ROWS, never the amount. The band's
+            // total and the hero above it stay exactly as they were, because
+            // this money is still in this person's hand and still has to be
+            // handed over — a curtain that changed the arithmetic would have
+            // them quote a wrong total out loud and hand over short.
+            if (curtainOn && CURTAIN_GROUPS[g.key]) {
+              return grpHTML(false, name + ' <span class="row-sub">🙈</span>',
+                fmtMoney(g.total), '<div class="expl">' + esc(t('curtain_covered')) + '</div>', 'nobox');
+            }
+            return grpHTML(true, name, fmtMoney(g.total), potKidsHTML(g.pots));
           }).join('') +
           '<div class="final"><span class="k">' + esc(t('sum_total')) + '</span>' +
             '<span class="v">' + fmtMoney(hero) + '</span></div>' +
@@ -5069,6 +5225,13 @@
       '<div class="zone all">' +
         '<div class="zone-hd">' + esc(t('central_reports')) +
           '<span class="who">' + esc(t('sec_all_sub')) + '</span></div>' +
+        // A144: the one cost of confidential entries, said in words on the very
+        // screen where it matters. This reader's book is genuinely smaller than
+        // the admin's, and the danger is not the gap — it is somebody standing
+        // up in a meeting and quoting this figure as the committee's total. No
+        // amount, no count, no kind is named: the sentence reveals nothing and
+        // exists only so nobody is misled by a number that is honestly partial.
+        (partialBook() ? '<div class="hint" style="margin:0 2px 8px">' + esc(t('report_partial')) + '</div>' : '') +
         '<div id="report-picker"></div>' +
         '<div id="report-body"></div>' +
       '</div>';
@@ -7698,6 +7861,12 @@
       document.title = pn === t('app_title') ? pn : pn + ' — ' + t('app_title');
     } catch (e) {}
     updateTrainingBar(); // version bar / training strip + header title, every screen
+    // A144: the curtain button belongs to the header, but whether it is offered
+    // depends on WHO is logged in — and at DOMContentLoaded nobody is yet.
+    // Painting it only there left it hidden for the whole session; found by
+    // driving the screen, not by reading the code. Repaint on every render, the
+    // same rhythm the title and the training bar already use.
+    paintCurtain();
     document.querySelectorAll('#bottomnav button').forEach(function (b) {
       b.classList.toggle('on', b.dataset.nav === current.view);
       const k = b.dataset.nav;
@@ -7819,6 +7988,11 @@
       hdrRefresh.title = t('refresh_hint');
       hdrRefresh.setAttribute('aria-label', t('refresh'));
     }
+    const hdrCurtain = document.getElementById('hdr-curtain');
+    if (hdrCurtain) {
+      hdrCurtain.onclick = function () { curtainOn = !curtainOn; paintCurtain(); render(); };
+    }
+    paintCurtain();
     document.getElementById('sync-badge').onclick = function () {
       Sync.syncNow().then(function (r) {
         toast(r.ok ? t('all_synced') : (r.reason === 'not-configured' ? t('sync_not_configured') : t('sync_fail')));
