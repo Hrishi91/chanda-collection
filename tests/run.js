@@ -4193,7 +4193,14 @@ try {
     const gs = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
     const dailyCols = gs.slice(gs.indexOf('  daily:    ['), gs.indexOf('],', gs.indexOf('  daily:    [')))
       .replace(/\/\/[^\n]*/g, '').match(/'([a-zA-Z]+)'/g).map(q => q.slice(1, -1));
-    eq(dailyCols[dailyCols.length - 1], 'dupOk', 'A61: daily.dupOk exists and is appended LAST');
+    // A61's property is that dupOk has a REAL column — without one the answer
+    // dies at the push and the desk asks for ever. It used to be pinned as "and
+    // it is LAST", which was a proxy for the append-only header rule; A148
+    // appended `sector` after it, so the two halves are now asserted separately:
+    // dupOk still has its column, and the newest column is still the last one.
+    eq(dailyCols.indexOf('dupOk') >= 0, true, 'A61: daily.dupOk has a real column');
+    eq(dailyCols[dailyCols.length - 1], 'sector',
+       'A148: …and the newest column is appended LAST, per the header rule');
     // A68: assert the RULE, not a frozen number. A61 moved it 2→3, A68 moved
     // it 3→4; a hard-coded 3 made a correct bump look like a regression. What
     // must never drift is that the two agree — CI checks the same thing.
@@ -6188,6 +6195,108 @@ try {
   eq(/out\.handovers = \(all\.handovers \|\| \[\]\)\.filter\(function \(h\) \{ return !h \|\| !touches\(h\) \|\| mine\(h\); \}\);/
      .test(fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8')), true,
      'A147: …and the server, which is the one that actually withholds');
+}
+
+// ---- A148: the two ভাঁড়ার ---------------------------------------------------
+//
+// The property everything rests on: a sector is a PARTITION of the same rows, so
+// the two columns must add up to the totals printed beside them, and the
+// committee-wide invariant must not notice sectors exist at all.
+{
+  const A = require('../js/aggregate.js');
+  const book = {
+    parties: [
+      { id: 'p1', type: 'shop', name: 'পাল', pledged: 5000, collectorId: 'ram', side: 'main_malda' },
+      { id: 'p2', type: 'sponsor', name: 'Bose', pledged: 50000, collectorId: 'ram', sector: 'program' },
+    ],
+    payments: [
+      { id: 'y1', partyId: 'p1', amount: 2000, cashAmount: 2000, upiAmount: 0, collectorId: 'ram', date: '2026-09-04' },
+      { id: 'y2', partyId: 'p2', amount: 30000, cashAmount: 30000, upiAmount: 0, collectorId: 'ram', date: '2026-09-04' },
+    ],
+    daily: [
+      { id: 'd1', type: 'road', amount: 1000, cashAmount: 1000, upiAmount: 0, collectorId: 'ram', date: '2026-09-04' },
+      { id: 'd2', type: 'road', amount: 4000, cashAmount: 4000, upiAmount: 0, collectorId: 'ram', date: '2026-09-04', sector: 'program' },
+    ],
+    expenses: [
+      { id: 'e1', subject: 'প্যান্ডেল', amount: 500, cashAmount: 500, upiAmount: 0, spentBy: 'ram', date: '2026-09-04' },
+      { id: 'e2', subject: 'শিল্পী', amount: 40000, cashAmount: 40000, upiAmount: 0, spentBy: 'ram', date: '2026-09-04', sector: 'program' },
+    ],
+    handovers: [], voids: [], corrections: [],
+  };
+
+  eq(A.SECTORS, ['puja', 'program'], 'A148: two ভাঁড়ার');
+  eq(A.sectorOf({}), 'puja',
+     'A148: a row with no sector is puja money — which is every row written before today');
+  eq(A.sectorOf({ sector: 'nonsense' }), 'puja', 'A148: …and so is a row with a sector nobody knows');
+
+  const sp = A.sectorSplit(book);
+  eq(sp.puja, { collected: 3000, expense: 500, balance: 2500 }, 'A148: the puja fund');
+  eq(sp.program, { collected: 34000, expense: 40000, balance: -6000 },
+     'A148: …and the programme, which is ₹6,000 in deficit');
+
+  // THE pin. If these ever drift, one screen is lying about the other.
+  const tt = A.computeTotals(book);
+  eq(sp.puja.collected + sp.program.collected, tt.totalCollection,
+     'A148: the two funds add up to মোট আদায়, exactly');
+  eq(sp.puja.expense + sp.program.expense, tt.totalExpense,
+     'A148: …and to মোট খরচ, exactly');
+  eq(A.reconcile(book).anomalies.filter(function (a2) { return a2.type === 'unbalanced'; }).length, 0,
+     'A148: …while the committee-wide invariant does not notice sectors exist');
+
+  // a sponsor's payment follows its DONOR's fund, not its own row
+  eq(A.sectorOf(book.parties[1]), 'program', 'A148: the fund lives on the donor…');
+  eq(sp.program.collected - 4000, 30000, 'A148: …and their instalment follows it');
+
+  // the overview is what the screen actually reads, so pin ITS split, not just
+  // sectorSplit's — a mutation that emptied `bySector` sailed through without this
+  const ov = A.computeReport('overview', book);
+  eq(ov.bySector, sp, 'A148: the overview carries the real split, not a placeholder');
+  eq(ov.bySector.puja.collected + ov.bySector.program.collected, ov.totalCollection,
+     'A148: …and its two columns reach the total printed above them');
+
+  const pr = A.computeReport('program', book);
+  eq(pr.collected, 34000, 'A148: the programme report counts only programme money');
+  eq(pr.expense, 40000, 'A148: …and only programme spending');
+  eq(pr.fromPuja, 6000, 'A148: …and names what the puja fund is carrying');
+  eq(pr.income.map(function (r) { return r.key; }), ['sponsor', 'road'],
+     'A148: …with income broken down by where it came from, biggest first');
+  eq(pr.spend[0].key, 'শিল্পী', 'A148: …and spending by subject');
+  eq(A.REPORT_IDS.indexOf('program') >= 0, true, 'A148: it is a real report id…');
+  eq(A.POSITION_PERM_KEYS.indexOf('program') >= 0, true,
+     'A148: …so the committee can hand the programme accounts to whoever runs it, via a post');
+
+  // the six hand-written copies, now one
+  const agg = require('fs').readFileSync(__dirname + '/../js/aggregate.js', 'utf8');
+  eq((agg.match(/\{ shop: \{ pledged: 0/g) || []).length, 0,
+     'A148: computeTotals no longer types out the donor kinds…');
+  eq((agg.match(/road: 0, toto: 0, bus: 0/g) || []).length, 0,
+     'A148: …nor the daily kinds, in either place');
+  eq(A.PARTY_KINDS.indexOf('gupt') >= 0 && A.DAILY_KINDS.indexOf('bus') >= 0, true,
+     'A148: …they read PARTY_KINDS / DAILY_KINDS, so a new kind reaches every screen at once');
+}
+
+// ---- A148: the halves that must not drift ----------------------------------
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  const cols = function (store) {
+    const i = gs.indexOf('  ' + store + ':');
+    return gs.slice(i, gs.indexOf('],', i)).replace(/\/\/[^\n]*/g, '').match(/'([a-zA-Z]+)'/g).map(function (q) { return q.slice(1, -1); });
+  };
+  ['parties', 'daily', 'expenses'].forEach(function (st) {
+    eq(cols(st).indexOf('sector') >= 0, true, 'A148: ' + st + ' carries a real sector column');
+  });
+  eq(/program_on: 1 \}/.test(gs), true,
+     'A148: setConfig accepts program_on — without it the admin toggle would answer ok and do nothing');
+  eq(/var REPORT_IDS = \[[^\]]*'program'\]/.test(gs), true, 'A148 mirror: the server knows the report too');
+  // OFF by default: no programme, no question on any entry screen
+  eq(/showIf: function \(\) \{ return programOn\(\); \}/.test(app), true,
+     'A148: the fund question only appears once the programme is switched on');
+  eq((app.match(/showIf: function \(\) \{ return programOn\(\); \}/g) || []).length, 3,
+     'A148: …on all three entry flows — donor, daily and expense');
+  eq(/if \(String\(\(centralConfig \|\| \{\}\)\.program_on \|\| ''\) === 'on'\) return true;\s*\n\s*return programSeen;/.test(app), true,
+     'A148: …and switching it off can never hide money that already exists');
 }
 
 try {

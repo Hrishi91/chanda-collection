@@ -442,6 +442,13 @@
         setCentral(resp.data || null); // full snapshot (first pull / cache miss)
         changed = true;
       }
+      // A148: has the programme fund ever been used? Kept as module state so a
+      // cleared `program_on` can never hide money that exists.
+      const anyProg = function (rows) {
+        return (rows || []).some(function (r) { return r && String(r.sector || '') === 'program'; });
+      };
+      if (centralData && (anyProg(centralData.parties) || anyProg(centralData.daily) ||
+                          anyProg(centralData.expenses))) programSeen = true;
       if (resp.cursor != null) centralCursor = String(resp.cursor);
       centralYear = year;
       if (resp.config) { centralConfig = resp.config; try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {} updateTrainingBar(); }
@@ -1672,6 +1679,10 @@
   function savePartyAndFirstPayment(type, a) {
     const party = DB.newRow({
       type: type, name: a.name, owner: a.owner || '', side: a.side || '',
+      // A148: the ভাঁড়ার lives on the DONOR, so their pledge and every instalment
+      // against it stay in one fund — asked per instalment, one mistap would split
+      // a single promise across two accounts.
+      sector: a.sector || 'puja',
       location: a.location || '', phone: a.phone || '', pledged: a.pledged || 0,
       // members only; blank for every other donor type. When the list holds a
       // single position the flow never asked, so fill it in here — otherwise
@@ -1731,6 +1742,14 @@
         { key: 'phone', qKey: 'q_phone', kind: 'text', optional: true,
           confirmSkipKey: 'skip_phone_confirm',
           validate: phoneErrIN, clean: cleanPhoneIN },
+        // A148: which ভাঁড়ার. Asked LAST of the identity questions and defaulted
+        // to পুজো, so the ordinary entry — which is almost every entry — is one
+        // extra tap on a chip that is already the right answer. Skipped entirely
+        // while the committee has no programme running, so nobody is asked a
+        // question with one possible answer.
+        { key: 'sector', qKey: 'q_sector', kind: 'choice',
+          options: [{ v: 'puja', labelKey: 'sector_puja' }, { v: 'program', labelKey: 'sector_program' }],
+          showIf: function () { return programOn(); } },
         // newPartyFlow is shops and persons only now — a committee member is
         // registered on its own screen (renderMemberForm), with no pledge and
         // no money, because their contributions arrive many times a season.
@@ -2108,6 +2127,9 @@
       steps: [
         { key: 'busName', qKey: 'q_bus_name', kind: 'text', showIf: function () { return type === 'bus'; } },
         { key: 'busNumber', qKey: 'q_bus_number', kind: 'text', showIf: function () { return type === 'bus'; } },
+        { key: 'sector', qKey: 'q_sector', kind: 'choice',
+          options: [{ v: 'puja', labelKey: 'sector_puja' }, { v: 'program', labelKey: 'sector_program' }],
+          showIf: function () { return programOn(); } },
       ].concat(moneySteps(false), [
         { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
       ]),
@@ -2116,6 +2138,8 @@
         if (m.total <= 0) return Promise.reject(new Error('zero'));
         const row = DB.newRow({
           type: type, busName: a.busName || '', busNumber: a.busNumber || '',
+          sector: a.sector || 'puja', // A148
+
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
           date: todayISO(), note: a.note || '',
           receiptNo: a.__receipt || '', // a corrected bus receipt keeps its number
@@ -2161,6 +2185,9 @@
       resume: { fn: 'expense', label: t('expense') },
       steps: [
         { key: 'subject', qKey: 'q_subject', kind: 'choice', options: opts },
+        { key: 'sector', qKey: 'q_sector', kind: 'choice',
+          options: [{ v: 'puja', labelKey: 'sector_puja' }, { v: 'program', labelKey: 'sector_program' }],
+          showIf: function () { return programOn(); } },
       ].concat(moneySteps(false), [
         { key: 'comment', qKey: 'q_comment_req', kind: 'text', required: true,
           showIf: function (a) { return a.subject === OTHER_SUBJECT; } },
@@ -2173,6 +2200,7 @@
         const isOther = a.subject === OTHER_SUBJECT;
         const row = DB.newRow({
           subject: isOther ? 'Other' : a.subject, desc: a.comment || '',
+          sector: a.sector || 'puja', // A148: which ভাঁড়ার paid for it
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
           srcCat: 'other', // pooled money has no honest category — see above
           spentBy: Settings.get('collectorName'),
@@ -4695,7 +4723,21 @@
       // explain it. Fifth copy of the same list in this codebase; the fix is
       // always the same one: read what the data says instead of retyping it.
       Object.keys(tt.byType || {}).filter(function (k) { return tt.byType[k].count; }).map(typeRow).join('') +
-      Object.keys(tt.dailyByType || {}).map(dailyRow).join('') + '</div>';
+      Object.keys(tt.dailyByType || {}).map(dailyRow).join('') +
+      // A148: the two ভাঁড়ার, side by side, and ONLY once the programme is in
+      // use — a committee with no programme sees the screen it always saw.
+      // The two columns add up to মোট আদায় / মোট খরচ above by construction
+      // (sectorSplit walks the same rows), and tests assert exactly that.
+      (tt.bySector && tt.bySector.program &&
+       (tt.bySector.program.collected || tt.bySector.program.expense)
+        ? '<div class="secttl">' + esc(t('by_sector')) + '</div>' +
+          ['puja', 'program'].map(function (k) {
+            const b = tt.bySector[k];
+            return '<div class="row"><div>' + esc(t('sector_' + k)) + '</div>' +
+              '<div class="row-right">' + fmtMoney(b.collected) + ' − ' + fmtMoney(b.expense) +
+              ' = <b>' + fmtMoney(b.balance) + '</b></div></div>';
+          }).join('')
+        : '') + '</div>';
   }
 
   // --- per-report renderers (server computes; client renders read-only) ---
@@ -5014,6 +5056,40 @@
           '<b>' + fmtMoney(r.amount) + '</b></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
   }
+  // A148: the অনুষ্ঠান ভাঁড়ার's own account. Income by where it came from,
+  // spending by subject, and the balance those two make — with the shortfall
+  // named plainly rather than flagged, because a programme running on the puja
+  // fund is ordinary committee life, not an anomaly.
+  function reportProgramHTML(d) {
+    const line = function (labelKey, amount, cls) {
+      return '<div class="row' + (cls ? ' ' + cls : '') + '"><div>' + esc(t(labelKey)) +
+        '</div><b>' + fmtMoney(amount) + '</b></div>';
+    };
+    const rows = function (list, labeller) {
+      return list.map(function (r) {
+        return '<div class="row"><div>' + esc(labeller(r.key)) + '</div><b>' +
+          fmtMoney(r.amount) + '</b></div>';
+      }).join('');
+    };
+    if (!d.income.length && !d.spend.length) {
+      return '<div class="card"><div class="card-title">' + esc(t('report_program')) + '</div>' +
+        '<div class="empty">' + esc(t('prog_none')) + '</div></div>';
+    }
+    return '<div class="card"><div class="card-title">' + esc(t('report_program')) + '</div>' +
+      '<div class="stat3">' +
+        '<div><span>' + esc(t('prog_income')) + '</span><b>' + fmtMoney(d.collected) + '</b></div>' +
+        '<div><span>' + esc(t('prog_spend')) + '</span><b>' + fmtMoney(d.expense) + '</b></div>' +
+        '<div class="' + (d.balance < 0 ? 'red' : 'green') + '"><span>' + esc(t('prog_balance')) +
+          '</span><b>' + fmtMoney(d.balance) + '</b></div>' +
+      '</div>' +
+      (d.fromPuja ? '<div class="strip act">' + esc(t('prog_from_puja')) + ': ' +
+        fmtMoney(d.fromPuja) + '<span class="sub">' + esc(t('prog_from_puja_note')) + '</span></div>' : '') +
+      (d.income.length ? '<div class="secttl">' + esc(t('prog_income')) + '</div>' +
+        rows(d.income, function (k) { return t(CAT_LABEL_KEYS[k] || 'cat_other'); }) : '') +
+      (d.spend.length ? '<div class="secttl">' + esc(t('prog_spend')) + '</div>' +
+        rows(d.spend, function (k) { return k === '—' ? t('cat_other') : k; }) : '') +
+      '</div>';
+  }
   function reportDailyHTML(d) {
     const rows = d.rows || [], bt = d.byType || { road: 0, toto: 0 };
     return '<div class="card"><div class="card-title">' + esc(t('report_daily')) + '</div>' +
@@ -5157,6 +5233,7 @@
     if (id === 'areas') return reportAreasHTML(d);
     if (id === 'expenses') return reportExpensesHTML(d);
     if (id === 'daily') return reportDailyHTML(d);
+    if (id === 'program') return reportProgramHTML(d);
     return '';
   }
 
@@ -6171,6 +6248,22 @@
   // The admin can switch the chat off (Config `chat_off`). The nav tab, the
   // route and the send button all read this one answer.
   function chatOn() { return String((centralConfig || {}).chat_off || '') !== 'on'; }
+  // A148: is the committee running a cultural programme this season? Config
+  // `program_on`, admin-set, OFF by default — and that default is the point.
+  //
+  // A committee with no programme must never be asked "কোন ভাঁড়ার?", because a
+  // question with one possible answer is a tap taken from every entry, twelve
+  // phones wide, for nothing. Once it is on, the question appears with পুজো
+  // already selected, so the ordinary entry is still one tap.
+  //
+  // It also stays TRUE while programme rows exist even if the flag is later
+  // cleared — otherwise turning it off would hide the fund's own money from its
+  // own report, which is how figures go missing.
+  function programOn() {
+    if (String((centralConfig || {}).program_on || '') === 'on') return true;
+    return programSeen;
+  }
+  let programSeen = false;
   // A110: the emergency freeze. Admin exempt — they are the one fixing whatever
   // caused it. Reading is untouched; this only ever answers "may I write money".
   function frozen() {
@@ -7582,6 +7675,14 @@
             esc(t('nav_messages')) + '</b><div class="row-sub" id="chat-load-line">—</div></div>' +
             '<button class="chip" id="chat-toggle">' +
               esc(chatOn() ? t('chat_stop_btn') : t('chat_restart_btn')) + '</button></div>' +
+          // A148: the অনুষ্ঠান ভাঁড়ার. OFF by default, and that default matters —
+          // while it is off nobody is asked "কোন ভাঁড়ার?" on any entry, which
+          // would be a tap taken from twelve phones for a question with one
+          // possible answer.
+          '<div class="row" style="cursor:default;flex-wrap:wrap"><div style="flex:1 1 60%"><b>🎭 ' +
+            esc(t('program_fund')) + '</b><div class="row-sub">' + esc(t('program_fund_sub')) + '</div></div>' +
+            '<button class="chip" id="program-toggle">' +
+              esc(programOn() ? t('program_on_btn') : t('program_off_btn')) + '</button></div>' +
           // A79: set once at the start of the season, read every evening.
           '<button id="target-btn" class="ghost big block">🎯 ' + esc(t('target_btn')) + ' — ' +
             esc(Number(centralConfig.target_amount) ? fmtMoney(Number(centralConfig.target_amount)) : t('target_none')) +
@@ -7715,6 +7816,19 @@
           toast(t('golive_done'));
           pullCentral({ force: true }).then(function () { navigate('home'); }); // epoch bump wipes local training data
         }).catch(function (e) { undo(); toast(errMsg(e)); });
+      };
+      const progTog = document.getElementById('program-toggle');
+      if (progTog) progTog.onclick = function () {
+        const turningOn = String((centralConfig || {}).program_on || '') !== 'on';
+        // Turning it OFF never hides money: programOn() stays true while
+        // programme rows exist, so the fund's own report keeps working.
+        const undoProg = busyBtn(progTog);
+        Auth.call('setConfig', { token: Auth.token(), config: { program_on: turningOn ? 'on' : '' } })
+          .then(function () {
+            centralConfig.program_on = turningOn ? 'on' : '';
+            toast(t('saved')); renderAdmin();
+          })
+          .catch(function (e) { undoProg(); toast(errMsg(e)); });
       };
       const chatTog = document.getElementById('chat-toggle');
       if (chatTog) chatTog.onclick = function () {

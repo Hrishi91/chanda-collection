@@ -37,7 +37,12 @@ var SHEETS = {
              // real thing. Without somewhere to record that, the line could
              // never be cleared and would sit on the 🩺 desk all season, which
              // is how a desk stops being read. Appended LAST, like every other.
-             'dupOk'],
+             'dupOk',
+             // A148: which ভাঁড়ার this money belongs to — 'puja' (or empty,
+             // which is every row written before today) or 'program'. Appended
+             // LAST per the header rule, so an older deploy's sheet keeps working
+             // and heals itself on the next write.
+             'sector'],
   payments: ['id', 'year', 'partyId', 'partyName', 'amount', 'cashAmount', 'upiAmount', 'date', 'note', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole', 'receiptNo',
              // 1 = the collector was warned this looked like a same-day repeat
              // and confirmed it is a genuine second instalment. Travels to the
@@ -51,11 +56,19 @@ var SHEETS = {
              // needs a real column or the answer dies at the push and the desk
              // asks again for ever, which is the A60 failure exactly. LAST, per
              // the append-only header rule.
-             'dupOk'],
+             'dupOk',
+             // A148: which ভাঁড়ার — 'puja' (or empty) or 'program'. Appended LAST,
+             // per the header rule, so an older deploy's sheet keeps working.
+             'sector'],
   expenses: ['id', 'year', 'subject', 'desc', 'amount', 'spentBy', 'source', 'collectionType', 'date', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole',
              // how it was paid + which pot it came out of, so the cash/UPI and
              // per-category books stay exact on the SPEND side too (appended)
-             'cashAmount', 'upiAmount', 'srcCat'],
+             'cashAmount', 'upiAmount', 'srcCat',
+             // A148: which ভাঁড়ার this money belongs to — 'puja' (or empty,
+             // which is every row written before today) or 'program'. Appended
+             // LAST per the header rule, so an older deploy's sheet keeps working
+             // and heals itself on the next write.
+             'sector'],
   handovers: ['id', 'year', 'from', 'to', 'amount', 'cashAmount', 'upiAmount', 'date', 'note',
               'status', 'confirmedBy', 'confirmedAt', 'collector', 'createdAt', 'receivedAt', 'fromId', 'toId', 'collectorId', 'collectorRole',
               // JSON {cat:{cash,upi}} of which source categories the money
@@ -121,7 +134,9 @@ var AUDIT_COLS = ['id', 'ts', 'actor', 'actorId', 'action', 'detail'];
 // fields it accepts. Still a fixed table and never a caller-supplied column
 // name: this action must not become a way to set an arbitrary cell.
 var ANOMALY_FLAGS = { payments: ['dupOk'], daily: ['dupOk'], parties: ['pledgeOk', 'dupOk'] };
-var REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
+// A148: 'program' — the অনুষ্ঠান ভাঁড়ার's own account. Listing it here also
+// makes it a grantable permission (REPORT_IDS feeds POSITION_PERM_KEYS).
+var REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily', 'program'];
 
 // ---------- a user's permissions come from TWO places ----------
 // The POST they hold (Lists kind='position') and the extras granted to them
@@ -1146,7 +1161,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.38.0';
+var CODE_VERSION = 'chanda-v4.39.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1840,7 +1855,13 @@ var ACTIONS = {
                   // A79: this season's target, in rupees. '' or 0 = no target,
                   // and the bar simply does not appear — a committee that has
                   // not agreed a number must not be shown one.
-                  target_amount: 1 };
+                  target_amount: 1,
+                  // A148: is the committee running a cultural programme this
+                  // season? '' or absent = no, and while it is off no entry
+                  // screen asks "কোন ভাঁড়ার?" at all. Missing from this list
+                  // would make the admin's toggle a button that answers ok and
+                  // does nothing — the exact failure chat_off had.
+                  program_on: 1 };
     // accept BOTH shapes: the receipt screen sends a whole {config:{…}} form,
     // the chat switch sends one {key,value}. Taking only the first made the
     // switch a no-op that still answered ok — the worst kind of failure.

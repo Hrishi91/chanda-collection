@@ -130,9 +130,12 @@
       paidByParty[p.partyId] = (paidByParty[p.partyId] || 0) + (Number(p.amount) || 0);
     });
 
-    const byType = { shop: { pledged: 0, paid: 0, count: 0 },
-                     person: { pledged: 0, paid: 0, count: 0 },
-                     member: { pledged: 0, paid: 0, count: 0 } };
+    // A148: built from PARTY_KINDS, not typed out again. This was the sixth
+    // hand-written copy of the same list in this codebase (A146/A147 found four
+    // more); every one of them was a screen that would quietly stop counting a
+    // new donor kind. One list, read by everybody.
+    const byType = {};
+    PARTY_KINDS.forEach(function (k) { byType[k] = { pledged: 0, paid: 0, count: 0 }; });
     parties.forEach(function (pt) {
       const b = byType[pt.type]; if (!b) return;
       b.count += 1;
@@ -140,7 +143,8 @@
       b.paid += paidByParty[pt.id] || 0;
     });
 
-    const dailyByType = { road: 0, toto: 0, bus: 0 };
+    const dailyByType = {};
+    DAILY_KINDS.forEach(function (k) { dailyByType[k] = 0; });
     daily.forEach(function (d) {
       if (d.type in dailyByType) dailyByType[d.type] += Number(d.amount) || 0;
     });
@@ -148,7 +152,7 @@
     const totalPayments = sum(payments, function (p) { return p.amount; });
     const totalDaily = sum(daily, function (d) { return d.amount; });
     const totalExpense = sum(expenses, function (e) { return e.amount; });
-    const totalPledged = byType.shop.pledged + byType.person.pledged + byType.member.pledged;
+    const totalPledged = Object.keys(byType).reduce(function (a, k) { return a + byType[k].pledged; }, 0);
 
     // cash/UPI split — isCashOnly is THE canonical legacy check (undefined OR
     // '' — Sheet round-trips blank cells as ''), same as personalSummary.
@@ -270,7 +274,11 @@
       else { cash += Number(r.cashAmount) || 0; upi += Number(r.upiAmount) || 0; }
     });
     const collected = money.reduce(function (a, r) { return a + (Number(r.amount) || 0); }, 0);
-    const dailyByType = { road: 0, toto: 0, bus: 0 };
+    // A148: the SEVENTH copy of this list, found by the pin written for the
+    // other six. personalSummary's own breakdown would have gone on counting
+    // three kinds while the rest of the app counted more.
+    const dailyByType = {};
+    DAILY_KINDS.forEach(function (k) { dailyByType[k] = 0; });
     myDaily.forEach(function (r) { if (r.type in dailyByType) dailyByType[r.type] += Number(r.amount) || 0; });
     let received = 0, handedOver = 0, pending = 0;
     const isTo = function (h) { return String(h.toId || h.to || '?') === String(ident); };
@@ -377,6 +385,52 @@
   // third, so a cashier's own screen filed a ₹30,000 sponsor under
   // "চাঁদা (পুরোনো)". Found by driving the cashier's handover sheet. The A66
   // lesson, third time: two maps of the same thing WILL drift.
+  // ---- A148: the two ভাঁড়ার ------------------------------------------------
+  // The puja and the cultural programme keep separate accounts. `sector` is a
+  // FIELD on the money rows, not a second set of stores, and that choice is the
+  // whole design:
+  //
+  //   · a new field costs no schema bump (ensureCols_ appends it, exactly as
+  //     `email` was added in A133), so no phone is locked out;
+  //   · every existing invariant survives untouched, because a sector is a
+  //     PARTITION of the same rows — `in-hand === collected − spent` still holds
+  //     over the whole book. Two separate stores would have to be reconciled
+  //     against each other, and that is precisely where books break.
+  //
+  // A row with no sector is puja money, so every entry written before today is
+  // already in the right place and nothing needs migrating.
+  //
+  // Note what is NOT sectored: pockets. A handover carries notes, and notes have
+  // no sector — "how much does the programme have?" is a committee question
+  // answered from the source rows, never from anyone's pocket.
+  // A148: the two lists that six different screens had each written out by hand.
+  // A donor kind lives in `parties` and carries a pledge; a daily kind lives in
+  // `daily` and does not. Every count, every breakdown and every report reads
+  // these — so a new kind reaches all of them at once, or none.
+  const PARTY_KINDS = ['shop', 'person', 'member', 'sponsor', 'gupt'];
+  const DAILY_KINDS = ['road', 'toto', 'bus'];
+  const SECTORS = ['puja', 'program'];
+  function sectorOf(row) {
+    const s = String((row && row.sector) || '');
+    return SECTORS.indexOf(s) >= 0 ? s : 'puja';
+  }
+  // A payment belongs to its DONOR's sector: the pledge and every instalment
+  // against it are one promise, so asking the sector per instalment would let
+  // one donor's money end up split between two ভাঁড়ার by a mistap.
+  function sectorSplit(data) {
+    const d = activeData(data);
+    const party = {};
+    (d.parties || []).forEach(function (p) { if (p && p.id) party[p.id] = p; });
+    const out = {};
+    SECTORS.forEach(function (s) { out[s] = { collected: 0, expense: 0, balance: 0 }; });
+    (d.payments || []).forEach(function (p) {
+      out[sectorOf(party[p.partyId])].collected += Number(p.amount) || 0;
+    });
+    (d.daily || []).forEach(function (r) { out[sectorOf(r)].collected += Number(r.amount) || 0; });
+    (d.expenses || []).forEach(function (e) { out[sectorOf(e)].expense += Number(e.amount) || 0; });
+    SECTORS.forEach(function (s) { out[s].balance = out[s].collected - out[s].expense; });
+    return out;
+  }
   function catOfPayment(partyType) {
     return ['shop', 'person', 'member', 'sponsor', 'gupt'].indexOf(String(partyType)) >= 0
       ? String(partyType) : 'payment';
@@ -1373,7 +1427,10 @@
   // report renders from the local pull snapshot (one aggregation path, no extra
   // round-trip, works offline). Shapes MUST match the server versions because
   // reportHTML() renders them unchanged.
-  const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
+  // A148: 'program' is the অনুষ্ঠান ভাঁড়ার's own report. Adding the id here gives
+  // it a grantable permission for free — REPORT_IDS feeds POSITION_PERM_KEYS —
+  // so the committee can hand the programme's accounts to whoever runs it.
+  const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily', 'program'];
 
   // ---- permissions -------------------------------------------------------
   // What an admin can grant per user, stored as a CSV in the Users sheet's
@@ -1607,18 +1664,16 @@
       // `money` (and therefore inside totalCollection), so a byType that did not
       // name it would leave one screen contradicting itself — a breakdown that
       // adds up to less than the total printed above it, with nothing to say why.
-      const byType = { shop: { count: 0, pledged: 0, paid: 0 },
-                       person: { count: 0, pledged: 0, paid: 0 },
-                       member: { count: 0, pledged: 0, paid: 0 },
-                       sponsor: { count: 0, pledged: 0, paid: 0 },
-                       gupt: { count: 0, pledged: 0, paid: 0 } };
+      const byType = {};
+      PARTY_KINDS.forEach(function (k) { byType[k] = { count: 0, pledged: 0, paid: 0 }; });
       const paidBy = {};
       (d.payments || []).forEach(function (p) { paidBy[p.partyId] = (paidBy[p.partyId] || 0) + (Number(p.amount) || 0); });
       (d.parties || []).forEach(function (p) {
         const b = byType[p.type]; if (!b) return;
         b.count++; b.pledged += Number(p.pledged) || 0; b.paid += paidBy[p.id] || 0;
       });
-      const dailyByType = { road: 0, toto: 0, bus: 0 };
+      const dailyByType = {};
+      DAILY_KINDS.forEach(function (k) { dailyByType[k] = 0; });
       (d.daily || []).forEach(function (r) { if (r.type in dailyByType) dailyByType[r.type] += Number(r.amount) || 0; });
       let cash = 0, upi = 0;
       money.forEach(function (r) { // same canonical isCashOnly as computeTotals
@@ -1633,7 +1688,12 @@
       const totalExp = sum(d.expenses, function (r) { return r.amount; });
       return { totalCollection: totalColl, totalExpense: totalExp, inHand: totalColl - totalExp,
                totalPledged: totalPledged, totalDue: totalPledged - totalPaid,
-               totalCash: cash, totalUpi: upi, byType: byType, dailyByType: dailyByType };
+               totalCash: cash, totalUpi: upi, byType: byType, dailyByType: dailyByType,
+               // A148: the same figures split by ভাঁড়ার. The two columns MUST add
+               // up to the totals beside them — asserted in tests, because a
+               // breakdown that does not reach its own total is the fault this
+               // project has now found five times.
+               bySector: sectorSplit(data) };
     }
     if (id === 'dues') {
       const paid = {};
@@ -1699,6 +1759,44 @@
                totalCash: sum(rows, function (r) { return r.cash; }),
                totalUpi: sum(rows, function (r) { return r.upi; }) };
     }
+    // A148: the অনুষ্ঠান ভাঁড়ার's own account — income by where it came from,
+    // spending by subject, and the balance those two make. Built from the SAME
+    // rows as every other report; the sector is only a filter, which is why the
+    // programme's figures can never drift from the committee's.
+    if (id === 'program') {
+      const party = {};
+      (d.parties || []).forEach(function (p) { if (p && p.id) party[p.id] = p; });
+      const mine = function (row, isPayment) {
+        return sectorOf(isPayment ? party[row.partyId] : row) === 'program';
+      };
+      const income = {};
+      (d.payments || []).filter(function (p) { return mine(p, true); }).forEach(function (p) {
+        const k = catOfPayment((party[p.partyId] || {}).type);
+        income[k] = (income[k] || 0) + (Number(p.amount) || 0);
+      });
+      (d.daily || []).filter(function (r) { return mine(r, false); }).forEach(function (r) {
+        const k = DAILY_KINDS.indexOf(String(r.type)) >= 0 ? String(r.type) : 'road';
+        income[k] = (income[k] || 0) + (Number(r.amount) || 0);
+      });
+      const spend = {};
+      (d.expenses || []).filter(function (e) { return mine(e, false); }).forEach(function (e) {
+        const k = String(e.subject || '') || '—';
+        spend[k] = (spend[k] || 0) + (Number(e.amount) || 0);
+      });
+      const rows = function (o) {
+        return Object.keys(o).map(function (k) { return { key: k, amount: o[k] }; })
+          .sort(function (a, b) { return b.amount - a.amount; });
+      };
+      const split = sectorSplit(data);
+      return { income: rows(income), spend: rows(spend),
+               collected: split.program.collected, expense: split.program.expense,
+               // negative means the programme has spent more than it raised and
+               // the puja ভাঁড়ার is carrying the difference. That is ORDINARY —
+               // it is reported, never flagged as an anomaly.
+               balance: split.program.balance,
+               fromPuja: Math.max(0, -split.program.balance),
+               puja: split.puja };
+    }
     if (id === 'daily') {
       // ROAD AND TOTO ONLY. Bus is a new entry, not a street round — it names a
       // donor and issues a receipt — so it lives in the ledger next to the
@@ -1738,6 +1836,8 @@
                 isRestrictedType: isRestrictedType, viewPermFor: viewPermFor,
                 canSeeParty: canSeeParty, visibleData: visibleData,
                 canWritePayment: canWritePayment, catOfPayment: catOfPayment,
+                SECTORS: SECTORS, sectorOf: sectorOf, sectorSplit: sectorSplit,
+                PARTY_KINDS: PARTY_KINDS, DAILY_KINDS: DAILY_KINDS,
                 SUMMARY_GROUPS: SUMMARY_GROUPS,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,

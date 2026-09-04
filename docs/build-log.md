@@ -12408,3 +12408,62 @@ shape worked out for দায়, and the open question that decides its timing
 
 The lesson is the project's own rule, missed by me: a decision that is not in
 `pending.md` did not happen.
+
+## A148 — the অনুষ্ঠান ভাঁড়ার: a field, not a second book
+
+Hrishi chose **খ** — the cultural programme keeps its own account, its own
+income and its own spending.
+
+**The whole design is one decision: `sector` is a FIELD on the money rows.**
+Not a second set of stores, and the reasons are both load-bearing:
+
+- A new field costs **no schema bump** — `ensureCols_` appends it, exactly as
+  `email` was added in A133, and the code's own comment says so ("Appended at
+  the END like every other schema change here, so a sheet written by an older
+  deploy keeps working"). Nothing locks a phone out mid-trial.
+- **Every invariant survives untouched**, because a sector is a PARTITION of the
+  same rows. `in-hand === collected − spent` still holds over the whole book.
+  Two separate stores would have to be reconciled against each other, and that
+  is exactly where books break.
+
+A row with no sector is puja money, so every entry ever written is already in
+the right place. No migration.
+
+**The fund lives on the DONOR, not the instalment.** A pledge and every payment
+against it are one promise; asking per instalment would let one mistap split a
+single donor's money across two accounts.
+
+**What is deliberately NOT sectored: pockets.** Handovers carry notes, and notes
+have no fund. "How much does the programme have?" is a committee question
+answered from the source rows — never from anyone's pocket. Sectoring the pots
+the way confidential money is sectored would have been a week's work for figures
+that are already exact.
+
+**OFF by default.** Config `program_on`, admin-set. While it is off, no entry
+screen asks "কোন ভাঁড়ার?" at all — a question with one possible answer is a tap
+taken from twelve phones for nothing. Turning it back off can never hide money:
+`programOn()` stays true while programme rows exist.
+
+New report `program` — income by source, spending by subject, and the balance.
+A deficit is **named, not flagged**: a programme running on the puja fund is
+ordinary committee life, and putting it on the 🩺 desk would teach people to
+ignore that desk. Adding the id also made it a grantable permission for free.
+
+### The list, for the seventh time
+
+The pin written for A146/A147's five copies found a **sixth** (`computeTotals`)
+and a **seventh** (`personalSummary`) — each a screen that would have gone on
+counting three donor kinds while the rest of the app counted five. They now all
+read `PARTY_KINDS` / `DAILY_KINDS`. The pin asserts the hand-written forms are
+gone, so there cannot be an eighth.
+
+Also repointed: A61's pin said `dupOk` must be `daily`'s LAST column, which was
+a proxy for the append-only header rule. `sector` is appended after it, so the
+two properties are now asserted separately — dupOk has a real column, and the
+newest column is still last.
+
+Mutations 6/6 red (spending all charged to puja; a payment reading its own
+sector instead of its donor's; an unknown sector trusted; `setConfig` dropping
+`program_on`, which would make the admin's toggle answer ok and do nothing; one
+entry flow no longer asking; the overview handing back an empty split).
+Tests **2,117 → 2,148**. Schema unchanged at 5.
