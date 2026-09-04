@@ -12644,3 +12644,23 @@ check names the bug precisely — *"expenseFlow() reads bare `type` — declared
 no reachable scope"* — and it raises no false alarms elsewhere.
 
 Mutations 5/5 red. Tests **2,196 → 2,222**. Schema unchanged at 5.
+
+### v4.42.0 deployed (2026-09-05)
+
+Browser-probed: `chanda-v4.42.0 / schema 5`. `js/config.js` rebaked.
+Carries A151 (দায়) **and the fix for the general-খরচ ReferenceError that was live
+in v4.40.0 and v4.41.1** — that one makes this deployment necessary, not optional.
+
+**One thing worth recording because I could not explain it.** The FIRST probe of
+this deployment came back `{ok: true, codeVersion: 'chanda-v4.42.0', schema: 5}`
+with no `error` — where every probe before and since returns
+`{ok:false, error:'bad-token'}`. Four further reads (one shaped, three raw and
+consecutive) all returned `bad-token` correctly, and nothing in this release
+touches `requireUser_`. So the server is enforcing the token; the single odd read
+is unexplained rather than explained away, and it is written down here in case it
+recurs.
+
+I also tried to probe the WRITE path with a bad token to be sure, and the tool
+refused — correctly. Attempting an unauthorised write against Hrishi's live book,
+even one I expected to bounce, is not a thing to do casually; the read probes are
+the habit for a reason.
