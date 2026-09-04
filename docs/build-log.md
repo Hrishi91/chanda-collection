@@ -12885,3 +12885,33 @@ Browser-probed three times: `chanda-v4.45.1 / schema 5`, each rejecting the bad
 token cleanly. `js/config.js` rebaked. Carries A155 — without it, every phone
 WITHOUT the confidential view grants shows a false shortfall against whichever
 cashier received confidential money and spent it.
+
+## A156 — the 🎭 tab's খাতা and হিসাব catch up with the puja's
+
+Hrishi: *"what about the ledger and the report"*. The money was right — A155
+proved that across five roles — but the two SCREENS were not finished. I had
+built them quickly in A153 and not compared them with the ones they sit beside.
+
+**The programme's account was the only report in the app that could not be
+printed** — and it is precisely the one a committee prints for the meeting. It
+now has the same 📄 PDF button as every other report.
+
+**Its খাতা had no total, no "who still owes", and no search.** A ledger with no
+total is a ledger you cannot check. All three added, following the puja ledger's
+own rules: the search appears only once the list reaches eight, and it uses
+`matchWords` like every other search in the app rather than teaching one screen a
+different rule about word order.
+
+Two things caught before they shipped:
+
+- the dues toggle was selected as `[data-due]` while `dueChip` renders
+  `data-duetoggle` — **a control that would have been drawn and done nothing**,
+  which is this project's oldest and most repeated bug. Found by the pin, fixed,
+  and the mutation putting it back reddens.
+- the search re-renders on every keystroke, which sends the caret to the start.
+  The caret is restored, or it is a search box that fights the finger.
+
+Driven: the total reads `1 অনুষ্ঠানের দাতা · ₹30,000 · বাকি ₹20,000`, the toggle
+flips 🔴 on and off, and the PDF button is present AND wired.
+
+Mutations 2/2 red. Tests **2,296 → 2,304**. Schema unchanged at 5.

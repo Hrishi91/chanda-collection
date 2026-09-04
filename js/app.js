@@ -2268,6 +2268,7 @@
   // Which section of the 🎭 tab is open. Module state, so moving between
   // sections and coming back lands where you left.
   let progSection = 'entry';
+  let progDueOnly = false, progQuery = '';
   // A153: the programme's money powers — spending it, promising it, moving it
   // between funds. Its own grant, separate from the puja cashier's, so running
   // the programme's purse does not hand somebody the committee's.
@@ -2773,7 +2774,16 @@
       if (!box) return; // moved on while this resolved
       if (sec === 'entry') { box.innerHTML = progEntryHTML(); wireProgEntry(); }
       else if (sec === 'list') { box.innerHTML = progListHTML(d); wireProgList(); }
-      else { box.innerHTML = reportProgramHTML(Aggregate.computeReport('program', all)); wireProgReport(); }
+      else {
+        // A156: the same 📄 PDF button every other report has. This is the one
+        // account a committee prints for the meeting; leaving it off made the
+        // programme's book the only one that could not be put on paper.
+        box.innerHTML = reportProgramHTML(Aggregate.computeReport('program', all)) +
+          '<button id="prog-pdf" class="ghost big block">📄 ' + esc(t('report_pdf_btn')) + '</button>';
+        wireProgReport();
+        const pb = document.getElementById('prog-pdf');
+        if (pb) pb.onclick = function () { printReport('program'); };
+      }
     }).catch(function () {
       const box = document.getElementById('prog-body');
       if (box) box.innerHTML = '<div class="empty">' + esc(t('needs_net')) + '</div>';
@@ -2810,14 +2820,34 @@
   }
   // the programme's own খাতা — its donors, its dues, nothing from the puja book
   function progListHTML(d) {
-    const rows = Aggregate.duesList(d.parties, d.payments, d.voids);
     const paid = {};
     (d.payments || []).forEach(function (p) { paid[p.partyId] = (paid[p.partyId] || 0) + (Number(p.amount) || 0); });
     const all = (d.parties || []).slice().sort(function (a, b) {
       return (paid[b.id] || 0) - (paid[a.id] || 0);
     });
     if (!all.length) return '<div class="empty">' + esc(t('prog_no_donors')) + '</div>';
-    return all.map(function (p) {
+    // A156: the three things the puja's খাতা has had all season and this one did
+    // not — a total, a way to see only who still owes, and a search once the
+    // list is long enough to need one. A ledger with no total is a ledger you
+    // cannot check.
+    const totalPaid = all.reduce(function (a, p) { return a + (paid[p.id] || 0); }, 0);
+    const totalDue = all.reduce(function (a, p) {
+      return a + Math.max(0, (Number(p.pledged) || 0) - (paid[p.id] || 0));
+    }, 0);
+    let shown = all;
+    if (progDueOnly) shown = shown.filter(function (p) { return (Number(p.pledged) || 0) - (paid[p.id] || 0) > EPS_UI; });
+    if (progQuery) shown = shown.filter(function (p) { return matchWords(p.name || '', progQuery); });
+    const head =
+      '<div class="row" style="cursor:default"><div><b>' + esc(t('total')) + '</b>' +
+        '<div class="row-sub">' + all.length + ' ' + esc(t('prog_donor')) + '</div></div>' +
+        '<div class="row-right"><b>' + fmtMoney(totalPaid) + '</b>' +
+        (totalDue > EPS_UI ? '<div class="row-sub red">' + esc(t('due')) + ' ' + fmtMoney(totalDue) + '</div>' : '') +
+        '</div></div>' +
+      (all.length >= 8 ? '<input id="prog-search" class="search" enterkeyhint="search" placeholder="' +
+        esc(t('search_party_ph')) + '" value="' + esc(progQuery) + '">' : '') +
+      '<div class="chips">' + dueChip(progDueOnly) + '</div>';
+    if (!shown.length) return head + '<div class="empty">' + esc(t('search_none')) + '</div>';
+    return head + shown.map(function (p) {
       const pd = paid[p.id] || 0, due = (Number(p.pledged) || 0) - pd;
       return '<div class="row" data-pid="' + esc(p.id) + '"><div><b>' + esc(p.name) + '</b>' +
         '<div class="row-sub">' + esc(t('type_' + p.type)) + '</div></div>' +
@@ -2831,6 +2861,21 @@
     document.querySelectorAll('[data-pid]').forEach(function (r) {
       r.onclick = function () { navigate('party', { id: r.dataset.pid, from: 'program' }); };
     });
+    // scoped to the tab's own body, and matching what dueChip actually renders
+    // (`data-duetoggle`) — the first pass looked for `data-due` and would have
+    // shipped a toggle that does nothing, which is this project's oldest bug
+    const due = document.querySelector('#prog-body [data-duetoggle]');
+    if (due) due.onclick = function () { progDueOnly = !progDueOnly; renderProgram(); };
+    const sb = document.getElementById('prog-search');
+    if (sb) {
+      sb.oninput = function () { progQuery = sb.value; renderProgram(); };
+      // keep the caret where the finger left it — a re-render on every keystroke
+      // otherwise sends it to the start, which is the search box that fights back
+      setTimeout(function () {
+        const el = document.getElementById('prog-search');
+        if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+      }, 0);
+    }
   }
   function wireProgReport() {
     const tb = document.getElementById('transfer-btn');

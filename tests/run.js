@@ -1121,9 +1121,11 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     // every caller goes through it; an extra matcher appearing that does NOT
     // raise this count is the N-places-guarded-for-N-minus-1 pattern starting
     // over. A130 added the fourth caller: matchBus — the bus rows were the
-    // last box still on a raw substring.
-    eq((app103.match(/matchWords\(/g) || []).length, 5,
-       'A103: …defined once and used by exactly four callers (party · admin rows · members · bus)');
+    // last box still on a raw substring. A156 added the fifth: the 🎭 tab's own
+    // খাতা, so its search behaves like every other search in the app rather than
+    // teaching one screen a different rule about word order.
+    eq((app103.match(/matchWords\(/g) || []).length, 6,
+       'A103: …defined once and used by exactly five callers (party · admin rows · members · bus · programme ledger)');
     eq(/return matchWords\(\[p\.name, p\.owner, p\.phone,/.test(app103), true,
        'A103: …the ledger and find-donor searches (name · owner · phone · area · location)');
     eq(/const hit = matchWords\(r\.dataset\.q \|\| r\.textContent, q\);/.test(app103), true,
@@ -6805,6 +6807,32 @@ try {
   const app = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
   eq(/partialBook: partialBook\(\)/.test(app), true,
      'A155: every reconcile call on a phone says whether that phone holds the whole book');
+}
+
+// ---- A156: the 🎭 tab's খাতা and হিসাব catch up with the puja's -------------
+//
+// Hrishi: "what about the ledger and the report". The money was right; the two
+// SCREENS were not finished. The programme's account was the only report in the
+// app that could not be printed — and it is the one a committee prints for the
+// meeting — and its খাতা had no total, no way to see who still owes, and no
+// search.
+{
+  const app = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/id="prog-pdf"/.test(app), true, 'A156: the programme account can be printed…');
+  eq(/if \(pb\) pb\.onclick = function \(\) \{ printReport\('program'\); \};/.test(app), true,
+     'A156: …and the button is WIRED, not just drawn');
+  eq(/const totalPaid = all\.reduce/.test(app), true, 'A156: its খাতা has a total…');
+  eq(/if \(progDueOnly\) shown = shown\.filter/.test(app), true, 'A156: …a "who still owes" filter…');
+  eq(/matchWords\(p\.name \|\| '', progQuery\)/.test(app), true,
+     'A156: …and a search that follows the same word-order rule as every other search');
+  // the toggle must match what dueChip actually renders — the first pass looked
+  // for `data-due` and would have shipped a control that does nothing
+  eq(/document\.querySelector\('#prog-body \[data-duetoggle\]'\)/.test(app), true,
+     'A156: …the dues toggle is selected by the attribute dueChip really writes');
+  eq(/data-duetoggle="1"/.test(app), true, 'A156: …which is that attribute');
+  // search that loses the caret on every keystroke is a search that fights back
+  eq(/el\.setSelectionRange\(el\.value\.length, el\.value\.length\)/.test(app), true,
+     'A156: …and the caret survives the re-render');
 }
 
 try {
