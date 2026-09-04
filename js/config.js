@@ -5,5 +5,5 @@
 // `window.CONFIG`; a top-level `const` is NOT a window property, which made
 // apiUrl() always empty → every login/register failed with "Sync URL not set".
 window.CONFIG = {
-  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxhJWVYzM1QEUWjkqBCLs2abVIGKe2z-eZR7s2h3kU2Xx4ZySU1b-4ZRLToWh0NBU33GQ/exec',
+  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz80N6h1xz7vxcr93FpoOqs8nvPEWOP8xHuHg7Mzw5b-hTcRTO1-vKnf5vkyaHaPEWuIw/exec',
 };

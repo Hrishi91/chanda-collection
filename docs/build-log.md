@@ -12709,3 +12709,24 @@ afterwards: ₹25,000 promised → ₹5,000 paid → **₹20,000 still owed**, c
 spokenFor as it should be.
 
 Mutations 5/5 red. Tests **2,222 → 2,237**. Schema unchanged at 5.
+
+### v4.43.0 deployed (2026-09-05)
+
+Browser-probed three times consecutively: `chanda-v4.43.0 / schema 5`, each
+rejecting the bad token cleanly (no repeat of the one odd read at v4.42.0).
+`js/config.js` rebaked.
+
+Carries A152 — subjects scoped to a ভাঁড়ার, and the two holes that fixed in A151
+(a দায় that could not be paid, and a step that never appeared).
+
+**Hrishi's list in the app, now four items:**
+
+1. ⚙️ → 🎭 অনুষ্ঠানের ভাঁড়ার → চালু করো
+2. grant `ticket` to whoever sells tickets
+3. add the programme's own expense subjects (শিল্পী · সাউন্ড · অতিথি · মঞ্চ …),
+   choosing 🎭 অনুষ্ঠান when adding each — existing subjects stay on both funds
+4. record each দায় **before** the booking is made, or the gap it exists to show
+   is already invisible
+
+Still unbuilt and unasked-for: nothing in the cultural-programme family. All
+three of Hrishi's original asks (sponsors, গুপ্ত দান, programme) are complete.
