@@ -6230,8 +6230,9 @@ try {
   eq(A.sectorOf({ sector: 'nonsense' }), 'puja', 'A148: …and so is a row with a sector nobody knows');
 
   const sp = A.sectorSplit(book);
-  eq(sp.puja, { collected: 3000, expense: 500, balance: 2500 }, 'A148: the puja fund');
-  eq(sp.program, { collected: 34000, expense: 40000, balance: -6000 },
+  eq(sp.puja, { collected: 3000, expense: 500, transferIn: 0, transferOut: 0, balance: 2500 },
+     'A148: the puja fund');
+  eq(sp.program, { collected: 34000, expense: 40000, transferIn: 0, transferOut: 0, balance: -6000 },
      'A148: …and the programme, which is ₹6,000 in deficit');
 
   // THE pin. If these ever drift, one screen is lying about the other.
@@ -6347,6 +6348,91 @@ try {
      'A149: no screen keeps its own copy of the daily list any more');
   eq(A.catOfDaily('ticket'), 'ticket', 'A149: …they all read catOfDaily');
   eq(A.catOfDaily('nonsense'), 'road', 'A149: …which still has the old fallback for a kind nobody knows');
+}
+
+// ---- A150: moving money between the two ভাঁড়ার -----------------------------
+//
+// The dangerous one, and the reason it is written as it is: TEN places in this
+// file total an expense list. A transfer counted as a spend would break
+// `in-hand === collected − spent` and put a false accusation on every 🩺 desk.
+// So it is split off ONCE, in activeData, and every reader is right by default.
+{
+  const A = require('../js/aggregate.js');
+  const base = {
+    parties: [], payments: [],
+    daily: [
+      { id: 'd1', type: 'road', amount: 10000, cashAmount: 10000, upiAmount: 0, collectorId: 'ram', date: '2026-09-04' },
+      { id: 'd2', type: 'ticket', amount: 2000, cashAmount: 2000, upiAmount: 0, collectorId: 'ram', date: '2026-09-04', sector: 'program' },
+    ],
+    expenses: [
+      { id: 'e1', subject: 'প্যান্ডেল', amount: 1000, cashAmount: 1000, upiAmount: 0, spentBy: 'ram', srcCat: 'road', date: '2026-09-04' },
+      { id: 'e2', subject: 'শিল্পী', amount: 6000, cashAmount: 6000, upiAmount: 0, spentBy: 'ram', srcCat: 'road', date: '2026-09-04', sector: 'program' },
+    ],
+    handovers: [], voids: [], corrections: [],
+  };
+  const withT = JSON.parse(JSON.stringify(base));
+  withT.expenses.push({ id: 'x1', source: 'transfer', sector: 'puja', transferTo: 'program',
+                        amount: 4000, cashAmount: 0, upiAmount: 0, spentBy: 'boss', date: '2026-09-04' });
+
+  eq(A.isTransfer(withT.expenses[2]), true, 'A150: a transfer row knows itself');
+  eq(A.isTransfer(base.expenses[0]), false, 'A150: …an ordinary spend does not');
+
+  // THE point: adding a transfer must change NOTHING at committee level
+  const t0 = A.computeTotals(base), t1 = A.computeTotals(withT);
+  eq(t1.totalExpense, t0.totalExpense,
+     'A150: a transfer is not a spend — মোট খরচ does not move');
+  eq(t1.totalCollection, t0.totalCollection, 'A150: …nor is it income');
+  eq(t1.inHand, t0.inHand, 'A150: …so the committee still holds exactly what it held');
+  eq(A.reconcile(withT).anomalies.filter(function (a2) { return a2.type === 'unbalanced'; }).length, 0,
+     'A150: …and `in-hand === collected − spent` still closes');
+  eq(A.activeData(withT).expenses.length, 2,
+     'A150: the ten expense readers never see it — activeData splits it off once…');
+  eq(A.activeData(withT).transfers.length, 1, 'A150: …and hands it to the one reader that wants it');
+  eq(A.personalSummary(withT, 'ram').expenseTotal, A.personalSummary(base, 'ram').expenseTotal,
+     'A150: …so it is nobody\'s spend, and no collector\'s pot pays for it');
+  eq(A.computeReport('expenses', withT).total, A.computeReport('expenses', base).total,
+     'A150: …and the খরচের হিসাব does not list it as spending');
+
+  // what it DOES change: the two funds
+  const sp = A.sectorSplit(withT);
+  eq(sp.puja.transferOut, 4000, 'A150: ₹4,000 left the puja fund…');
+  eq(sp.program.transferIn, 4000, 'A150: …and reached the programme');
+  eq(sp.puja.balance, 10000 - 1000 - 4000, 'A150: the puja fund is that much lighter');
+  eq(sp.program.balance, 2000 - 6000 + 4000, 'A150: …and the programme that much less short');
+  eq(sp.puja.collected + sp.program.collected, t1.totalCollection,
+     'A150: …while the funds still sum to মোট আদায়…');
+  eq(sp.puja.expense + sp.program.expense, t1.totalExpense, 'A150: …and to মোট খরচ…');
+  eq(sp.puja.balance + sp.program.balance, t1.inHand,
+     'A150: …and the two balances still sum to what the committee actually holds');
+
+  // a transfer that names nowhere moves nothing, rather than half-moving
+  const bad = JSON.parse(JSON.stringify(base));
+  bad.expenses.push({ id: 'x2', source: 'transfer', sector: 'puja', transferTo: '', amount: 4000, date: '2026-09-04' });
+  eq(A.sectorSplit(bad).puja.transferOut, 0, 'A150: a transfer to nowhere moves nothing…');
+  eq(A.sectorSplit(bad).program.transferIn, 0, 'A150: …on both sides, so no fund is left half-credited');
+
+  // the programme report stops asking for money it has already been given
+  eq(A.computeReport('program', withT).fromPuja, 0,
+     'A150: once the shortfall is settled the report stops saying the puja fund is carrying it');
+  eq(A.computeReport('program', withT).transferIn, 4000, 'A150: …and says what came across instead');
+}
+
+// ---- A150: the halves that must not drift ----------------------------------
+{
+  const fs = require('fs');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const cols = gs.slice(gs.indexOf('  expenses: ['), gs.indexOf('],', gs.indexOf('  expenses: [')))
+    .replace(/\/\/[^\n]*/g, '').match(/'([a-zA-Z]+)'/g).map(function (q) { return q.slice(1, -1); });
+  eq(cols.indexOf('transferTo') >= 0, true, 'A150: transferTo has a real column…');
+  eq(cols[cols.length - 1], 'transferTo', 'A150: …appended LAST, per the header rule');
+  eq(/if \(!isCashier \|\| SECTORS\.indexOf\(toS\) < 0 \|\| toS === fromS\)/.test(gs), true,
+     'A150: the server refuses a transfer from a collector, or one that names no real destination');
+  eq(/var SECTORS = \['puja', 'program'\];/.test(gs), true, 'A150 mirror: the server knows the funds');
+  eq(/const tb = document\.getElementById\('transfer-btn'\);\s*\n\s*if \(tb\) tb\.onclick/.test(app), true,
+     'A150: the button is WIRED where the report is painted — this project has shipped two dead ones');
+  eq(/source: 'transfer', sector: to === 'program' \? 'puja' : 'program', transferTo: to,/.test(app), true,
+     'A150: …and the row it writes names both ends');
 }
 
 try {

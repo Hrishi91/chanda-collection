@@ -68,7 +68,13 @@ var SHEETS = {
              // which is every row written before today) or 'program'. Appended
              // LAST per the header rule, so an older deploy's sheet keeps working
              // and heals itself on the next write.
-             'sector'],
+             'sector',
+             // A150: set only on a row whose `source` is 'transfer' — which ভাঁড়ার
+             // the money moved TO. A transfer is stored here because it needs no
+             // new store (and so no schema bump), but it is NOT a spend: the
+             // money has not left the committee, and activeData splits it off
+             // before any total sees it.
+             'transferTo'],
   handovers: ['id', 'year', 'from', 'to', 'amount', 'cashAmount', 'upiAmount', 'date', 'note',
               'status', 'confirmedBy', 'confirmedAt', 'collector', 'createdAt', 'receivedAt', 'fromId', 'toId', 'collectorId', 'collectorRole',
               // JSON {cat:{cash,upi}} of which source categories the money
@@ -835,6 +841,8 @@ function notifData_(u, d) {
 // A144: entry kinds whose rows are CONFIDENTIAL — a reader gets them only if
 // they wrote them, hold the matching *view* grant, or are admin. Mirrors
 // js/aggregate.js RESTRICTED_TYPES; the filtering itself is in pull/visible_.
+// A148: the two ভাঁড়ার. Mirrors js/aggregate.js SECTORS.
+var SECTORS = ['puja', 'program'];
 var RESTRICTED_TYPES = ['sponsor', 'gupt'];
 function viewPermFor_(type) { return String(type) + 'view'; }
 var VIEW_PERM_KEYS = RESTRICTED_TYPES.map(viewPermFor_);
@@ -1161,7 +1169,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.40.0';
+var CODE_VERSION = 'chanda-v4.41.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1381,6 +1389,19 @@ var ACTIONS = {
         // general puja expenses are cashier/admin only; a COLLECTION expense is
         // spent out of a round the person is running, so permForRow_ hands back
         // that round's key instead.
+        // A150: moving money between the two ভাঁড়ার is a committee act, not a
+        // collector's. It is already cashier-only by the rule below (its source
+        // is not 'collection'), but it is stated separately because a transfer
+        // must ALSO name a real destination fund — a row that says "transfer"
+        // and points nowhere would sit in the book moving nothing, and the
+        // sector balances would quietly not add up to what people were told.
+        if (r.store === 'expenses' && String(r.row.source) === 'transfer') {
+          var toS = String(r.row.transferTo || '');
+          var fromS = String(r.row.sector || 'puja') || 'puja';
+          if (!isCashier || SECTORS.indexOf(toS) < 0 || toS === fromS) {
+            rejectedIds.push(r.row.id); return;
+          }
+        }
         if (r.store === 'expenses' && String(r.row.source) !== 'collection' && !isCashier) {
           rejectedIds.push(r.row.id); return;
         }

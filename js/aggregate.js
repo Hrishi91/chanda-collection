@@ -103,11 +103,30 @@
     if (isNaN(d.getTime())) return s;                        // unparseable: never blank a value
     return new Date(d.getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
   }
+  // A150: a row that moves money BETWEEN the two ভাঁড়ার — the puja fund covering
+  // an অনুষ্ঠান shortfall. It is stored in `expenses` (no new store, no schema
+  // bump) but it is NOT a spend: the money has not left the committee.
+  function isTransfer(e) { return String((e && e.source) || '') === 'transfer'; }
   function activeData(data, year) {
     const v = voidedIds(data);
     const keep = function (rows) { return ofYear(rows, year).filter(function (r) { return r && !v[r.id]; }); };
+    const exp = keep(data.expenses);
+    // A150: transfers are split off HERE, at the one choke point every money
+    // aggregation already passes through, rather than filtered at each consumer.
+    // Ten places total an expense list — computeTotals, reconcile, myAvailable,
+    // cashierView, personalSummary, potDetail, mySummary's "today", the overview,
+    // the expenses report and the programme report — and a rule written ten times
+    // is a rule that will be missed. It has been missed, in this codebase, ten
+    // times over, for a list far less dangerous than this one: counting an
+    // internal transfer as a spend would break `in-hand === collected − spent`
+    // and put a false accusation on every 🩺 desk.
+    //
+    // So every existing reader is correct by DEFAULT, and only sectorSplit —
+    // which is the one place a transfer means anything — asks for them.
     return { parties: keep(data.parties), payments: keep(data.payments), daily: keep(data.daily),
-             expenses: keep(data.expenses), handovers: keep(data.handovers), voids: data.voids || [],
+             expenses: exp.filter(function (e) { return !isTransfer(e); }),
+             transfers: exp.filter(isTransfer),
+             handovers: keep(data.handovers), voids: data.voids || [],
              // messages deliberately NOT carried: activeData runs on every money
              // aggregation (inHandRows calls it once per collector), and a
              // season of chat made that 11× slower for rows that have nothing
@@ -425,13 +444,31 @@
     const party = {};
     (d.parties || []).forEach(function (p) { if (p && p.id) party[p.id] = p; });
     const out = {};
-    SECTORS.forEach(function (s) { out[s] = { collected: 0, expense: 0, balance: 0 }; });
+    SECTORS.forEach(function (s) {
+      out[s] = { collected: 0, expense: 0, transferIn: 0, transferOut: 0, balance: 0 };
+    });
     (d.payments || []).forEach(function (p) {
       out[sectorOf(party[p.partyId])].collected += Number(p.amount) || 0;
     });
     (d.daily || []).forEach(function (r) { out[sectorOf(r)].collected += Number(r.amount) || 0; });
     (d.expenses || []).forEach(function (e) { out[sectorOf(e)].expense += Number(e.amount) || 0; });
-    SECTORS.forEach(function (s) { out[s].balance = out[s].collected - out[s].expense; });
+    // A150: a transfer is its OWN line, never folded into collected or expense.
+    // That is what keeps two invariants true at once: the sectors' collected
+    // still sums to মোট আদায় and their expense to মোট খরচ (a transfer is neither),
+    // while each fund's balance accounts for the money that moved. And because
+    // every transfer adds the same amount to one fund's `in` as to another's
+    // `out`, the balances still sum to the committee's own in-hand.
+    (d.transfers || []).forEach(function (e) {
+      const amt = Number(e.amount) || 0;
+      const from = sectorOf(e);
+      const to = SECTORS.indexOf(String(e.transferTo || '')) >= 0 ? String(e.transferTo) : null;
+      if (!to || to === from) return; // a transfer to nowhere moves nothing
+      out[from].transferOut += amt;
+      out[to].transferIn += amt;
+    });
+    SECTORS.forEach(function (s) {
+      out[s].balance = out[s].collected - out[s].expense + out[s].transferIn - out[s].transferOut;
+    });
     return out;
   }
   // A149: and the same for a daily row. THREE more hand-written copies of this
@@ -1811,6 +1848,10 @@
                // the puja ভাঁড়ার is carrying the difference. That is ORDINARY —
                // it is reported, never flagged as an anomaly.
                balance: split.program.balance,
+               transferIn: split.program.transferIn,
+               // what the puja fund is still carrying AFTER whatever has already
+               // been moved across — otherwise a committee that settled the
+               // shortfall would go on being told it owes the same money twice
                fromPuja: Math.max(0, -split.program.balance),
                puja: split.puja };
     }
@@ -1856,7 +1897,7 @@
                 isRestrictedType: isRestrictedType, viewPermFor: viewPermFor,
                 canSeeParty: canSeeParty, visibleData: visibleData,
                 canWritePayment: canWritePayment, catOfPayment: catOfPayment, catOfDaily: catOfDaily,
-                SECTORS: SECTORS, sectorOf: sectorOf, sectorSplit: sectorSplit,
+                SECTORS: SECTORS, sectorOf: sectorOf, sectorSplit: sectorSplit, isTransfer: isTransfer,
                 PARTY_KINDS: PARTY_KINDS, DAILY_KINDS: DAILY_KINDS,
                 SUMMARY_GROUPS: SUMMARY_GROUPS,
                 cashierView: cashierView, handoverReport: handoverReport,

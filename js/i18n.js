@@ -24,6 +24,12 @@ const I18N = {
                          en: 'The programme has spent more than it raised — ordinary enough, but worth knowing.' },
   prog_none: { bn: 'অনুষ্ঠানের খাতে এখনো কিছু নেই', en: 'Nothing in the programme fund yet' },
   by_sector: { bn: 'ভাঁড়ার অনুযায়ী', en: 'By fund' },
+  // A150: money moved BETWEEN the two ভাঁড়ার — not a spend, so it never touches
+  // মোট খরচ or anybody's hand.
+  transfer_title: { bn: 'ভাঁড়ার থেকে ভাঁড়ারে দাও', en: 'Move between funds' },
+  q_transfer_to: { bn: 'কোন ভাঁড়ারে দিচ্ছ?', en: 'Into which fund?' },
+  q_transfer_amount: { bn: 'কত টাকা?', en: 'How much?' },
+  prog_transfer_in: { bn: '🔁 পুজোর ভাঁড়ার থেকে পাওয়া', en: '🔁 Moved in from the puja fund' },
   program_fund: { bn: 'অনুষ্ঠানের ভাঁড়ার', en: 'Programme fund' },
   program_fund_sub: { bn: 'এবার সাংস্কৃতিক অনুষ্ঠান হলে চালু করো — তবেই entry-তে "কোন ভাঁড়ার?" জিজ্ঞেস করা হবে',
                       en: 'Turn on if there is a cultural programme this year — only then does entry ask which fund' },

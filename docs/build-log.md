@@ -12497,3 +12497,51 @@ Mutations 4/4 red (catOfDaily forgetting ticket; the ticket row not stamped
 programme; the band removed, which made the summary stop reaching its own hero;
 the street-rounds report counting tickets).
 Tests **2,148 → 2,169**. Schema unchanged at 5.
+
+## A150 — moving money between the two ভাঁড়ার
+
+Hrishi asked for the loan to be a real entry, not just a reported difference. I
+had recommended against it and said why; he chose it, so here it is — built the
+way that makes the objection stop mattering.
+
+**The objection, restated:** TEN places in `aggregate.js` total an expense list
+(computeTotals, reconcile, myAvailable, cashierView, personalSummary, potDetail,
+mySummary's "today", the overview, the expenses report, the programme report). A
+transfer counted as a spend breaks `in-hand === collected − spent` and puts a
+false accusation on every 🩺 desk. A rule written ten times is a rule that gets
+missed — this codebase has now missed the same list ten times over, for
+something far less dangerous.
+
+**So it is not written ten times.** `activeData` — the one choke point every
+money aggregation already passes through, and where voided rows are already
+dropped — splits transfers off into their own key. Every existing reader is
+correct **by default**, and only `sectorSplit`, the one place a transfer means
+anything, asks for them.
+
+**A transfer is its own line, never folded into collected or expense.** That
+keeps three things true at once:
+
+- the funds' `collected` still sums to মোট আদায়, and their `expense` to মোট খরচ
+  (a transfer is neither);
+- each fund's balance accounts for what moved;
+- and since every transfer adds the same amount to one fund's `in` as to
+  another's `out`, the two balances still sum to what the committee holds.
+
+All three are pinned.
+
+Stored in `expenses` with `source: 'transfer'` — no new store, so **no schema
+bump**. `transferTo` names the destination; a transfer that names nowhere moves
+nothing **on both sides**, rather than half-crediting a fund. Cashier/admin only,
+enforced on the server, which also refuses a row whose destination is not a real
+fund.
+
+The programme report shows what came across and stops asking for a shortfall
+already settled — otherwise a committee that had paid would be told it still
+owed the same money.
+
+Mutations 5/5 red. One of them CRASHED the suite instead of failing it (removing
+the destination guard made `out[null]` throw) — that is not a test, the same
+A79 lesson as A145, so it was re-run as valid-but-wrong: guessing a destination
+instead of ignoring the row.
+
+Tests **2,169 → 2,196**. Schema unchanged at 5.

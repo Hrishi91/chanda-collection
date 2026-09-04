@@ -2218,6 +2218,40 @@
       },
     };
   }
+  // A150: move money between the two ভাঁড়ার — the puja fund covering an
+  // অনুষ্ঠান shortfall. Cashier/admin only, and the server checks the same.
+  //
+  // It is written as an `expenses` row with source 'transfer', which needs no
+  // new store and so no schema bump — but Aggregate.activeData splits those rows
+  // off before any total sees them, so it never counts as a spend. The money has
+  // not left the committee; it has only changed pocket on paper.
+  function transferFlow() {
+    return {
+      title: t('transfer_title'),
+      steps: [
+        { key: 'to', qKey: 'q_transfer_to', kind: 'choice',
+          options: [{ v: 'program', labelKey: 'sector_program' }, { v: 'puja', labelKey: 'sector_puja' }] },
+        { key: 'amount', qKey: 'q_transfer_amount', kind: 'amount' },
+        { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
+      ],
+      save: function (a) {
+        const amt = Number(a.amount) || 0;
+        if (amt <= 0) return Promise.reject(new Error('zero'));
+        const to = a.to === 'program' ? 'program' : 'puja';
+        const row = DB.newRow({
+          source: 'transfer', sector: to === 'program' ? 'puja' : 'program', transferTo: to,
+          subject: '', desc: a.note || '', date: todayISO(),
+          amount: amt, cashAmount: 0, upiAmount: 0,
+          srcCat: '', collectionType: '', spentBy: Settings.get('collectorName'),
+        });
+        return DB.put('expenses', row).then(function () {
+          return { undo: [{ store: 'expenses', id: row.id }], after: { buttons: [
+            { label: t('done_for_now'), action: function () { navigate('report'); } },
+          ] } };
+        });
+      },
+    };
+  }
   function startExpense(edit) {
     // no myAvailable() here any more — the flow stopped asking which pot the
     // money came from, so there is nothing to compute before opening it
@@ -5086,8 +5120,12 @@
         '<div class="' + (d.balance < 0 ? 'red' : 'green') + '"><span>' + esc(t('prog_balance')) +
           '</span><b>' + fmtMoney(d.balance) + '</b></div>' +
       '</div>' +
+      (d.transferIn ? '<div class="row"><div>' + esc(t('prog_transfer_in')) + '</div><b>' +
+        fmtMoney(d.transferIn) + '</b></div>' : '') +
       (d.fromPuja ? '<div class="strip act">' + esc(t('prog_from_puja')) + ': ' +
         fmtMoney(d.fromPuja) + '<span class="sub">' + esc(t('prog_from_puja_note')) + '</span></div>' : '') +
+      (Auth.isCashier() && !frozen() ? '<button id="transfer-btn" class="ghost big block">🔁 ' +
+        esc(t('transfer_title')) + '</button>' : '') +
       (d.income.length ? '<div class="secttl">' + esc(t('prog_income')) + '</div>' +
         rows(d.income, function (k) { return t(CAT_LABEL_KEYS[k] || 'cat_other'); }) : '') +
       (d.spend.length ? '<div class="secttl">' + esc(t('prog_spend')) + '</div>' +
@@ -5854,6 +5892,11 @@
         body.innerHTML = reportHTML(id, Aggregate.computeReport(id, data)) +
           '<button id="report-pdf" class="ghost big block">📄 ' + esc(t('report_pdf_btn')) + '</button>';
         document.getElementById('report-pdf').onclick = function () { printReport(id); };
+        // A150: the transfer button only exists on the programme report, and
+        // only for a cashier — wired here, where the report body is painted, so
+        // a drawn-but-dead button (this project has shipped two) is impossible.
+        const tb = document.getElementById('transfer-btn');
+        if (tb) tb.onclick = function () { startFlow(transferFlow()); };
       }
       catch (e) { body.innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>'; }
     });
