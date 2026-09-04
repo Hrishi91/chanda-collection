@@ -12159,3 +12159,13 @@ from `AVAIL_CATS` → money still "in hand" after being handed over; server
 filter removed; payment hole reopened; cursor read after the filter; curtain
 covering removed; regrant full-pull removed; curtain painted only at load).
 Tests **2,002 → 2,049**.
+
+### v4.35.0 deployed (2026-09-04)
+
+Browser-probed: `chanda-v4.35.0 / schema 5`, first try. `js/config.js` rebaked.
+A144 (স্পনসর + the confidential-entry machinery) reaches the phones.
+
+**Before the first sponsor is entered, admin must grant by name:** `sponsor`
+to whoever negotiates them, and `sponsorview` to the কোষাধ্যক্ষ — without the
+second, sponsor money cannot be handed over at all. Neither can ride a
+committee post, by design.
