@@ -6299,22 +6299,37 @@ try {
      'A148: setConfig accepts program_on — without it the admin toggle would answer ok and do nothing');
   eq(/var REPORT_IDS = \[[^\]]*'program'\]/.test(gs), true, 'A148 mirror: the server knows the report too');
   // OFF by default: no programme, no question on any entry screen
-  eq(/showIf: function \(\) \{ return programOn\(\); \}/.test(app), true,
-     'A148: the fund question only appears once the programme is switched on');
+  // A153 removed the question entirely, so what programOn() now gates is the
+  // TAB — which is the same property one level up: a committee with no programme
+  // is never shown any of this.
+  eq(/if \(k === 'program'\) b\.hidden = !programTabOn\(\);/.test(app), true,
+     'A148/A153: the 🎭 tab appears only once the programme is switched on…');
+  eq(/return programOn\(\) && \(Auth\.isAdmin\(\) \|\| canEntry\('progteam'\)/.test(app), true,
+     'A153: …and only for somebody who is on it');
+  // 'progteam', NOT 'program' — that word is already a REPORT id, and the three
+  // key spaces are asserted disjoint because one flat list is split by membership
+  eq(require('../js/aggregate.js').PROGRAM_KEYS, ['progteam', 'progdonor', 'progmoney'],
+     'A153: the master and its two sub-permissions, arranged as a set');
+  eq(REPORT_IDS.indexOf('progteam'), -1, 'A153: …and the master does not collide with the report id');
   // three flows ask it; the daily one also refuses to ask for a টিকিট, which is
   // programme money by definition (A149) — so two plain and one qualified
-  // donor, expense, and (A151) the দায় flow — a commitment belongs to a fund too
-  eq((app.match(/showIf: function \(\) \{ return programOn\(\); \}/g) || []).length, 3,
-     'A148/A151: the donor, expense and দায় flows ask which fund…');
-  // Named to the FLOW, not just counted. The first pass put this qualification
-  // on the donor flow — where `type` can never be 'ticket' — so the count was
-  // right, the pin was green, and the ticket screen still asked. Found by
-  // driving it. The pin now demands it sit after the bus-number step, which
-  // only the daily flow has.
-  eq(/q_bus_number[\s\S]{0,700}?showIf: function \(\) \{ return programOn\(\) && type !== 'ticket'; \}/.test(app), true,
-     'A148/A149: …and it is the DAILY flow that skips it for a টিকিট, which has only one honest answer');
-  eq(/sector: type === 'ticket' \? 'program' : \(a\.sector \|\| 'puja'\)/.test(app), true,
-     'A149: …and a টিকিট row is stamped programme money whatever anyone picked');
+  // A153: the question is GONE. Hrishi's call, and the right one — asking "কোন
+  // ভাঁড়ার?" on every entry put a decision on twelve collectors that was never
+  // theirs, and every asking was a chance to answer wrongly. The fund now comes
+  // from the TAB the flow was started in, which cannot be answered wrongly at all.
+  eq(/showIf: function \(\) \{ return programOn\(\); \}/.test(app), false,
+     'A153: no entry flow asks which ভাঁড়ার any more…');
+  eq(/function newPartyFlow\(type, presets, sector\) \{/.test(app), true,
+     'A153: …the donor flow takes it as an argument…');
+  eq(/function dailyFlow\(type, sector\) \{/.test(app), true, 'A153: …so does the daily flow…');
+  eq(/function expenseFlow\(subjects, duties, sector\) \{/.test(app), true, 'A153: …and the expense flow…');
+  eq(/function dutyFlow\(sector\) \{/.test(app), true, 'A153: …and the দায় flow');
+  // it must ride the RESUME record too, or a draft picked up tomorrow loses its
+  // book — a mode flag read at save time would have had exactly that hole
+  eq(/resume: \{ fn: 'newParty', type: type, presets: presets \|\| \{\}, sector: sector \|\| 'puja'/.test(app), true,
+     'A153: …and it survives a resumed draft, because it rides the resume record');
+  eq(/resume: \{ fn: 'daily', type: type, sector: sector \|\| 'puja'/.test(app), true,
+     'A153: …on both flows that can be resumed');
   eq(/if \(String\(\(centralConfig \|\| \{\}\)\.program_on \|\| ''\) === 'on'\) return true;\s*\n\s*return programSeen;/.test(app), true,
      'A148: …and switching it off can never hide money that already exists');
 }
@@ -6350,8 +6365,13 @@ try {
      'A149: …and its own band, because "রোড / টোটো কালেকশন" would be a lie on it');
   eq(sum.groups.reduce(function (a, g) { return a + g.total; }, 0), sum.hero.total,
      'A149: …with the bands still summing to the hero exactly');
-  eq(A.homeTiles({ role: 'user', entries: 'ticket' }, {}).daily, ['ticket'],
-     'A149: the tile appears for whoever is granted it — the grant is its switch');
+  // A153 moved this tile OFF the home screen into the 🎭 tab, where everything
+  // about the programme now lives — the home copy would have written puja money.
+  eq(A.homeTiles({ role: 'user', entries: 'ticket' }, {}).daily, [],
+     'A153: টিকিট is no longer a home-screen tile…');
+  eq(/if \(canEntry\('ticket'\)\) h \+= tile\('ticket', '🎟️', 'daily_ticket'\);/
+     .test(require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8')), true,
+     'A153: …it lives in the tab, still gated by the same grant');
 
   // three MORE copies of the daily list turned up here — the eighth, ninth and
   // tenth — each sweeping an unknown kind into the রোড pot, so টিকিট money would
@@ -6565,7 +6585,7 @@ try {
   const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
   const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
 
-  eq(/function expenseFlow\(subjects, duties\) \{/.test(app), true,
+  eq(/function expenseFlow\(subjects, duties, sector\) \{/.test(app), true,
      'A152: the expense flow RECEIVES the open promises…');
   eq(/commitmentId: a\.commitmentId \|\| '', \/\/ A152: an instalment against a দায়/.test(app), true,
      'A152: …and writes the one it was told, so a দায় can actually be paid down');
@@ -6584,16 +6604,15 @@ try {
     eq(/viewData\(\)\.then\(function \(d\) \{ expenseDuties/.test(se), false,
        'A152: …not fired off alongside it, which is what made the step never appear');
   }
-  // the flow must reach the money steps AFTER the fund, or the subject list
-  // cannot be narrowed — the A146 lesson, one screen over
-  eq(/steps: \[\s*\n\s*\{ key: 'sector'[\s\S]{0,400}?\{ key: 'subject'/.test(app), true,
-     'A152: the ভাঁড়ার is asked BEFORE the subject, which is what makes narrowing possible');
-  eq(/optionsFn: function \(a\) \{ return forSector\(a\.sector\); \}/.test(app), true,
-     'A152: …and the subject list is read when the step is reached, from that answer');
+  // A153 replaced A152's ordering fix with something better: the fund is not
+  // asked at all, so the subject list is narrowed by a FACT rather than by an
+  // answer. The narrowing itself is what mattered and it survives.
+  eq(/options: forSector\(sector\) \}/.test(app), true,
+     'A152/A153: the subject list is narrowed by the tab\'s fund, not by an answer');
   eq(/return !xs \|\| xs === \(sec \|\| 'puja'\);/.test(app), true,
      'A152: a subject with no ভাঁড়ার belongs to BOTH — so nothing that exists today disappears');
   // a দায় is only offered against the fund being spent from
-  eq(/showIf: function \(a\) \{\s*\n\s*return openDuties\.some\(function \(d\) \{ return d\.sector === \(a\.sector \|\| 'puja'\); \}\);/.test(app), true,
+  eq(/return openDuties\.some\(function \(d\) \{ return d\.sector === \(sector \|\| 'puja'\); \}\);/.test(app), true,
      'A152: …and only promises of THAT fund are offered, never another fund\'s');
 
   eq(/es\.appendRow\(\['id', 'name', 'createdAt', 'sector'\]\)/.test(gs), true,
@@ -6604,6 +6623,82 @@ try {
      'A152: …listSubjects returns it');
   eq(/var sec = SECTORS\.indexOf\(String\(b\.sector \|\| ''\)\) >= 0 \? String\(b\.sector\) : '';/.test(gs), true,
      'A152: …and addSubject only accepts a fund that exists');
+}
+
+// ---- A153: the অনুষ্ঠান has its own tab ------------------------------------
+//
+// Hrishi: "make totally different tab for the program / dont use the sector in
+// entry / user will be totally with burden on this". He was right, and the
+// reasoning was already mine — A149 says a টিকিট is never asked which fund
+// because it has only one honest answer. That is true of EVERY entry started
+// from the programme's own tab. I applied it to one entry type and missed that
+// it generalises.
+{
+  const A = require('../js/aggregate.js');
+  const book = {
+    parties: [
+      { id: 'a', type: 'shop', name: 'পাল', pledged: 5000 },
+      { id: 'b', type: 'sponsor', name: 'Bose', pledged: 50000, sector: 'program' },
+    ],
+    payments: [
+      { id: 'p1', partyId: 'a', amount: 2000, collectorId: 'ram', date: '2026-09-05' },
+      { id: 'p2', partyId: 'b', amount: 30000, collectorId: 'ram', date: '2026-09-05' },
+    ],
+    daily: [
+      { id: 'd1', type: 'road', amount: 1000, collectorId: 'ram', date: '2026-09-05' },
+      { id: 'd2', type: 'ticket', amount: 9000, collectorId: 'ram', date: '2026-09-05', sector: 'program' },
+    ],
+    expenses: [
+      { id: 'e1', subject: 'প্যান্ডেল', amount: 500, spentBy: 'ram', date: '2026-09-05' },
+      { id: 'e2', subject: 'শিল্পী', amount: 6000, spentBy: 'ram', date: '2026-09-05', sector: 'program' },
+    ],
+    handovers: [], voids: [], corrections: [],
+  };
+  const puja = A.ofSector(book, 'puja'), prog = A.ofSector(book, 'program');
+
+  eq(puja.parties.map(function (p) { return p.id; }), ['a'], 'A153: the puja book holds only puja donors');
+  eq(prog.parties.map(function (p) { return p.id; }), ['b'], 'A153: …the programme book only its own');
+  eq(puja.payments.map(function (p) { return p.id; }), ['p1'],
+     'A153: …a payment follows its DONOR into the right book');
+  eq(prog.daily.map(function (r) { return r.id; }), ['d2'], 'A153: …টিকিট is programme money');
+  eq(puja.expenses.map(function (e) { return e.id; }), ['e1'], 'A153: …and spending splits too');
+
+  // THE property: the two books together are the whole book, exactly
+  const wp = A.computeTotals(puja), wg = A.computeTotals(prog), all = A.computeTotals(book);
+  eq(wp.totalCollection + wg.totalCollection, all.totalCollection,
+     'A153: the two books add up to the committee\'s own total…');
+  eq(wp.totalExpense + wg.totalExpense, all.totalExpense, 'A153: …and to its spending');
+  eq(wp.inHand + wg.inHand, all.inHand, 'A153: …so nothing is lost or counted twice in the split');
+
+  // every classic report becomes per-book for free, through the same filter
+  eq(A.computeReport('overview', prog).totalCollection, 39000,
+     'A153: the programme\'s overview counts only its own money');
+  eq(A.computeReport('dues', prog).rows.map(function (r) { return r.name; }), ['Bose'],
+     'A153: …and its dues list only its own donors');
+  eq(A.computeReport('areas', puja).rows.length, 1,
+     'A153: …while the এলাকা report stays a puja thing');
+
+  // pockets are NOT split — a note has no book
+  eq(A.inHandRows(book).length, A.inHandRows(puja).length + 0,
+     'A153: (in-hand is read from the WHOLE book — a note in a pocket has no ভাঁড়ার)');
+
+  const fs = require('fs');
+  const html = fs.readFileSync(__dirname + '/../index.html', 'utf8');
+  eq(/<button data-nav="program" hidden>/.test(html), true, 'A153: the tab exists in the shell…');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/current\.view === 'program'\) \{ programTabOn\(\) \? renderProgram\(\) : renderHome\(\); \}/.test(app), true,
+     'A153: …and a route that refuses to open it for somebody not on the programme');
+  // …and switching the programme on has to REDRAW the nav. State decided at one
+  // moment and painted at another, with nothing connecting them, is the A144
+  // curtain bug — found again here by driving: the tab existed and was never
+  // drawn until the person happened to navigate.
+  eq(/if \(String\(centralConfig\.program_on \|\| ''\) !== wasProg\) changed = true;/.test(app), true,
+     'A153: …and turning the programme on repaints the nav, instead of waiting for a navigation');
+  // everything the tab starts is programme money, named at the call site
+  ['dailyFlow\\(\'ticket\', \'program\'\\)', 'newPartyFlow\\(g, \{\}, \'program\'\\)',
+   'startExpense\\(null, \'program\'\\)', 'dutyFlow\\(\'program\'\\)'].forEach(function (rx) {
+    eq(new RegExp(rx).test(app), true, 'A153: the tab starts ' + rx.split('\\(')[0] + ' as programme money');
+  });
 }
 
 try {

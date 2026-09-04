@@ -868,7 +868,10 @@ var ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor',
 // 'sponsorview' (A144) reads SOMEBODY ELSE's স্পনসর rows, and is what lets a
 // cashier RECEIVE that money. Not an entry kind — it grants no right to write
 // one — but it rides the same field so granting stays one screen.
-var PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin']).concat(VIEW_PERM_KEYS);
+// A153: the 🎭 tab's master + sub-permissions. Mirrors js/aggregate.js.
+var PROGRAM_KEYS = ['progteam', 'progdonor', 'progmoney'];
+var PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin'])
+  .concat(VIEW_PERM_KEYS).concat(PROGRAM_KEYS);
 
 // ---------- what a committee POST may carry ----------
 // A position (সভাপতি / সম্পাদক / কোষাধ্যক্ষ / সদস্য) holds a permission set, so
@@ -1181,7 +1184,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.43.0';
+var CODE_VERSION = 'chanda-v4.44.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually

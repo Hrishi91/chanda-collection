@@ -50,6 +50,10 @@
   <button data-nav="list">📒<span>খাতা</span></button>
   <button data-nav="report">📊<span>রিপোর্ট</span></button>
   <button data-nav="messages">💬<span>বার্তা</span><i class="nav-dot" id="msg-dot" hidden></i></button>
+  <!-- A153: the অনুষ্ঠান gets its own tab, holding everything about it. Hidden
+       unless the committee is running one AND this person is on it — see
+       programTabOn(). Its label comes from t('nav_program'). -->
+  <button data-nav="program" hidden>🎭<span>অনুষ্ঠান</span></button>
   <button data-nav="settings">⚙️<span>সেটিংস</span></button>
 </nav>
 <script src="js/config.js"></script>

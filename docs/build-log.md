@@ -12730,3 +12730,59 @@ Carries A152 — subjects scoped to a ভাঁড়ার, and the two holes t
 
 Still unbuilt and unasked-for: nothing in the cultural-programme family. All
 three of Hrishi's original asks (sponsors, গুপ্ত দান, programme) are complete.
+
+## A153 — the অনুষ্ঠান gets its own tab, and the fund question disappears
+
+Hrishi: *"you are not listening / make totally diffrent tab for the program /
+dont use the sector in entry / user will be totally with burden on this"*.
+
+He was right, and the reasoning was already **mine**. A149 says a টিকিট is never
+asked which fund because it has only one honest answer. That is true of every
+entry started from the programme's own tab. I applied the rule to one entry kind
+and missed that it generalises — then wrote in the A148 log that the question was
+"one extra tap", as if that were cheap. Twelve phones, every entry, all season,
+and each asking a chance to answer wrongly about a distinction that was never the
+collector's to think about.
+
+**So the question is gone.** Not reordered (A152), not defaulted — gone. The fund
+comes from the TAB the flow was started in, and it rides the factory signature
+the way `type` does, so it also survives a resumed draft; a mode flag read at save
+time would have lost it.
+
+**One filter did most of the work.** `ofSector(data, sector)` gives one book's
+rows, the same shape as `visibleData`, so every classic report becomes per-book
+without a code path per book. Asserted: the two books' totals add up to the
+committee's own, exactly. **Not** split, deliberately: who is holding cash. A note
+in a pocket has no ভাঁড়ার (A148's rule), so in-hand and "কে কত তুলল" stay whole.
+
+**Permissions arranged as a set**, his fourth point: `progteam` is the master —
+without it the tab does not exist — and `progdonor` / `progmoney` are what you may
+do inside it. `progmoney` is separate from the puja cashier's power on purpose:
+running the programme's purse should not hand somebody the committee's.
+
+### Three things found by driving
+
+1. **The keys I invented were not in `PERM_KEYS`**, so `setEntries` silently
+   dropped them and no admin could ever have granted them. Drawn but not wired.
+2. **`program` collided with the report id of the same name** — the codebase
+   asserts the three key spaces stay disjoint, because one flat list is split by
+   membership. Renamed to `progteam`.
+3. **Switching the programme on did not repaint the nav.** The tab existed and
+   was never drawn until the person happened to navigate — state decided at one
+   moment, painted at another, with nothing connecting them. Exactly the A144
+   curtain bug, found the same way.
+
+টিকিট also moved OFF the home screen into the tab; leaving it in both places
+would have been the same entry twice, and the home copy would have written puja
+money.
+
+Driven end to end: 🎭 tab appears for a granted collector and not otherwise;
+📥 এন্ট্রি / 📒 খাতা / 📊 হিসাব all scoped to the programme; the খাতা shows only
+the programme's donors with the hint pointing at the other book; and a টিকিট
+started in the tab was **never asked which fund** and saved as `sector: program`.
+
+*(The donor flow's save opens a `confirm` this automated pane cannot answer, so
+the fund path was proved through the ticket flow, which has no dialog. Same
+mechanism, and the call site is pinned.)*
+
+Mutations 5/5 red. Tests **2,237 → 2,275**. Schema unchanged at 5.

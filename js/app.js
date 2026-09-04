@@ -451,7 +451,19 @@
                           anyProg(centralData.expenses))) programSeen = true;
       if (resp.cursor != null) centralCursor = String(resp.cursor);
       centralYear = year;
-      if (resp.config) { centralConfig = resp.config; try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {} updateTrainingBar(); }
+      if (resp.config) {
+        // A153: whether the 🎭 tab exists depends on THIS value, and the nav is
+        // painted by render(). Without noticing the change, a phone that opened
+        // before the admin switched the programme on kept a five-tab nav until
+        // the person happened to navigate — the tab was there, just never drawn.
+        // Same shape as the curtain button in A144: state decided at one moment,
+        // painted at another, and nothing connecting the two.
+        const wasProg = String((centralConfig || {}).program_on || '');
+        centralConfig = resp.config;
+        try { localStorage.setItem('ck_config', JSON.stringify(centralConfig)); } catch (e) {}
+        updateTrainingBar();
+        if (String(centralConfig.program_on || '') !== wasProg) changed = true;
+      }
       // A115: rides both full and delta pulls, so a post change reaches every
       // phone within one poll rather than at the next full snapshot
       if (resp.committee) {
@@ -1682,7 +1694,7 @@
       // A148: the ভাঁড়ার lives on the DONOR, so their pledge and every instalment
       // against it stay in one fund — asked per instalment, one mistap would split
       // a single promise across two accounts.
-      sector: a.sector || 'puja',
+      sector: sector || 'puja',
       location: a.location || '', phone: a.phone || '', pledged: a.pledged || 0,
       // members only; blank for every other donor type. When the list holds a
       // single position the flow never asked, so fill it in here — otherwise
@@ -1707,13 +1719,16 @@
   // collector working door-to-door never has to detour through home. This
   // replaced the old separate "bulk shop" mode: a single 🏪/🙍/🤝 tile now
   // behaves the same way every time.
-  function newPartyFlow(type, presets) {
+  // A153: `sector` comes from the TAB the flow was started in, never from a
+  // question. It rides in the factory signature exactly the way `type` does, so
+  // it also survives a resumed draft — a mode flag read at save time would not.
+  function newPartyFlow(type, presets, sector) {
     return {
       title: t('new_entry') + ' — ' + t('type_' + type),
       presets: presets || {},
       // A63: what it takes to rebuild this flow from storage. Set in the
       // factory, not at the fourteen call sites, so none can be forgotten.
-      resume: { fn: 'newParty', type: type, presets: presets || {}, label: t('type_' + type) },
+      resume: { fn: 'newParty', type: type, presets: presets || {}, sector: sector || 'puja', label: t('type_' + type) },
       steps: [
         { key: 'name', qKey: type === 'shop' ? 'q_shop_name' : type === 'sponsor' ? 'q_sponsor_name'
                              : type === 'gupt' ? 'q_gupt_name' : 'q_person_name', kind: 'text' },
@@ -1747,9 +1762,6 @@
         // extra tap on a chip that is already the right answer. Skipped entirely
         // while the committee has no programme running, so nobody is asked a
         // question with one possible answer.
-        { key: 'sector', qKey: 'q_sector', kind: 'choice',
-          options: [{ v: 'puja', labelKey: 'sector_puja' }, { v: 'program', labelKey: 'sector_program' }],
-          showIf: function () { return programOn(); } },
         // newPartyFlow is shops and persons only now — a committee member is
         // registered on its own screen (renderMemberForm), with no pledge and
         // no money, because their contributions arrive many times a season.
@@ -2120,21 +2132,13 @@
       availP.then(function (a) { begin(null, a); });
     }
   }
-  function dailyFlow(type) {
+  function dailyFlow(type, sector) {
     return {
-      resume: { fn: 'daily', type: type, label: t('type_' + type) },
+      resume: { fn: 'daily', type: type, sector: sector || 'puja', label: t('type_' + type) },
       title: t('daily_' + type),
       steps: [
         { key: 'busName', qKey: 'q_bus_name', kind: 'text', showIf: function () { return type === 'bus'; } },
         { key: 'busNumber', qKey: 'q_bus_number', kind: 'text', showIf: function () { return type === 'bus'; } },
-        { key: 'sector', qKey: 'q_sector', kind: 'choice',
-          options: [{ v: 'puja', labelKey: 'sector_puja' }, { v: 'program', labelKey: 'sector_program' }],
-          // A149: a টিকিট is programme money by definition, so this one flow must
-          // NOT ask — offering a wrong answer here silently moves money between
-          // two committee accounts. The qualification landed on the DONOR flow on
-          // the first pass, where `type` can never be 'ticket', so the pin counted
-          // right and the screen was still wrong. Found by driving it.
-          showIf: function () { return programOn() && type !== 'ticket'; } },
       ].concat(moneySteps(false), [
         { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
       ]),
@@ -2143,7 +2147,7 @@
         if (m.total <= 0) return Promise.reject(new Error('zero'));
         const row = DB.newRow({
           type: type, busName: a.busName || '', busNumber: a.busNumber || '',
-          sector: type === 'ticket' ? 'program' : (a.sector || 'puja'), // A148/A149
+          sector: type === 'ticket' ? 'program' : (sector || 'puja'), // A148/A149/A153
 
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
           date: todayISO(), note: a.note || '',
@@ -2182,12 +2186,12 @@
   // A COLLECTION expense is different and still carries its category: whoever
   // is running a road round knows the money came from that round, so
   // collectionExpenseFlow sets srcCat itself without asking anybody.
-  function expenseFlow(subjects, duties) {
-    // A152: the ভাঁড়ার is asked FIRST now, and that order is the feature. It used
-    // to come after the subject, so the list could not be narrowed — the cashier
-    // recording an artist's fee scrolled past প্যান্ডেল and লাইট, and a programme
-    // spend filed under a puja subject went unnoticed. Same lesson as A146: ask
-    // the thing that narrows the next question BEFORE that question.
+  function expenseFlow(subjects, duties, sector) {
+    // A153: the ভাঁড়ার is no longer ASKED at all — it comes from the tab this
+    // flow was started in, so the subject list is narrowed by a fact rather than
+    // by an answer. A152 got here by reordering the questions; the tab removed
+    // the question instead, which is better: one fewer thing to get wrong, on
+    // every expense, for ever.
     //
     // A subject with no ভাঁড়ার belongs to BOTH, so every subject that exists
     // today stays available to every expense — nothing to migrate.
@@ -2209,19 +2213,16 @@
       title: t('expense'),
       resume: { fn: 'expense', label: t('expense') },
       steps: [
-        { key: 'sector', qKey: 'q_sector', kind: 'choice',
-          options: [{ v: 'puja', labelKey: 'sector_puja' }, { v: 'program', labelKey: 'sector_program' }],
-          showIf: function () { return programOn(); } },
         { key: 'subject', qKey: 'q_subject', kind: 'choice',
-          optionsFn: function (a) { return forSector(a.sector); } },
+          options: forSector(sector) },
         { key: 'commitmentId', qKey: 'q_duty_against', kind: 'choice',
           optionsFn: function (a) {
-            return openDuties.filter(function (d) { return d.sector === (a.sector || 'puja'); })
+            return openDuties.filter(function (d) { return d.sector === (sector || 'puja'); })
               .map(function (d) { return { v: d.id, label: d.payee + ' — ' + fmtMoney(d.owed) }; })
               .concat([{ v: '', labelKey: 'duty_against_none' }]);
           },
           showIf: function (a) {
-            return openDuties.some(function (d) { return d.sector === (a.sector || 'puja'); });
+            return openDuties.some(function (d) { return d.sector === (sector || 'puja'); });
           } },
       ].concat(moneySteps(false), [
         { key: 'comment', qKey: 'q_comment_req', kind: 'text', required: true,
@@ -2255,6 +2256,24 @@
       },
     };
   }
+  // A153: is the 🎭 tab open to this person? Two conditions, and both matter —
+  // the committee must actually be running a programme, and this person must be
+  // on it. Either missing and the tab does not exist for them at all.
+  function programTabOn() {
+    return programOn() && (Auth.isAdmin() || canEntry('progteam') ||
+      Aggregate.permAllowed(Auth.current(), 'progteam'));
+  }
+  // Which section of the 🎭 tab is open. Module state, so moving between
+  // sections and coming back lands where you left.
+  let progSection = 'entry';
+  // A153: the programme's money powers — spending it, promising it, moving it
+  // between funds. Its own grant, separate from the puja cashier's, so running
+  // the programme's purse does not hand somebody the committee's.
+  function canProgMoney() {
+    return !frozen() && Auth.schemaCmp() !== -1 &&
+      (Auth.isAdmin() || Aggregate.permAllowed(Auth.current(), 'progmoney'));
+  }
+  const EPS_UI = 0.005;
   // A151: record a দায় — money promised, not yet paid. Cashier/admin only.
   //
   // It writes an `expenses` row with source 'commitment', which activeData
@@ -2262,14 +2281,11 @@
   // The advance and every later instalment are ORDINARY expense rows carrying
   // `commitmentId`, so they count as real spending exactly as they should, and
   // only the unpaid remainder shows as দায়.
-  function dutyFlow() {
+  function dutyFlow(sector) {
     return {
       title: t('duty_add'),
       steps: [
         { key: 'payee', qKey: 'q_duty_payee', kind: 'text' },
-        { key: 'sector', qKey: 'q_sector', kind: 'choice',
-          options: [{ v: 'program', labelKey: 'sector_program' }, { v: 'puja', labelKey: 'sector_puja' }],
-          showIf: function () { return programOn(); } },
         { key: 'committed', qKey: 'q_duty_amount', kind: 'amount' },
         { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
       ],
@@ -2278,7 +2294,7 @@
         if (c <= 0) return Promise.reject(new Error('zero'));
         const row = DB.newRow({
           source: 'commitment', payee: String(a.payee || '').trim(),
-          committed: c, sector: a.sector || 'puja',
+          committed: c, sector: sector || 'puja',
           // a commitment moves no money, so it carries none — the advance is a
           // separate, ordinary expense row
           amount: 0, cashAmount: 0, upiAmount: 0,
@@ -2327,7 +2343,7 @@
       },
     };
   }
-  function startExpense(edit) {
+  function startExpense(edit, sector) {
     // no myAvailable() here any more — the flow stopped asking which pot the
     // money came from, so there is nothing to compute before opening it
     //
@@ -2339,7 +2355,7 @@
     // feature shipped with the list ignored entirely.
     let duties = [];
     const go = function (subjects) {
-      const def = expenseFlow(subjects, duties);
+      const def = expenseFlow(subjects, duties, sector || 'puja');
       if (edit) {
         def.presets = edit.presets; def.editing = edit.editing;
         def.title = t('edit_title') + ' — ' + def.title; def.returnTo = 'entries';
@@ -2726,6 +2742,100 @@
 
   let listFilter = 'all', listQuery = '';
   let findParties = [], findQuery = '';
+  // A153: the অনুষ্ঠান tab — everything about the programme in one place, and
+  // nothing about it anywhere else.
+  //
+  // The point of the tab is what it REMOVES. Every entry started here is
+  // programme money because of WHERE IT WAS STARTED, so no flow asks "কোন
+  // ভাঁড়ার?" any more — a question twelve collectors had to answer on every
+  // entry, and could answer wrongly, about a distinction that was never theirs
+  // to think about. Standing somewhere IS an answer.
+  function renderProgram() {
+    const sec = progSection;
+    const chip = function (k, label) {
+      return '<button class="chip' + (sec === k ? ' on' : '') + '" data-prog="' + k + '">' +
+        esc(label) + '</button>';
+    };
+    const head = '<div class="zone-hd">🎭 ' + esc(t('nav_program')) +
+        '<span class="who">' + esc(t('program_tab_sub')) + '</span></div>' +
+      '<div class="chips">' + chip('entry', t('prog_sec_entry')) +
+        chip('list', t('prog_sec_list')) + chip('report', t('prog_sec_report')) + '</div>';
+    $view().innerHTML = '<div class="zone all">' + head + '<div id="prog-body">' +
+      '<div class="empty">' + esc(t('loading')) + '</div></div></div>';
+    document.querySelectorAll('[data-prog]').forEach(function (b) {
+      b.onclick = function () { progSection = b.dataset.prog; renderProgram(); };
+    });
+    viewData().then(function (all) {
+      const d = Aggregate.ofSector(all, 'program');
+      const box = document.getElementById('prog-body');
+      if (!box) return; // moved on while this resolved
+      if (sec === 'entry') { box.innerHTML = progEntryHTML(); wireProgEntry(); }
+      else if (sec === 'list') { box.innerHTML = progListHTML(d); wireProgList(); }
+      else { box.innerHTML = reportProgramHTML(Aggregate.computeReport('program', all)); wireProgReport(); }
+    }).catch(function () {
+      const box = document.getElementById('prog-body');
+      if (box) box.innerHTML = '<div class="empty">' + esc(t('needs_net')) + '</div>';
+    });
+  }
+  // The tiles, permission-shaped exactly like the home screen's.
+  function progEntryHTML() {
+    const tile = function (go, icon, key) {
+      return '<button class="tile" data-pgo="' + go + '">' + icon + ' ' + esc(t(key)) + '</button>';
+    };
+    let h = '';
+    if (canEntry('ticket')) h += tile('ticket', '🎟️', 'daily_ticket');
+    if (canEntry('progdonor')) h += tile('person', '🙍', 'prog_donor') + tile('sponsor', '🎪', 'new_sponsor');
+    if (canProgMoney()) h += tile('expense', '🧾', 'expense') + tile('duty', '🤝', 'duty_add') +
+      tile('transfer', '🔁', 'transfer_title');
+    // `grid` is the home screen's own two-column tile layout — reused rather
+    // than invented, so the tab feels like the app and not a bolted-on room
+    return h ? '<div class="grid">' + h + '</div>'
+      : '<div class="empty">' + esc(t('prog_no_grants')) + '</div>';
+  }
+  function wireProgEntry() {
+    document.querySelectorAll('[data-pgo]').forEach(function (b) {
+      b.onclick = function () {
+        const g = b.dataset.pgo;
+        // every one of these carries 'program' as its FUND — from the tab, never
+        // from a question
+        if (g === 'ticket') startFlow(dailyFlow('ticket', 'program'));
+        else if (g === 'person' || g === 'sponsor') freshThen(function () { startFlow(newPartyFlow(g, {}, 'program')); });
+        else if (g === 'expense') startExpense(null, 'program');
+        else if (g === 'duty') startFlow(dutyFlow('program'));
+        else if (g === 'transfer') startFlow(transferFlow());
+      };
+    });
+  }
+  // the programme's own খাতা — its donors, its dues, nothing from the puja book
+  function progListHTML(d) {
+    const rows = Aggregate.duesList(d.parties, d.payments, d.voids);
+    const paid = {};
+    (d.payments || []).forEach(function (p) { paid[p.partyId] = (paid[p.partyId] || 0) + (Number(p.amount) || 0); });
+    const all = (d.parties || []).slice().sort(function (a, b) {
+      return (paid[b.id] || 0) - (paid[a.id] || 0);
+    });
+    if (!all.length) return '<div class="empty">' + esc(t('prog_no_donors')) + '</div>';
+    return all.map(function (p) {
+      const pd = paid[p.id] || 0, due = (Number(p.pledged) || 0) - pd;
+      return '<div class="row" data-pid="' + esc(p.id) + '"><div><b>' + esc(p.name) + '</b>' +
+        '<div class="row-sub">' + esc(t('type_' + p.type)) + '</div></div>' +
+        '<div class="row-right">' + fmtMoney(pd) +
+        (Number(p.pledged) ? '/' + fmtMoney(p.pledged) : '') +
+        (due > EPS_UI ? '<div class="row-sub red">' + esc(t('due')) + ' ' + fmtMoney(due) + '</div>'
+                      : '<div class="row-sub green">✅</div>') + '</div></div>';
+    }).join('') + '<div class="hint" style="margin-top:10px">' + esc(t('prog_list_hint')) + '</div>';
+  }
+  function wireProgList() {
+    document.querySelectorAll('[data-pid]').forEach(function (r) {
+      r.onclick = function () { navigate('party', { id: r.dataset.pid, from: 'program' }); };
+    });
+  }
+  function wireProgReport() {
+    const tb = document.getElementById('transfer-btn');
+    if (tb) tb.onclick = function () { startFlow(transferFlow()); };
+    const db2 = document.getElementById('duty-btn');
+    if (db2) db2.onclick = function () { startFlow(dutyFlow('program')); };
+  }
   function renderList() {
     // LOOKING is not DOING. Somebody who has been granted nothing can still
     // read the ledger — it is the committee's own book and they are on the
@@ -8324,7 +8434,12 @@
       b.classList.toggle('on', b.dataset.nav === current.view);
       const k = b.dataset.nav;
       if (k === 'messages') b.hidden = !chatOn();
-      b.querySelector('span').textContent = t(k === 'list' ? 'khata' : (k === 'messages' ? 'nav_messages' : k));
+      // A153: the 🎭 tab appears only when there IS a programme and this person
+      // is on it. A tab that leads to an empty book is a tab that teaches people
+      // to ignore the row.
+      if (k === 'program') b.hidden = !programTabOn();
+      b.querySelector('span').textContent = t(k === 'list' ? 'khata'
+        : k === 'messages' ? 'nav_messages' : k === 'program' ? 'nav_program' : k);
     });
     // A91: a logged-out phone showed all five tabs and the sync badge, and not
     // one of them did anything — tapping any of them left the login screen
@@ -8356,6 +8471,7 @@
     else if (current.view === 'memberadmin') renderMemberAdmin();
     else if (current.view === 'memberform') renderMemberForm(current.params);
     else if (current.view === 'partyform') renderPartyForm(current.params);
+    else if (current.view === 'program') { programTabOn() ? renderProgram() : renderHome(); }
     // A63: a background refresh must not paint over the resume offer — the
     // draft is still in storage, so re-render the offer rather than the home
     // screen the collector never chose.

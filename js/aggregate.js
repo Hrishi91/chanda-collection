@@ -528,6 +528,34 @@
   function catOfDaily(type) {
     return DAILY_KINDS.indexOf(String(type)) >= 0 ? String(type) : 'road';
   }
+  // A153: one book's rows, and nothing else. The programme got its own TAB —
+  // Hrishi's call, and the right one: asking "কোন ভাঁড়ার?" on every entry put the
+  // question on twelve collectors who should never have had to think about it.
+  // Where you are standing IS the answer.
+  //
+  // With the books separated, every classic report has to show only the puja's
+  // rows or the programme's, or the same money appears twice and the split is
+  // decoration. This is that filter — the same shape as visibleData, so a report
+  // does not need its own code path per book.
+  //
+  // NOT filtered by this, deliberately: who is holding cash. A note in somebody's
+  // pocket has no book (A148's rule), so "কার হাতে কত" and "কে কত তুলল" stay
+  // committee-wide — splitting them would invent a fact that does not exist.
+  function ofSector(data, sector) {
+    if (!data) return data;
+    const want = SECTORS.indexOf(String(sector)) >= 0 ? String(sector) : 'puja';
+    const party = {};
+    (data.parties || []).forEach(function (p) { if (p && p.id) party[p.id] = p; });
+    const out = {};
+    Object.keys(data).forEach(function (k) { out[k] = data[k]; });
+    out.parties = (data.parties || []).filter(function (p) { return sectorOf(p) === want; });
+    out.payments = (data.payments || []).filter(function (p) {
+      return sectorOf(party[p && p.partyId]) === want;
+    });
+    out.daily = (data.daily || []).filter(function (r) { return sectorOf(r) === want; });
+    out.expenses = (data.expenses || []).filter(function (e) { return sectorOf(e) === want; });
+    return out;
+  }
   function catOfPayment(partyType) {
     return ['shop', 'person', 'member', 'sponsor', 'gupt'].indexOf(String(partyType)) >= 0
       ? String(partyType) : 'payment';
@@ -1190,7 +1218,10 @@
     // A149: টিকিট sits with the street rounds on the home screen — it is the
     // same shape of entry. The GRANT is its switch: an admin only hands it out
     // when there is a programme, so no separate flag is needed here.
-    ['road', 'toto', 'ticket'].forEach(function (k) { if (granted(k)) out.daily.push(k); });
+    // A153: টিকিট has moved OFF the home screen and into the 🎭 tab, where every
+    // programme thing now lives. Leaving it here too would be the same entry in
+    // two places, and the one on the home screen would write puja money.
+    ['road', 'toto'].forEach(function (k) { if (granted(k)) out.daily.push(k); });
     const isCashier = Number(user.cashier) === 1 || user.role === 'admin';
     if (isCashier) out.daily.push('expense');
     // these need no grant — a collector must always be able to take an
@@ -1581,7 +1612,19 @@
   // cashier receive that money. It is NOT an entry kind — holding it grants no
   // right to write a sponsor — but it rides the same field so granting stays
   // one screen for the admin. See RESTRICTED_TYPES/viewPermFor.
-  const PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin']).concat(VIEW_PERM_KEYS);
+  // A153: the 🎭 tab's own keys, arranged as a MASTER and its sub-permissions —
+  // Hrishi's "permission and subpermission should be arranged separately".
+  //   progteam   the master: is this person on the programme team? (NOT 'program'
+  //              — that is already a REPORT id, and the three key spaces are
+  //              asserted disjoint because one flat list is split by membership)
+  //   progdonor  may write programme donors and sponsors from inside it
+  //   progmoney  may spend the programme's fund, promise from it, move between
+  //              funds — its own power, so running the programme's purse does
+  //              not hand somebody the committee's
+  // ('ticket' is an ENTRY_KIND and already grantable.)
+  const PROGRAM_KEYS = ['progteam', 'progdonor', 'progmoney'];
+  const PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin'])
+    .concat(VIEW_PERM_KEYS).concat(PROGRAM_KEYS);
   // What a committee POST may carry, so granting is one dropdown per person
   // instead of ~16 checkboxes each. Mirrors Code.gs POSITION_PERM_KEYS.
   //
@@ -1955,9 +1998,10 @@
                 isRestrictedType: isRestrictedType, viewPermFor: viewPermFor,
                 canSeeParty: canSeeParty, visibleData: visibleData,
                 canWritePayment: canWritePayment, catOfPayment: catOfPayment, catOfDaily: catOfDaily,
-                SECTORS: SECTORS, sectorOf: sectorOf, sectorSplit: sectorSplit, isTransfer: isTransfer,
+                SECTORS: SECTORS, sectorOf: sectorOf, sectorSplit: sectorSplit, ofSector: ofSector,
+                isTransfer: isTransfer,
                 isCommitment: isCommitment, commitmentRows: commitmentRows, spokenFor: spokenFor,
-                PARTY_KINDS: PARTY_KINDS, DAILY_KINDS: DAILY_KINDS,
+                PARTY_KINDS: PARTY_KINDS, DAILY_KINDS: DAILY_KINDS, PROGRAM_KEYS: PROGRAM_KEYS,
                 SUMMARY_GROUPS: SUMMARY_GROUPS,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,
