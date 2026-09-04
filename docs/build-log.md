@@ -12312,3 +12312,21 @@ matched a renamed `xsees:` as a substring, so the mutation sailed through green.
 Anchored on its left.
 
 Mutations 9/9 red. Tests **2,084 → 2,105**. Schema unchanged at 5.
+
+### v4.37.0 deployed (2026-09-04)
+
+Browser-probed: `chanda-v4.37.0 / schema 5`, first try. `js/config.js` rebaked.
+Two releases reach the phones at once: A145 (গুপ্ত দান) and A146 (the recipient
+asked last, plus the three map-drift fixes it uncovered).
+
+**Before either confidential kind is used, admin must grant BY NAME** — neither
+view key can ride a committee post:
+
+| who | grant |
+|---|---|
+| whoever signs sponsors | `sponsor` |
+| whoever takes গুপ্ত দান | `gupt` |
+| the কোষাধ্যক্ষ | `sponsorview` **and** `guptview` |
+
+Without the cashier's two view grants that money cannot be handed over at all —
+the recipient list will say so and name the fix.
