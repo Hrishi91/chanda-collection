@@ -12825,3 +12825,24 @@ prints no row (the puja book will never hold a টিকিট, and "টিক�
 that only teaches people to skim).
 
 Mutations 4/4 red. Tests **2,275 → 2,289**. Schema unchanged at 5.
+
+### v4.45.0 deployed (2026-09-05)
+
+Browser-probed three times: `chanda-v4.45.0 / schema 5`, each rejecting the bad
+token cleanly. `js/config.js` rebaked. Carries A153 (the 🎭 tab, and the fund
+question removed) and A154 (the puja's screens show the puja's book).
+
+**What changes on the phones, and what Hrishi must do:**
+
+- Nobody is asked "কোন ভাঁড়ার?" on any entry any more. The question is gone.
+- 🎟️ টিকিট has LEFT the home screen — it lives in the 🎭 tab now.
+- The 🎭 tab appears only for somebody granted **`progteam`**. Without that
+  grant the tab does not exist for them, and neither do its sub-permissions:
+  **`progdonor`** (write programme donors) and **`progmoney`** (spend the
+  programme fund, record a দায়, move between funds).
+- 📒 খাতা and every report except "কার হাতে কত" / "কে কত তুলল" are now the
+  PUJA's book. The programme's own are in its tab. 📊 মোট হিসাব carries the one
+  line that adds the two together.
+
+The earlier grants still stand: `sponsor`/`sponsorview`, `gupt`/`guptview`,
+`ticket`. `ticket` now shows its tile inside the 🎭 tab rather than on home.
