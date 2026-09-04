@@ -12878,3 +12878,10 @@ After the fix all five readers raise the **same five** anomalies, and the two
 smaller books remain internally true.
 
 Mutations 2/2 red. Tests **2,289 → 2,296**. Schema unchanged at 5.
+
+### v4.45.1 deployed (2026-09-05)
+
+Browser-probed three times: `chanda-v4.45.1 / schema 5`, each rejecting the bad
+token cleanly. `js/config.js` rebaked. Carries A155 — without it, every phone
+WITHOUT the confidential view grants shows a false shortfall against whichever
+cashier received confidential money and spent it.
