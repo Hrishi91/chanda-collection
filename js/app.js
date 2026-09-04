@@ -4688,8 +4688,14 @@
       '<div class="red"><span>' + esc(t('total_due')) + '</span><b>' + fmtMoney(tt.totalDue) + '</b></div><div></div></div>' +
       '<div class="stat3"><div><span>' + esc(t('total_cash')) + '</span><b>' + fmtMoney(tt.totalCash) + '</b></div>' +
       '<div><span>' + esc(t('total_upi')) + '</span><b>' + fmtMoney(tt.totalUpi) + '</b></div><div></div></div>' +
-      typeRow('shop') + typeRow('person') + typeRow('member') +
-      dailyRow('road') + dailyRow('toto') + dailyRow('bus') + '</div>';
+      // A147: every key the computation produced, not a hand-written list of
+      // three. computeReport's byType learned about স্পনসর and গুপ্ত দান; this
+      // renderer did not, so the admin's overview printed মোট আদায় ₹74,100 over
+      // rows that added to ₹36,500 — and a মোট বাকি of ₹67,700 with no row to
+      // explain it. Fifth copy of the same list in this codebase; the fix is
+      // always the same one: read what the data says instead of retyping it.
+      Object.keys(tt.byType || {}).filter(function (k) { return tt.byType[k].count; }).map(typeRow).join('') +
+      Object.keys(tt.dailyByType || {}).map(dailyRow).join('') + '</div>';
   }
 
   // --- per-report renderers (server computes; client renders read-only) ---

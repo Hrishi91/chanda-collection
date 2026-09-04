@@ -1550,8 +1550,25 @@
     out.parties = (data.parties || []).filter(function (p) { return !p || !hidden[p.id]; });
     out.payments = (data.payments || []).filter(function (p) { return !p || !hidden[p.partyId]; });
     out.expenses = (data.expenses || []).filter(function (e) { return !e || !hiddenCat[String(e.srcCat || '')]; });
-    out.handovers = (data.handovers || []).filter(function (h) { return !h || !handoverTouches(h, hiddenCat); });
+    out.handovers = (data.handovers || []).filter(function (h) {
+      return !h || !handoverTouches(h, hiddenCat) || isPartyTo(h, userIdent(user));
+    });
     return out;
+  }
+  // A147: the two people a handover is ABOUT always see it, whatever pots it
+  // names. Found by populating one book and reading it from all four sides:
+  // a collector who may TAKE স্পনসর but not view other people's had his own
+  // outgoing parcels withheld from him — his phone said he still held ₹44,700
+  // and had handed over ₹0, while the cashier's phone said ₹9,700 and ₹35,000.
+  // He gave the money in that morning.
+  //
+  // It leaks nothing. A handover row carries an amount, a date and two names
+  // that both of those people already know — never the donor. The confidential
+  // thing is who GAVE, and that lives on the party row, which stays withheld.
+  function isPartyTo(h, ident) {
+    if (!ident) return false;
+    return String((h && (h.fromId || h.from)) || '') === ident ||
+           String((h && (h.toId || h.to)) || '') === ident;
   }
   // Does this handover carry money out of any of these pots? Read from the
   // stored breakdown, the same field reconcile checksums.

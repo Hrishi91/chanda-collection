@@ -12330,3 +12330,54 @@ view key can ride a committee post:
 
 Without the cashier's two view grants that money cannot be handed over at all —
 the recipient list will say so and name the fix.
+
+## A147 — filling one book and reading it from all four sides
+
+Hrishi: *"make all the entry, i need to see from each side"*. So: one harness
+book with every kind of entry in it — shop, person, road, toto, bus, a
+collection expense, a part-paid স্পনসর and a গুপ্ত দাতা who gave twice — plus
+three handovers (one ordinary, one স্পনসর, one গুপ্ত, each carrying one family
+only) with the two confidential ones confirmed. Then the same book read as
+four people: admin, the collector who wrote it, a cashier holding both view
+grants, and a cashier holding neither.
+
+Two real bugs fell out that no single-role test could have shown.
+
+### 1. The sender could not see the parcels he sent
+
+A collector may TAKE স্পনসর without being allowed to view other people's, and
+`visible_` withheld any handover whose breakdown named a pot he could not view
+— including **his own outgoing ones**. Measured on the seeded book:
+
+| reading the same book as | subrata's হাতে | subrata জমা দিয়েছি |
+|---|---|---|
+| subrata himself | **₹44,700** | **₹0** |
+| কালী (the cashier) | ₹9,700 | ₹35,000 |
+
+He handed the money in that morning and his own phone said it was still in his
+pocket. Two books, two answers, about one man's cash.
+
+Fixed: the two people a handover is ABOUT always see it, whatever pots it
+names (`isPartyTo`, mirrored server-side). It leaks nothing — a handover row
+carries an amount, a date and two names both of them already know; the
+confidential fact is who GAVE, and that lives on the party row, which stays
+withheld. The recipient half matters too and needed its own pin: A146 stops
+such a parcel being SENT to somebody without the grant, but a grant can be
+REVOKED afterwards, and the cashier is still holding the cash.
+
+After the fix all four readers agree subrata holds ₹9,700, and all four raise
+the same five anomalies.
+
+### 2. The admin's overview printed a total its own rows could not reach
+
+মোট আদায় ₹74,100 over rows adding to ₹36,500, and a মোট বাকি of ₹67,700 with
+no row to explain it. `computeReport`'s byType had learned about the new kinds
+(A144); the RENDERER kept a hand-written `typeRow('shop') + typeRow('person') +
+typeRow('member')`. It now prints every kind the computation counted.
+
+That is the **fifth** copy of this same list found in three days —
+`myAvailable`, `cashierView`, the handover sheet's banding, the cashier's
+read-only position, and now the overview. Each was fixed the same way: read
+what the data says instead of retyping it.
+
+Mutations 4/4 red. Tests **2,105 → 2,117**. Schema unchanged at 5.

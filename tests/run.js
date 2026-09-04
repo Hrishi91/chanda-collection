@@ -6126,6 +6126,70 @@ try {
      'A146: …and the two screens agree, pot for pot');
 }
 
+// ---- A147: the two people a handover is ABOUT always see it ----------------
+//
+// Found by filling one book with every kind of entry and reading it from all
+// four sides — which is the only way this shows. A collector who may TAKE
+// স্পনসর but not view other people's had his OWN outgoing parcels withheld:
+// his phone said he still held ₹44,700 and had handed over ₹0, while the
+// cashier's phone said ₹9,700 and ₹35,000. He had given the money in that
+// morning. Two books, two answers, about one man's pocket.
+{
+  const sender = { username: 'subrata', role: 'user', entries: 'sponsor' };   // takes them, cannot view others'
+  const seer = { username: 'kali', role: 'user', entries: 'sponsorview' };
+  const stranger = { username: 'bimal', role: 'user', entries: 'shop' };
+  const sp = { id: 'sp1', type: 'sponsor', name: 'Bose', collectorId: 'subrata', pledged: 50000 };
+  const book = {
+    parties: [sp],
+    payments: [{ id: 'p1', partyId: 'sp1', amount: 30000, cashAmount: 30000, upiAmount: 0,
+                 collectorId: 'subrata', date: '2026-09-04' }],
+    handovers: [{ id: 'h1', fromId: 'subrata', toId: 'kali', amount: 30000, cashAmount: 30000, upiAmount: 0,
+                  status: 'confirmed', date: '2026-09-04',
+                  breakdown: JSON.stringify({ sponsor: { cash: 30000, upi: 0 } }) }],
+    daily: [], expenses: [], voids: [], corrections: [],
+  };
+  eq(visibleData(book, sender).handovers.length, 1,
+     'A147: the SENDER sees the parcel he sent, even without the view grant');
+  eq(visibleData(book, seer).handovers.length, 1, 'A147: …the recipient sees it too');
+  // …and the recipient half is NOT covered by the view grant, so it needs a
+  // recipient who lacks one. That is a real case, not a contrived one: A146
+  // stops such a parcel being SENT, but a grant can be taken away afterwards —
+  // and the cashier is still holding the cash.
+  const exSeer = { username: 'kali', role: 'user', entries: 'shop' };
+  eq(visibleData(book, exSeer).handovers.length, 1,
+     'A147: …a recipient whose grant was later REVOKED still sees the parcel they are holding');
+  eq(visibleData(book, stranger).handovers.length, 0,
+     'A147: …and somebody who is neither, and may not view the pot, still does not');
+  // the money itself: the sender's own screen must agree with the cashier's
+  const asSender = mySummary(visibleData(book, sender), 'subrata', '2026-09-04');
+  const asSeer = mySummary(visibleData(book, seer), 'subrata', '2026-09-04');
+  eq(asSender.hero.total, asSeer.hero.total,
+     'A147: …so both phones say the same thing about ONE man\'s pocket');
+  eq(asSender.tillNow.handedOver, 30000,
+     'A147: …and "জমা দিয়েছি" is the money he actually gave in, not ₹0');
+  // the donor stays confidential — that is what was being protected all along
+  eq(visibleData(book, sender).parties.length, 1, 'A147: his own sponsor row is his to read…');
+  eq(visibleData(book, stranger).parties.length, 0, 'A147: …and still nobody else\'s');
+
+  // A147: the overview must PRINT every kind it counted. computeReport's byType
+  // learned about the new kinds; the renderer kept a hand-written list of three,
+  // so the admin's screen showed মোট আদায় ₹74,100 over rows adding to ₹36,500,
+  // and a মোট বাকি with no row behind it. Fifth copy of the same list.
+  const appSrc = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/typeRow\('shop'\) \+ typeRow\('person'\) \+ typeRow\('member'\)/.test(appSrc), false,
+     'A147: the overview no longer names three kinds by hand…');
+  eq(/Object\.keys\(tt\.byType \|\| \{\}\)\.filter\(function \(k\) \{ return tt\.byType\[k\]\.count; \}\)\.map\(typeRow\)/.test(appSrc), true,
+     'A147: …it prints every kind the computation actually counted');
+
+  const fs = require('fs');
+  eq(/!handoverTouches\(h, hiddenCat\) \|\| isPartyTo\(h, userIdent\(user\)\)/
+     .test(fs.readFileSync(__dirname + '/../js/aggregate.js', 'utf8')), true,
+     'A147: the client rule says so…');
+  eq(/out\.handovers = \(all\.handovers \|\| \[\]\)\.filter\(function \(h\) \{ return !h \|\| !touches\(h\) \|\| mine\(h\); \}\);/
+     .test(fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8')), true,
+     'A147: …and the server, which is the one that actually withholds');
+}
+
 try {
   require('./backend.js')(eq);
 } catch (e) {

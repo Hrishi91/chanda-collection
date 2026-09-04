@@ -966,7 +966,18 @@ function visible_(all, u) {
   out.parties = (all.parties || []).filter(function (p) { return !p || !hidden[String(p.id)]; });
   out.payments = (all.payments || []).filter(function (p) { return !p || !hidden[String(p.partyId)]; });
   out.expenses = (all.expenses || []).filter(function (e) { return !e || !hiddenCat[String(e.srcCat || '')]; });
-  out.handovers = (all.handovers || []).filter(function (h) { return !h || !touches(h); });
+  // A147: the sender and the recipient always see their own parcel, whatever
+  // pots it names — mirrors js/aggregate.js isPartyTo. Withholding it from them
+  // left the SENDER's own phone saying the money was still in his pocket while
+  // the cashier's said it had arrived. It leaks nothing: a handover carries an
+  // amount and two names both of them already know, never the donor.
+  var me = String((u && u.row && u.row.username) || '');
+  var mine = function (h) {
+    if (!me) return false;
+    return String((h && (h.fromId || h.from)) || '') === me ||
+           String((h && (h.toId || h.to)) || '') === me;
+  };
+  out.handovers = (all.handovers || []).filter(function (h) { return !h || !touches(h) || mine(h); });
   return out;
 }
 
@@ -1135,7 +1146,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.37.0';
+var CODE_VERSION = 'chanda-v4.38.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
