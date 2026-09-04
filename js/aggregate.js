@@ -1480,7 +1480,22 @@
     });
     // handed over more than held
     rows.forEach(function (r) {
-      if (r.inHand < -EPS) anomalies.push({ type: 'negative_inhand', collector: r.collector, inHand: r.inHand });
+      // A155: a reader whose book is PARTIAL cannot judge this one, and must not
+      // be shown it. Found by checking every role on one seeded book: কালী
+      // RECEIVED ₹35,000 of confidential money and SPENT it on ordinary things —
+      // a cashier pools, so the spend carries srcCat 'other', not 'sponsor'. The
+      // receipt was withheld from a reader without the view grant; the spending
+      // was not. Their arithmetic then said কালী was ₹15,200 short.
+      //
+      // That is a false accusation against an honest person, on the desk whose
+      // whole worth is that its accusations are true. The hole is not in the
+      // filter — a cashier's spend genuinely cannot be attributed back to the
+      // pot it came from (A144 decided that, deliberately) — so the fix is that
+      // a partial book does not get to make this particular judgement. Whoever
+      // holds the whole book still sees it.
+      if (r.inHand < -EPS && !(rules && rules.partialBook)) {
+        anomalies.push({ type: 'negative_inhand', collector: r.collector, inHand: r.inHand });
+      }
     });
     // More people in a one-person post than the post allows.
     const posMax = (rules && rules.positionMax) || null;

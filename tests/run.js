@@ -6756,6 +6756,57 @@ try {
      'A154: (a collector total is the same whichever slice you hand it — people are not split)');
 }
 
+// ---- A155: a partial book does not accuse anybody ---------------------------
+//
+// Found by checking all five roles against ONE seeded book — which is the only
+// way it shows. A cashier RECEIVED ₹35,000 of confidential money and SPENT it on
+// ordinary things. A cashier pools, so the spend carries srcCat 'other', never
+// 'sponsor' — that was A144's deliberate decision and it is still right. But it
+// means the RECEIPT is withheld from a reader without the view grant while the
+// SPENDING is not, and their arithmetic then says the cashier is short.
+//
+// A false accusation against an honest person, on the desk whose entire worth is
+// that its accusations are true.
+{
+  const A = require('../js/aggregate.js');
+  const book = {
+    parties: [{ id: 'sp', type: 'sponsor', name: 'Bose', collectorId: 'ram', pledged: 50000, sector: 'program' }],
+    payments: [{ id: 'p1', partyId: 'sp', amount: 35000, cashAmount: 35000, upiAmount: 0,
+                 collectorId: 'ram', date: '2026-09-05' }],
+    daily: [],
+    // the cashier's spend, from the pooled pot — NOT attributable to the sponsor
+    expenses: [{ id: 'e1', subject: 'শিল্পী', amount: 19000, cashAmount: 19000, upiAmount: 0,
+                 spentBy: 'kali', collectorId: 'kali', srcCat: 'other', date: '2026-09-05', sector: 'program' }],
+    handovers: [{ id: 'h1', fromId: 'ram', toId: 'kali', amount: 35000, cashAmount: 35000, upiAmount: 0,
+                  status: 'confirmed', date: '2026-09-05',
+                  breakdown: JSON.stringify({ sponsor: { cash: 35000, upi: 0 } }) }],
+    voids: [], corrections: [],
+  };
+  const blind = { username: 'bimal', role: 'user', entries: 'shop' };
+  const seen = A.visibleData(book, blind);
+
+  // the shape of the problem: the money in is hidden, the money out is not
+  eq(seen.handovers.length, 0, 'A155: the confidential parcel is withheld from a blind reader…');
+  eq(seen.expenses.length, 1, 'A155: …but the ordinary spend it paid for is not, and cannot be');
+  const neg = A.reconcile(seen).anomalies.filter(function (a2) { return a2.type === 'negative_inhand'; });
+  eq(neg.length, 1, 'A155: …so without the rule, their desk accuses an honest cashier');
+  eq(A.reconcile(seen, { partialBook: true }).anomalies
+      .filter(function (a2) { return a2.type === 'negative_inhand'; }).length, 0,
+     'A155: a partial book does NOT get to make that judgement');
+  // and whoever holds the whole book still does
+  eq(A.reconcile(book, { partialBook: false }).anomalies
+      .filter(function (a2) { return a2.type === 'negative_inhand'; }).length, 0,
+     'A155: …while the whole book shows no shortfall, because there is none');
+  // nothing else is suppressed — the rule is this one judgement, not the desk
+  eq(A.reconcile(seen, { partialBook: true }).anomalies.length,
+     A.reconcile(seen).anomalies.length - 1,
+     'A155: …and exactly one anomaly is withheld, not the desk');
+
+  const app = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/partialBook: partialBook\(\)/.test(app), true,
+     'A155: every reconcile call on a phone says whether that phone holds the whole book');
+}
+
 try {
   require('./backend.js')(eq);
 } catch (e) {

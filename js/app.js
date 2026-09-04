@@ -279,7 +279,9 @@
       if (!x.position) return;
       (holders[x.position] || (holders[x.position] = [])).push(x.name || x.username);
     });
-    return { positionMax: Lists.maxMap(), positionHolders: holders };
+    // A155: does this phone hold the WHOLE book? A reader who has been given a
+    // partial one must not be shown "somebody is short" — see reconcile.
+    return { positionMax: Lists.maxMap(), positionHolders: holders, partialBook: partialBook() };
   }
   // merge a delta (only changed rows) into the cached snapshot, upsert by id.
   // There are no hard deletes (voids are soft), so merge-only stays correct.

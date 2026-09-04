@@ -12846,3 +12846,35 @@ question removed) and A154 (the puja's screens show the puja's book).
 
 The earlier grants still stand: `sponsor`/`sponsorview`, `gupt`/`guptview`,
 `ticket`. `ticket` now shows its tile inside the 🎭 tab rather than on home.
+
+## A155 — a partial book does not accuse anybody
+
+Hrishi set the real permissions and asked me to check everything works. Checking
+all five roles against ONE seeded book turned up a false accusation, and it is
+the only way it could have shown.
+
+কালী **received** ₹35,000 of confidential money (a স্পনসর handover) and **spent**
+₹19,000 of it on ordinary things. A cashier pools, so that spend carries
+`srcCat: 'other'` — never `'sponsor'`. That was A144's deliberate decision and it
+is still right: money in a cashier's pocket genuinely cannot be attributed back
+to the pot it came from.
+
+But it means the RECEIPT is withheld from a reader without the view grant while
+the SPENDING is not. Their arithmetic then said কালী was **₹15,200 short** —
+
+    hrishi / subrata / kali :  5 anomalies
+    bimal / tapan           :  6   ← negative_inhand: কালী দাস, −₹15,200
+
+A false accusation against an honest cashier, on the desk whose entire worth is
+that its accusations are true. Two of twelve phones would have shown it.
+
+**The fix is not a better filter** — the attribution genuinely does not exist. It
+is that a partial book does not get to make that particular judgement.
+`reconcile` now takes `rules.partialBook`, and every call from a phone says
+whether that phone holds the whole book. Exactly one anomaly is withheld, not the
+desk; whoever holds the whole book still sees a real shortfall.
+
+After the fix all five readers raise the **same five** anomalies, and the two
+smaller books remain internally true.
+
+Mutations 2/2 red. Tests **2,289 → 2,296**. Schema unchanged at 5.
