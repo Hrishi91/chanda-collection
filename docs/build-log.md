@@ -12381,3 +12381,14 @@ read-only position, and now the overview. Each was fixed the same way: read
 what the data says instead of retyping it.
 
 Mutations 4/4 red. Tests **2,105 → 2,117**. Schema unchanged at 5.
+
+### v4.38.0 deployed (2026-09-04)
+
+Browser-probed: `chanda-v4.38.0 / schema 5`, first try. `js/config.js` rebaked.
+Carries A147 — the handover a person sent or received is always theirs to see,
+and the overview prints every kind it counted.
+
+Fleet state after four releases in one day (A144–A147): স্পনসর and গুপ্ত দান
+exist, are withheld server-side from anyone without the matching view grant,
+travel one confidential pot per parcel, and are covered on demand by the 👁️
+curtain. Schema never moved off 5, so no phone was ever locked out.
