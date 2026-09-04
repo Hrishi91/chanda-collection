@@ -1749,10 +1749,7 @@
         // question with one possible answer.
         { key: 'sector', qKey: 'q_sector', kind: 'choice',
           options: [{ v: 'puja', labelKey: 'sector_puja' }, { v: 'program', labelKey: 'sector_program' }],
-          // A149: a টিকিট is programme money by definition — asking would offer a
-          // wrong answer, and a wrong answer here silently moves money between
-          // two committee accounts.
-          showIf: function () { return programOn() && type !== 'ticket'; } },
+          showIf: function () { return programOn(); } },
         // newPartyFlow is shops and persons only now — a committee member is
         // registered on its own screen (renderMemberForm), with no pledge and
         // no money, because their contributions arrive many times a season.
@@ -2132,7 +2129,12 @@
         { key: 'busNumber', qKey: 'q_bus_number', kind: 'text', showIf: function () { return type === 'bus'; } },
         { key: 'sector', qKey: 'q_sector', kind: 'choice',
           options: [{ v: 'puja', labelKey: 'sector_puja' }, { v: 'program', labelKey: 'sector_program' }],
-          showIf: function () { return programOn(); } },
+          // A149: a টিকিট is programme money by definition, so this one flow must
+          // NOT ask — offering a wrong answer here silently moves money between
+          // two committee accounts. The qualification landed on the DONOR flow on
+          // the first pass, where `type` can never be 'ticket', so the pin counted
+          // right and the screen was still wrong. Found by driving it.
+          showIf: function () { return programOn() && type !== 'ticket'; } },
       ].concat(moneySteps(false), [
         { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
       ]),
@@ -5110,10 +5112,10 @@
       }).join('');
     };
     if (!d.income.length && !d.spend.length) {
-      return '<div class="card"><div class="card-title">' + esc(t('report_program')) + '</div>' +
+      return '<div class="card"><div class="card-title">🎭 ' + esc(t('program_fund')) + '</div>' +
         '<div class="empty">' + esc(t('prog_none')) + '</div></div>';
     }
-    return '<div class="card"><div class="card-title">' + esc(t('report_program')) + '</div>' +
+    return '<div class="card"><div class="card-title">🎭 ' + esc(t('program_fund')) + '</div>' +
       '<div class="stat3">' +
         '<div><span>' + esc(t('prog_income')) + '</span><b>' + fmtMoney(d.collected) + '</b></div>' +
         '<div><span>' + esc(t('prog_spend')) + '</span><b>' + fmtMoney(d.expense) + '</b></div>' +

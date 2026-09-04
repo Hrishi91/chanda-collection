@@ -12545,3 +12545,38 @@ A79 lesson as A145, so it was re-run as valid-but-wrong: guessing a destination
 instead of ignoring the row.
 
 Tests **2,169 → 2,196**. Schema unchanged at 5.
+
+### A148–A150 driven, and what driving found (2026-09-05)
+
+Proved end to end on the harness with the programme switched on:
+
+- 🎟️ টিকিট asks no fund question and saves `sector: 'program'`; a road round
+  DOES ask and saves what was picked.
+- The programme report reads আয় ₹2,000 · খরচ ₹6,000 · ভাঁড়ারে −₹4,000, names the
+  ₹4,000 the puja fund is carrying, and lists income by source and spending by
+  subject.
+- 🔁 the transfer, driven from that report as admin, wrote
+  `puja → program ₹4,000` — and then the decisive figures:
+
+  | | before | after |
+  |---|---|---|
+  | committee মোট খরচ | ₹6,000 | **₹6,000** |
+  | committee হাতে | ₹39,000 | **₹39,000** |
+  | খরচের হিসাব | ₹6,000 | **₹6,000** |
+  | programme ভাঁড়ার | −₹4,000 | **₹0** |
+  | 🩺 unbalanced | 0 | **0** |
+
+  The money moved between the two funds and the committee's own books did not
+  notice — which is the entire point of A150.
+
+**One real bug, found only by driving.** The A149 rule "a টিকিট is never asked
+which fund" was applied to the wrong flow: the qualification landed on the DONOR
+flow, where `type` can never be `'ticket'`, while the daily flow kept the plain
+version. The pin counted two plain and one qualified and went green — it was
+counting, not locating. The ticket screen asked anyway. Moved to the daily flow,
+and the pin now demands it sit after the bus-number step, which only that flow
+has; the mutation putting it back on the donor flow reddens.
+
+Also cosmetic: the programme report's card repeated the picker's own words. The
+card now names the FUND and the picker the REPORT, so the two read as heading
+and subject rather than the same phrase twice.

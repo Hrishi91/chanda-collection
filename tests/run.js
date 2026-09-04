@@ -6298,8 +6298,13 @@ try {
   // programme money by definition (A149) — so two plain and one qualified
   eq((app.match(/showIf: function \(\) \{ return programOn\(\); \}/g) || []).length, 2,
      'A148: the donor and expense flows ask which fund…');
-  eq(/showIf: function \(\) \{ return programOn\(\) && type !== 'ticket'; \}/.test(app), true,
-     'A148/A149: …the daily flow asks too, except for a টিকিট, which has only one honest answer');
+  // Named to the FLOW, not just counted. The first pass put this qualification
+  // on the donor flow — where `type` can never be 'ticket' — so the count was
+  // right, the pin was green, and the ticket screen still asked. Found by
+  // driving it. The pin now demands it sit after the bus-number step, which
+  // only the daily flow has.
+  eq(/q_bus_number[\s\S]{0,700}?showIf: function \(\) \{ return programOn\(\) && type !== 'ticket'; \}/.test(app), true,
+     'A148/A149: …and it is the DAILY flow that skips it for a টিকিট, which has only one honest answer');
   eq(/sector: type === 'ticket' \? 'program' : \(a\.sector \|\| 'puja'\)/.test(app), true,
      'A149: …and a টিকিট row is stamped programme money whatever anyone picked');
   eq(/if \(String\(\(centralConfig \|\| \{\}\)\.program_on \|\| ''\) === 'on'\) return true;\s*\n\s*return programSeen;/.test(app), true,
