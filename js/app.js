@@ -1641,7 +1641,8 @@
       // factory, not at the fourteen call sites, so none can be forgotten.
       resume: { fn: 'newParty', type: type, presets: presets || {}, label: t('type_' + type) },
       steps: [
-        { key: 'name', qKey: type === 'shop' ? 'q_shop_name' : type === 'sponsor' ? 'q_sponsor_name' : 'q_person_name', kind: 'text' },
+        { key: 'name', qKey: type === 'shop' ? 'q_shop_name' : type === 'sponsor' ? 'q_sponsor_name'
+                             : type === 'gupt' ? 'q_gupt_name' : 'q_person_name', kind: 'text' },
         { key: 'owner', qKey: 'q_owner_name', kind: 'text', optional: true,
           showIf: function () { return type === 'shop'; } },
         // optionsFn, not options: read when the user REACHES this step, so a
@@ -1651,7 +1652,12 @@
         // nobody walked a street for it — and every extra field on a
         // confidential row is one more place its figures can surface.
         { key: 'location', qKey: 'q_location', kind: 'choice', optionsFn: locationOptions, optional: true,
-          showIf: function () { return type !== 'shop' && type !== 'sponsor' && Lists.get('location').length > 0; } },
+        // A145: গুপ্ত দান is excluded too, and for a sharper reason than the
+        // sponsor's. A locality narrows a secret donor down for anyone who later
+        // gains the view grant — it is the field most likely to identify
+        // somebody who asked not to be named. The name is already the whole
+        // secret; do not hand out a second one.
+          showIf: function () { return type !== 'shop' && type !== 'sponsor' && type !== 'gupt' && Lists.get('location').length > 0; } },
         // --- committee-member registry fields (v4.7.0), members only ---
         // Asked here rather than on a separate admin screen because the person
         // filling this in is the one talking to the member; a second screen
@@ -1665,7 +1671,15 @@
         // newPartyFlow is shops and persons only now — a committee member is
         // registered on its own screen (renderMemberForm), with no pledge and
         // no money, because their contributions arrive many times a season.
-        { key: 'pledged', qKey: 'q_pledged', kind: 'amount' },
+        //
+        // A145: গুপ্ত দান is asked NO pledge, by Hrishi's rule — "no expected
+        // amount, only amount entry". Nobody negotiates with somebody who does
+        // not want to be named. That single omission also keeps them out of the
+        // dues list for free: pledged 0 makes due = −paid, and duesList's
+        // `due > EPS` filter drops it. Structurally this is the committee
+        // MEMBER's shape — a name, no promise, money arriving many times.
+        { key: 'pledged', qKey: 'q_pledged', kind: 'amount',
+          showIf: function () { return type !== 'gupt'; } },
       ].concat(moneySteps(true)),
       save: function (a) {
         // dup check against the CENTRAL snapshot + own rows (viewData), not
@@ -2239,7 +2253,7 @@
         frozen: frozen(), // A110: admin paused entries for everyone
       });
       const ICON = { shop: ['🏪', 'new_shop'], person: ['🙍', 'new_person'], member: ['🤝', 'new_member'],
-                     sponsor: ['🎪', 'new_sponsor'],
+                     sponsor: ['🎪', 'new_sponsor'], gupt: ['🤫', 'new_gupt'],
                      bus: ['🚌', 'daily_bus'], road: ['🛣️', 'daily_road'], toto: ['🛺', 'daily_toto'],
                      expense: ['🧾', 'expense'], cashier: ['💰', 'confirm_handover'],
                      review: ['🛠️', 'review_title'], handover: ['', 'handover'], hbook: ['📗', 'hb_title'],
@@ -2460,7 +2474,7 @@
         // Registering the member is a different job with a different
         // permission (memberadmin) — see renderMemberAdmin.
         if (g === 'member') freshThen(function () { navigate('memberpay'); });
-        else if (g === 'shop' || g === 'person' || g === 'sponsor') freshThen(function () { startFlow(newPartyFlow(g)); });
+        else if (g === 'shop' || g === 'person' || g === 'sponsor' || g === 'gupt') freshThen(function () { startFlow(newPartyFlow(g)); });
         else if (g === 'road' || g === 'toto' || g === 'bus') startFlow(dailyFlow(g));
         else if (g === 'expense') startExpense();
         else if (g === 'handover') startHandover();
@@ -2512,7 +2526,7 @@
   // instalments from donors, and a bus pays once with a receipt.
   function typeChips(current, withBus) {
     const kinds = [['shop', t('type_shop')], ['person', t('type_person')], ['member', t('type_member')],
-                   ['sponsor', t('type_sponsor')]]
+                   ['sponsor', t('type_sponsor')], ['gupt', t('type_gupt')]]
       .concat(withBus ? [['bus', t('daily_bus')]] : []);
     // A144: canSeeKind, not canEntry — a cashier holding only 'sponsorview'
     // writes no sponsors but is already being sent those rows, and a ledger with
@@ -3412,11 +3426,19 @@
       (p.location ? ' • ' + esc(Lists.labelOf('location', p.location)) : '') +
       (p.owner ? ' • ' + esc(p.owner) : '') +
       (p.phone ? ' • 📞 ' + esc(p.phone) : '') + '</div>' +
-      '<div class="stat3">' +
-      '<div><span>' + esc(t('pledged')) + '</span><b>' + fmtMoney(p.pledged) + '</b></div>' +
-      '<div><span>' + esc(t('paid')) + '</span><b>' + fmtMoney(paid) + '</b></div>' +
-      '<div class="' + (due > 0 ? 'red' : 'green') + '"><span>' + esc(t('due')) + '</span><b>' + fmtMoney(due) + '</b></div>' +
-      '</div>' +
+      // A145: a donor who promised NOTHING gets no কথা/বাকি pair. গুপ্ত দান is
+      // asked no pledge by design, and committee members never were either — so
+      // this card read "কথা ₹0 · বাকি −₹2,000" over somebody who owes nobody
+      // anything. A minus in the বাকি column means "chase this person" on every
+      // other screen in the app; here it was an artefact of subtracting from
+      // zero. Found by driving the গুপ্ত card, and it fixes members too.
+      (Number(p.pledged) || 0 ? '<div class="stat3">' +
+        '<div><span>' + esc(t('pledged')) + '</span><b>' + fmtMoney(p.pledged) + '</b></div>' +
+        '<div><span>' + esc(t('paid')) + '</span><b>' + fmtMoney(paid) + '</b></div>' +
+        '<div class="' + (due > 0 ? 'red' : 'green') + '"><span>' + esc(t('due')) + '</span><b>' +
+          fmtMoney(due) + '</b></div>' +
+      '</div>'
+      : '<div class="stat3"><div><span>' + esc(t('paid')) + '</span><b>' + fmtMoney(paid) + '</b></div></div>') +
       '<button id="pay-btn" class="primary big block">💰 ' + esc(t('add_payment')) + '</button>' +
       (due > 0 && p.phone ? '<button id="remind-btn" class="ghost big block">📞 ' + esc(t('remind_btn')) + '</button>' : '') +
       // A60 (audit 2.1): shown only to the person who wrote this row down, or
@@ -3565,7 +3587,14 @@
       if (!((Number(v.cash) || 0) + (Number(v.upi) || 0))) return;
       (Aggregate.isRestrictedType(k) ? cats : open).push(k);
     });
-    return { cats: cats, mixed: cats.length > 0 && open.length > 0 };
+    // A145: `cats.length > 1` is mixing too, and it only became visible once a
+    // SECOND confidential kind existed. A parcel of স্পনসর + গুপ্ত sent to a
+    // cashier who holds only `sponsorview` is withheld WHOLE — visible_ drops a
+    // handover if ANY of its pots is closed to the reader — so the sponsor half
+    // they were entitled to see disappears as well, and the sender then reads as
+    // negative in-hand on that cashier's screen. One confidential pot per
+    // parcel, and nothing else in it.
+    return { cats: cats, mixed: cats.length > 1 || (cats.length > 0 && open.length > 0) };
   }
   // A144: is this reader's book missing rows the committee's book has? True when
   // any confidential kind is closed to them — the server withheld those rows, so
@@ -4607,7 +4636,7 @@
   // types to match the home screen and the handover sheet
   const OWN_SRC = Aggregate.OWN_SRC;
   const CAT_LABEL_KEYS = { shop: 'new_shop', person: 'new_person', member: 'new_member',
-                           sponsor: 'new_sponsor',
+                           sponsor: 'new_sponsor', gupt: 'new_gupt',
                            payment: 'cat_payment', bus: 'daily_bus',
                            road: 'daily_road', toto: 'daily_toto', received: 'cat_received',
                            other: 'cat_other' };
@@ -4627,9 +4656,9 @@
     return out;
   }
   const SUM_GROUP_KEYS = { entry: 'grp_entry', daily: 'grp_daily', other: 'grp_received',
-                           sponsor: 'grp_sponsor' };
+                           sponsor: 'grp_sponsor', gupt: 'grp_gupt' };
   // A144: which summary bands the 👁️ curtain covers.
-  const CURTAIN_GROUPS = { sponsor: 1 };
+  const CURTAIN_GROUPS = { sponsor: 1, gupt: 1 };
   function grpHTML(open, name, amt, kids, cls) {
     return '<div class="grp' + (open ? ' open' : '') + (cls ? ' ' + cls : '') + '">' +
       '<button class="head" data-grp="1"><span class="car">▶</span><span class="nm">' + name + '</span>' +

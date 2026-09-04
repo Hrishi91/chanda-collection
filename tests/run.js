@@ -479,7 +479,7 @@ eq(mayCashierAct('cashier'), false, 'duties: cashier may not act on another cash
 eq(mayCashierAct('admin'), false, 'duties: cashier may not act on an admin entry');
 
 // ---- collection permissions: one key per thing a person actually collects ----
-eq(ENTRY_KINDS, ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor'], 'perms: seven collection keys, bus with the new-entry types, স্পনসর last (A144)');
+eq(ENTRY_KINDS, ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor', 'gupt'], 'perms: eight collection keys — the two confidential kinds last (A144/A145)');
 eq(PERM_KEYS.indexOf('review') >= 0, true, 'perms: the correction desk rides the same field');
 eq(PERM_KEYS.indexOf('otherdonor') >= 0, true, 'perms: reaching somebody else\'s donor is its own grant');
 eq(PERM_KEYS.indexOf('payment'), -1, 'perms: taking a later instalment is NOT a permission');
@@ -710,7 +710,7 @@ eq(tilesFor('bus').role, [], 'tiles: a plain collector gets neither');
 // an admin is never narrowed, whatever the field says
 const admTiles = tilesFor('', 0, 'admin');
 eq(admTiles.setUp, true, 'tiles: an admin is always set up');
-eq(admTiles.entry, ['shop', 'person', 'member', 'bus', 'sponsor'], 'tiles: …and gets every category');
+eq(admTiles.entry, ['shop', 'person', 'member', 'bus', 'sponsor', 'gupt'], 'tiles: …and gets every category');
 eq(admTiles.role, ['cashier', 'review', 'anomalies', 'memberadmin'], 'tiles: …and every desk');
 // ---- A29: collecting from members ≠ keeping the member register --------------
 // Hrishi: "the member entry screen ... that was as previous to collect the
@@ -5799,8 +5799,8 @@ try {
 // their screen. What must never happen is a reader being shown a 🩺 desk full
 // of accusations about rows they cannot see.
 {
-  eq(RESTRICTED_TYPES, ['sponsor'], 'A144: স্পনসর is the confidential kind');
-  eq(VIEW_PERM_KEYS, ['sponsorview'], 'A144: …and its view grant is named after it');
+  eq(RESTRICTED_TYPES, ['sponsor', 'gupt'], 'A144/A145: two confidential kinds, one mechanism');
+  eq(VIEW_PERM_KEYS, ['sponsorview', 'guptview'], 'A144: …each view grant named after its kind, by rule not by literal');
   eq(viewPermFor('gupt'), 'guptview', 'A144: …the naming rule is a rule, not a literal');
   eq(isRestrictedType('shop'), false, 'A144: …an ordinary kind is not confidential');
 
@@ -5878,11 +5878,11 @@ try {
 
   // the pot must exist, or the money lands nowhere the handover screen can see
   const av = myAvailable(book, 'ram');
-  eq(av.byCat.sponsor.cash + av.byCat.sponsor.upi, 0,
+  eq(((av.byCat.sponsor || {}).cash || 0) + ((av.byCat.sponsor || {}).upi || 0), 0,
      'A144: sponsor money handed over in full leaves an EMPTY pot — the band then drops out of the summary');
   const held = myAvailable({ parties: book.parties, payments: book.payments, daily: [], expenses: [],
                              handovers: [], voids: [] }, 'ram');
-  eq(held.byCat.sponsor.cash, 30000, 'A144: …and before the handover it sits in its OWN pot, not in "payment"');
+  eq((held.byCat.sponsor || {}).cash, 30000, 'A144: …and before the handover it sits in its OWN pot, not in "payment"');
   const sum = mySummary({ parties: book.parties, payments: book.payments, daily: [], expenses: [],
                           handovers: [], voids: [] }, 'ram', '2026-09-04');
   eq(sum.groups.map(function (g) { return g.key; }), ['entry', 'sponsor'],
@@ -5897,8 +5897,8 @@ try {
   const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
   const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
 
-  eq(/var RESTRICTED_TYPES = \['sponsor'\];/.test(gs), true,
-     'A144 mirror: the server names the same confidential kind');
+  eq(/var RESTRICTED_TYPES = \['sponsor', 'gupt'\];/.test(gs), true,
+     'A144 mirror: the server names the same confidential kinds');
   eq(/all = visible_\(all, u\);/.test(gs), true,
      'A144: the server WITHHOLDS — hiding on the client would be decoration');
   eq(/var cursor = stamp \|\| maxReceivedAt_\(all\);[\s\S]{0,900}?all = visible_\(all, u\);/.test(gs), true,
@@ -5936,6 +5936,100 @@ try {
     eq(body.slice(0, body.indexOf('\n  }\n')).indexOf('paintCurtain();') > 0, true,
        'A144: render() repaints the curtain button — painting it once at load left it hidden all session');
   }
+}
+
+// ---- A145: গুপ্ত দান, the second tenant of the same machinery ---------------
+//
+// The point of this block is what it does NOT have to test again: canSeeParty,
+// visibleData, the payments gate and the server filter are the same code paths
+// A144 pinned, and গুপ্ত দান inherits them by being named in RESTRICTED_TYPES.
+// What IS new: no pledge (so it never reaches the dues list), no locality, and
+// the mixing rule that only became visible once a SECOND confidential kind
+// existed.
+{
+  const mine = { username: 'ram', role: 'user', entries: 'gupt' };
+  const seer = { username: 'jadav', role: 'user', entries: 'guptview' };
+  const sponsorOnly = { username: 'bimal', role: 'user', entries: 'sponsor,sponsorview' };
+  const g = { id: 'g1', type: 'gupt', name: 'নাম প্রকাশে অনিচ্ছুক', collectorId: 'ram', pledged: 0 };
+
+  eq(isRestrictedType('gupt'), true, 'A145: গুপ্ত দান is confidential');
+  eq(viewPermFor('gupt'), 'guptview', 'A145: …with its own view grant');
+  eq(canSeeParty(mine, g), true, 'A145: the collector who took it sees their own');
+  eq(canSeeParty(seer, g), true, 'A145: …the view grant opens everybody\'s');
+  eq(canSeeParty(sponsorOnly, g), false,
+     'A145: …and sponsorview opens NOTHING here — the grants are per kind, not one "trusted" flag');
+  // somebody ELSE's sponsor — one's own row is always visible whatever the kind,
+  // which is the rule, so the fixture has to be another collector's
+  eq(canSeeParty(mine, { id: 'sp9', type: 'sponsor', collectorId: 'bimal' }), false,
+     'A145: …the mirror holds too: writing গুপ্ত দান gives no sight of other people\'s sponsors');
+  eq(canSeeParty(mine, { id: 'sp8', type: 'sponsor', collectorId: 'ram' }), true,
+     'A145: …while a row you wrote yourself stays yours to read, whatever kind it is');
+  eq(POSITION_PERM_KEYS.indexOf('guptview'), -1,
+     'A145: guptview cannot ride a committee post either');
+
+  // no pledge → never in the dues list, for free
+  const book = {
+    parties: [g, { id: 's1', type: 'shop', name: 'Maa Tara', collectorId: 'ram', pledged: 2000, side: 'main_malda' }],
+    payments: [{ id: 'gp1', partyId: 'g1', amount: 2000, collectorId: 'ram', date: '2026-09-03' },
+               { id: 'gp2', partyId: 'g1', amount: 3000, collectorId: 'ram', date: '2026-09-04' },
+               { id: 'sp1', partyId: 's1', amount: 500, collectorId: 'ram', date: '2026-09-04' }],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [],
+  };
+  eq(computeReport('dues', book).rows.map(function (r) { return r.name; }), ['Maa Tara'],
+     'A145: a গুপ্ত দাতা never appears in the dues list — no pledge means no debt to chase');
+  eq(computeReport('overview', book).byType.gupt, { count: 1, pledged: 0, paid: 5000 },
+     'A145: …but the overview names them, so the breakdown still sums to the total above it');
+  eq(computeReport('areas', book).rows.map(function (r) { return r.area; }), ['main_malda'],
+     'A145: …and no locality is recorded, so none can leak through the এলাকা report');
+  eq(duesList(book.parties, book.payments, []).length, 1,
+     'A145: duesList agrees with the report — one rule, not two');
+
+  // "multiple entries from one" is the whole reason this is a party, not a
+  // one-shot daily row
+  const av = myAvailable(book, 'ram');
+  eq((av.byCat.gupt || {}).cash, 5000, 'A145: two donations from one donor land in ONE গুপ্ত pot');
+  eq((av.byCat.shop || {}).cash, 500, 'A145: …and the ordinary চাঁদা keeps its own');
+  const sum = mySummary(book, 'ram', '2026-09-04');
+  eq(sum.groups.map(function (x) { return x.key; }), ['entry', 'gupt'],
+     'A145: গুপ্ত দান gets its own band');
+  eq(sum.groups.reduce(function (a, x) { return a + x.total; }, 0), sum.hero.total,
+     'A145: …bands still sum to the hero exactly');
+  eq(canWritePayment(sponsorOnly, book.parties, book.payments[0]), false,
+     'A145: …and a second instalment may not be written by somebody who cannot see the donor');
+
+  // the smaller book stays true, exactly as A144's does
+  const blind = visibleData(book, sponsorOnly);
+  eq(blind.parties.map(function (p) { return p.id; }), ['s1'], 'A145: গুপ্ত rows are withheld whole');
+  eq(blind.payments.map(function (p) { return p.id; }), ['sp1'], 'A145: …with their payments');
+  eq(reconcile(blind).anomalies.length, 0, 'A145: …and the smaller book accuses nobody');
+}
+
+// ---- A145: one confidential pot per parcel ---------------------------------
+//
+// Found by ADDING the second kind, not by reading the first. `mixed` used to
+// mean "confidential + open". With two confidential kinds, স্পনসর + গুপ্ত in one
+// parcel is just as fatal: visible_ drops a handover if ANY of its pots is
+// closed to the reader, so a cashier holding only sponsorview loses the sponsor
+// half as well, and the sender reads as negative in-hand on their screen.
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  const rule = /mixed: cats\.length > 1 \|\| \(cats\.length > 0 && open\.length > 0\)/;
+  eq(rule.test(app), true, 'A145: the app refuses a parcel carrying TWO confidential pots');
+  eq(rule.test(gs), true, 'A145: …and so does the server, in the same words');
+  eq(/var RESTRICTED_TYPES = \['sponsor', 'gupt'\];[\s\S]{0,400}?var ENTRY_KINDS = \[[^\]]*'gupt'\]/.test(gs), true,
+     'A145: …server ENTRY_KINDS carries গুপ্ত দান too, or every entry would be rejected at the gate');
+  // no pledge, no locality — the two omissions that ARE the feature
+  eq(/\{ key: 'pledged'[\s\S]{0,160}?showIf: function \(\) \{ return type !== 'gupt'; \}/.test(app), true,
+     'A145: the flow asks গুপ্ত দান no pledge — "no expected amount, only amount entry"');
+  eq(/type !== 'shop' && type !== 'sponsor' && type !== 'gupt' && Lists\.get\('location'\)/.test(app), true,
+     'A145: …and no locality, which is the field most likely to identify a donor who asked not to be named');
+  // Found by driving the গুপ্ত card: "কথা ₹0 · বাকি −₹2,000" over a donor who
+  // promised nothing. A minus in বাকি means "chase this person" everywhere else
+  // in the app. Members were reading the same lie and nobody had noticed.
+  eq(/\(Number\(p\.pledged\) \|\| 0 \? '<div class="stat3">'[\s\S]{0,600}?: '<div class="stat3"><div><span>' \+ esc\(t\('paid'\)\)/.test(app), true,
+     'A145: a donor with no pledge shows only what they GAVE — no কথা, no negative বাকি');
 }
 
 try {

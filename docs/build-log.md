@@ -12187,3 +12187,59 @@ banners, one layer down.
 Fix: strip `//` comments before extracting. The gate now reads its real list of
 18 assets and passes, and a mutation (`js/ghost.js` added to SHELL) is caught —
 which the old version could not have done for EXTRAS at all.
+
+## A145 — গুপ্ত দান: the second tenant, and what a second tenant reveals
+
+Hrishi's shape, in his words: "there could be multiple entries from one, this
+is person not bus … but no expected amount, only amount entry". So a
+`parties` row of type `gupt` — structurally the committee MEMBER's shape: a
+name, no promise, money arriving many times.
+
+Most of this release is a list of names added to lists. `RESTRICTED_TYPES`
+gained `'gupt'` and everything A144 built came with it: `guptview` exists,
+`canSeeParty`/`visibleData`/`canWritePayment` cover it, the server withholds it,
+the 👁️ curtain covers its band, `POSITION_PERM_KEYS` excludes the view key.
+That was the whole point of building A144 as machinery.
+
+**No pledge is the feature, and it pays for itself.** The flow skips the pledge
+step for `gupt`, which keeps them out of the dues list for free: pledged 0 makes
+due = −paid, and `duesList`'s `due > EPS` filter drops it. No locality either —
+of every optional field, a locality is the one most likely to identify somebody
+who asked not to be named.
+
+*Correction to the A144 write-up:* I had said গুপ্ত দান would be asked no phone
+either, because the entry-time duplicate check compares against the central
+snapshot and would surface the donor. Under whole-row withholding that leak
+does not exist — a reader without the grant has no গুপ্ত rows in their snapshot
+to match against — so the phone stays, and repeat instalments are easier for it.
+
+**What only a SECOND confidential kind could reveal.** `confidentialMix`
+defined "mixed" as confidential + open. With two kinds, স্পনসর + গুপ্ত in one
+parcel is just as fatal: `visible_` drops a handover if ANY of its pots is
+closed to the reader, so a cashier holding only `sponsorview` loses the sponsor
+half as well and the sender reads as `negative_inhand` on their screen. The rule
+is now **one confidential pot per parcel, and nothing else in it**, both sides.
+
+**A small lie the গুপ্ত card exposed.** It read "কথা ₹0 · জমা ₹2,000 · বাকি
+−₹2,000" — and a minus in the বাকি column means "chase this person" on every
+other screen. A donor who promised nothing now shows only what they GAVE. This
+was never গুপ্ত-specific: committee members have had no pledge since v4.7.0 and
+were reading the same nonsense. Found by driving the card.
+
+**A mutation that was not a test.** Removing `gupt` from the pot mapping made
+the suite CRASH on my own `av.byCat.gupt.cash` — no summary line, which reads
+like a caught mutation and catches nothing (the A79 lesson, one block over).
+The pot reads are defensive now, and the mutation reddens properly with two
+named failures.
+
+Browser-driven: 🤫 tile → গুপ্ত দাতা saved with NO pledge question (row written
+`pledged: 0`) → a second instalment against the same donor → both land in ONE
+🤫 band of ₹5,000, equation ✓ → curtain covers it (`🤫 গুপ্ত দান 🙈 ₹5,000`,
+hero unchanged) → the dues list does not contain them → a collector without the
+grant pulls 0 গুপ্ত rows and the SAME anomaly set as the admin.
+
+Mutations 7/7 red. Tests **2,049 → 2,084**. Schema unchanged at 5.
+
+**Hand-list, both kinds now:** grant `gupt` to whoever takes them, and
+`guptview` to the কোষাধ্যক্ষ — without the second, গুপ্ত money cannot be handed
+over at all. Neither view key can ride a committee post.

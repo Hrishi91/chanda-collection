@@ -820,10 +820,10 @@ function notifData_(u, d) {
 // A144: entry kinds whose rows are CONFIDENTIAL — a reader gets them only if
 // they wrote them, hold the matching *view* grant, or are admin. Mirrors
 // js/aggregate.js RESTRICTED_TYPES; the filtering itself is in pull/visible_.
-var RESTRICTED_TYPES = ['sponsor'];
+var RESTRICTED_TYPES = ['sponsor', 'gupt'];
 function viewPermFor_(type) { return String(type) + 'view'; }
 var VIEW_PERM_KEYS = RESTRICTED_TYPES.map(viewPermFor_);
-var ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor'];
+var ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor', 'gupt'];
 // 'review' is the cashier's correction desk; 'otherdonor' is reaching donors
 // somebody ELSE wrote down, to take a later instalment. Neither is an entry
 // kind, but both ride the same field so granting stays one screen.
@@ -983,7 +983,12 @@ function confidentialMix_(breakdown) {
     if (!((Number(v.cash) || 0) + (Number(v.upi) || 0))) return;
     (RESTRICTED_TYPES.indexOf(k) >= 0 ? cats : open).push(k);
   });
-  return { cats: cats, mixed: cats.length > 0 && open.length > 0 };
+  // A145: two CONFIDENTIAL pots in one parcel is mixing as well — visible_ drops
+  // a handover if any of its pots is closed to the reader, so স্পনসর + গুপ্ত
+  // sent to somebody holding only `sponsorview` loses the half they were
+  // entitled to, and the sender reads negative on their screen. One confidential
+  // pot per parcel, and nothing else in it. Mirrors js/app.js confidentialMix.
+  return { cats: cats, mixed: cats.length > 1 || (cats.length > 0 && open.length > 0) };
 }
 // A144: the two rules that make a confidential handover survivable.
 //
@@ -1130,7 +1135,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.35.0';
+var CODE_VERSION = 'chanda-v4.36.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually

@@ -362,7 +362,8 @@
   // first — a blind drain that reached into স্পনসর would put confidential money
   // inside an ordinary handover, which is exactly what visibleData cannot then
   // withhold without breaking that handover's checksum.
-  const AVAIL_CATS = ['shop', 'person', 'member', 'payment', 'bus', 'road', 'toto', 'received', 'other', 'sponsor'];
+  const AVAIL_CATS = ['shop', 'person', 'member', 'payment', 'bus', 'road', 'toto', 'received', 'other',
+                      'sponsor', 'gupt'];
   // The reserved source id for money a person collected themselves, as opposed
   // to a parcel handed to them by someone else. It can never collide with a
   // username: usernames are /^[a-z0-9._-]{3,20}$/ (Code.gs register).
@@ -425,7 +426,7 @@
       // to keep its own pot, because that pot is what the handover screen
       // refuses to mix and what the 👁️ curtain closes — money that landed in
       // the general 'payment' pot could be neither.
-      add(['shop', 'person', 'member', 'sponsor'].indexOf(ty) >= 0 ? ty : 'payment', splitOf(r));
+      add(['shop', 'person', 'member', 'sponsor', 'gupt'].indexOf(ty) >= 0 ? ty : 'payment', splitOf(r));
     });
     (data.daily || []).filter(mine).forEach(function (r) {
       add(['road', 'toto', 'bus'].indexOf(r.type) >= 0 ? r.type : 'road', splitOf(r));
@@ -543,6 +544,9 @@
     // it into the entry band would quietly rewrite what that band is a record
     // of. It is also the band the 👁️ curtain closes, so it has to be one band.
     { key: 'sponsor', cats: ['sponsor'] },
+    // A145: গুপ্ত দান gets its own band for the same reason, and one more: it is
+    // the band a collector will want covered fastest when somebody leans in.
+    { key: 'gupt', cats: ['gupt'] },
     { key: 'other', cats: ['received', 'other'] },
   ];
   function slotOf(h) {
@@ -1019,7 +1023,7 @@
       if (opts.holding) out.common = ['handover', 'hbook'];
       return out; // nothing granted → the "ask the admin" card (+ a way to hand in cash)
     }
-    ['shop', 'person', 'member', 'bus', 'sponsor'].forEach(function (k) { if (granted(k)) out.entry.push(k); });
+    ['shop', 'person', 'member', 'bus', 'sponsor', 'gupt'].forEach(function (k) { if (granted(k)) out.entry.push(k); });
     ['road', 'toto'].forEach(function (k) { if (granted(k)) out.daily.push(k); });
     const isCashier = Number(user.cashier) === 1 || user.role === 'admin';
     if (isCashier) out.daily.push('expense');
@@ -1387,10 +1391,16 @@
   // why a whole ROW is withheld rather than a field, is documented at
   // canSeeParty/visibleData below; these two names sit up here only because
   // PERM_KEYS and POSITION_PERM_KEYS are built out of them.
-  const RESTRICTED_TYPES = ['sponsor'];
+  // A145 adds গুপ্ত দান as the second tenant, and it needed no new mechanism —
+  // which was the point of building A144 as machinery rather than as "sponsors".
+  // The two are opposite halves of one coin: a sponsor's NAME is public (it goes
+  // on the hoarding) and its AMOUNT is the negotiated secret; a গুপ্ত দাতার
+  // amount is ordinary and the NAME is secret by definition. Withholding the
+  // whole row serves both.
+  const RESTRICTED_TYPES = ['sponsor', 'gupt'];
   function viewPermFor(type) { return String(type) + 'view'; }
   const VIEW_PERM_KEYS = RESTRICTED_TYPES.map(viewPermFor);
-  const ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor'];
+  const ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor', 'gupt'];
   // 'review' is the cashier's correction desk; 'otherdonor' is reaching donors
   // somebody ELSE wrote down, to take a later instalment. Neither is an entry
   // kind, but both ride the same field so granting stays one screen.
@@ -1575,7 +1585,8 @@
       const byType = { shop: { count: 0, pledged: 0, paid: 0 },
                        person: { count: 0, pledged: 0, paid: 0 },
                        member: { count: 0, pledged: 0, paid: 0 },
-                       sponsor: { count: 0, pledged: 0, paid: 0 } };
+                       sponsor: { count: 0, pledged: 0, paid: 0 },
+                       gupt: { count: 0, pledged: 0, paid: 0 } };
       const paidBy = {};
       (d.payments || []).forEach(function (p) { paidBy[p.partyId] = (paidBy[p.partyId] || 0) + (Number(p.amount) || 0); });
       (d.parties || []).forEach(function (p) {
