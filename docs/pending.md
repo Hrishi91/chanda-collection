@@ -617,6 +617,49 @@ What this buys, and the plan for the week:
 - **After the trial:** 🧹/🚀 (wipes entries, keeps Users/permissions/posts) →
   enter committee members → real go-live.
 
+## The three new entry kinds (Hrishi, 2026-09-04) — two DONE, one OPEN
+
+Hrishi asked for three: sponsors, গুপ্ত দান, and "if any program like cultural
+program spents, guests, artists and all". Discussed first, then split by cost.
+
+- [x] ~~**স্পনসর** — A144, v4.35.0~~ (2026-09-04). Built as MACHINERY
+      (`RESTRICTED_TYPES`), not as a sponsor feature, so the next confidential
+      kind costs almost nothing.
+- [x] ~~**গুপ্ত দান** — A145, v4.36.0~~ (2026-09-04). Second tenant of that
+      machinery; needed no new mechanism, which was the point.
+- [ ] **অনুষ্ঠান (cultural programme) — NOT STARTED.** Split in the discussion
+      into two halves of very different cost:
+
+  **(ক) The spending — needs NO code, and Hrishi can do it today.** Programme
+  costs (sound, stage, guests' food, transport, artists' fees already paid) are
+  ordinary puja expenses. Added as admin-defined expense subjects sharing one
+  prefix — "🎭 অনুষ্ঠান · শিল্পী", "🎭 অনুষ্ঠান · সাউন্ড", "🎭 অনুষ্ঠান · অতিথি"
+  — they sort together in the by-subject report and give a programme total for
+  free. **This is a hand-list item, not a build item.**
+
+  **(খ) দায় — money PROMISED but not yet paid. This the app genuinely cannot
+  express, and it is the real gap.** An artist booked at ₹25,000 with ₹5,000
+  advance leaves the committee ₹20,000 short, but `expenses` means "already
+  paid", so the in-hand figure reads healthy while that money is spoken for.
+  Easiest place in the whole book to be wrong about, right when the programme
+  is being planned.
+
+  Shape, worked out but NOT built: the mirror image of a party — a donor
+  *promised to give and pays in instalments*; a vendor *is promised and is paid
+  in instalments*. It CANNOT reuse `parties`: the advance would be counted as
+  collection in every total. So it needs its own store, and that means
+  **APP_SCHEMA 5 → 6**, which BLOCKS entries on any phone that has not updated.
+
+  **Timing is the whole decision.** Deliberately deferred out of the trial week
+  for that reason. It should land when (i) the twelve phones are known to be on
+  one version, and (ii) the programme is being planned but its bookings have not
+  yet started — before the first artist is booked, or the gap it exists to show
+  is already invisible.
+
+  Open question for Hrishi, unanswered: **when is the অনুষ্ঠান, and have any
+  bookings/advances happened yet?** That answer decides whether দায় is worth
+  building this season at all, or whether it belongs with next year's work.
+
 ## AFTER THE PUJA — the PRODUCT question (Hrishi, 2026-08-17)
 
 Hrishi: *"I was thinking it as a product sale."* Recorded as the standing

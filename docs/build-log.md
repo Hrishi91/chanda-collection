@@ -12392,3 +12392,19 @@ Fleet state after four releases in one day (A144–A147): স্পনসর and
 exist, are withheld server-side from anyone without the matching view grant,
 travel one confidential pot per parcel, and are covered on demand by the 👁️
 curtain. Schema never moved off 5, so no phone was ever locked out.
+
+### Roadmap repair (2026-09-04)
+
+Hrishi asked "what about the cultural program — is everything done?" and the
+honest answer was no: two of the three kinds he asked for shipped today
+(স্পনসর A144, গুপ্ত দান A145), the third was never started.
+
+Worse, the DECISION about it — (ক) programme spending as expense subjects, no
+code; (খ) দায়, money promised but unpaid, deferred because it needs schema 6 —
+was agreed in conversation and **never written into pending.md**. CLAUDE.md says
+those three docs are the only source of truth for decisions and their causes;
+this one lived nowhere but a chat log. Recorded now, with the reasoning, the
+shape worked out for দায়, and the open question that decides its timing.
+
+The lesson is the project's own rule, missed by me: a decision that is not in
+`pending.md` did not happen.
