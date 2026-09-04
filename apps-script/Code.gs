@@ -838,7 +838,7 @@ function notifData_(u, d) {
 var RESTRICTED_TYPES = ['sponsor', 'gupt'];
 function viewPermFor_(type) { return String(type) + 'view'; }
 var VIEW_PERM_KEYS = RESTRICTED_TYPES.map(viewPermFor_);
-var ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor', 'gupt'];
+var ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor', 'gupt', 'ticket'];
 // 'review' is the cashier's correction desk; 'otherdonor' is reaching donors
 // somebody ELSE wrote down, to take a later instalment. Neither is an entry
 // kind, but both ride the same field so granting stays one screen.
@@ -1161,7 +1161,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.39.0';
+var CODE_VERSION = 'chanda-v4.40.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually

@@ -33,6 +33,7 @@ const I18N = {
   daily_road: { bn: 'রোড কালেকশন', en: 'Road collection' },
   daily_toto: { bn: 'টোটো কালেকশন', en: 'Toto collection' },
   daily_bus: { bn: 'বাস কালেকশন', en: 'Bus collection' },
+  daily_ticket: { bn: 'টিকিট বিক্রি', en: 'Ticket sales' },
   expense: { bn: 'খরচ', en: 'Expense' },
   coll_expense: { bn: 'কালেকশন খরচ', en: 'Collection expense' },
   central_report: { bn: 'কেন্দ্রীয় রিপোর্ট (সবার)', en: 'Central report (all)' },
@@ -234,6 +235,7 @@ const I18N = {
   type_toto: { bn: 'টোটো', en: 'Toto' },
   type_bus: { bn: 'বাস', en: 'Bus' },
   type_sponsor: { bn: 'স্পনসর', en: 'Sponsor' },
+  type_ticket: { bn: 'টিকিট', en: 'Ticket' },
   type_gupt: { bn: 'গুপ্ত দান', en: 'Anonymous' },
   // A70 (audit #2 U7): the second-most-tapped button in the app, and it was
   // never translated.
@@ -798,6 +800,7 @@ const I18N = {
   // A144: স্পনসর — its own band, and the band the 👁️ curtain closes.
   grp_sponsor: { bn: '🎪 স্পনসর', en: '🎪 Sponsors' },
   grp_gupt: { bn: '🤫 গুপ্ত দান', en: '🤫 Anonymous donations' },
+  grp_ticket: { bn: '🎟️ টিকিট', en: '🎟️ Tickets' },
   // A144: the 👁️ curtain — one tap when somebody is looking at your screen.
   curtain_off: { bn: 'নাম ঢাকো', en: 'Cover names' },
   curtain_on: { bn: 'নাম দেখাও', en: 'Uncover names' },

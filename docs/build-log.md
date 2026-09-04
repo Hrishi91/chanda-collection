@@ -12467,3 +12467,33 @@ sector instead of its donor's; an unknown sector trusted; `setConfig` dropping
 `program_on`, which would make the admin's toggle answer ok and do nothing; one
 entry flow no longer asking; the overview handing back an empty split).
 Tests **2,117 → 2,148**. Schema unchanged at 5.
+
+## A149 — 🎟️ টিকিট: the programme's own income
+
+Shaped like a street round, not like a donor: a ticket buyer makes no pledge and
+the money arrives many times a day. So `daily`, not `parties` — and naming it in
+`ENTRY_KINDS` gave it its own grant for free, the way স্পনসর did.
+
+**A টিকিট is programme money by definition, so the flow never asks.** Every other
+entry gets "কোন ভাঁড়ার?"; this one is stamped `program` whatever anyone picks. A
+wrong answer there would silently move money between two committee accounts.
+
+**The grant is its switch** — no extra flag. An admin only hands out `ticket`
+when there is a programme, so the tile appears exactly when it should.
+
+It gets its own summary band rather than joining "🛣️ রোড / টোটো কালেকশন", whose
+label would be a lie on it, and it stays OUT of the street-rounds report for the
+same reason bus does — counting it there would show one sum under two headings.
+
+### The list, eighth, ninth and tenth time
+
+`myAvailable`, `cashierView` and `personalSummary` each kept their own copy of
+`['road','toto','bus']` with a fallback to `'road'` — so টিকিট money would have
+sat in somebody's pocket labelled as a road round. Found because the pin written
+after A146/A147 asserts the hand-written forms are gone. All four sites now read
+`catOfDaily`, and the pin covers this list too.
+
+Mutations 4/4 red (catOfDaily forgetting ticket; the ticket row not stamped
+programme; the band removed, which made the summary stop reaching its own hero;
+the street-rounds report counting tickets).
+Tests **2,148 → 2,169**. Schema unchanged at 5.

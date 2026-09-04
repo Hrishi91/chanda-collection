@@ -1749,7 +1749,10 @@
         // question with one possible answer.
         { key: 'sector', qKey: 'q_sector', kind: 'choice',
           options: [{ v: 'puja', labelKey: 'sector_puja' }, { v: 'program', labelKey: 'sector_program' }],
-          showIf: function () { return programOn(); } },
+          // A149: a টিকিট is programme money by definition — asking would offer a
+          // wrong answer, and a wrong answer here silently moves money between
+          // two committee accounts.
+          showIf: function () { return programOn() && type !== 'ticket'; } },
         // newPartyFlow is shops and persons only now — a committee member is
         // registered on its own screen (renderMemberForm), with no pledge and
         // no money, because their contributions arrive many times a season.
@@ -2138,7 +2141,7 @@
         if (m.total <= 0) return Promise.reject(new Error('zero'));
         const row = DB.newRow({
           type: type, busName: a.busName || '', busNumber: a.busNumber || '',
-          sector: a.sector || 'puja', // A148
+          sector: type === 'ticket' ? 'program' : (a.sector || 'puja'), // A148/A149
 
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
           date: todayISO(), note: a.note || '',
@@ -2200,7 +2203,7 @@
         const isOther = a.subject === OTHER_SUBJECT;
         const row = DB.newRow({
           subject: isOther ? 'Other' : a.subject, desc: a.comment || '',
-          sector: a.sector || 'puja', // A148: which ভাঁড়ার paid for it
+          sector: type === 'ticket' ? 'program' : (a.sector || 'puja'), // A148/A149: which ভাঁড়ার paid for it
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
           srcCat: 'other', // pooled money has no honest category — see above
           spentBy: Settings.get('collectorName'),
@@ -2369,6 +2372,7 @@
       const ICON = { shop: ['🏪', 'new_shop'], person: ['🙍', 'new_person'], member: ['🤝', 'new_member'],
                      sponsor: ['🎪', 'new_sponsor'], gupt: ['🤫', 'new_gupt'],
                      bus: ['🚌', 'daily_bus'], road: ['🛣️', 'daily_road'], toto: ['🛺', 'daily_toto'],
+                     ticket: ['🎟️', 'daily_ticket'],
                      expense: ['🧾', 'expense'], cashier: ['💰', 'confirm_handover'],
                      review: ['🛠️', 'review_title'], handover: ['', 'handover'], hbook: ['📗', 'hb_title'],
                      anomalies: ['🩺', 'anom_title'],
@@ -2589,7 +2593,7 @@
         // permission (memberadmin) — see renderMemberAdmin.
         if (g === 'member') freshThen(function () { navigate('memberpay'); });
         else if (g === 'shop' || g === 'person' || g === 'sponsor' || g === 'gupt') freshThen(function () { startFlow(newPartyFlow(g)); });
-        else if (g === 'road' || g === 'toto' || g === 'bus') startFlow(dailyFlow(g));
+        else if (g === 'road' || g === 'toto' || g === 'bus' || g === 'ticket') startFlow(dailyFlow(g));
         else if (g === 'expense') startExpense();
         else if (g === 'handover') startHandover();
         else navigate(g);
@@ -4800,7 +4804,7 @@
   const CAT_LABEL_KEYS = { shop: 'new_shop', person: 'new_person', member: 'new_member',
                            sponsor: 'new_sponsor', gupt: 'new_gupt',
                            payment: 'cat_payment', bus: 'daily_bus',
-                           road: 'daily_road', toto: 'daily_toto', received: 'cat_received',
+                           road: 'daily_road', toto: 'daily_toto', ticket: 'daily_ticket', received: 'cat_received',
                            other: 'cat_other' };
   // byCatHTML() and handedToHTML() lived here until v4.4.0. Both are now inside
   // mySummaryHTML's drill-down: the pot table became level 2 of each group, and
@@ -4818,7 +4822,7 @@
     return out;
   }
   const SUM_GROUP_KEYS = { entry: 'grp_entry', daily: 'grp_daily', other: 'grp_received',
-                           sponsor: 'grp_sponsor', gupt: 'grp_gupt' };
+                           sponsor: 'grp_sponsor', gupt: 'grp_gupt', ticket: 'grp_ticket' };
   // A144: which summary bands the 👁️ curtain covers.
   const CURTAIN_GROUPS = { sponsor: 1, gupt: 1 };
   function grpHTML(open, name, amt, kids, cls) {

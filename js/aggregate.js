@@ -370,7 +370,7 @@
   // first — a blind drain that reached into স্পনসর would put confidential money
   // inside an ordinary handover, which is exactly what visibleData cannot then
   // withhold without breaking that handover's checksum.
-  const AVAIL_CATS = ['shop', 'person', 'member', 'payment', 'bus', 'road', 'toto', 'received', 'other',
+  const AVAIL_CATS = ['shop', 'person', 'member', 'payment', 'bus', 'road', 'toto', 'ticket', 'received', 'other',
                       'sponsor', 'gupt'];
   // The reserved source id for money a person collected themselves, as opposed
   // to a parcel handed to them by someone else. It can never collide with a
@@ -408,7 +408,10 @@
   // `daily` and does not. Every count, every breakdown and every report reads
   // these — so a new kind reaches all of them at once, or none.
   const PARTY_KINDS = ['shop', 'person', 'member', 'sponsor', 'gupt'];
-  const DAILY_KINDS = ['road', 'toto', 'bus'];
+  // A149: 🎟️ টিকিট — the programme's own income. Shaped like a street round
+  // (no donor, arrives many times a day) rather than like a donor, which is what
+  // a ticket actually is.
+  const DAILY_KINDS = ['road', 'toto', 'bus', 'ticket'];
   const SECTORS = ['puja', 'program'];
   function sectorOf(row) {
     const s = String((row && row.sector) || '');
@@ -430,6 +433,13 @@
     (d.expenses || []).forEach(function (e) { out[sectorOf(e)].expense += Number(e.amount) || 0; });
     SECTORS.forEach(function (s) { out[s].balance = out[s].collected - out[s].expense; });
     return out;
+  }
+  // A149: and the same for a daily row. THREE more hand-written copies of this
+  // list turned up here — the eighth, ninth and tenth in the codebase — and each
+  // silently swept an unknown kind into the রোড pot, so টিকিট money would have
+  // shown up as a road round in somebody's pocket.
+  function catOfDaily(type) {
+    return DAILY_KINDS.indexOf(String(type)) >= 0 ? String(type) : 'road';
   }
   function catOfPayment(partyType) {
     return ['shop', 'person', 'member', 'sponsor', 'gupt'].indexOf(String(partyType)) >= 0
@@ -491,7 +501,7 @@
       add(catOfPayment(partyType[r.partyId]), splitOf(r));
     });
     (data.daily || []).filter(mine).forEach(function (r) {
-      add(['road', 'toto', 'bus'].indexOf(r.type) >= 0 ? r.type : 'road', splitOf(r));
+      add(catOfDaily(r.type), splitOf(r));
     });
     const isTo = function (h) { return String(h.toId || h.to || '?') === String(ident); };
     const isFrom = function (h) { return String(h.fromId || h.from || '?') === String(ident); };
@@ -601,6 +611,10 @@
   const SUMMARY_GROUPS = [
     { key: 'entry', cats: ['shop', 'person', 'member', 'payment', 'bus'] },
     { key: 'daily', cats: ['road', 'toto'] },
+    // A149: টিকিট is programme money and gets its own band rather than sitting
+    // with the street rounds it is not — the label would be a lie, and this is
+    // the band a programme organiser will look for.
+    { key: 'ticket', cats: ['ticket'] },
     // A144: স্পনসর gets its own band rather than sitting with the চাঁদা it is
     // not. One sponsor can outweigh a week of ten people walking, and folding
     // it into the entry band would quietly rewrite what that band is a record
@@ -670,7 +684,7 @@
       if (k === cat) push(collected, 'payments', r, Number(r.amount) || 0);
     });
     (d.daily || []).filter(mine).forEach(function (r) {
-      const k = ['road', 'toto', 'bus'].indexOf(r.type) >= 0 ? r.type : 'road';
+      const k = catOfDaily(r.type);
       if (k === cat) push(collected, 'daily', r, Number(r.amount) || 0);
     });
     (d.expenses || []).filter(mine).forEach(function (e) {
@@ -863,7 +877,7 @@
       put(catOfPayment(ty), splitOf(r));
     });
     (d.daily || []).filter(mine).forEach(function (r) {
-      put(['road', 'toto', 'bus'].indexOf(r.type) >= 0 ? r.type : 'road', splitOf(r));
+      put(catOfDaily(r.type), splitOf(r));
     });
 
     const received = zero(), handedOut = zero(), pendingOut = zero(), byName = {};
@@ -1086,7 +1100,10 @@
       return out; // nothing granted → the "ask the admin" card (+ a way to hand in cash)
     }
     ['shop', 'person', 'member', 'bus', 'sponsor', 'gupt'].forEach(function (k) { if (granted(k)) out.entry.push(k); });
-    ['road', 'toto'].forEach(function (k) { if (granted(k)) out.daily.push(k); });
+    // A149: টিকিট sits with the street rounds on the home screen — it is the
+    // same shape of entry. The GRANT is its switch: an admin only hands it out
+    // when there is a programme, so no separate flag is needed here.
+    ['road', 'toto', 'ticket'].forEach(function (k) { if (granted(k)) out.daily.push(k); });
     const isCashier = Number(user.cashier) === 1 || user.role === 'admin';
     if (isCashier) out.daily.push('expense');
     // these need no grant — a collector must always be able to take an
@@ -1465,7 +1482,7 @@
   const RESTRICTED_TYPES = ['sponsor', 'gupt'];
   function viewPermFor(type) { return String(type) + 'view'; }
   const VIEW_PERM_KEYS = RESTRICTED_TYPES.map(viewPermFor);
-  const ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor', 'gupt'];
+  const ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor', 'gupt', 'ticket'];
   // 'review' is the cashier's correction desk; 'otherdonor' is reaching donors
   // somebody ELSE wrote down, to take a later instalment. Neither is an entry
   // kind, but both ride the same field so granting stays one screen.
@@ -1775,7 +1792,7 @@
         income[k] = (income[k] || 0) + (Number(p.amount) || 0);
       });
       (d.daily || []).filter(function (r) { return mine(r, false); }).forEach(function (r) {
-        const k = DAILY_KINDS.indexOf(String(r.type)) >= 0 ? String(r.type) : 'road';
+        const k = catOfDaily(r.type);
         income[k] = (income[k] || 0) + (Number(r.amount) || 0);
       });
       const spend = {};
@@ -1802,6 +1819,9 @@
       // donor and issues a receipt — so it lives in the ledger next to the
       // shops and people, the same place the home screen and the handover sheet
       // put it. Counting it here would show it twice under two groupings.
+      // A149: টিকিট stays out for the same reason bus does — it is not a street
+      // round, and it already has its own place in the programme's account.
+      // Counting it here would show the same money twice under two groupings.
       const isRound = function (r) { return r.type === 'road' || r.type === 'toto'; };
       const agg = {};
       (d.daily || []).filter(isRound).forEach(function (r) { const k = r.date + '|' + r.type; agg[k] = (agg[k] || 0) + (Number(r.amount) || 0); });
@@ -1835,7 +1855,7 @@
                 RESTRICTED_TYPES: RESTRICTED_TYPES, VIEW_PERM_KEYS: VIEW_PERM_KEYS,
                 isRestrictedType: isRestrictedType, viewPermFor: viewPermFor,
                 canSeeParty: canSeeParty, visibleData: visibleData,
-                canWritePayment: canWritePayment, catOfPayment: catOfPayment,
+                canWritePayment: canWritePayment, catOfPayment: catOfPayment, catOfDaily: catOfDaily,
                 SECTORS: SECTORS, sectorOf: sectorOf, sectorSplit: sectorSplit,
                 PARTY_KINDS: PARTY_KINDS, DAILY_KINDS: DAILY_KINDS,
                 SUMMARY_GROUPS: SUMMARY_GROUPS,

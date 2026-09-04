@@ -479,7 +479,7 @@ eq(mayCashierAct('cashier'), false, 'duties: cashier may not act on another cash
 eq(mayCashierAct('admin'), false, 'duties: cashier may not act on an admin entry');
 
 // ---- collection permissions: one key per thing a person actually collects ----
-eq(ENTRY_KINDS, ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor', 'gupt'], 'perms: eight collection keys — the two confidential kinds last (A144/A145)');
+eq(ENTRY_KINDS, ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor', 'gupt', 'ticket'], 'perms: nine collection keys — confidential kinds, then A149 টিকিট, appended last');
 eq(PERM_KEYS.indexOf('review') >= 0, true, 'perms: the correction desk rides the same field');
 eq(PERM_KEYS.indexOf('otherdonor') >= 0, true, 'perms: reaching somebody else\'s donor is its own grant');
 eq(PERM_KEYS.indexOf('payment'), -1, 'perms: taking a later instalment is NOT a permission');
@@ -710,7 +710,7 @@ eq(tilesFor('bus').role, [], 'tiles: a plain collector gets neither');
 // an admin is never narrowed, whatever the field says
 const admTiles = tilesFor('', 0, 'admin');
 eq(admTiles.setUp, true, 'tiles: an admin is always set up');
-eq(admTiles.entry, ['shop', 'person', 'member', 'bus', 'sponsor', 'gupt'], 'tiles: …and gets every category');
+eq(admTiles.entry, ['shop', 'person', 'member', 'bus', 'sponsor', 'gupt'], 'tiles: …and gets every donor category (টিকিট is a daily kind, not a donor)');
 eq(admTiles.role, ['cashier', 'review', 'anomalies', 'memberadmin'], 'tiles: …and every desk');
 // ---- A29: collecting from members ≠ keeping the member register --------------
 // Hrishi: "the member entry screen ... that was as previous to collect the
@@ -5487,7 +5487,7 @@ try {
   // line — the exact line checked before go-live — prints a raw key
   {
     const CAT = { shop: 'new_shop', person: 'new_person', member: 'new_member', bus: 'daily_bus',
-                  road: 'daily_road', toto: 'daily_toto', sponsor: 'new_sponsor' };
+                  road: 'daily_road', toto: 'daily_toto', sponsor: 'new_sponsor', ticket: 'daily_ticket' };
     const missing = A.POSITION_PERM_KEYS.filter(function (k) {
       const key = k === 'cashier' ? 'cashier'
         : A.REPORT_IDS.indexOf(k) >= 0 ? 'report_' + k
@@ -6025,7 +6025,7 @@ try {
   const rule = /mixed: cats\.length > 1 \|\| \(cats\.length > 0 && open\.length > 0\)/;
   eq(rule.test(app), true, 'A145: the app refuses a parcel carrying TWO confidential pots');
   eq(rule.test(gs), true, 'A145: …and so does the server, in the same words');
-  eq(/var RESTRICTED_TYPES = \['sponsor', 'gupt'\];[\s\S]{0,400}?var ENTRY_KINDS = \[[^\]]*'gupt'\]/.test(gs), true,
+  eq(/var RESTRICTED_TYPES = \['sponsor', 'gupt'\];[\s\S]{0,400}?var ENTRY_KINDS = \[[^\]]*'gupt',[^\]]*\]/.test(gs), true,
      'A145: …server ENTRY_KINDS carries গুপ্ত দান too, or every entry would be rejected at the gate');
   // no pledge, no locality — the two omissions that ARE the feature
   eq(/\{ key: 'pledged'[\s\S]{0,160}?showIf: function \(\) \{ return type !== 'gupt'; \}/.test(app), true,
@@ -6293,10 +6293,60 @@ try {
   // OFF by default: no programme, no question on any entry screen
   eq(/showIf: function \(\) \{ return programOn\(\); \}/.test(app), true,
      'A148: the fund question only appears once the programme is switched on');
-  eq((app.match(/showIf: function \(\) \{ return programOn\(\); \}/g) || []).length, 3,
-     'A148: …on all three entry flows — donor, daily and expense');
+  // three flows ask it; the daily one also refuses to ask for a টিকিট, which is
+  // programme money by definition (A149) — so two plain and one qualified
+  eq((app.match(/showIf: function \(\) \{ return programOn\(\); \}/g) || []).length, 2,
+     'A148: the donor and expense flows ask which fund…');
+  eq(/showIf: function \(\) \{ return programOn\(\) && type !== 'ticket'; \}/.test(app), true,
+     'A148/A149: …the daily flow asks too, except for a টিকিট, which has only one honest answer');
+  eq(/sector: type === 'ticket' \? 'program' : \(a\.sector \|\| 'puja'\)/.test(app), true,
+     'A149: …and a টিকিট row is stamped programme money whatever anyone picked');
   eq(/if \(String\(\(centralConfig \|\| \{\}\)\.program_on \|\| ''\) === 'on'\) return true;\s*\n\s*return programSeen;/.test(app), true,
      'A148: …and switching it off can never hide money that already exists');
+}
+
+// ---- A149: 🎟️ টিকিট, the programme's own income ----------------------------
+{
+  const A = require('../js/aggregate.js');
+  eq(A.DAILY_KINDS.indexOf('ticket') >= 0, true, 'A149: টিকিট is a daily kind…');
+  eq(A.PARTY_KINDS.indexOf('ticket'), -1, 'A149: …and not a donor — a ticket buyer makes no pledge');
+  eq(A.ENTRY_KINDS.indexOf('ticket') >= 0, true,
+     'A149: …so it gets its own grant for free, the way স্পনসর did');
+
+  const book = {
+    parties: [], payments: [],
+    daily: [
+      { id: 't1', type: 'ticket', amount: 4000, cashAmount: 4000, upiAmount: 0,
+        collectorId: 'ram', date: '2026-09-04', sector: 'program' },
+      { id: 'r1', type: 'road', amount: 1000, cashAmount: 1000, upiAmount: 0,
+        collectorId: 'ram', date: '2026-09-04' },
+    ],
+    expenses: [], handovers: [], voids: [], corrections: [],
+  };
+  eq(A.sectorSplit(book).program.collected, 4000, 'A149: ticket money lands in the programme fund');
+  eq(A.sectorSplit(book).puja.collected, 1000, 'A149: …and the road round stays with the puja');
+  eq(A.computeReport('overview', book).dailyByType.ticket, 4000,
+     'A149: the overview counts it, so its breakdown still reaches its own total');
+  eq(A.computeReport('daily', book).rows.length, 1,
+     'A149: …but the street-rounds report leaves it out, like bus — it is not a round');
+  const av = A.myAvailable(book, 'ram');
+  eq((av.byCat.ticket || {}).cash, 4000, 'A149: it holds its own pot…');
+  const sum = A.mySummary(book, 'ram', '2026-09-04');
+  eq(sum.groups.map(function (g) { return g.key; }), ['daily', 'ticket'],
+     'A149: …and its own band, because "রোড / টোটো কালেকশন" would be a lie on it');
+  eq(sum.groups.reduce(function (a, g) { return a + g.total; }, 0), sum.hero.total,
+     'A149: …with the bands still summing to the hero exactly');
+  eq(A.homeTiles({ role: 'user', entries: 'ticket' }, {}).daily, ['ticket'],
+     'A149: the tile appears for whoever is granted it — the grant is its switch');
+
+  // three MORE copies of the daily list turned up here — the eighth, ninth and
+  // tenth — each sweeping an unknown kind into the রোড pot, so টিকিট money would
+  // have appeared as a road round in somebody's pocket
+  const agg = require('fs').readFileSync(__dirname + '/../js/aggregate.js', 'utf8');
+  eq((agg.match(/\['road', 'toto', 'bus'\]\.indexOf/g) || []).length, 0,
+     'A149: no screen keeps its own copy of the daily list any more');
+  eq(A.catOfDaily('ticket'), 'ticket', 'A149: …they all read catOfDaily');
+  eq(A.catOfDaily('nonsense'), 'road', 'A149: …which still has the old fallback for a kind nobody knows');
 }
 
 try {
