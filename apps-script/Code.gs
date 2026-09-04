@@ -1135,7 +1135,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.36.0';
+var CODE_VERSION = 'chanda-v4.37.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -2147,7 +2147,16 @@ var ACTIONS = {
           // role: the no-permission card needs to find the admin in this list.
           // phone: Hrishi's call — the admin's number is exactly what a locked-
           // out collector needs, and only admins' numbers are exposed.
+          // A146: `sees` — which confidential kinds this person may receive.
+          // Same derived answer committeeRoster_ carries, because the handover
+          // screen may reach this list instead of the roster (a phone that has
+          // never pulled), and a list without it would offer every cashier as a
+          // valid recipient for স্পনসর / গুপ্ত money.
           names.push({ username: row.username, name: row.name, role: row.role,
+                       sees: RESTRICTED_TYPES.filter(function (ty) {
+                         return String(row.role) === 'admin' ||
+                           effPerms_(row).entries.indexOf(viewPermFor_(ty)) >= 0;
+                       }).join(','),
                        phone: row.role === 'admin' ? String(row.phone || '') : '' });
         }
       });

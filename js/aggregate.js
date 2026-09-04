@@ -368,6 +368,19 @@
   // to a parcel handed to them by someone else. It can never collide with a
   // username: usernames are /^[a-z0-9._-]{3,20}$/ (Code.gs register).
   const OWN_SRC = '__own';
+  // Which pot a payment belongs in, from its donor's type. A payment whose donor
+  // is not in this dataset falls back to the general 'payment' pot.
+  //
+  // A146: ONE function, because there were three hand-written copies of this
+  // list — myAvailable's, cashierView's, and (A66) the handover screen's label
+  // map. A144/A145 taught two of them about স্পনসর and গুপ্ত দান and missed the
+  // third, so a cashier's own screen filed a ₹30,000 sponsor under
+  // "চাঁদা (পুরোনো)". Found by driving the cashier's handover sheet. The A66
+  // lesson, third time: two maps of the same thing WILL drift.
+  function catOfPayment(partyType) {
+    return ['shop', 'person', 'member', 'sponsor', 'gupt'].indexOf(String(partyType)) >= 0
+      ? String(partyType) : 'payment';
+  }
   function splitOf(r) {
     return isCashOnly(r)
       ? { cash: Number(r.amount) || 0, upi: 0 }
@@ -421,12 +434,7 @@
     const partyType = {};
     (data.parties || []).forEach(function (p) { if (p && p.id) partyType[p.id] = p.type; });
     (data.payments || []).filter(mine).forEach(function (r) {
-      const ty = partyType[r.partyId];
-      // A144: 'sponsor' is named here rather than falling into 'payment'. It has
-      // to keep its own pot, because that pot is what the handover screen
-      // refuses to mix and what the 👁️ curtain closes — money that landed in
-      // the general 'payment' pot could be neither.
-      add(['shop', 'person', 'member', 'sponsor', 'gupt'].indexOf(ty) >= 0 ? ty : 'payment', splitOf(r));
+      add(catOfPayment(partyType[r.partyId]), splitOf(r));
     });
     (data.daily || []).filter(mine).forEach(function (r) {
       add(['road', 'toto', 'bus'].indexOf(r.type) >= 0 ? r.type : 'road', splitOf(r));
@@ -798,7 +806,7 @@
     };
     (d.payments || []).filter(mine).forEach(function (r) {
       const ty = partyType[r.partyId];
-      put(['shop', 'person', 'member'].indexOf(ty) >= 0 ? ty : 'payment', splitOf(r));
+      put(catOfPayment(ty), splitOf(r));
     });
     (d.daily || []).filter(mine).forEach(function (r) {
       put(['road', 'toto', 'bus'].indexOf(r.type) >= 0 ? r.type : 'road', splitOf(r));
@@ -1712,7 +1720,8 @@
                 RESTRICTED_TYPES: RESTRICTED_TYPES, VIEW_PERM_KEYS: VIEW_PERM_KEYS,
                 isRestrictedType: isRestrictedType, viewPermFor: viewPermFor,
                 canSeeParty: canSeeParty, visibleData: visibleData,
-                canWritePayment: canWritePayment,
+                canWritePayment: canWritePayment, catOfPayment: catOfPayment,
+                SUMMARY_GROUPS: SUMMARY_GROUPS,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,
                 samePaymentsOn: samePaymentsOn, dayOf: dayOf, potDetail: potDetail,

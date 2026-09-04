@@ -12243,3 +12243,72 @@ Mutations 7/7 red. Tests **2,049 → 2,084**. Schema unchanged at 5.
 **Hand-list, both kinds now:** grant `gupt` to whoever takes them, and
 `guptview` to the কোষাধ্যক্ষ — without the second, গুপ্ত money cannot be handed
 over at all. Neither view key can ride a committee post.
+
+## A146 — ask "কাকে?" last, so the answer can be derived
+
+Hrishi, after seeing A144's save-time refusal: *"ok select the name at the last,
+it will help — but how will you decide that we need now permission cashier or
+admin"*.
+
+The answer is that nothing decides. The recipient step used to come FIRST, when
+the app could not yet know what was being handed over, so the permission rule
+had nowhere to live but the save — a dead end at the last possible moment, with
+cash already in hand. Asked last, the pots are known, so the list is simply the
+people who may receive THIS parcel:
+
+- base rule untouched — approved, and admin or কোষাধ্যক্ষ
+- narrowed only when the parcel carries a confidential pot, by `sees`
+- an ordinary parcel narrows nothing, so the everyday screen is unchanged
+
+`optionsFn` already existed for exactly this (options read when the step is
+REACHED). `sees` now travels on both paths into the flow — the roster AND the
+server's `cashiers` list, which a phone that has never pulled uses instead.
+
+**Nobody eligible is an honest dead end, so it is named.** A choice step whose
+options come back empty now prints its `emptyKey` instead of a bare empty row:
+"এই টাকাটা নেওয়ার অনুমতি এখনো কারো নেই — admin-কে বলো…", plus the reassurance
+that the money is still counted in their own account.
+
+### Three things only driving it could show
+
+**1. The dead end had only MOVED.** Every chip on the handover sheet starts lit,
+so "hand over the lot" built exactly the mixed parcel the save then refused —
+now at the very last step, after choosing a cashier and writing a note. Fixed
+where the pots are chosen: picking স্পনসর drops what it may not travel with
+(including a second confidential pot), picking ordinary money drops স্পনসর, and
+the sheet OPENS valid. The save-time message survives as a backstop nobody
+should reach.
+
+**2. The cashier's own screen filed a ₹30,000 sponsor under "চাঁদা (পুরোনো)".**
+`cashierView` kept its own copy of the payment→pot list and never learned about
+the new kinds. There were three copies; there is now one, `catOfPayment`.
+A66's lesson, third time.
+
+**3. Then the same money VANISHED from that screen.** The handover sheet kept a
+FOURTH hand-written copy of the banding, and a category in none of its three
+rows was silently dropped — so the breakdown added up to ₹500 under a total of
+₹30,500, with nothing to say why. Both handover screens now band from
+`Aggregate.SUMMARY_GROUPS`, whose bands are already asserted to sum to the hero
+exactly, so a future kind cannot reach one screen and miss the other.
+
+### Proved on a live-shaped book
+
+Granted `sponsor` to a collector and `sponsorview` to ONE of the two cashiers,
+then drove it: ordinary parcel → all three recipients, unchanged. Sponsor
+parcel → বিমল (no grant) gone, only admin + কালী offered. Saved with no error.
+
+Then pulled as both cashiers:
+
+| | sponsors | sponsor handovers | collected | anomalies |
+|---|---|---|---|---|
+| বিমল (blind) | 0 | 0 | ₹34,500 | 4 seed orphans + 1 member |
+| কালী (`sponsorview`) | 2 | 1 | ₹84,500 | **the same 5** |
+
+The parcel and the money inside it disappear TOGETHER, which is why no
+`negative_inhand` is raised against an honest collector.
+
+One vacuous pin caught in the drill: a regex for `sees: RESTRICTED_TYPES…`
+matched a renamed `xsees:` as a substring, so the mutation sailed through green.
+Anchored on its left.
+
+Mutations 9/9 red. Tests **2,084 → 2,105**. Schema unchanged at 5.

@@ -795,6 +795,9 @@ const I18N = {
                     en: 'ℹ️ This account does not include every kind of entry — the cashier / admin holds the complete one.' },
   err_mix_confidential: { bn: '🎪 স্পনসর আর 🤫 গুপ্ত দানের টাকা আলাদা করে জমা দিতে হবে — অন্য টাকার সঙ্গে, বা একে অন্যের সঙ্গে মেশানো যাবে না।\n\nএকেকটা জমায় একেকটা: একটাতে শুধু স্পনসর, একটাতে শুধু গুপ্ত দান, আর একটাতে বাকিগুলো।',
                           en: 'Sponsor and anonymous-donation money must each be handed over on their own — not mixed with other collections, and not with each other.\n\nOne per handover: one with only sponsor money, one with only anonymous, one with the rest.' },
+  // A146: the honest dead end — named, with the fix, instead of an empty row.
+  ho_nobody_may_take: { bn: '🎪/🤫 এই টাকাটা নেওয়ার অনুমতি এখনো কারো নেই।\n\nadmin-কে বলো কোষাধ্যক্ষকে এই ধরনের entry দেখার অনুমতি দিতে — তারপর জমা দিতে পারবে। ততক্ষণ টাকাটা তোমার কাছেই থাক; হিসাবে ঠিকই ধরা আছে।',
+                        en: 'Nobody has been granted permission to receive this money yet.\n\nAsk the admin to let a cashier see this kind of entry, then you can hand it over. Until then keep it — your account already counts it.' },
   err_recipient_blind: { bn: 'এই টাকাটা এঁকে দেওয়া যাবে না — এই ধরনের entry দেখার অনুমতি তাঁর নেই, তাই টাকাটা তাঁর খাতায় উঠবেই না।\n\nঅন্য কোষাধ্যক্ষ বাছো, বা admin-কে বলো অনুমতিটা দিতে।',
                         en: 'This money cannot go to this person — they may not see this kind of entry, so it would never appear in their book.\n\nPick another cashier, or ask the admin to grant it.' },
   total: { bn: 'মোট', en: 'Total' },

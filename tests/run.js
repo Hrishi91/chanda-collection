@@ -6032,6 +6032,100 @@ try {
      'A145: a donor with no pledge shows only what they GAVE — no কথা, no negative বাকি');
 }
 
+// ---- A146: ask "কাকে?" last, so the answer can be derived ------------------
+//
+// Hrishi, after seeing the save-time error: "ok select the name at the last, it
+// will help — but how will you decide that we need now permission cashier or
+// admin". The answer is that nothing DECIDES: asked last, the pots are already
+// known, so the list is simply the people who may receive this parcel.
+{
+  const fs = require('fs');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+
+  // the ORDER is the fix — money first, then the name
+  eq(/steps: moneySteps_\.concat\(\[toStep\], \[/.test(app), true,
+     'A146: the handover asks for the money BEFORE the name');
+  // …and the list is read when that step is REACHED, or it would still be built
+  // before the sheet exists and the reorder would buy nothing
+  eq(/key: 'to', qKey: 'q_handover_to', kind: 'choice',[\s\S]{0,300}?optionsFn: function \(a\) \{[\s\S]{0,200}?recipientsFor\(opts, a\)/.test(app), true,
+     'A146: …and the recipient list is built from the answers, at the moment it is shown');
+  // the base rule must NOT have moved: approved + admin-or-cashier, as before
+  eq(/u\.status === 'approved' && \(u\.role === 'admin' \|\| Number\(u\.cashier\) === 1\)/.test(app), true,
+     'A146: the base rule is untouched — still approved, and admin or কোষাধ্যক্ষ');
+  // an ORDINARY parcel narrows nothing: twelve people's daily screen is unchanged
+  eq(/if \(!cats\.length\) return opts;/.test(app), true,
+     'A146: …a parcel with no confidential pot offers exactly the list it always did');
+  // `sees` has to survive both paths into the flow, or every cashier looks eligible
+  eq(/\{ username: u\.username, name: u\.name, sees: String\(u\.sees \|\| ''\) \}/.test(app), true,
+     'A146: `sees` travels with the roster name…');
+  // the key is anchored on its left: without that, a renamed `xsees:` still
+  // matched as a substring and the mutation sailed through green (vacuous pin)
+  eq(/names\.push\(\{ username: row\.username, name: row\.name, role: row\.role,[\s\S]{0,300}?[\s,{]sees: RESTRICTED_TYPES\.filter/.test(gs), true,
+     'A146: …and with the server list too, which a phone that never pulled will use instead');
+  // the honest dead end: named, with the fix, never a bare empty row
+  eq(/if \(!chips\.length && s\.emptyKey\) \{/.test(app), true,
+     'A146: an empty choice step says WHY it is empty…');
+  eq(/emptyKey: 'ho_nobody_may_take'/.test(app), true,
+     'A146: …and the handover names the person who can fix it (grant the cashier the view)');
+  eq(/  ho_nobody_may_take: \{/.test(fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8')), true,
+     'A146: …in both languages');
+
+  // Mixing is made IMPOSSIBLE on the sheet, not punished at the end. Everything
+  // starts lit, so "hand over the lot" used to build exactly the parcel the save
+  // then refused — the dead end had only MOVED to the last step. Found by
+  // driving it, twice: once to see the error, once to see it move.
+  eq(/const isConf = function \(b\) \{ return Aggregate\.isRestrictedType\(b\.dataset\.cat\); \};/.test(app), true,
+     'A146: the sheet knows which pots are confidential…');
+  eq(/b\.onclick = function \(\) \{ b\.classList\.toggle\('on'\); exclusive\(b\); refresh\(\); \};/.test(app), true,
+     'A146: …picking one drops whatever it may not travel with…');
+  eq(/const keep = wantConf \? \(isConf\(o\) && o\.dataset\.cat === b\.dataset\.cat\) : !isConf\(o\);/.test(app), true,
+     'A146: …including a SECOND confidential pot, which is mixing too');
+  eq(/if \(picks\.some\(isConf\) && picks\.some\(function \(b\) \{ return !isConf\(b\); \}\)\) \{/.test(app), true,
+     'A146: …and the sheet OPENS valid, so the default tap is never the refused parcel');
+
+  // ONE payment→pot map. There were three hand-written copies; A144/A145 taught
+  // two of them about the new kinds and missed the cashier's, which then filed a
+  // ₹30,000 sponsor under "চাঁদা (পুরোনো)". Found by driving the cashier sheet.
+  const agg = fs.readFileSync(__dirname + '/../js/aggregate.js', 'utf8');
+  eq((agg.match(/\['shop', 'person', 'member', 'sponsor', 'gupt'\]\.indexOf/g) || []).length, 1,
+     'A146: the payment→pot list is written ONCE (A66\'s lesson, third time)');
+  eq((agg.match(/put\(catOfPayment\(ty\), splitOf\(r\)\)/g) || []).length, 1,
+     'A146: …and the cashier\'s own screen reads that one');
+
+  // ONE banding, too. The handover sheet and the cashier's read-only position
+  // each carried their own copy; a category in none of their rows was silently
+  // DROPPED, so a ₹30,000 sponsor pot disappeared from the sheet while the total
+  // beside it still counted the money. Both now read SUMMARY_GROUPS, whose bands
+  // are already asserted to sum to the hero exactly.
+  eq((app.match(/\['shop', 'person', 'member', 'payment', 'bus'\]/g) || []).length, 0,
+     'A146: no screen keeps its own copy of the entry band any more');
+  // two USES (the sheet and the cashier's read-only position); the third match
+  // is the comment that explains why, and counting code not prose is the point
+  eq((app.match(/^\s+(?:const groups = |html \+= )Aggregate\.SUMMARY_GROUPS/gm) || []).length, 2,
+     'A146: …both handover screens band from the one source');
+}
+
+// the cashier's screen and the collector's must name the same pot for the same
+// money — a figure that changes its name between two screens is the bug this
+// whole family of maps keeps producing
+{
+  const book = {
+    parties: [{ id: 'sp1', type: 'sponsor', name: 'Bose', collectorId: 'ram', pledged: 50000 },
+              { id: 'g1', type: 'gupt', name: 'শুভাকাঙ্ক্ষী', collectorId: 'ram', pledged: 0 }],
+    payments: [{ id: 'p1', partyId: 'sp1', amount: 30000, collectorId: 'ram', date: '2026-09-04' },
+               { id: 'p2', partyId: 'g1', amount: 5000, collectorId: 'ram', date: '2026-09-04' }],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [],
+  };
+  const cv = cashierView(book, 'ram'), av = myAvailable(book, 'ram');
+  eq((cv.collectedByCat.sponsor || {}).cash, 30000, 'A146: the cashier screen files স্পনসর as স্পনসর…');
+  eq((cv.collectedByCat.gupt || {}).cash, 5000, 'A146: …and গুপ্ত দান as গুপ্ত দান');
+  eq((cv.collectedByCat.payment || {}).cash || 0, 0,
+     'A146: …neither is swept into the general "চাঁদা (পুরোনো)" pot any more');
+  eq((cv.collectedByCat.sponsor || {}).cash, (av.byCat.sponsor || {}).cash,
+     'A146: …and the two screens agree, pot for pot');
+}
+
 try {
   require('./backend.js')(eq);
 } catch (e) {

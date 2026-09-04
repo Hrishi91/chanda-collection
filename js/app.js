@@ -1286,27 +1286,45 @@
     if (s.kind === 'choice') {
       // optionsFn: options that depend on earlier answers (e.g. handover's
       // cash/UPI chips showing the selected categories' actual amounts)
-      html += '<div class="chips">' + (s.optionsFn ? s.optionsFn(flowState.answers) : s.options).map(function (o) {
-        return '<button class="chip" data-v="' + esc(o.v) + '">' +
-               esc(o.labelKey ? t(o.labelKey) : o.label) + '</button>';
-      }).join('') + '</div>';
+      const chips = (s.optionsFn ? s.optionsFn(flowState.answers) : s.options) || [];
+      // A146: an optionsFn can now legitimately return NOTHING — a parcel of
+      // স্পনসর money when nobody has been granted `sponsorview` yet. A bare empty
+      // chip row is a dead end with no explanation, in front of somebody holding
+      // cash. Say what happened and who fixes it; the step's own `emptyKey`
+      // supplies the sentence, so this stays one rule for every future step.
+      if (!chips.length && s.emptyKey) {
+        html += '<div class="empty">' + esc(t(s.emptyKey)) + '</div>';
+      } else {
+        html += '<div class="chips">' + chips.map(function (o) {
+          return '<button class="chip" data-v="' + esc(o.v) + '">' +
+                 esc(o.labelKey ? t(o.labelKey) : o.label) + '</button>';
+        }).join('') + '</div>';
+      }
     } else if (s.kind === 'sheet') {
       // ONE screen for a handover: every source category gets its OWN cash and
       // UPI box, prefilled with what's actually in hand. Hand over everything →
       // change nothing, just Next. Hand over part → edit that one box. A box is
       // capped at the available figure so the books can never go negative, and
       // a category with no money of that type shows "—" instead of an input.
-      const groups = [
-        // bus sits with the new-entry types, exactly as on the home screen
-        // (it names a donor and issues a receipt); road/toto are the
-        // anonymous street rounds.
-        { key: 'entry', labelKey: 'grp_entry', cats: s.categories.filter(function (c) { return ['shop', 'person', 'member', 'payment', 'bus'].indexOf(c.key) >= 0; }) },
-        { key: 'daily', labelKey: 'grp_daily', cats: s.categories.filter(function (c) { return ['road', 'toto'].indexOf(c.key) >= 0; }) },
-        { key: 'other', labelKey: 'grp_received', cats: s.categories.filter(function (c) { return c.key === 'received' || c.key === 'other'; }) },
-        // (a collector is never a handover RECIPIENT — the "to" list is
-        // cashiers and admins only — so in practice these last two are empty
-        // for them and the group does not render)
-      ].filter(function (g) { return g.cats.length; });
+      // A146: built from Aggregate.SUMMARY_GROUPS, not from a local literal.
+      //
+      // This WAS a fourth hand-written copy of the same grouping, and a category
+      // named in none of its three rows was silently dropped from the sheet —
+      // so after স্পনসর got its own band, a ₹30,000 sponsor pot vanished from
+      // this screen while "মোট এসেছে" still counted it. A breakdown that adds up
+      // to less than the total printed beside it, with nothing to say why.
+      // Found by driving the cashier's handover sheet.
+      //
+      // SUMMARY_GROUPS is the right source: it is the same banding আমার হিসাব
+      // uses, and tests already assert its bands sum to the hero exactly — so a
+      // future kind cannot be added to one screen and forgotten on this one.
+      // (bus sits with the new-entry types, exactly as on the home screen; a
+      // collector is never a handover RECIPIENT, so 'other' is usually empty for
+      // them and simply does not render.)
+      const groups = Aggregate.SUMMARY_GROUPS.map(function (g) {
+        return { key: g.key, labelKey: SUM_GROUP_KEYS[g.key] || 'cat_other',
+                 cats: s.categories.filter(function (c) { return g.cats.indexOf(c.key) >= 0; }) };
+      }).filter(function (g) { return g.cats.length; });
       // cash and UPI are SEPARATE tap-to-select chips carrying the real
       // figure — nothing is typed; the total is simply what is selected.
       // Everything starts selected, so handing over the lot = change nothing.
@@ -1368,8 +1386,11 @@
           (cats.length > 1 ? subRow(sub) : '') + '</div>';
       };
       const inGrp = function (keys) { return s.cats.filter(function (c) { return keys.indexOf(c.key) >= 0; }); };
-      html += group('grp_entry', inGrp(['shop', 'person', 'member', 'payment', 'bus'])) +
-        group('grp_daily', inGrp(['road', 'toto'])) +
+      // A146: the cashier's read-only position, banded from the same source, so
+      // a new kind cannot appear on one of these two screens and not the other.
+      // 'other' is drawn separately below, by GIVER rather than by category.
+      html += Aggregate.SUMMARY_GROUPS.filter(function (g) { return g.key !== 'other'; })
+        .map(function (g) { return group(SUM_GROUP_KEYS[g.key] || 'cat_other', inGrp(g.cats)); }).join('') +
         (v.byGiver.length ? '<div class="cat-group"><div class="cat-group-head">' + esc(t('grp_received')) + '</div>' +
           v.byGiver.map(function (g) {
             return '<div class="sh-row ro"><span class="cat-name">🧑 ' + esc(g.name) + '</span>' + money(g) + '</div>';
@@ -1508,13 +1529,55 @@
           (overUpi ? '<div class="sh-over">' + tMoney('sheet_over_upi', capUpi, upi - capUpi) + '</div>' : '');
         nextB.disabled = (cash + upi) <= 0 || overCash || overUpi;
       };
-      picks.forEach(function (b) { b.onclick = function () { b.classList.toggle('on'); refresh(); }; });
+      // A146: mixing is made IMPOSSIBLE here, not punished at the end.
+      //
+      // A confidential pot must travel alone (see confidentialMix). Everything
+      // on this sheet starts selected, so the ordinary "hand over the lot" tap
+      // built exactly the parcel the save then refused — the collector chose
+      // pots, chose a cashier, wrote a note, and only then was told. Driving it
+      // is how that showed: the dead end had simply moved to the last step.
+      //
+      // So the two families are mutually exclusive on the sheet itself. Picking
+      // স্পনসর drops the ordinary pots; picking an ordinary pot drops স্পনসর.
+      // The save-time message stays as a backstop nobody should ever reach.
+      const isConf = function (b) { return Aggregate.isRestrictedType(b.dataset.cat); };
+      const exclusive = function (b) {
+        if (!b.classList.contains('on')) return;
+        const wantConf = isConf(b);
+        picks.forEach(function (o) {
+          if (o === b) return;
+          // two confidential pots are mixing too, so same-family is not enough —
+          // only the SAME pot may stay lit beside a confidential one
+          const keep = wantConf ? (isConf(o) && o.dataset.cat === b.dataset.cat) : !isConf(o);
+          if (!keep) o.classList.remove('on');
+        });
+      };
+      picks.forEach(function (b) {
+        b.onclick = function () { b.classList.toggle('on'); exclusive(b); refresh(); };
+      });
       document.getElementById('sh-all').onclick = function () {
-        picks.forEach(function (b) { b.classList.add('on'); }); refresh();
+        // "সব" means all the OPEN money — a confidential pot is never part of
+        // "everything", because everything is exactly what it may not travel with
+        picks.forEach(function (b) { b.classList.toggle('on', !isConf(b)); });
+        if (!picks.some(function (b) { return b.classList.contains('on'); })) {
+          picks.forEach(function (b) { b.classList.add('on'); exclusive(b); });
+        }
+        refresh();
       };
       document.getElementById('sh-none').onclick = function () {
         picks.forEach(function (b) { b.classList.remove('on'); }); refresh();
       };
+      // …and the sheet OPENS in a valid state. Every chip is rendered lit, so a
+      // collector holding both kinds would otherwise land on a mixed parcel
+      // before touching anything. Somebody holding ONLY confidential money keeps
+      // theirs lit — there is nothing for it to be mixed with.
+      if (picks.some(isConf) && picks.some(function (b) { return !isConf(b); })) {
+        picks.forEach(function (b) { if (isConf(b)) b.classList.remove('on'); });
+      } else if (picks.some(isConf)) {
+        const first = picks.filter(isConf)[0];
+        picks.forEach(function (b) { b.classList.add('on'); });
+        exclusive(first);
+      }
       refresh();
       nextB.onclick = function () {
         const per = {};
@@ -1842,9 +1905,28 @@
     });
     const byUser = {};
     opts.forEach(function (c) { byUser[c.username] = c.name; });
+    // A146: "কাকে?" is asked LAST now, and that ORDER is the feature.
+    //
+    // It used to come first, which meant the app could not yet know what was
+    // being handed over — so a confidential pot sent to somebody without the
+    // matching view grant was only caught at save, after the person had chosen a
+    // name, chosen pots and typed amounts, with cash in their hand. A rule
+    // enforced at the last possible moment is a dead end wearing a rule's
+    // clothes.
+    //
+    // Asked last, the answer is DERIVED instead: the pots are already known, so
+    // the list can simply be the people who may receive THIS parcel. Nobody is
+    // asked "does this need a permission" — the parcel says so.
+    //
+    // optionsFn, not options: read when the user REACHES the step, so it sees
+    // the sheet they just filled in (the same reason the party flow reads its
+    // area list that way).
     const toStep = opts.length
       ? { key: 'to', qKey: 'q_handover_to', kind: 'choice',
-          options: opts.map(function (c) { return { v: c.username, label: c.name }; }) }
+          emptyKey: 'ho_nobody_may_take',
+          optionsFn: function (a) {
+            return recipientsFor(opts, a).map(function (c) { return { v: c.username, label: c.name }; });
+          } }
       : { key: 'to', qKey: 'q_handover_to', kind: 'text' };
     // Source categories the collector/cashier actually holds money in —
     // চাঁদা / রোড / টোটো / বাস / অন্যের-জমা. Only categories with money
@@ -1900,7 +1982,8 @@
     return {
       title: t('handover_title') + (avail.cash || avail.upi
         ? ' — ' + t('you_have') + ': 💵' + fmtMoney(avail.cash) + ' · 📱' + fmtMoney(avail.upi) : ''),
-      steps: [toStep].concat(moneySteps_, [
+      // A146: money first, THEN the name. See toStep for why the order is the fix.
+      steps: moneySteps_.concat([toStep], [
         { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
       ]),
       save: function (a) {
@@ -2004,7 +2087,10 @@
     // when the screen opened.
     const rosterCashiers = committee.filter(function (u) {
       return u.status === 'approved' && (u.role === 'admin' || Number(u.cashier) === 1);
-    }).map(function (u) { return { username: u.username, name: u.name }; });
+    // A146: `sees` travels with the name — it is what the recipient step filters
+    // on, and dropping it here would silently make every cashier look eligible
+    // for confidential money.
+    }).map(function (u) { return { username: u.username, name: u.name, sees: String(u.sees || '') }; });
     if (rosterCashiers.length) {
       availP.then(function (a) { begin(others(rosterCashiers), a); });
     } else if (navigator.onLine && Sync.configured()) {
@@ -3629,6 +3715,34 @@
     b.title = t(curtainOn ? 'curtain_on_hint' : 'curtain_off_hint');
     b.setAttribute('aria-label', t(curtainOn ? 'curtain_on' : 'curtain_off'));
     b.setAttribute('aria-pressed', curtainOn ? 'true' : 'false');
+  }
+  // A146: which of the offered cashiers may receive THIS parcel.
+  //
+  // The base rule is untouched and lives where it always did — the list handed
+  // in is already "approved, and admin or কোষাধ্যক্ষ". This only narrows it, and
+  // only when the parcel carries a confidential pot: the money physically moves,
+  // so a recipient who cannot see that pot would receive cash that never appears
+  // in their book while the sender's in-hand drops — `negative_inhand`, accusing
+  // an honest person of a shortfall.
+  //
+  // An ordinary parcel narrows nothing, so twelve people's everyday handover is
+  // exactly the screen it was yesterday.
+  function recipientsFor(opts, answers) {
+    const cats = confidentialMix(sheetBreakdown(answers)).cats;
+    if (!cats.length) return opts;
+    return (opts || []).filter(function (c) {
+      const sees = String((c && c.sees) || '').split(',');
+      return cats.every(function (ty) { return sees.indexOf(ty) >= 0; });
+    });
+  }
+  // The breakdown a half-finished sheet answer implies. handoverFlow builds the
+  // real one at save; this is the same shape, read early, so the recipient step
+  // can ask its question of the parcel rather than of the person.
+  function sheetBreakdown(a) {
+    if (!a || !a.sheet || typeof a.sheet !== 'object') return null;
+    const bd = {};
+    Object.keys(a.sheet).forEach(function (k) { bd[k] = a.sheet[k]; });
+    return bd;
   }
   // A144: may this recipient read every confidential pot in this parcel? Answered
   // from the committee roster's `sees` — the one derived field the server sends
