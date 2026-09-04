@@ -118,7 +118,13 @@ fns.forEach(f => {
   // wolf — that is a linter's job, not this file's. So this is a NAMED list:
   // the few short words that are local to a render function in js/app.js and
   // have no business being read anywhere else. Both entries were paid for.
-  const RENDER_LOCALS = ['from', 'params'];
+  // A151: `type` is the third. A149's "a টিকিট is always programme money" clause
+  // was copied into expenseFlow, which has no `type` — so every general খরচ threw
+  // ReferenceError at save, and it SHIPPED in v4.40.0. Same shape as `from` and
+  // `params`: a short word that is a parameter of one flow builder and has no
+  // business being read in another. Object keys (`type:`) and property reads
+  // (`row.type`) are already excluded by the pattern, so it does not cry wolf.
+  const RENDER_LOCALS = ['from', 'params', 'type'];
   RENDER_LOCALS.forEach(function (nm) {
     if (seen.has(nm)) return; // this function declares or receives it — fine
     const bare = new RegExp('(?<![A-Za-z0-9_$.\'"])' + nm + '(?![A-Za-z0-9_$:\'"])', 'g');

@@ -107,10 +107,24 @@
   // an অনুষ্ঠান shortfall. It is stored in `expenses` (no new store, no schema
   // bump) but it is NOT a spend: the money has not left the committee.
   function isTransfer(e) { return String((e && e.source) || '') === 'transfer'; }
+  // A151: দায় — money the committee has PROMISED but not yet paid. An artist
+  // booked at ₹25,000 with ₹5,000 advance leaves ₹20,000 already spoken for,
+  // and until now the book had no way to say so: `expenses` means "paid", so
+  // the in-hand figure read healthy while that money was gone in every sense
+  // but the literal one. Easiest place in the whole book to be wrong, and it
+  // goes wrong exactly when a programme is being planned.
+  //
+  // It needs NO new store and so no schema bump — which is the second time
+  // A150's trick has paid off. A commitment is not a movement of money at all,
+  // so it rides in `expenses` and activeData splits it off before any total
+  // sees it. What IS a movement — the advance, and every later instalment — is
+  // an ordinary expense row that points back at it.
+  function isCommitment(e) { return String((e && e.source) || '') === 'commitment'; }
   function activeData(data, year) {
     const v = voidedIds(data);
     const keep = function (rows) { return ofYear(rows, year).filter(function (r) { return r && !v[r.id]; }); };
     const exp = keep(data.expenses);
+    const notMoney = function (e) { return isTransfer(e) || isCommitment(e); };
     // A150: transfers are split off HERE, at the one choke point every money
     // aggregation already passes through, rather than filtered at each consumer.
     // Ten places total an expense list — computeTotals, reconcile, myAvailable,
@@ -124,8 +138,9 @@
     // So every existing reader is correct by DEFAULT, and only sectorSplit —
     // which is the one place a transfer means anything — asks for them.
     return { parties: keep(data.parties), payments: keep(data.payments), daily: keep(data.daily),
-             expenses: exp.filter(function (e) { return !isTransfer(e); }),
+             expenses: exp.filter(function (e) { return !notMoney(e); }),
              transfers: exp.filter(isTransfer),
+             commitments: exp.filter(isCommitment),
              handovers: keep(data.handovers), voids: data.voids || [],
              // messages deliberately NOT carried: activeData runs on every money
              // aggregation (inHandRows calls it once per collector), and a
@@ -475,6 +490,41 @@
   // list turned up here — the eighth, ninth and tenth in the codebase — and each
   // silently swept an unknown kind into the রোড pot, so টিকিট money would have
   // shown up as a road round in somebody's pocket.
+  // A151: every দায় with what has been paid against it and what is still owed.
+  //
+  // `paid` is summed from ORDINARY expense rows carrying this commitment's id —
+  // so the advance is a real spend, counted in every total exactly as it should
+  // be, and only the UNPAID remainder is the thing nobody could see before.
+  //
+  // A commitment settled or overpaid owes nothing (never a negative), because a
+  // "−₹500 owed" would read on screen as money coming back.
+  function commitmentRows(data) {
+    const d = activeData(data);
+    const paidBy = {};
+    (d.expenses || []).forEach(function (e) {
+      const k = String((e && e.commitmentId) || '');
+      if (k) paidBy[k] = (paidBy[k] || 0) + (Number(e.amount) || 0);
+    });
+    return (d.commitments || []).map(function (c) {
+      const committed = Number(c.committed) || 0;
+      const paid = paidBy[String(c.id)] || 0;
+      return { id: c.id, payee: String(c.payee || ''), sector: sectorOf(c),
+               note: String(c.desc || ''), date: c.date,
+               committed: committed, paid: paid,
+               owed: Math.max(0, committed - paid),
+               settled: committed - paid <= EPS };
+    }).sort(function (a, b) { return b.owed - a.owed; });
+  }
+  // What is already spoken for, per ভাঁড়ার and in total. This is the number the
+  // in-hand figure has always been missing.
+  function spokenFor(data) {
+    const out = { total: 0 };
+    SECTORS.forEach(function (s) { out[s] = 0; });
+    commitmentRows(data).forEach(function (c) {
+      out[c.sector] += c.owed; out.total += c.owed;
+    });
+    return out;
+  }
   function catOfDaily(type) {
     return DAILY_KINDS.indexOf(String(type)) >= 0 ? String(type) : 'road';
   }
@@ -1747,7 +1797,13 @@
                // up to the totals beside them — asserted in tests, because a
                // breakdown that does not reach its own total is the fault this
                // project has now found five times.
-               bySector: sectorSplit(data) };
+               bySector: sectorSplit(data),
+               // A151: what is already promised out of that in-hand figure, and
+               // therefore what is genuinely free. Reported, never subtracted —
+               // the committee DOES hold the money, it is just spoken for, and a
+               // book that quietly shrank its own cash would be lying differently.
+               spokenFor: spokenFor(data),
+               commitments: commitmentRows(data) };
     }
     if (id === 'dues') {
       const paid = {};
@@ -1849,6 +1905,8 @@
                // it is reported, never flagged as an anomaly.
                balance: split.program.balance,
                transferIn: split.program.transferIn,
+               spokenFor: spokenFor(data).program,
+               commitments: commitmentRows(data).filter(function (c) { return c.sector === 'program'; }),
                // what the puja fund is still carrying AFTER whatever has already
                // been moved across — otherwise a committee that settled the
                // shortfall would go on being told it owes the same money twice
@@ -1898,6 +1956,7 @@
                 canSeeParty: canSeeParty, visibleData: visibleData,
                 canWritePayment: canWritePayment, catOfPayment: catOfPayment, catOfDaily: catOfDaily,
                 SECTORS: SECTORS, sectorOf: sectorOf, sectorSplit: sectorSplit, isTransfer: isTransfer,
+                isCommitment: isCommitment, commitmentRows: commitmentRows, spokenFor: spokenFor,
                 PARTY_KINDS: PARTY_KINDS, DAILY_KINDS: DAILY_KINDS,
                 SUMMARY_GROUPS: SUMMARY_GROUPS,
                 cashierView: cashierView, handoverReport: handoverReport,

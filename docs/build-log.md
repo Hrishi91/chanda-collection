@@ -12601,3 +12601,46 @@ in-hand figure reads healthy). It is the only piece of this family that needs a
 new store, and so **schema 6**, which blocks any phone that has not updated.
 Its timing depends on a question Hrishi has not answered: when is the অনুষ্ঠান,
 and have bookings/advances already started?
+
+## A151 — দায়: money promised but not yet paid, and NO schema bump after all
+
+Hrishi: *"booking not started yet"* — so the gap this exists to show is still
+real, and it was worth building now.
+
+**Correction to what I told him twice.** I said দায় needed a new store and
+therefore schema 6, which would block any phone that had not updated. It does
+not. A promise is not a movement of money, so it rides in `expenses` with
+`source: 'commitment'` and `activeData` splits it off — the same trick A150 paid
+for, one release earlier. **Schema stays 5. Nothing locks anyone out.**
+
+The gap: `expenses` means "paid". An artist booked at ₹25,000 with a ₹5,000
+advance leaves ₹20,000 gone in every sense but the literal one, while in-hand
+reads healthy. In the test book the committee holds ₹17,000 against ₹20,000
+promised — **a real ₹3,000 shortfall the old book called healthy.**
+
+- a **commitment** row carries `payee` and `committed`, and moves no money;
+- the advance and every later instalment are **ordinary expense rows** carrying
+  `commitmentId`, so they count as real spending exactly as they should;
+- only the unpaid remainder is দায়, and paying more than promised owes **zero**,
+  never a negative that would read as money coming back.
+
+**Named, never subtracted.** in-hand stays what the committee actually HOLDS; a
+book that quietly shrank its own cash would just be lying differently. The
+overview gains one line — "এর মধ্যে কথা দেওয়া আছে ₹X · সত্যিই খোলা আছে ₹Y" — and
+the দায় list sits under it, with each promise's paid/owed.
+
+Cashier/admin only, enforced server-side, which also refuses a promise made to
+nobody or for nothing.
+
+### A shipped bug, found while building this
+
+A149's clause "a টিকিট is always programme money" was copied into `expenseFlow`,
+which has no `type` in scope — so **every general খরচ threw ReferenceError at
+save**, and it went out in v4.40.0 and v4.41.1. Fixed.
+
+`tests/scope-check.js` already had a named list for exactly this class (`from`,
+`params`, both paid for the same way). `type` is the third entry; with it, the
+check names the bug precisely — *"expenseFlow() reads bare `type` — declared in
+no reachable scope"* — and it raises no false alarms elsewhere.
+
+Mutations 5/5 red. Tests **2,196 → 2,222**. Schema unchanged at 5.

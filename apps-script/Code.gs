@@ -74,7 +74,14 @@ var SHEETS = {
              // new store (and so no schema bump), but it is NOT a spend: the
              // money has not left the committee, and activeData splits it off
              // before any total sees it.
-             'transferTo'],
+             'transferTo',
+             // A151: দায় — money promised but not yet paid. On a row whose `source`
+             // is 'commitment': `payee` is who it was promised to and `committed`
+             // the agreed figure. On an ORDINARY expense row, `commitmentId`
+             // points back at the promise this instalment pays down. Appended
+             // LAST per the header rule — a commitment moves no money, so it
+             // needs no new store and no schema bump.
+             'payee', 'committed', 'commitmentId'],
   handovers: ['id', 'year', 'from', 'to', 'amount', 'cashAmount', 'upiAmount', 'date', 'note',
               'status', 'confirmedBy', 'confirmedAt', 'collector', 'createdAt', 'receivedAt', 'fromId', 'toId', 'collectorId', 'collectorRole',
               // JSON {cat:{cash,upi}} of which source categories the money
@@ -1169,7 +1176,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.41.1';
+var CODE_VERSION = 'chanda-v4.42.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1395,6 +1402,15 @@ var ACTIONS = {
         // must ALSO name a real destination fund — a row that says "transfer"
         // and points nowhere would sit in the book moving nothing, and the
         // sector balances would quietly not add up to what people were told.
+        // A151: recording a দায় is a committee act — it changes what the
+        // committee believes it can still spend. Cashier/admin only, and it must
+        // name somebody and a real figure, or the book would carry a promise to
+        // nobody that quietly reduces what everyone thinks is free.
+        if (r.store === 'expenses' && String(r.row.source) === 'commitment') {
+          if (!isCashier || !String(r.row.payee || '').trim() || !(Number(r.row.committed) > 0)) {
+            rejectedIds.push(r.row.id); return;
+          }
+        }
         if (r.store === 'expenses' && String(r.row.source) === 'transfer') {
           var toS = String(r.row.transferTo || '');
           var fromS = String(r.row.sector || 'puja') || 'puja';

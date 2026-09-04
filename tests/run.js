@@ -6296,8 +6296,9 @@ try {
      'A148: the fund question only appears once the programme is switched on');
   // three flows ask it; the daily one also refuses to ask for a টিকিট, which is
   // programme money by definition (A149) — so two plain and one qualified
-  eq((app.match(/showIf: function \(\) \{ return programOn\(\); \}/g) || []).length, 2,
-     'A148: the donor and expense flows ask which fund…');
+  // donor, expense, and (A151) the দায় flow — a commitment belongs to a fund too
+  eq((app.match(/showIf: function \(\) \{ return programOn\(\); \}/g) || []).length, 3,
+     'A148/A151: the donor, expense and দায় flows ask which fund…');
   // Named to the FLOW, not just counted. The first pass put this qualification
   // on the donor flow — where `type` can never be 'ticket' — so the count was
   // right, the pin was green, and the ticket screen still asked. Found by
@@ -6430,7 +6431,12 @@ try {
   const cols = gs.slice(gs.indexOf('  expenses: ['), gs.indexOf('],', gs.indexOf('  expenses: [')))
     .replace(/\/\/[^\n]*/g, '').match(/'([a-zA-Z]+)'/g).map(function (q) { return q.slice(1, -1); });
   eq(cols.indexOf('transferTo') >= 0, true, 'A150: transferTo has a real column…');
-  eq(cols[cols.length - 1], 'transferTo', 'A150: …appended LAST, per the header rule');
+  // the property is the append-only rule, not which name happens to be last —
+  // A151 appended three more after it. So: transferTo came after everything that
+  // existed before it, and the newest addition is still at the end.
+  eq(cols.indexOf('transferTo') > cols.indexOf('srcCat'), true,
+     'A150: …appended after what came before it, per the header rule');
+  eq(cols[cols.length - 1], 'commitmentId', 'A151: …and the newest column is last in turn');
   eq(/if \(!isCashier \|\| SECTORS\.indexOf\(toS\) < 0 \|\| toS === fromS\)/.test(gs), true,
      'A150: the server refuses a transfer from a collector, or one that names no real destination');
   eq(/var SECTORS = \['puja', 'program'\];/.test(gs), true, 'A150 mirror: the server knows the funds');
@@ -6438,6 +6444,104 @@ try {
      'A150: the button is WIRED where the report is painted — this project has shipped two dead ones');
   eq(/source: 'transfer', sector: to === 'program' \? 'puja' : 'program', transferTo: to,/.test(app), true,
      'A150: …and the row it writes names both ends');
+}
+
+// ---- A151: দায় — promised, not yet paid ------------------------------------
+//
+// The gap this closes: `expenses` means "paid", so an artist booked at ₹25,000
+// with ₹5,000 advance left ₹20,000 gone in every sense but the literal one,
+// while the in-hand figure read healthy. It needs NO new store and no schema
+// bump — a promise is not a movement of money, so it rides in `expenses` and
+// activeData splits it off, the same trick A150 paid for.
+{
+  const A = require('../js/aggregate.js');
+  const book = {
+    parties: [], payments: [],
+    daily: [{ id: 'd1', type: 'ticket', amount: 30000, cashAmount: 30000, upiAmount: 0,
+              collectorId: 'ram', date: '2026-09-05', sector: 'program' }],
+    expenses: [
+      { id: 'c1', source: 'commitment', payee: 'শিল্পী — রূপা', committed: 25000, amount: 0,
+        sector: 'program', date: '2026-09-05' },
+      { id: 'c2', source: 'commitment', payee: 'সাউন্ড', committed: 8000, amount: 0,
+        sector: 'program', date: '2026-09-05' },
+      { id: 'a1', subject: 'শিল্পী', amount: 5000, cashAmount: 5000, upiAmount: 0, spentBy: 'ram',
+        srcCat: 'other', sector: 'program', date: '2026-09-05', commitmentId: 'c1' },
+      { id: 'a2', subject: 'সাউন্ড', amount: 8000, cashAmount: 8000, upiAmount: 0, spentBy: 'ram',
+        srcCat: 'other', sector: 'program', date: '2026-09-05', commitmentId: 'c2' },
+    ],
+    handovers: [], voids: [], corrections: [],
+  };
+
+  eq(A.isCommitment(book.expenses[0]), true, 'A151: a দায় row knows itself');
+  eq(A.activeData(book).expenses.length, 2,
+     'A151: …and the ten expense readers never see it — only the two real spends');
+  eq(A.activeData(book).commitments.length, 2, 'A151: …activeData hands it to the one reader that wants it');
+
+  // promising money is not spending it
+  const tt = A.computeTotals(book);
+  eq(tt.totalExpense, 13000, 'A151: মোট খরচ counts the ₹5,000 advance and the ₹8,000 — not the promises');
+  eq(tt.inHand, 17000, 'A151: …so in-hand is what the committee really holds');
+  eq(A.reconcile(book).anomalies.filter(function (a2) { return a2.type === 'unbalanced'; }).length, 0,
+     'A151: …and the invariant still closes');
+
+  // …and the filter is what protects that, not the fact that the flow happens to
+  // write amount 0. A row that carries a figure — a hand-edited sheet, an older
+  // client, a bad import — must still not be spent twice.
+  const malformed = JSON.parse(JSON.stringify(book));
+  malformed.expenses[0].amount = 25000;
+  eq(A.computeTotals(malformed).totalExpense, 13000,
+     'A151: a promise carrying a figure is STILL not a spend — the filter is the guard, not luck');
+
+  const rows = A.commitmentRows(book);
+  const rupa = rows.filter(function (c) { return c.payee.indexOf('রূপা') >= 0; })[0];
+  const sound = rows.filter(function (c) { return c.payee === 'সাউন্ড'; })[0];
+  eq({ committed: rupa.committed, paid: rupa.paid, owed: rupa.owed, settled: rupa.settled },
+     { committed: 25000, paid: 5000, owed: 20000, settled: false },
+     'A151: ₹25,000 promised, ₹5,000 advanced — ₹20,000 is the number nobody could see before');
+  eq(sound.settled, true, 'A151: …and a promise paid in full is settled, not still owed');
+  eq(sound.owed, 0, 'A151: …owing nothing');
+
+  eq(A.spokenFor(book).total, 20000, 'A151: that is what is already spoken for…');
+  eq(A.spokenFor(book).program, 20000, 'A151: …and which ভাঁড়ার owes it');
+  eq(A.spokenFor(book).puja, 0, 'A151: …the puja fund promised nobody anything');
+
+  // THE line: the committee holds ₹17,000 but only ₹-3,000 of it is free
+  const ov = A.computeReport('overview', book);
+  eq(ov.spokenFor.total, 20000, 'A151: the overview carries it…');
+  eq(ov.inHand - ov.spokenFor.total, -3000,
+     'A151: …so ₹17,000 in hand against ₹20,000 promised is a REAL shortfall the old book called healthy');
+  eq(A.computeReport('program', book).spokenFor, 20000,
+     'A151: the programme report carries its own share');
+
+  // overpaying does not invent money coming back
+  const over = JSON.parse(JSON.stringify(book));
+  over.expenses.push({ id: 'a3', subject: 'সাউন্ড', amount: 2000, cashAmount: 2000, upiAmount: 0,
+                       spentBy: 'ram', srcCat: 'other', sector: 'program', date: '2026-09-05', commitmentId: 'c2' });
+  eq(A.commitmentRows(over).filter(function (c) { return c.payee === 'সাউন্ড'; })[0].owed, 0,
+     'A151: paying more than promised owes ZERO, never a negative that reads as money returning');
+}
+
+// ---- A151: the halves that must not drift ----------------------------------
+{
+  const fs = require('fs');
+  const gs = fs.readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const cols = gs.slice(gs.indexOf('  expenses: ['), gs.indexOf('],', gs.indexOf('  expenses: [')))
+    .replace(/\/\/[^\n]*/g, '').match(/'([a-zA-Z]+)'/g).map(function (q) { return q.slice(1, -1); });
+  ['payee', 'committed', 'commitmentId'].forEach(function (c) {
+    eq(cols.indexOf(c) >= 0, true, 'A151: ' + c + ' has a real column');
+  });
+  eq(/if \(!isCashier \|\| !String\(r\.row\.payee \|\| ''\)\.trim\(\) \|\| !\(Number\(r\.row\.committed\) > 0\)\)/.test(gs), true,
+     'A151: the server refuses a promise from a collector, to nobody, or for nothing');
+  eq(/const db2 = document\.getElementById\('duty-btn'\);\s*\n\s*if \(db2\) db2\.onclick/.test(app), true,
+     'A151: the "record a দায়" button is WIRED where the report is painted');
+  eq(/dutyBlockHTML\(tt\.commitments, \(tt\.spokenFor \|\| \{\}\)\.total\)/.test(app), true,
+     'A151: …and the overview lists the promises under its own totals');
+  eq(/esc\(t\('spoken_for'\)\)[\s\S]{0,300}?esc\(t\('really_free'\)\)/.test(app), true,
+     'A151: …with the line that says how much of the cash in hand is actually free');
+  // it must be NAMED, never subtracted — the committee does hold that money
+  eq(/inHand: totalColl - totalExp,/.test(fs.readFileSync(__dirname + '/../js/aggregate.js', 'utf8')), true,
+     'A151: in-hand is still what the committee HOLDS — a book that shrank its own cash would lie differently');
 }
 
 try {

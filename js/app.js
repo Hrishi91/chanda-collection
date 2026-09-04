@@ -2205,7 +2205,11 @@
         const isOther = a.subject === OTHER_SUBJECT;
         const row = DB.newRow({
           subject: isOther ? 'Other' : a.subject, desc: a.comment || '',
-          sector: type === 'ticket' ? 'program' : (a.sector || 'puja'), // A148/A149: which ভাঁড়ার paid for it
+          // A148: which ভাঁড়ার paid for it. (A149's ticket clause belongs to the
+          // DAILY flow, which has a `type`; a copy of it landed here, where
+          // `type` is not in scope — so every general খরচ threw ReferenceError
+          // at save. Shipped in v4.40.0, found while writing A151.)
+          sector: a.sector || 'puja',
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
           srcCat: 'other', // pooled money has no honest category — see above
           spentBy: Settings.get('collectorName'),
@@ -2215,6 +2219,44 @@
           return { undo: [{ store: 'expenses', id: row.id }], after: { buttons: [
             { label: t('one_more') + ' ' + t('expense'), action: function () { startExpense(); } },
             { label: t('done_for_now'), action: function () { navigate('home'); } },
+          ] } };
+        });
+      },
+    };
+  }
+  // A151: record a দায় — money promised, not yet paid. Cashier/admin only.
+  //
+  // It writes an `expenses` row with source 'commitment', which activeData
+  // splits off before any total sees it: promising money is not spending it.
+  // The advance and every later instalment are ORDINARY expense rows carrying
+  // `commitmentId`, so they count as real spending exactly as they should, and
+  // only the unpaid remainder shows as দায়.
+  function dutyFlow() {
+    return {
+      title: t('duty_add'),
+      steps: [
+        { key: 'payee', qKey: 'q_duty_payee', kind: 'text' },
+        { key: 'sector', qKey: 'q_sector', kind: 'choice',
+          options: [{ v: 'program', labelKey: 'sector_program' }, { v: 'puja', labelKey: 'sector_puja' }],
+          showIf: function () { return programOn(); } },
+        { key: 'committed', qKey: 'q_duty_amount', kind: 'amount' },
+        { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
+      ],
+      save: function (a) {
+        const c = Number(a.committed) || 0;
+        if (c <= 0) return Promise.reject(new Error('zero'));
+        const row = DB.newRow({
+          source: 'commitment', payee: String(a.payee || '').trim(),
+          committed: c, sector: a.sector || 'puja',
+          // a commitment moves no money, so it carries none — the advance is a
+          // separate, ordinary expense row
+          amount: 0, cashAmount: 0, upiAmount: 0,
+          subject: '', desc: a.note || '', srcCat: '', collectionType: '',
+          spentBy: Settings.get('collectorName'), date: todayISO(),
+        });
+        return DB.put('expenses', row).then(function () {
+          return { undo: [{ store: 'expenses', id: row.id }], after: { buttons: [
+            { label: t('done_for_now'), action: function () { navigate('report'); } },
           ] } };
         });
       },
@@ -2254,11 +2296,17 @@
       },
     };
   }
+  let expenseDuties = [];
   function startExpense(edit) {
+    // read once, before the flow opens — viewData resolves a tick later and the
+    // step list is built synchronously
+    viewData().then(function (d) { expenseDuties = Aggregate.commitmentRows(d); }).catch(function () {});
     // no myAvailable() here any more — the flow stopped asking which pot the
     // money came from, so there is nothing to compute before opening it
     const go = function (subjects) {
-      const def = expenseFlow(subjects);
+      // A151: the open দায় list travels with the subject list, so a spend can be
+      // recorded as an instalment against a promise in the same breath.
+      const def = expenseFlow(subjects, expenseDuties);
       if (edit) {
         def.presets = edit.presets; def.editing = edit.editing;
         def.title = t('edit_title') + ' — ' + def.title; def.returnTo = 'entries';
@@ -4752,6 +4800,13 @@
       '<div><span>' + esc(t('total_expense')) + '</span><b>' + fmtMoney(tt.totalExpense) + '</b></div>' +
       '<div class="green"><span>' + esc(t('in_hand')) + '</span><b>' + fmtMoney(tt.inHand) + '</b></div>' +
       '</div>' +
+      // A151: the line the in-hand figure has always been missing. NOT subtracted
+      // — the committee really does hold that cash — but named, so nobody plans
+      // against money an artist is already waiting for.
+      ((tt.spokenFor && tt.spokenFor.total) ?
+        '<div class="strip act">' + esc(t('spoken_for')) + ': ' + fmtMoney(tt.spokenFor.total) +
+          ' · ' + esc(t('really_free')) + ': <b>' + fmtMoney(tt.inHand - tt.spokenFor.total) + '</b>' +
+          '<span class="sub">' + esc(t('spoken_for_note')) + '</span></div>' : '') +
       '<div class="stat3"><div><span>' + esc(t('total_pledged')) + '</span><b>' + fmtMoney(tt.totalPledged) + '</b></div>' +
       '<div class="red"><span>' + esc(t('total_due')) + '</span><b>' + fmtMoney(tt.totalDue) + '</b></div><div></div></div>' +
       '<div class="stat3"><div><span>' + esc(t('total_cash')) + '</span><b>' + fmtMoney(tt.totalCash) + '</b></div>' +
@@ -4764,6 +4819,9 @@
       // always the same one: read what the data says instead of retyping it.
       Object.keys(tt.byType || {}).filter(function (k) { return tt.byType[k].count; }).map(typeRow).join('') +
       Object.keys(tt.dailyByType || {}).map(dailyRow).join('') +
+      dutyBlockHTML(tt.commitments, (tt.spokenFor || {}).total) +
+      (Auth.isCashier() && !frozen() ? '<button id="duty-btn" class="ghost big block">' +
+        esc(t('duty_add')) + '</button>' : '') +
       // A148: the two ভাঁড়ার, side by side, and ONLY once the programme is in
       // use — a committee with no programme sees the screen it always saw.
       // The two columns add up to মোট আদায় / মোট খরচ above by construction
@@ -5132,7 +5190,31 @@
         rows(d.income, function (k) { return t(CAT_LABEL_KEYS[k] || 'cat_other'); }) : '') +
       (d.spend.length ? '<div class="secttl">' + esc(t('prog_spend')) + '</div>' +
         rows(d.spend, function (k) { return k === '—' ? t('cat_other') : k; }) : '') +
+      // A151: what is promised and not yet paid. It sits BELOW the spending,
+      // because it is not spending — it is the thing the balance above does not
+      // know about, and the planning number nobody had before.
+      dutyBlockHTML(d.commitments, d.spokenFor) +
       '</div>';
+  }
+  // A151: the দায় list — every promise with what is paid and what is still owed.
+  // Shown wherever a fund's balance is shown, because a balance that ignores
+  // what is already promised is the most confident wrong number in the book.
+  function dutyBlockHTML(list, owedTotal) {
+    const open = (list || []).filter(function (c) { return !c.settled; });
+    const done = (list || []).filter(function (c) { return c.settled; });
+    const row = function (c) {
+      return '<div class="row"><div><b>' + esc(c.payee || '—') + '</b>' +
+        '<div class="row-sub">' + esc(t('duty_paid_of').replace('{p}', fmtMoney(c.paid))
+          .replace('{c}', fmtMoney(c.committed))) +
+        (c.note ? ' \u2022 ' + esc(c.note) : '') + '</div></div>' +
+        '<div class="row-right">' + (c.settled
+          ? '<span class="green">' + esc(t('duty_settled')) + '</span>'
+          : '<b class="red">' + fmtMoney(c.owed) + '</b>') + '</div></div>';
+    };
+    if (!open.length && !done.length) return '';
+    return '<div class="secttl">' + esc(t('duty_title')) +
+      (owedTotal ? ' — ' + esc(t('duty_owed')) + ' ' + fmtMoney(owedTotal) : '') + '</div>' +
+      open.map(row).join('') + done.map(row).join('');
   }
   function reportDailyHTML(d) {
     const rows = d.rows || [], bt = d.byType || { road: 0, toto: 0 };
@@ -5899,6 +5981,8 @@
         // a drawn-but-dead button (this project has shipped two) is impossible.
         const tb = document.getElementById('transfer-btn');
         if (tb) tb.onclick = function () { startFlow(transferFlow()); };
+        const db2 = document.getElementById('duty-btn');
+        if (db2) db2.onclick = function () { startFlow(dutyFlow()); };
       }
       catch (e) { body.innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>'; }
     });
