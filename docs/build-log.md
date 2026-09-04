@@ -12169,3 +12169,21 @@ A144 (স্পনসর + the confidential-entry machinery) reaches the phones.
 to whoever negotiates them, and `sponsorview` to the কোষাধ্যক্ষ — without the
 second, sponsor money cannot be handed over at all. Neither can ride a
 committee post, by design.
+
+### CI: the precache gate that cried wolf (2026-09-04)
+
+Every push since 2026-08-30 failed CI, and none of the failures was real. The
+"service worker precaches only files that exist" step extracts the SHELL and
+EXTRAS arrays with `\[([^\]]*)\]` — and EXTRAS carries a long explanatory
+comment INSIDE the literal that quotes `cache: 'reload'`. The check read
+`reload` as a filename, could not find it on disk, and failed the build.
+
+Noticed only because A144's own push went red while `node tests/run.js` was
+green locally — which is exactly the danger: a gate that is always red teaches
+everybody to stop reading it, and it would have swallowed the next genuinely
+missing asset in silence. The same failure this project keeps naming about red
+banners, one layer down.
+
+Fix: strip `//` comments before extracting. The gate now reads its real list of
+18 assets and passes, and a mutation (`js/ghost.js` added to SHELL) is caught —
+which the old version could not have done for EXTRAS at all.
