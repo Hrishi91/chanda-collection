@@ -14467,3 +14467,35 @@ Tests 2,578 (from 2,569).
 `r.name`, `perms` as a string. Every value I could read was right on the
 first run. The pattern is now unmistakable: **when a check disagrees
 with a screen that plainly works, the check is wrong.**
+
+## 2026-09-06 — A191: whose hand does somebody else's donor go into?
+
+🔍 অন্য কারো দাতা prints a promise on screen — *"টাকা তোমার হাতে গণ্য
+হবে"*. If that were wrong, two collectors' books would disagree about the
+same evening and neither would obviously be at fault.
+
+It is right. Ratan owns a donor and takes ₹1,000; তপন, holding
+`otherdonor`, takes ₹2,000 against the same donor. **তপন holds ₹2,000,
+রতন holds ₹1,000** — the money follows whoever carried it — and the
+**donor is credited the whole ₹3,000**, because who carried it is not the
+donor's problem. Three separate facts, all correct.
+
+**The correction desk's other verdict.** A186 drove ✅ বাতিল করো; this is
+🚫 ঠিক আছে: the complaint is settled, the payment stays exactly where it
+was, and **no void is written at all**. The desk can say "no" without
+leaving a mark on the money.
+
+**🧹 সবার আলাদা permission** clears everyone's personal grants, entry
+permissions stop working on the very next push, and admins are untouched.
+It also clears the **cashier flag** — which surprised me until I read the
+hint, which says exactly that: *"মুছলে সবার অনুমতি শুধু পদ থেকেই আসবে"*.
+Cashier set by hand is not from a post, so it goes. The wording is
+honest, and the hint even promises a preview of who would be left with
+what — the opposite of A171's rollover confirm, which under-promised.
+
+Two of my assertions failed first and both were mine: subtracting from an
+`undefined` in-hand (somebody with no rows yet is absent from
+`inHandRows`, not zero), and expecting 🧹 to spare the cashier flag.
+
+Tests 2,585 (from 2,578). Pinned and mutation-proved — attributing every
+payment to one person fails three older in-hand tests by name.

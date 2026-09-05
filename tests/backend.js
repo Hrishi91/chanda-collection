@@ -2745,4 +2745,58 @@ module.exports = function runBackendTests(eq) {
     eq(me.inHand, 2000,
        'backend A190: so he holds 3000−1000: the refused ₹500 is back in his pocket, counted once');
   }
+
+  // --- A191: money follows the collector, not the donor's owner ------------
+  // 🔍 অন্য কারো দাতা says on screen "টাকা তোমার হাতে গণ্য হবে". If that were
+  // wrong, two collectors' books would disagree about the same evening and
+  // neither would be obviously at fault.
+  {
+    const bo = loadBackend();
+    bo.api.setup();
+    ['hrishi', 'kali', 'ratan', 'tapan'].forEach(function (u, i) {
+      bo.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '86000000' + i });
+    });
+    let t0 = bo.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+    const rw = function (u) { return bo.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    ['kali', 'ratan', 'tapan'].forEach(function (u) {
+      bo.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+      bo.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+      bo.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'road', 'review', 'otherdonor'] });
+    });
+    bo.call('setCashier', { token: t0, userId: rw('kali').id, cashier: 1 });
+    const to = {};
+    ['hrishi', 'kali', 'ratan', 'tapan'].forEach(function (u, i) {
+      to[u] = bo.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+    });
+    const put = function (u, store, row) {
+      return ((bo.call('push', { token: to[u], records: [rec(store, row)] }) || {}).savedIds || []).length > 0;
+    };
+    const A5 = require('../js/aggregate.js');
+    const holds = function (u) {
+      const d = (bo.call('pull', { token: to[u], year: 2026, since: 0 }) || {}).data || {};
+      const r = (A5.inHandRows(d) || []).filter(function (x) { return String(x.collector).indexOf(u) >= 0; })[0];
+      return r ? r.inHand : 0;
+    };
+    put('ratan', 'parties',  { id: 'o1', year: 2026, type: 'shop', name: 'রতনের দোকান', pledged: 5000, sector: 'puja' });
+    put('ratan', 'payments', { id: 'oy1', year: 2026, partyId: 'o1', partyName: 'রতনের দোকান', amount: 1000, cashAmount: 1000, upiAmount: 0, date: '2026-09-05' });
+    eq(put('tapan', 'payments', { id: 'oy2', year: 2026, partyId: 'o1', partyName: 'রতনের দোকান', amount: 2000, cashAmount: 2000, upiAmount: 0, date: '2026-09-05' }), true,
+       'backend A191: otherdonor lets somebody take money against a donor that is not theirs');
+    eq(holds('tapan'), 2000, 'backend A191: …and it lands in the hand of whoever TOOK it');
+    eq(holds('ratan'), 1000, 'backend A191: …not in the hand of whoever owns the donor');
+    const dd = (bo.call('pull', { token: to.hrishi, year: 2026, since: 0 }) || {}).data || {};
+    eq((dd.payments || []).filter(function (p) { return p.partyId === 'o1'; })
+       .reduce(function (a, p) { return a + Number(p.amount); }, 0), 3000,
+       'backend A191: while the DONOR is credited the whole ₹3,000 — who carried it is not their problem');
+
+    // the correction desk's other verdict: 🚫 ঠিক আছে leaves the row alone
+    put('ratan', 'corrections', { id: 'c9', year: 2026, targetStore: 'payments', targetId: 'oy1', note: 'ভুল মনে হচ্ছে', date: '2026-09-05' });
+    bo.call('setEntries', { token: to.hrishi, userId: rw('kali').id, entries: ['shop', 'review'] });
+    bo.call('resolveCorrection', { token: to.kali, id: 'c9', decision: 'reject', year: 2026 });
+    const d3 = (bo.call('pull', { token: to.hrishi, year: 2026, since: 0 }) || {}).data || {};
+    eq(String(((d3.corrections || []).filter(function (x) { return x.id === 'c9'; })[0] || {}).status) !== 'pending', true,
+       'backend A191: 🚫 settles the complaint');
+    eq(A5.activeData(d3).payments.filter(function (p) { return p.id === 'oy1'; }).length, 1,
+       'backend A191: …and leaves the money exactly where it was');
+    eq((d3.voids || []).length, 0, 'backend A191: …writing no void at all');
+  }
 };
