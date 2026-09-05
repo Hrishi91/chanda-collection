@@ -27,6 +27,24 @@ eq(parseAmount('১৫০০/-'), 1500, 'A169: …in Bengali digits too');
 eq(Number.isNaN(parseAmount('-500')), true, 'A169: …while a negative amount is still refused');
 eq(Number.isNaN(parseAmount('500-')), true, 'A169: …and a bare trailing minus is not a slip');
 eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not an amount');
+
+// A171: the rollover confirm must name what CARRIES, not only what does not.
+// Measured against the real handler: `pledged`, `pledgeOk` and a member row's
+// linked `appUser` all cross into the new year, so the old wording — "no
+// payments are copied" — reassured about the one thing that stays behind while
+// saying nothing about the pledged amounts that make the new year's বাকির
+// তালিকা open with money nobody has promised. A confirm that reassures about
+// the wrong thing is worse than no confirm.
+{
+  const i18nSrc = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const line = (i18nSrc.match(/rollover_confirm: \{[\s\S]*?\},/) || [''])[0];
+  eq(line.length > 0, true, 'A171: the rollover confirm exists');
+  eq(/কথা দেওয়া অঙ্ক/.test(line), true,
+     'A171: …and says the pledged amounts come across');
+  eq(/pledged amounts/i.test(line), true, 'A171: …in English too');
+  eq(/দেখে নিতে হবে|need reviewing/i.test(line), true,
+     'A171: …and that they need reviewing, which is the action it implies');
+}
 eq(parseAmount('৫০০'), 500, 'bengali digits');
 eq(parseAmount(' ৫,০০০ টাকা '), 5000, 'bengali digits + comma + টাকা');
 eq(parseAmount('₹1,250'), 1250, 'rupee sign + comma');

@@ -760,9 +760,28 @@ rough order of value:
    the A81 ghost-column class, aligned today, latent. Move to sheetHeader_.
 4. **Last-admin guards race**: two admins demoting each other concurrently can
    leave zero admins. Wants the same lock the rest of Users writes hold.
-5. **rolloverYear** copies `pledgeOk` (a per-season answer) and member rows
-   (now account-bearing) into the new year — next season's register starts
-   pre-cleared and pre-occupied. Revisit with the closure work.
+5. **rolloverYear carries more than the note said (measured, A171).** Run
+   against the real handler with four donor kinds, here is what crosses into
+   the new year:
+   - `pledged` — **the biggest one, and it was not in this note before.**
+     Last season's ₹5,000 and ₹50,000 come across as live promises, so the new
+     year's 📋 বাকির তালিকা opens showing money nobody has agreed to. Every
+     donor is instantly in arrears.
+   - `pledgeOk` — last season's consent, carried as if asked again.
+   - a member row's linked `appUser` — the register starts pre-occupied.
+   - **সponsor and গুপ্ত দান rows copy too.** A গুপ্ত দান is a one-time
+     anonymous gift by its nature; carrying the name into a second year keeps
+     a confidential record alive longer than anybody agreed to.
+   Payments correctly do NOT carry, and the handler's `year-has-data` guard
+   and `touchData_` stamp are both right.
+   **Interim fix shipped (A171):** the confirm dialog now names what carries
+   instead of only what does not. The old wording said "কোনো জমা কপি হবে না",
+   which reassured about the one thing that stays behind — a confirm that
+   reassures about the wrong thing is worse than none.
+   **Still open, and it is Hrishi's call, at closure not now:** should a new
+   season start with last year's pledges, with them blanked, or with the donor
+   list only? Blanking `pledgeOk` is clearly right; blanking `pledged` is a
+   committee decision about how the season is opened.
 6. **canEditParty vs push on blank-collectorId rows** (hand-typed sheet rows):
    server accepts any collector, UI offers admin only. Harmless until somebody
    hand-types a row; align the two.

@@ -552,7 +552,14 @@ const I18N = {
   restore_confirm: { bn: '⚠️ "{f}" ফেরালে এখনকার সব ডেটা ওই সময়ের অবস্থায় ফিরে যাবে। (নিরাপত্তার জন্য এখনকার অবস্থার backup আগে নেওয়া হবে।) এগোবে?', en: '⚠️ Restoring "{f}" replaces all current data with that snapshot. (A safety backup of the current state is taken first.) Continue?' },
   restore_type: { bn: 'নিশ্চিত হতে RESTORE টাইপ করো', en: 'Type RESTORE to confirm' },
   restore_done: { bn: '✅ ফেরানো হয়েছে: {n}\n(এখনকার অবস্থার safety backup: {s})', en: '✅ Restored: {n}\n(safety backup of previous state: {s})' },
-  rollover_confirm: { bn: '{from} সালের {n} জন দাতা {to} সালে নতুন করে আনা হবে (কোনো জমা কপি হবে না)। করবে?', en: 'Copy {n} donors from {from} into {to} (no payments carried). Proceed?' },
+  // A171: the old wording said only "no payments are copied" — true, and
+  // reassuring about the one thing that does NOT carry, while silent about
+  // everything that does. Measured: the pledged AMOUNT comes across, so the
+  // new year's বাকির তালিকা opens showing money nobody has promised; so does
+  // pledgeOk (last season's consent) and a member row's linked account.
+  // A confirm that reassures about the wrong thing is worse than none.
+  rollover_confirm: { bn: '{from} সালের {n} জন দাতা {to} সালে আসবে — নাম, এলাকা ও গতবারের কথা দেওয়া অঙ্ক সমেত। জমা আসবে না, কিন্তু অঙ্কগুলো একবার দেখে নিতে হবে। করবে?',
+                      en: 'Copy {n} donors from {from} into {to} — names, areas and LAST YEAR\'S pledged amounts. No payments carry over, but the pledges will need reviewing. Proceed?' },
   // A76: the year being read has no donors, so there is nothing to carry FROM.
   // Says which year it looked at, because the answer is usually "you are on the
   // wrong year" — and for a brand-new committee it is simply "not yet".

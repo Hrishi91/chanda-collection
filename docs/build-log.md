@@ -13631,3 +13631,46 @@ and docs; A169 carries the bump.
 - Deployed v4.54.0; probed three times (`codeVersion: chanda-v4.54.0`,
   `schema: 5`). `js/config.js` rebaked. Carries A169 (the `500/-` slip
   form) to the phones.
+
+## 2026-09-05 — A171: the rollover confirm reassured about the wrong thing
+
+`pending.md` item 5 said `rolloverYear` copies `pledgeOk` and member
+rows. Run against the real handler with four donor kinds, it copies more
+than that — and the largest item was not in the note:
+
+- **`pledged` crosses into the new year.** Last season's ₹5,000 and
+  ₹50,000 arrive as live promises, so the new year's 📋 বাকির তালিকা
+  opens showing money nobody has agreed to and every donor starts in
+  arrears.
+- `pledgeOk` — last season's consent, carried as though asked again.
+- A member row's linked `appUser` — the register starts pre-occupied.
+- **সponsor and গুপ্ত দান rows copy too.** A গুপ্ত দান is a one-time
+  anonymous gift; carrying the name into a second year keeps a
+  confidential record alive longer than anybody agreed to.
+
+Payments correctly do not carry, and the handler's `year-has-data` guard
+and its `touchData_` stamp (A59's fix) are both right.
+
+**The behaviour is not changed here.** This is next-January code, the
+season has not ended, and whether a new year should open with last
+year's pledges, with them blanked, or with the donor list alone is a
+committee decision — Hrishi's, at closure. Recorded in pending.md with
+the measurements so the decision has numbers under it.
+
+**What did change is the confirm dialog**, because it was actively
+misleading. It said only "কোনো জমা কপি হবে না" — true, and reassuring
+about the one thing that stays behind, while silent about the pledged
+amounts that do the damage. It now names what carries and says the
+pledges need reviewing. A confirm that reassures about the wrong thing
+is worse than no confirm at all.
+
+Tests 2,475 (from 2,471); the wording is pinned in both languages and
+mutation-proved by restoring the old half-truth.
+
+**Version → v4.55.0, and the pre-commit hook is why.** I wrote "i18n
+only, no logic — version stays put" and the hook refused the commit:
+`js/i18n.js` IS an app-shell file, served cache-first, so without an
+`sw.js` VERSION bump the new wording would land on Pages and reach **not
+one phone**. Exactly the failure the hook exists to prevent, and I
+walked into it while writing a release note about a misleading message.
+Needs the deploy.
