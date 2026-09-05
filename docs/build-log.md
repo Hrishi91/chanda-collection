@@ -14671,3 +14671,31 @@ that really did receive that much.
 
 Tests 2,622 (from 2,614). Pinned and mutation-proved — removing the
 holds-money guard also fails A78's own older test by name.
+
+## A197 — the race Code.gs names itself, pinned (2026-09-06)
+
+**Checked, not changed.** Three areas that had never been walked end to
+end. All three were already right; what was missing was a test that would
+notice if they stopped being.
+
+**Confirm vs reject on one parcel.** Code.gs's own comment says "the race
+that matters is precisely confirm-vs-reject on one row" — কালী confirms on
+her phone while the same parcel is refused from another. The second verdict
+throws `already-confirmed` (or `already-rejected` the other way round) and
+**neither in-hand figure moves**: রতন ₹0→₹0, কালী ₹3000→₹3000. Without the
+guard the money would come off রতন's hand twice for one ₹3000 parcel.
+
+**Cashier to cashier.** কালী ₹3000→₹2000, বিমল ₹0→₹1000 on confirm — the
+same machinery as collector→cashier, no special case. A cashier who is not
+the addressee cannot confirm the parcel on the recipient's behalf, even
+though she is a cashier.
+
+**The 🩺 desk's last verdict.** Paying past the pledge raises `overpaid`;
+"ঠিক আছে, বেশিই দিয়েছেন" writes `pledgeOk: 1` to the **server** row, so the
+card disappears for every phone, not just the one that answered.
+
+Tests 2,630 (from 2,622). Mutation-proved: dropping either half of the
+verdict guard fails the new assertions **by name**, and so does making
+`reconcile` ignore `pledgeOk`. Removing `pledgeOk` from `ANOMALY_FLAGS`
+aborts the suite on an older pin instead — that permission was already
+guarded before today.

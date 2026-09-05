@@ -3012,4 +3012,73 @@ module.exports = function runBackendTests(eq) {
        .some(function (p) { return p.id === 'ry1'; }), true,
        'backend A196: …while the money they already collected stays in the book');
   }
+
+  // --- A197: confirm vs reject on one row, and a cashier-to-cashier parcel --
+  // Code.gs names this race itself: "the race that matters is precisely
+  // confirm-vs-reject on one row". If the second verdict landed, the money
+  // would move twice off one parcel.
+  {
+    const bc = loadBackend();
+    bc.api.setup();
+    ['hrishi', 'kali', 'bimal', 'ratan'].forEach(function (u, i) {
+      bc.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '80000000' + i });
+    });
+    let t0 = bc.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+    const rw = function (u) { return bc.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    ['kali', 'bimal', 'ratan'].forEach(function (u) {
+      bc.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+      bc.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+      bc.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'road'] });
+    });
+    ['kali', 'bimal'].forEach(function (u) { bc.call('setCashier', { token: t0, userId: rw(u).id, cashier: 1 }); });
+    const tc = {};
+    ['hrishi', 'kali', 'bimal', 'ratan'].forEach(function (u, i) {
+      tc[u] = bc.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+    });
+    t0 = tc.hrishi;
+    const A7 = require('../js/aggregate.js');
+    const put = function (u, store, row) { bc.call('push', { token: tc[u], records: [rec(store, row)] }); };
+    const oops = function (fn) { try { const r = fn(); return (r && r.error) || ''; } catch (e) { return String(e.message || e); } };
+    const hand = function (u) {
+      const d = (bc.call('pull', { token: t0, year: 2026, since: 0 }) || {}).data || {};
+      const r = (A7.inHandRows(d) || []).filter(function (x) { return String(x.collector).indexOf(u) >= 0; })[0];
+      return r ? r.inHand : 0;
+    };
+    put('ratan', 'parties',  { id: 'c1', year: 2026, type: 'shop', name: 'দোকান', pledged: 9000, sector: 'puja' });
+    put('ratan', 'payments', { id: 'cy1', year: 2026, partyId: 'c1', partyName: 'দোকান', amount: 3000, cashAmount: 3000, upiAmount: 0, date: '2026-09-05' });
+    put('ratan', 'handovers', { id: 'ch1', year: 2026, amount: 3000, cashAmount: 3000, upiAmount: 0, toId: 'kali', date: '2026-09-05', status: 'pending' });
+    bc.call('confirmHandover', { token: tc.kali, id: 'ch1', year: 2026 });
+    const after = { r: hand('ratan'), k: hand('kali') };
+    eq(oops(function () { return bc.call('rejectHandover', { token: tc.kali, id: 'ch1', reason: 'ভুল', year: 2026 }); }),
+       'already-confirmed', 'backend A197: a confirmed parcel cannot then be refused');
+    eq(hand('ratan') === after.r && hand('kali') === after.k, true,
+       'backend A197: …so the money does not move a second time off one parcel');
+
+    put('ratan', 'handovers', { id: 'ch2', year: 2026, amount: 500, cashAmount: 500, upiAmount: 0, toId: 'kali', date: '2026-09-05', status: 'pending' });
+    bc.call('rejectHandover', { token: tc.kali, id: 'ch2', reason: 'পাইনি', year: 2026 });
+    oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch2', year: 2026 }); });
+    eq(String((bc.rows('Handovers').filter(function (h) { return h.id === 'ch2'; })[0] || {}).status), 'rejected',
+       'backend A197: …and a refused one cannot then be confirmed');
+
+    // cashier to cashier is the same machinery, and only the addressee may act
+    const k0 = hand('kali'), b0 = hand('bimal');
+    put('kali', 'handovers', { id: 'ch3', year: 2026, amount: 1000, cashAmount: 1000, upiAmount: 0, toId: 'bimal', date: '2026-09-05', status: 'pending' });
+    bc.call('confirmHandover', { token: tc.bimal, id: 'ch3', year: 2026 });
+    eq(hand('kali'), k0 - 1000, 'backend A197: a cashier can hand on to another cashier');
+    eq(hand('bimal'), b0 + 1000, 'backend A197: …and it lands the same way');
+    put('kali', 'handovers', { id: 'ch4', year: 2026, amount: 200, cashAmount: 200, upiAmount: 0, toId: 'bimal', date: '2026-09-05', status: 'pending' });
+    eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
+       'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
+
+    // the 🩺 desk's pledge verdict, written to the server row
+    put('ratan', 'payments', { id: 'cy2', year: 2026, partyId: 'c1', partyName: 'দোকান', amount: 20000, cashAmount: 20000, upiAmount: 0, date: '2026-09-05' });
+    const kinds = function () {
+      const d = (bc.call('pull', { token: t0, year: 2026, since: 0 }) || {}).data || {};
+      return ((A7.reconcile(d, {}) || {}).anomalies || []).map(function (a) { return a.type; });
+    };
+    eq(kinds().indexOf('overpaid') >= 0, true, 'backend A197: paying past the pledge raises a question');
+    bc.call('setAnomalyFlag', { token: tc.kali, store: 'parties', field: 'pledgeOk', id: 'c1', year: 2026, value: 1 });
+    eq(kinds().indexOf('overpaid') < 0, true,
+       'backend A197: …and "ঠিক আছে, বেশিই দিয়েছেন" settles it on the SERVER row, for every phone');
+  }
 };
