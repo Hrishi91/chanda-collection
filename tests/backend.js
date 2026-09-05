@@ -12,6 +12,10 @@
 'use strict';
 const { loadBackend } = require('./gas-shim.js');
 
+const SHEET_TITLE = { parties: 'Parties', payments: 'Payments', daily: 'DailyCollections',
+                      expenses: 'Expenses', handovers: 'Handovers', voids: 'Voids',
+                      corrections: 'Corrections', messages: 'Messages' };
+
 module.exports = function runBackendTests(eq) {
   // A fresh book with an admin, a cashier and two collectors — the smallest
   // cast that can express every rule this file is about.
@@ -569,9 +573,15 @@ module.exports = function runBackendTests(eq) {
     // What they may still do — an allow-list, asserted item by item, because
     // every one of these falls through permForRow_ with a null key and would
     // otherwise be granted to everybody.
+    // A174: "did it LAND", not "was it rejected". A174 turned the money stores
+    // from refused to HELD — the row still does not enter the book, which is
+    // all A78 ever meant, but `rejectedIds.length === 0` measured the proxy
+    // rather than the fact and started reading a held row as permission. The
+    // sheet is the fact.
     const can = function (store, row) {
       b.api.resetRequestState();
-      return b.call('push', { token: tok.ratan, epoch: '', records: [rec(store, row)] }).rejectedIds.length === 0;
+      b.call('push', { token: tok.ratan, epoch: '', records: [rec(store, row)] });
+      return b.rows(SHEET_TITLE[store]).some(function (r) { return String(r.id) === String(row.id); });
     };
     eq(can('parties', { id: 'x1', year: 2026, type: 'shop', name: 'নতুন', pledged: 100 }), false,
        'backend A78: a stood-down member cannot open a new donor');
@@ -2397,5 +2407,82 @@ module.exports = function runBackendTests(eq) {
     eq(L.bg.rows('Payments').length, 2, 'backend A173: …every row, including the গুপ্ত দান');
     eq(String(L.rw('kali').passwordHash || '').length > 0, true,
        'backend A173: …with password hashes intact, so people can still log in (A52\'s bug, still fixed)');
+  }
+
+  // --- A174: the collector stood down while they were out of signal ---------
+  // pending.md item 1, measured. The round happens, the committee decides
+  // while the phone is offline, the phone comes back and pushes. Rejecting
+  // split the parcel — the payment against their own donor SAVED, the donor
+  // row and the road money REFUSED — and js/sync.js drops a rejected row from
+  // the queue for good. The book was left with a permanent orphan_payment
+  // pointing at a donor that existed nowhere, and ₹800 of collected cash with
+  // no record on either side.
+  {
+    function exitBook(withOldDonor) {
+      const be = loadBackend();
+      be.api.setup();
+      ['hrishi', 'dipak', 'kali'].forEach(function (u, i) {
+        be.post('register', { username: u, name: u, password: 'secret' + i, phone: '92000000' + i });
+      });
+      let t0 = be.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+      const rw = function (u) { return be.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+      ['dipak', 'kali'].forEach(function (u) {
+        be.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+        be.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+        be.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'person', 'road'] });
+      });
+      const te = {};
+      ['hrishi', 'dipak', 'kali'].forEach(function (u, i) {
+        te[u] = be.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+      });
+      if (withOldDonor) {
+        be.call('push', { token: te.dipak, records: [rec('parties', { id: 'old-p', year: 2026,
+          type: 'shop', name: 'পুরনো', pledged: 9000, side: 'main_malda', sector: 'puja' })] });
+      }
+      const morning = new Date(be.env._now()).toISOString();
+      be.env._setNow(be.env._now() + 3600000);              // the round is over
+      be.call('setAccess', { token: te.hrishi, userId: rw('dipak').id, access: 'exiting' });
+      be.env._setNow(be.env._now() + 3600000);              // the phone finds signal
+      const recs = [
+        rec('parties',  { id: 'ex-p1', year: 2026, type: 'shop', name: 'সকালের', pledged: 2000, side: 'main_malda', sector: 'puja', createdAt: morning }),
+        rec('payments', { id: 'ex-y1', year: 2026, partyId: 'ex-p1', partyName: 'সকালের', amount: 1500, cashAmount: 1500, upiAmount: 0, date: '2026-09-05', createdAt: morning }),
+        rec('daily',    { id: 'ex-d1', year: 2026, type: 'road', amount: 800, cashAmount: 800, upiAmount: 0, date: '2026-09-05', sector: 'puja', createdAt: morning }),
+      ];
+      if (withOldDonor) {
+        recs.push(rec('payments', { id: 'ex-y2', year: 2026, partyId: 'old-p', partyName: 'পুরনো',
+          amount: 700, cashAmount: 700, upiAmount: 0, date: '2026-09-05', createdAt: morning }));
+      }
+      return { be: be, te: te, res: be.call('push', { token: te.dipak, records: recs }) };
+    }
+    const A3 = require('../js/aggregate.js');
+
+    let E = exitBook(false);
+    const held = (E.res.heldIds || []).slice().sort();
+    eq(held.join(','), 'ex-d1,ex-p1,ex-y1',
+       'backend A174: the whole morning is HELD, not destroyed — a rejected row leaves the phone for good');
+    eq((E.res.rejectedIds || []).length, 0, 'backend A174: …nothing refused, so nothing is lost');
+    let d = (E.be.call('pull', { token: E.te.hrishi, since: 0 }) || {}).data || {};
+    const orphans = function (dd) {
+      const ids = {}; (dd.parties || []).forEach(function (p) { ids[p.id] = 1; });
+      return (dd.payments || []).filter(function (p) { return p.partyId && !ids[p.partyId]; }).length;
+    };
+    eq(orphans(d), 0, 'backend A174: …and the parcel is never split, so no orphan is manufactured');
+    eq(((A3.reconcile(d, {}) || {}).anomalies || []).length, 0,
+       'backend A174: …leaving the 🩺 desk with nothing to accuse anybody of');
+
+    // the rule the gate exists to keep: they may still record against a donor
+    // that is ALREADY in the book, and still hand in what they hold
+    E = exitBook(true);
+    eq((E.res.savedIds || []).join(','), 'ex-y2',
+       'backend A174: a payment against a donor already in the book still lands');
+    d = (E.be.call('pull', { token: E.te.hrishi, since: 0 }) || {}).data || {};
+    eq(orphans(d), 0, 'backend A174: …and still no orphan');
+    const h = E.be.call('push', { token: E.te.dipak, records: [rec('handovers', { id: 'ex-h1', year: 2026,
+      amount: 700, cashAmount: 700, upiAmount: 0, toId: 'kali', date: '2026-09-05', status: 'pending' })] });
+    eq((h.savedIds || []).join(','), 'ex-h1', 'backend A174: …and handing in what they hold is still open');
+    const v = E.be.call('push', { token: E.te.dipak, records: [rec('voids', { id: 'ex-v1', year: 2026,
+      targetStore: 'payments', targetId: 'ex-y2', reason: 'x', date: '2026-09-05' })] });
+    eq((v.rejectedIds || []).join(','), 'ex-v1',
+       'backend A174: …while erasing what they took stays REFUSED, never held — a held void is a landmine');
   }
 };

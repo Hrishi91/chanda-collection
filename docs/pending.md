@@ -718,11 +718,22 @@ against the code; none is day-one-critical, and each touches the money path
 deeply enough that rushing it hours before the trial was the worse risk. In
 rough order of value:
 
-1. **The exiting gate rejects pre-decision offline rows** instead of holding
-   them the way the freeze gate does (no timestamp on the check). An exiting
-   collector's morning round, queued offline before the committee decided,
-   lands in rejectedIds — collected cash with no central record. Fix shape:
-   hold (heldIds) rows whose createdAt predates the access change.
+1. ~~**The exiting gate rejects pre-decision offline rows**~~ — **fixed as
+   A174 (v4.56.0), and it was worse than this note said.** Measured: the parcel
+   SPLIT. The payment against their own donor was SAVED while the donor row
+   itself and the ₹800 road collection were REFUSED — and `js/sync.js` drops a
+   rejected row from the queue for good (`!r.rejected`). So the book was left
+   with a permanent `orphan_payment` pointing at a donor that existed nowhere,
+   and collected cash with no record on either side.
+   Now: everything that carries money is **held**, the payment waits with its
+   donor so the parcel never splits, handing in what they hold stays open, and
+   voids and chat stay refused (a held void is a landmine; A78's chat rule is a
+   committee decision).
+   **The policy half is still Hrishi's:** should work done before the decision
+   eventually LAND on its own, or does the admin release it? Today it waits in
+   the phone's queue and lands only if the exit is lifted. Holding rather than
+   accepting is deliberately the safe half — a backdated `createdAt` buys an
+   abuser nothing, because held is not accepted.
 2. ~~**Freeze does not gate confirmHandover / rejectHandover /
    resolveCorrection / setAnomalyFlag**~~ — **shipped as A165 (v4.53.0), but
    the DECISION half is still Hrishi's and one line reverses it.**

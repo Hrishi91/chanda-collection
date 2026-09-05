@@ -13759,3 +13759,62 @@ Aimed at goLive's own copy, all three assertions fail loudly, including
 surviving mutation — it is no mutation at all.
 
 Tests 2,500 (from 2,483). No behaviour changed; version stays v4.55.0.
+
+## 2026-09-05 — A174 v4.56.0: the round that was collected and then deleted
+
+Two suspicions left in `pending.md`. One is fine; the other was worse
+than written down.
+
+**Item 4, the last admin: safe.** An admin cannot demote themselves
+(`bad-input`), cannot block themselves (`cant-block-self`), and could not
+demote a second admin either. A book with zero admins is not reachable
+through these paths.
+
+**Item 1, the exiting gate: a real money-losing bug.** The note said
+pre-decision rows "land in rejectedIds". Measured, the damage is
+specific and worse — **the parcel splits**:
+
+- the payment against their own donor → **saved** (₹1,500)
+- **the donor row itself → refused**
+- **the ₹800 road collection → refused**
+
+And `js/sync.js` drops a rejected row from the phone's queue **for good**
+(`!r.rejected` — "retrying forever would just re-refuse it"). So the
+outcome was a permanent `orphan_payment` on the 🩺 desk pointing at a
+donor that exists on neither side, plus ₹800 of collected cash with no
+central record at all. A collector goes out with no signal, the
+committee stands them down while they are out, and the morning's money
+is deleted by the act of syncing it.
+
+Fixed, in three parts:
+
+- **Held, not rejected**, for everything that carries money. Nothing is
+  destroyed; the rows wait in the queue and land if the exit is lifted.
+- **The parcel never splits.** `ownerIndex_` counts rows arriving in the
+  same batch, so a payment whose donor was also new sailed through while
+  the donor was held. Now a payment waits with a donor that is not
+  already in the book. The server was manufacturing the orphan itself,
+  and that is wrong under any policy.
+- **Voids and chat stay refused**, for opposite reasons: a held void is a
+  landmine that lands later, and A78's chat rule is a committee decision,
+  not a money question.
+
+The rules the gate exists for are untouched, and asserted: they still
+cannot open a new donor, run a daily round or post in chat; they can
+still hand in what they hold and pay against a donor already in the book.
+
+### One test's measurement had to change
+
+`backend A78` asked "was it rejected?" as a proxy for "was it allowed?".
+Held is neither — the row does not enter the book, which is all A78 ever
+meant, but the proxy started reading a held row as permission. It now
+asks the sheet whether the row landed, which is the fact rather than a
+stand-in for it, and all three A78 assertions pass unchanged in meaning.
+
+**The policy half is Hrishi's and is written into pending.md:** should
+work done before the decision eventually land on its own, or should the
+admin release it? Holding is deliberately the safe half — a backdated
+`createdAt` buys an abuser nothing, because held is not accepted.
+
+Tests 2,508 (from 2,500). Three mutations, all caught. Schema stays 5.
+**Needs the deploy** — the gate is server-side.

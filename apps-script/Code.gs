@@ -1226,7 +1226,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.55.0';
+var CODE_VERSION = 'chanda-v4.56.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1414,6 +1414,16 @@ var ACTIONS = {
           else if (r.store === 'payments') {
             var pOwn = ownerIndex_('parties')[String(r.row.partyId)];
             if (!pOwn || String(pOwn.collectorId) !== String(user.row.username)) { rejectedIds.push(r.row.id); return; }
+            // A174: never split the parcel. `ownerIndex_` counts rows arriving
+            // in THIS batch, so a payment whose donor is also new sailed
+            // through while the donor row itself was held below — and the
+            // central book was left holding a payment pointing at a donor that
+            // exists nowhere. The 🩺 desk called it orphan_payment, correctly,
+            // for ever. If the donor is not already in the book, the payment
+            // waits with it.
+            if (batchParties[String(r.row.partyId)] && !partyIndex_()[String(r.row.partyId)]) {
+              heldIds.push(r.row.id); return;
+            }
           } else if (r.store === 'corrections') {
             // A78e (Hrishi's call): a flag is not an entry, it is a sentence to
             // the cashier — "the ₹500 I took is written down as ₹5,000". Refuse
@@ -1427,7 +1437,39 @@ var ACTIONS = {
             // people's work, and the correction desk is somebody's afternoon.
             var tOwn = targetOwner_(String(r.row.targetStore || ''), r.row.targetId);
             if (!tOwn || String(tOwn.collectorId) !== String(user.row.username)) { rejectedIds.push(r.row.id); return; }
-          } else { rejectedIds.push(r.row.id); return; }
+          } else if (r.store === 'voids' || r.store === 'messages') {
+            // Two shapes stay REFUSED rather than held, for opposite reasons:
+            //   · voids — erasing what they took must never land, not now and
+            //     not later; a held void is a landmine sitting in a queue.
+            //   · messages — A78 is a committee decision that a stood-down
+            //     member does not post in the chat, and a held message would
+            //     surface weeks later if they were ever reinstated. Nothing is
+            //     lost that anybody collected.
+            // Everything below this holds MONEY, which is why it is held.
+            rejectedIds.push(r.row.id); return;
+          } else {
+            // A174: HELD, not rejected — pending.md item 1, measured.
+            //
+            // A collector goes out with no signal; the committee stands them
+            // down while they are out; their phone comes back and pushes the
+            // morning's work. Rejecting split the parcel: the payment against
+            // their own donor was SAVED while the donor row itself and the
+            // ₹800 road collection were refused. js/sync.js drops a rejected
+            // row from the queue for good, so the result was a permanent
+            // orphan_payment on the 🩺 desk pointing at a donor that exists
+            // nowhere, and collected cash with no central record at all.
+            //
+            // Held loses nothing: the rows stay queued on the phone, and they
+            // land if the committee lifts the exit. Backdating `createdAt`
+            // buys an abuser nothing, because held is not accepted — which is
+            // exactly why hold is the safe half of this decision.
+            //
+            // STILL HRISHI'S CALL (pending.md item 1): should work done before
+            // the decision eventually LAND on its own? That is a committee
+            // question, not a technical one. This change only stops the money
+            // from being destroyed while it is asked.
+            heldIds.push(r.row.id); return;
+          }
         }
         // A78b: and nobody may send money TO somebody who has been stood down or
         // blocked. The recipient picker already omits them — it lists cashiers,
