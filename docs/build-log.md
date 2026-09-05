@@ -14053,3 +14053,43 @@ times.
   at once** — A174 (a stood-down collector's round is held, not deleted),
   A175 (a season is a wall, not just a door), A176 (🧾 খরচ opens in a dead
   spot) and A177 (the selected chip clears AA).
+
+## 2026-09-05 — A180: English, and the correction chain end to end
+
+Two surfaces nobody had walked.
+
+**The app in English.** `js/i18n.js` holds **881 keys and every one has
+both halves** — none missing, none blank, none where the English is just
+the Bengali copied across. Driven in English across five tabs and a full
+entry flow, the only Bengali on screen is: donor and owner names (which
+are data), and **"Language / ভাষা" / "বাংলা"**, deliberately bilingual so
+somebody who switched by accident can find the way back. Every hardcoded
+Bengali literal in `js/app.js` is legitimate — month names, the
+amount-in-words table, and the receipt canvas, which A98 pinned to
+Bengali on purpose because the receipt is the DONOR's document.
+
+**The correction chain, all four steps, through the screens:**
+
+1. Ratan taps ⚠️ ভুল বলে জানাও on his own payment, types a reason →
+   the flag lands as `pending`, carrying his words.
+2. Kali, a cashier **without** the `review` grant, has no 🛠️ tile at
+   all — the desk is its own permission, and it holds.
+3. The admin's desk shows the flag with both verdicts: ✅ বাতিল করো and
+   🚫 ঠিক আছে.
+4. ✅ → the flag becomes `approved`, a void is written **carrying the
+   collector's own reason** ("অঙ্কটা ভুল — ₹৫০০ হবে"), and the money
+   leaves every live total: four rows on the server, three alive, ₹1,500
+   gone. The row is not deleted — it is voided, with the why attached.
+
+The person who raises the complaint cannot rule on it, proved on the
+screen rather than in the API.
+
+### A measurement mistake I made three times today
+
+I kept reading `DB.allData()` and concluding money was missing.
+**IndexedDB holds only what THIS phone wrote**; the committee's book
+rides in the pulled snapshot. On the admin's phone, another collector's
+payments are simply not in IndexedDB — so the honest measures are
+`viewData()` (which merges both) or the server. Written down because it
+produced three false alarms in one session, and the next person reading
+these tests will reach for `DB.allData()` for the same reason I did.
