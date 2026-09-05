@@ -1250,7 +1250,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.67.0';
+var CODE_VERSION = 'chanda-v4.68.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -2736,13 +2736,30 @@ var ACTIONS = {
     }
     throw new Error('not-found');
   },
+  // A206: never delete something the book is standing on.
+  //
+  // Measured before writing this. Deleting a POST that somebody holds leaves
+  // them carrying a `position` that no longer exists, and — because permissions
+  // are DERIVED from the post, never copied onto the person — silently strips
+  // whatever that post granted. Mid-collection a chip vanishes from somebody's
+  // entry screen with no message, and they conclude the app is broken. Deleting
+  // an AREA leaves every shop pointing at a dead id: the money is all still
+  // there, but 📍 groups it under something nothing can name.
+  //
+  // The app already reaches for this rule elsewhere — a member with payments
+  // against them cannot be removed, nor one still holding a post. This is the
+  // same rule for the lists those posts and areas live in. The count rides in
+  // the error so the admin is told WHAT is standing on it, not just "no".
   removeItem: function (b) {
     var me = requireAdmin_(b.token);
     var sh = SpreadsheetApp.getActive().getSheetByName('Lists');
     if (sh.getLastRow() < 2) return { ok: true };
-    var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    var ids = sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues();
     for (var i = 0; i < ids.length; i++) {
-      if (String(ids[i][0]) === String(b.id)) { sh.deleteRow(i + 2); logAudit_(me.row, 'item:remove', b.id); break; }
+      if (String(ids[i][0]) !== String(b.id)) continue;
+      var used = itemInUse_(String(ids[i][1]), String(b.id));
+      if (used > 0) throw new Error('item-in-use:' + used);
+      sh.deleteRow(i + 2); logAudit_(me.row, 'item:remove', b.id); break;
     }
     return { ok: true };
   },
@@ -3321,6 +3338,34 @@ var ACTIONS = {
 // committee-member registry. ONE place to add a kind, so the server's gate and
 // the admin screen can never disagree about what is editable.
 var LIST_KINDS = ['area', 'location', 'position'];
+// A206: how many things are standing on one list item. 0 means it is safe to
+// delete. Every kind in LIST_KINDS is answered here, so adding a fourth kind
+// without deciding what holds it is a visible omission rather than a silent
+// "always deletable".
+function itemInUse_(kind, id) {
+  if (!id) return 0;
+  var n = 0;
+  if (kind === 'position') {
+    var us = usersSheet_();
+    if (us.getLastRow() > 1) {
+      var pc = ensureCol_(us, 'position');
+      us.getRange(2, pc, us.getLastRow() - 1, 1).getValues().forEach(function (v) {
+        if (String(v[0]) === id) n++;
+      });
+    }
+    return n;
+  }
+  // area and location both live on a party row, in their own column
+  var col = kind === 'area' ? 'side' : kind === 'location' ? 'location' : '';
+  if (!col) return 0;
+  var ps = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.parties);
+  if (!ps || ps.getLastRow() < 2) return 0;
+  var at = ensureCol_(ps, col);
+  ps.getRange(2, at, ps.getLastRow() - 1, 1).getValues().forEach(function (v) {
+    if (String(v[0]) === id) n++;
+  });
+  return n;
+}
 function ensureCols_(sh, cols) {
   var last = sh.getLastColumn();
   var have = last ? sh.getRange(1, 1, 1, last).getValues()[0].map(String) : [];

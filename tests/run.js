@@ -102,6 +102,17 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A182: …and the groups it can always offer come from the local list');
 }
 
+// A206: the refusal must reach the admin as a sentence, through A115's family
+// fallback — `item-in-use:1` has no key of its own, so the family one must
+// exist and must carry the count.
+{
+  const i18n6 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  eq(/err_item_in_use: \{/.test(i18n6), true, 'A206: the refusal has a sentence');
+  const l6 = (i18n6.match(/err_item_in_use: \{[\s\S]*?\},/) || [''])[0];
+  eq((l6.match(/\{what\}/g) || []).length >= 2, true,
+     'A206: …in both languages, each carrying the count of what is standing on it');
+}
+
 // A205: the confirm text has to name the log-out. Everything else about the
 // dialog was already honest; this is the half that surprises people.
 {

@@ -171,6 +171,8 @@ const I18N = {
   err_account_taken: { bn: 'এই অ্যাকাউন্ট আগে থেকেই অন্য একটি সদস্য-সারিতে আছে', en: 'That account is already on another member row' },
   err_member_self: { bn: 'নিজের সদস্য-তথ্য নিজে বদলানো যায় না', en: 'You cannot edit your own committee record' },
   err_member_has_money: { bn: 'এই সদস্যের নামে চাঁদা জমা আছে — সরানো যাবে না', en: 'This member has payments recorded — they cannot be removed' },
+  err_item_in_use: { bn: 'এটা এখনো {what} জায়গায় ব্যবহার হচ্ছে — মুছলে ওগুলো এমন কিছুর দিকে তাকিয়ে থাকবে যা আর নেই। আগে ওগুলো সরাও।',
+                     en: 'Still in use in {what} place(s) — deleting it would leave them pointing at something that no longer exists. Move those first.' },
   err_member_holds_post: { bn: 'ইনি এখনো একটি পদে আছেন — আগে পদটা সরাও', en: 'They still hold a post — take it off first' },
   err_user_not_approved: { bn: 'ওই অ্যাকাউন্ট এখনো approved নয় (বা blocked)', en: 'That account is not approved (or is blocked)' },
   err_no_such_user: { bn: 'ওই নামের অ্যাকাউন্ট পেলাম না', en: 'No account by that name' },

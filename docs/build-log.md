@@ -14929,3 +14929,38 @@ because each phone keeps its own queue and sends it once they are back in.
 v4.67.0. Tests 2,689 (from 2,679). Mutation-proved: listing anything but a
 backup, or dropping the file details, or cutting the warning out of the
 sentence, each fail by name.
+
+## A206 — deleting a list item the book is standing on (2026-09-06)
+
+**Measured first, then fixed.** `removeItem` deleted any Lists row with no
+check at all. What that actually cost:
+
+- **A post somebody holds.** Permissions are DERIVED from the post, never
+  copied onto the person — which is the right design and is why removing a
+  post removes them. Delete the post *row* instead and the person is left
+  carrying a `position` that no longer exists, while the permission it
+  granted is **silently revoked**. Reproduced: কালী holds the post, gains
+  `sponsor`, the post row is deleted, and `sponsor` is gone from her
+  entries with no message. Mid-collection a chip vanishes from her entry
+  screen and the honest conclusion is "the app is broken".
+- **An area shops are standing in.** The money is all still there — ₹2,000
+  still counted — but every shop points at a dead id, so 📍 groups it under
+  something nothing can put a name to.
+
+**The fix follows the app's own instinct.** A member with payments against
+them already cannot be removed; nor can one still holding a post. This is
+the same rule for the lists those posts and areas live in: `itemInUse_`
+answers every kind in `LIST_KINDS` (so adding a fourth kind without
+deciding what holds it is a visible omission, not a silent "deletable"),
+and the count rides in the error — `item-in-use:1` — so A115's family
+fallback tells the admin *what is standing on it*, not just "no".
+
+Taking the post off a person still removes the permission. That is the
+intended door and stays open; what is closed is doing it by accident from
+the other end.
+
+v4.68.0. Tests 2,699 (from 2,689). Mutation-proved three ways: removing
+the check restores the old silent delete (fails by name); checking posts
+but forgetting areas — the classic half-fix — fails the area assertions by
+name; and over-correcting so nothing can ever be deleted is caught too,
+loudly, by an existing test that deletes an unused item.

@@ -3070,6 +3070,61 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A206: never delete what the book is standing on -------------------
+    {
+      const bl = loadBackend(); bl.api.setup();
+      ['ltadm', 'ltkali'].forEach(function (u, i) {
+        bl.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '966000000' + i });
+      });
+      const tl = bl.call('login', { username: 'ltadm', password: 'secret0', year: 2026 }).token;
+      const lkid = bl.rows('Users').filter(function (x) { return x.username === 'ltkali'; })[0].id;
+      bl.call('setStatus', { token: tl, userId: lkid, status: 'approved' });
+      bl.call('approveYear', { token: tl, userId: lkid, year: 2026 });
+      bl.call('setEntries', { token: tl, userId: lkid, entries: ['shop', 'road'] });
+      const tlk = bl.call('login', { username: 'ltkali', password: 'secret1', year: 2026 }).token;
+      const oops6 = function (fn) {
+        try { const r = fn(); return (r && r.error) || ''; } catch (e) { return String(e.message || e); }
+      };
+      const item = function (kind, name) {
+        return (bl.rows('Lists') || []).filter(function (r) {
+          return String(r.kind) === kind && (r.nameBn === name || r.nameEn === name); })[0];
+      };
+      const meK = function () { return (bl.call('pull', { token: tlk, year: 2026, since: 0 }) || {}).me || {}; };
+
+      // an area with nothing on it deletes cleanly — the rule must not become "never"
+      bl.call('addItem', { token: tl, kind: 'area', nameBn: 'ফাঁকা এলাকা', nameEn: 'Empty' });
+      eq(oops6(function () { return bl.call('removeItem', { token: tl, id: item('area', 'ফাঁকা এলাকা').id }); }), '',
+         'backend A206: an area nothing stands on still deletes');
+
+      // one with a shop on it does not
+      bl.call('addItem', { token: tl, kind: 'area', nameBn: 'মেন রোড', nameEn: 'Main Rd' });
+      const ar = item('area', 'মেন রোড');
+      bl.call('push', { token: tlk, records: [rec('parties', { id: 'la1', year: 2026, type: 'shop',
+        name: 'দোকান', pledged: 5000, side: ar.id, sector: 'puja', createdAt: new Date().toISOString() })] });
+      eq(oops6(function () { return bl.call('removeItem', { token: tl, id: ar.id }); }), 'item-in-use:1',
+         'backend A206: an area a shop is standing in cannot be deleted — 📍 would group money under a name nothing can supply');
+      eq((bl.rows('Lists') || []).filter(function (r) { return r.id === ar.id; }).length, 1,
+         'backend A206: …and it is still there afterwards');
+
+      // a post somebody holds does not, and the reason is the permission
+      const ps = (bl.rows('Lists') || []).filter(function (r) { return String(r.kind) === 'position'; })[0];
+      bl.call('setPositionRules', { token: tl, id: ps.id, perms: ['sponsor'] });
+      bl.call('setUserPosition', { token: tl, userId: lkid, position: ps.id });
+      eq(String(meK().entries || '').indexOf('sponsor') >= 0, true,
+         'backend A206: the post grants the permission — derived, never copied onto the person');
+      eq(oops6(function () { return bl.call('removeItem', { token: tl, id: ps.id }); }), 'item-in-use:1',
+         'backend A206: …so deleting the post would silently take that permission away mid-collection');
+      eq(String(meK().entries || '').indexOf('sponsor') >= 0, true,
+         'backend A206: …and it did not, because the delete was refused');
+
+      // take the post off, and only then may it go
+      bl.call('setUserPosition', { token: tl, userId: lkid, position: '' });
+      eq(String(meK().entries || '').indexOf('sponsor') >= 0, false,
+         'backend A206: taking the post off DOES remove it — that is the intended way, and it is deliberate');
+      eq(oops6(function () { return bl.call('removeItem', { token: tl, id: ps.id }); }), '',
+         'backend A206: …and now the empty post deletes');
+    }
+
     // --- A205: the door to the recovery path ------------------------------
     // A73 already round-trips a restore, and already pins that it logs
     // everybody out. What it reaches through is `b.api.dailyBackup()` and the
