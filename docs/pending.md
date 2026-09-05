@@ -742,6 +742,44 @@ Two quality items, one fixed:
 
 ## AFTER THE COLLECTION — Hrishi's own list
 
+- **ব্যাঙ্ক অ্যাকাউন্টের ব্যালান্স** (Hrishi, 2026-09-05: *"bank account
+  balance handling"* — "keep it in pending").
+  What the book does today, so the discussion starts from facts:
+  - every money row carries `cashAmount` and `upiAmount` separately, and the
+    handover screen makes you split them (💵 / 📱) — so the *split* is already
+    recorded everywhere;
+  - but `inHandRows` adds them together into one "হাতে আছে" figure. **A
+    collector's ₹3,000 in-hand may be ₹1,000 of notes and ₹2,000 that is
+    already in somebody's UPI account.** The book calls both "in hand", and
+    the 🩺 desk's `negative_inhand` reasons about the sum;
+  - there is **no committee account** in the model at all. Money handed to the
+    cashier stops at "the cashier holds it". Nothing represents a bank
+    balance, a deposit into it, or a withdrawal from it.
+  So the question is really two: should UPI stop being counted as "in hand",
+  and should the committee's account be a thing the book knows about (with
+  জমা/তোলা against it, and a balance that reconciles)? The second is a new
+  store — the first schema bump since 5 — so it is a season-boundary change,
+  not a mid-trial one.
+
+- **Audit** (Hrishi, same message). What exists today, measured:
+  - an `Audit` sheet (`id, ts, actor, actorId, action, detail`), an
+    `auditLog` action, and 📜 কার্যকলাপ in the admin panel;
+  - **~30 action types are logged**, and they are almost entirely *admin*
+    acts: permissions, roles, status, access, posts, subjects, areas, config,
+    backup, restore, rollover, password resets, session releases, go-live,
+    freeze, training-clear, and `denied:position` for a refused attempt;
+  - **`push` logs nothing.** Every donor, চাঁদা, দৈনিক, খরচ, জমা and বাতিল
+    goes in with no audit line. The rows themselves carry `collector`,
+    `collectorId`, `createdAt` and `receivedAt`, so *who wrote what* is
+    recoverable from the ledger — but an EDIT that overwrites a row leaves no
+    trace of what it said before, and a void records the reason but not the
+    voided figures.
+  So the question is what "audit" should mean here: a fuller trail on money
+  edits (before/after, the way `member:edit` already writes "কালী → কালীপদ"),
+  or a screen that reads what is already recorded, or both.
+
+
+
 - **Entry: ask, or show-and-edit?** (Hrishi, 2026-09-05: *"in live we can take
   the input or we can show the details and can give the details to edit"* —
   and, asked where it lands: *"these things we will do after collection"*.)
