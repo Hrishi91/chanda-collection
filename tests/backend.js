@@ -2956,4 +2956,60 @@ module.exports = function runBackendTests(eq) {
     eq(canWrite(), true,
        'backend A194: …and the moment the post carries a permission, he can work again');
   }
+
+  // --- A196: blocking somebody who is holding money ------------------------
+  // Blocking takes the LOGIN away, and a person who cannot log in cannot hand
+  // money back. So the door refuses while they still hold some — and names the
+  // figure, because the admin needs it to decide chase-or-write-off.
+  {
+    const bk2 = loadBackend();
+    bk2.api.setup();
+    ['hrishi', 'kali', 'ratan'].forEach(function (u, i) {
+      bk2.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '81000000' + i });
+    });
+    let t0 = bk2.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+    const rw = function (u) { return bk2.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    ['kali', 'ratan'].forEach(function (u) {
+      bk2.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+      bk2.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+      bk2.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'road'] });
+    });
+    bk2.call('setCashier', { token: t0, userId: rw('kali').id, cashier: 1 });
+    const tk2 = {};
+    ['hrishi', 'kali', 'ratan'].forEach(function (u, i) {
+      tk2[u] = bk2.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+    });
+    t0 = tk2.hrishi;
+    const oops = function (fn) { try { const r = fn(); return (r && r.error) || ''; } catch (e) { return String(e.message || e); } };
+    const put = function (u, store, row) { return bk2.call('push', { token: tk2[u], records: [rec(store, row)] }); };
+    put('ratan', 'parties',  { id: 'r1', year: 2026, type: 'shop', name: 'দোকান', pledged: 5000, sector: 'puja' });
+    put('ratan', 'payments', { id: 'ry1', year: 2026, partyId: 'r1', partyName: 'দোকান', amount: 2000, cashAmount: 2000, upiAmount: 0, date: '2026-09-05' });
+
+    // a refusal needs a reason, so the sender has something to answer
+    put('ratan', 'handovers', { id: 'rh1', year: 2026, amount: 2000, cashAmount: 2000, upiAmount: 0, toId: 'kali', date: '2026-09-05', status: 'pending' });
+    oops(function () { return bk2.call('rejectHandover', { token: tk2.kali, id: 'rh1', year: 2026 }); });
+    eq(String((bk2.rows('Handovers').filter(function (h) { return h.id === 'rh1'; })[0] || {}).status), 'pending',
+       'backend A196: a handover cannot be refused without a reason — an accusation the sender cannot answer is not allowed');
+    bk2.call('rejectHandover', { token: tk2.kali, id: 'rh1', reason: 'গুনে কম পেলাম', year: 2026 });
+    const ho = bk2.rows('Handovers').filter(function (h) { return h.id === 'rh1'; })[0] || {};
+    eq(String(ho.status), 'rejected', 'backend A196: …with one, it is refused');
+    eq(/গুনে কম/.test(String(ho.rejectReason || ho.reason || '')), true,
+       'backend A196: …and the reason is kept on the row, not just shown once');
+
+    // and the door that is also the last door
+    const blocked = oops(function () { return bk2.call('setStatus', { token: t0, userId: rw('ratan').id, status: 'blocked' }); });
+    eq(/^holds-money:2000/.test(blocked), true,
+       'backend A196: blocking is REFUSED while they hold money, and the figure is in the error');
+    eq(String(rw('ratan').status), 'approved',
+       'backend A196: …so they are still able to log in and hand it back, which is the point');
+    const n0 = bk2.rows('Audit').length;
+    bk2.call('setStatus', { token: t0, userId: rw('ratan').id, status: 'blocked', override: 1 });
+    eq(/অনাদায়ী|override/.test(bk2.rows('Audit').slice(n0).map(function (r) { return String(r.detail); }).join(' ')), true,
+       'backend A196: …and overriding writes the write-off into the record rather than zeroing it silently');
+    eq(oops(function () { return put('ratan', 'parties', { id: 'r2', year: 2026, type: 'shop', name: 'x', pledged: 100, sector: 'puja' }); }), 'bad-token',
+       'backend A196: a blocked phone is logged out on the spot — not merely refused');
+    eq((bk2.call('pull', { token: t0, year: 2026, since: 0 }).data.payments || [])
+       .some(function (p) { return p.id === 'ry1'; }), true,
+       'backend A196: …while the money they already collected stays in the book');
+  }
 };

@@ -14635,3 +14635,39 @@ Bengali ones, which A169 had shown for text but not through the mic
 path.
 
 Tests 2,614 (from 2,611). No code changes.
+
+## 2026-09-06 — A196: the door that is also the last door
+
+Three guards, one of which I did not know existed and which is the best
+piece of reasoning I have read in this file today.
+
+**Blocking somebody is refused while they are holding money.** The
+comment says why: *"the security door is also the LAST door — it takes
+the login away, and a person who cannot log in cannot hand money back."*
+So `setStatus('blocked')` throws **`holds-money:2000`** — the figure in
+the error, because the admin needs it to decide whether to chase it or
+write it off. Until then the person stays able to log in and hand it
+back, which is the point.
+
+`override` is that decision, and it **writes the write-off into the
+record with the amount** — a snapshot plus an audit line reading
+"₹2,000 অনাদায়ী (override)". Never silently zeroed, *"or the book stops
+adding up"*.
+
+And once blocked, the token is cleared: the phone is **logged out on the
+spot**, not merely refused — while every rupee they already collected
+stays in the book.
+
+**A refusal needs a reason.** `rejectHandover` without one throws
+`reason-required` and the parcel stays `pending`. With one, the reason is
+**kept on the row**, not just shown once — so the sender has something to
+answer rather than a bare accusation.
+
+**A big amount is the committee's business, not the machine's.** The
+server accepts ₹5,00,000 without comment; the phone is what asks — over
+₹1,00,000 it shows the figure and requires a confirm. Right division: the
+device catches the stuck key, the server does not overrule a committee
+that really did receive that much.
+
+Tests 2,622 (from 2,614). Pinned and mutation-proved — removing the
+holds-money guard also fails A78's own older test by name.
