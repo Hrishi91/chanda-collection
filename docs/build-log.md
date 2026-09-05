@@ -14205,3 +14205,7 @@ works.
 
 Tests 2,545 (from 2,539). Both fixes mutation-proved. Schema stays 5.
 **Needs the deploy**, with A182.
+
+- Deployed v4.61.0; probed three times (`codeVersion: chanda-v4.61.0`,
+  `schema: 5`). `js/config.js` rebaked. Carries A182 (the @ picker opens
+  in a dead spot) and A183 (restore and import guarded, the shape pinned).
