@@ -14996,3 +14996,17 @@ v4.69.0. Tests 2,705 (from 2,699). Mutation-proved: dropping the note,
 noticing only personal grants, and renaming the admin section so the
 directions go stale each fail by name — the last one because the test
 reads the labels from i18n rather than repeating them.
+
+## Deploy — v4.69.0 live (2026-09-06)
+
+New deployment, config.js rebaked to it. Probed three times from the
+Browser pane before pointing any phone at it — the GET envelope and two
+POST error envelopes all answer `chanda-v4.69.0`, `schema: 5`, so the read
+and write paths are on the same deployment and no phone is locked out.
+
+Carries eleven releases that had never reached the field: A196 back through
+A207. The four that are **server-side** and could not work until now are
+A199 (a stampless row walking past a freeze), A200 (one id in a batch
+writing two rows and two receipt serials), A203 (`all` / `admin` /
+`cashiers` registrable as usernames) and A206 (deleting a list item the
+book is standing on).
