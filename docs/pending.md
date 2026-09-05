@@ -743,6 +743,19 @@ rough order of value:
    line — drop `requireUnfrozen_(u)` from `confirmHandover` — and both halves
    stay pinned in `tests/backend.js`, so a future change of mind fails loudly
    rather than quietly. Item closed.
+2b. **The idle fast path cannot see inside one millisecond (A170).** `pull`'s
+   fast path answers "you are up to date" when `since >= data_ts`, and that
+   comparison is load-bearing — the steady state IS `since == data_ts`, so
+   making it strict would send every idle poll down the full read and destroy
+   the fast path outright. The consequence: a row committed in the *same
+   millisecond* as a phone's cursor is invisible to that phone until the next
+   write anywhere in the book, at which point `>=` in the delta re-delivers it.
+   Self-healing, and with twelve phones a next write is seconds away — but it
+   is not *provably* impossible, e.g. the last write of the season.
+   A real fix is a monotonic counter instead of a wall-clock stamp for
+   `data_ts`, which is a schema-shaped change and NOT a trial-week one.
+   Measured, not theorised: the fixed-clock harness reproduces it exactly,
+   which is how it was found.
 3. **confirmHandover/rejectHandover still read/write by `cols` position** —
    the A81 ghost-column class, aligned today, latent. Move to sheetHeader_.
 4. **Last-admin guards race**: two admins demoting each other concurrently can

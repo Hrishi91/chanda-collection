@@ -2170,4 +2170,79 @@ module.exports = function runBackendTests(eq) {
     eq(seen(partial).join(',') || '(silent)', '(silent)',
        'backend A168: …and the arithmetic closes even without the partialBook flag, because the parcel left whole');
   }
+
+  // --- A170: the delta pull, and what a GRANT does to it -------------------
+  // Redelivery is free (mergeDelta upserts by id); loss is not. The part that
+  // matters most operationally: rows written BEFORE a view grant are older
+  // than the phone's cursor, so no delta can ever carry them — the client has
+  // to notice its own grants changed and take one full pull. That promise is
+  // written in Code.gs as a comment about another file, which is exactly the
+  // kind of promise that goes stale, so it is asserted here.
+  {
+    const bd = loadBackend();
+    bd.api.setup();
+    const cast = ['hrishi', 'kali', 'ratan'];
+    cast.forEach(function (u, i) {
+      bd.post('register', { username: u, name: u, password: 'secret' + i, phone: '98900000' + i });
+    });
+    let t0 = bd.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+    const rw = function (u) { return bd.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    cast.slice(1).forEach(function (u) {
+      bd.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+      bd.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+      bd.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'person', 'gupt'] });
+    });
+    const td = {};
+    cast.forEach(function (u, i) { td[u] = bd.call('login', { username: u, password: 'secret' + i, year: 2026 }).token; });
+    const put = function (u, store, row) { bd.call('push', { token: td[u], records: [rec(store, row)] }); };
+    const pull = function (u, since) {
+      return bd.call('pull', Object.assign({ token: td[u], year: 2026 },
+        since === undefined ? {} : { since: since }));
+    };
+    const idsIn = function (r) {
+      return Object.keys((r && r.data) || {}).reduce(function (a, k) {
+        return a.concat((r.data[k] || []).map(function (x) { return x.id; }));
+      }, []);
+    };
+
+    put('ratan', 'parties', { id: 'dq1', year: 2026, type: 'shop', name: 'এক', pledged: 100, sector: 'puja' });
+    const first = pull('ratan');
+    const cur = first.cursor;
+    // the shim's clock is fixed; without advancing it every row shares the
+    // cursor's millisecond and the fast path answers "you are up to date".
+    // That is a harness artefact — but it is also the app's one real edge, and
+    // it is recorded in pending.md rather than papered over here.
+    bd.env._setNow(bd.env._now() + 60000);
+    put('ratan', 'parties', { id: 'dq2', year: 2026, type: 'shop', name: 'দুই', pledged: 200, sector: 'puja' });
+    put('ratan', 'payments', { id: 'dw2', year: 2026, partyId: 'dq2', partyName: 'দুই', amount: 50, cashAmount: 50, upiAmount: 0, date: '2026-09-05' });
+
+    const d1 = pull('ratan', cur);
+    eq(idsIn(d1).indexOf('dq2') >= 0 && idsIn(d1).indexOf('dw2') >= 0, true,
+       'backend A170: a delta carries every row written after the cursor');
+    eq(idsIn(d1).indexOf('dq1') >= 0, true,
+       'backend A170: …and re-sends the boundary row, because >= loses nothing and costs an upsert');
+    eq(idsIn(pull('ratan', cur)).length, idsIn(d1).length,
+       'backend A170: asking twice with the same cursor gives the same rows — redelivery is safe');
+
+    // the grant path, the one on the go-live checklist
+    put('ratan', 'parties', { id: 'dg1', year: 2026, type: 'gupt', name: 'শুভাকাঙ্ক্ষী', pledged: 0, sector: 'puja' });
+    put('ratan', 'payments', { id: 'dgy1', year: 2026, partyId: 'dg1', partyName: 'শুভাকাঙ্ক্ষী', amount: 9000, cashAmount: 9000, upiAmount: 0, date: '2026-09-05' });
+    const sees = function (r) { return (((r || {}).data || {}).parties || []).some(function (p) { return p.id === 'dg1'; }); };
+    const kFull = pull('kali');
+    eq(sees(kFull), false, 'backend A170: before the grant, the cashier does not see the গুপ্ত দান');
+
+    bd.call('setEntries', { token: td.hrishi, userId: rw('kali').id,
+      entries: ['shop', 'person', 'gupt', 'guptview'] });
+    const kDelta = pull('kali', kFull.cursor);
+    eq(String((kDelta.me || {}).entries || '').indexOf('guptview') >= 0, true,
+       'backend A170: the grant reaches the phone on the very next poll, in `me`');
+    eq(sees(kDelta), false,
+       'backend A170: …but the delta cannot carry the old rows — they predate the cursor');
+    eq(sees(pull('kali')), true,
+       'backend A170: …which is why the client drops its cursor and takes ONE full pull (js/app.js regrant)');
+
+    bd.call('setEntries', { token: td.hrishi, userId: rw('kali').id, entries: ['shop', 'person'] });
+    eq(sees(pull('kali')), false,
+       'backend A170: revoking takes the rows away again — a delta can never say "delete"');
+  }
 };

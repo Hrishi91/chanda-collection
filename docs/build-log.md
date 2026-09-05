@@ -13574,3 +13574,56 @@ Verified through the screen on a fresh port: typing `750/-` into রোড
 Tests 2,463 (from 2,458). Schema stays 5. **Needs the deploy** — the
 version moves to v4.54.0, which Hrishi asked to ride the next real
 change, and this is it.
+
+## 2026-09-05 — A170: the delta pull, and what granting a key does to it
+
+Offline sync, checked rather than read. The rule the protocol rests on:
+**redelivery is free, loss is not** — `mergeDelta` upserts by id, so a
+row sent twice costs nothing, while a row skipped once is gone until a
+full pull.
+
+Confirmed working:
+
+- A delta carries every row written after the cursor, **and re-sends the
+  boundary row**, because the filter is `>=`. Mutating it to `>` fails
+  two tests by name — a row sharing the stamp's millisecond would be
+  dropped for ever.
+- Asking twice with the same cursor returns the same rows. Safe.
+- The idle fast path still carries `me` and `config`, so a permission
+  change reaches a phone within one poll even though no ledger row moved.
+
+### The part that matters for the go-live checklist
+
+Granting `guptview` is on Hrishi's list, and it has a trap built into the
+protocol: the গুপ্ত দান rows were written **before** the grant, so their
+`receivedAt` is older than the phone's cursor and **no delta can ever
+carry them**. `Code.gs` says the client handles this — a comment about
+another file, which is exactly the kind of promise that goes stale.
+
+It does not: `js/app.js` compares view grants *before* adopting the new
+`me`, and on a change drops the cursor and takes one clean full pull.
+Now asserted end to end: before the grant the cashier sees nothing; the
+grant reaches `me` on the next poll; the delta still cannot carry the old
+rows; the full pull delivers them; revoking takes them away again,
+because a delta can never say "delete". All three links
+mutation-proved.
+
+### One real edge, recorded not fixed
+
+The fast path answers "up to date" when `since >= data_ts`, and that
+comparison is load-bearing — the steady state *is* `since == data_ts`,
+so making it strict would send every idle poll down the full read. The
+cost is that a row committed in the same millisecond as a phone's cursor
+stays invisible to that phone until the next write anywhere in the book,
+where `>=` re-delivers it. Self-healing, seconds away with twelve
+phones, but not provably impossible. A proper fix is a monotonic counter
+rather than a wall-clock stamp — schema-shaped, not a trial-week change.
+Filed in pending.md as item 2b.
+
+Found because the fixed-clock harness reproduces it exactly, and because
+the first run's two red lines were chased down instead of being written
+off as a harness quirk — which is what they turned out to be, plus a
+real note underneath.
+
+Tests 2,471 (from 2,463). Version stays v4.54.0 — this release is tests
+and docs; A169 carries the bump.
