@@ -154,6 +154,23 @@ var MENTION_GROUPS = ['all', 'admin', 'cashiers'];
 // A148: 'program' — the অনুষ্ঠান ভাঁড়ার's own account. Listing it here also
 // makes it a grantable permission (REPORT_IDS feeds POSITION_PERM_KEYS).
 var REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily', 'program'];
+// A208: which of those this FILE can actually compute.
+//
+// Reports are drawn on the phone, from the snapshot it already holds
+// (js/app.js calls Aggregate.computeReport). This action is the second, older
+// surface, and it implements seven of the eight: 🎭 program needs sectorSplit,
+// spokenFor and commitmentRows, and porting that arithmetic here would be a
+// second copy of the money rules — which is the exact duplication that has
+// gone wrong in this codebase four separate times (A66, A146–A149, A160, A203).
+// One copy, on the phone, is the right answer.
+//
+// So the gap is DECLARED rather than left to be discovered: `allowedReports_`
+// still offers all eight (the phone needs every id for its tiles and for
+// setReports to grant them), and asking this action for one it does not
+// compute says so by name instead of falling through to a bare "unknown
+// report". A ninth report added to REPORT_IDS now forces the choice, because
+// tests/backend.js checks both directions of this pair.
+var SERVER_REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
 
 // ---------- a user's permissions come from TWO places ----------
 // The POST they hold (Lists kind='position') and the extras granted to them
@@ -1250,7 +1267,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.69.0';
+var CODE_VERSION = 'chanda-v4.70.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1893,6 +1910,8 @@ var ACTIONS = {
     var u = requireUser_(b.token);
     if (!yearAllowed_(u, b.year)) throw new Error('year-not-approved'); // A175
     if (allowedReports_(u).indexOf(b.id) < 0) throw new Error('no-report-access');
+    // A208: allowed, but this surface does not build it — see SERVER_REPORT_IDS
+    if (SERVER_REPORT_IDS.indexOf(String(b.id)) < 0) throw new Error('report-client-only');
     // A164: through visible_, exactly like pull. Without it this action computed
     // over the WHOLE book, and `dues` returns donor rows by NAME — so anyone
     // holding 📋 বাকির তালিকা could read every sponsor and every গুপ্ত দান

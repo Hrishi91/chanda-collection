@@ -15010,3 +15010,42 @@ A199 (a stampless row walking past a freeze), A200 (one id in a batch
 writing two rows and two receipt serials), A203 (`all` / `admin` /
 `cashiers` registrable as usernames) and A206 (deleting a list item the
 book is standing on).
+
+## A208 — eight reports offered, seven built (2026-09-06)
+
+**Found by asking both sides the same question.** For each of the eight
+report ids, does the phone draw the tile *and* does the server serve it?
+They agreed on seven. On 🎭 **program** the phone draws it and the server
+answered a bare `unknown report` — `REPORT_IDS` lists eight,
+`allowedReports_` offers eight, `computeReport_` has seven branches.
+
+**Nothing shipped is a dead end**, and that is worth stating plainly:
+reports are computed on the phone from the snapshot it already holds
+(`Aggregate.computeReport`), and nothing in `js/` calls the server's
+`report` action at all. But a list that promises more than the code beside
+it delivers is the exact shape that has bitten this codebase four separate
+times, and the next caller would inherit it.
+
+**Not fixed by porting.** Building 🎭 program server-side needs
+`sectorSplit`, `spokenFor` and `commitmentRows` — a second copy of the
+money rules. One copy, on the phone, is the right answer.
+
+So the gap is **declared**: `SERVER_REPORT_IDS` names what this file
+builds, and asking for anything else says `report-client-only` by name
+instead of falling through. `allowedReports_` still offers all eight,
+because the phone needs every id for its tiles and for `setReports` to
+grant them.
+
+**The test had to be made honest too.** The first version could not catch
+*under*-claiming: drop an id the server really does build and it simply
+lands in the "client only" bucket and answers what that bucket expects — a
+declaration making itself true. So the second source of truth is the code:
+the `if (id === 'x')` branches are parsed out of `computeReport_` and must
+equal the declared list exactly.
+
+v4.70.0. Tests 2,717 (from 2,705). Mutation-proved three ways — over-claim,
+under-claim, and falling back through to `unknown report` — each by name.
+
+**Not urgent to deploy.** Nothing in the field calls this surface; the only
+visible effect until Code.gs is redeployed is the "server is behind" strip,
+which is drawn for the admin alone and for nobody else.

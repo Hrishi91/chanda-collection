@@ -3070,6 +3070,55 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A208: eight reports offered, seven built here --------------------
+    // Found by asking the phone and the server the same question about each of
+    // the eight and comparing. They agreed on seven; on 🎭 program the phone
+    // draws the tile and the server answered a bare `unknown report`. Reports
+    // are computed on the PHONE, so nothing shipped is a dead end — but a list
+    // that promises more than the code beside it delivers is the shape that has
+    // bitten this codebase four times. Both directions are pinned here so a
+    // ninth report cannot be added to one list and forgotten in the other.
+    {
+      const bp = loadBackend(); bp.api.setup();
+      bp.post('register', { username: 'rpadm', name: 'নাম', password: 'secret0', phone: '9000000001' });
+      const tp = bp.call('login', { username: 'rpadm', password: 'secret0', year: 2026 }).token;
+      const A11 = require('../js/aggregate.js');
+      const ask = function (id) {
+        try { const r = bp.call('report', { token: tp, id: id, year: 2026 });
+              return (r && r.error) ? 'refused:' + r.error : 'ok'; }
+        catch (e) { return 'refused:' + String(e.message || e); }
+      };
+      const gsR = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+      const srvList = ((gsR.match(/var SERVER_REPORT_IDS = \[([^\]]*)\]/) || [])[1] || '')
+        .split(',').map(function (x) { return x.trim().replace(/'/g, ''); }).filter(Boolean);
+      eq(srvList.length > 0, true, 'backend A208: the server declares which reports it builds');
+      // The declaration must not be able to make itself true. Under-claiming —
+      // dropping an id it really does build — is invisible to the round-trip
+      // check below, because the id then simply lands in the "client only"
+      // bucket and answers exactly what that bucket expects. So the second
+      // source of truth is the CODE: every `if (id === 'x')` branch inside
+      // computeReport_. Derived, not typed out twice — the rule this file keeps
+      // relearning.
+      const body = (gsR.match(/function computeReport_\(id, d\)[\s\S]*?\n}/) || [''])[0];
+      const built = (body.match(/id === '([a-z]+)'/g) || [])
+        .map(function (m) { return m.replace(/id === '|'/g, ''); });
+      eq(built.slice().sort().join(','), srvList.slice().sort().join(','),
+         'backend A208: the declared list is exactly the branches computeReport_ actually has');
+      eq(srvList.filter(function (id) { return A11.REPORT_IDS.indexOf(id) < 0; }).length, 0,
+         'backend A208: …and every one of them is a real report id');
+      // forward: everything it claims, it actually builds
+      srvList.forEach(function (id) {
+        eq(ask(id), 'ok', 'backend A208: the server builds "' + id + '", as it says it does');
+      });
+      // backward: everything it does NOT claim says so by name, not by falling through
+      A11.REPORT_IDS.filter(function (id) { return srvList.indexOf(id) < 0; }).forEach(function (id) {
+        eq(ask(id), 'refused:report-client-only',
+           'backend A208: "' + id + '" is drawn on the phone only, and this surface says exactly that');
+      });
+      eq(ask('everything'), 'refused:no-report-access',
+         'backend A208: …while a name that is not a report at all is still refused before anything else');
+    }
+
     // --- A206: never delete what the book is standing on -------------------
     {
       const bl = loadBackend(); bl.api.setup();
