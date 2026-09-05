@@ -1096,6 +1096,11 @@ const I18N = {
   // A127: the two words every server-bound button says while it works.
   working: { bn: 'হচ্ছে…', en: 'working…' },
   working_slow: { bn: 'সার্ভার ধীর — একটু অপেক্ষা…', en: 'server is slow — a moment…' },
+  // A183: working_slow is reassurance mid-wait; this is the verdict when the
+  // wait is over and nothing came back. A dead spot answers neither success
+  // nor failure, so without a line like this the button simply goes quiet.
+  net_gave_up: { bn: '📶 নেটওয়ার্ক সাড়া দিচ্ছে না — একটু পরে আবার চেষ্টা করো।',
+                 en: '📶 The network is not answering — try again in a moment.' },
   es_payment: { bn: 'দাতার জমা', en: 'donor payment' },
   es_expense: { bn: 'খরচ', en: 'expense' },
   entries_guide_btn: { bn: 'পুরো নিয়মটা', en: 'The full process' },

@@ -14161,3 +14161,47 @@ with @সবাই · @ক্যাশিয়ার · @admin.
 Tests 2,539. Mutation-proved by restoring the cache-only condition.
 Schema stays 5. **Needs the deploy** (client-side, so the shell bump
 carries it).
+
+## 2026-09-06 — A183: the shape, swept and then pinned
+
+Hrishi: "check the rest for the same shape." So instead of hunting one
+more instance, all **41** `Auth.call` sites in `js/app.js` were
+classified: writes (a hang there is a stuck button, not a missing
+screen), background polls, and **reads that gate a screen**.
+
+Of the gating reads, most were already right — and one of them,
+`renderAdmin`, is right *because A129b fixed exactly this class months
+ago*: it repaints `admCache` and only shows "loading" when there is
+nothing to show. `userSnapshot` and `auditLog` paint a loading card, so
+a hang is visible rather than silent.
+
+**Two were not:**
+
+- **♻️ Backup থেকে ফেরাও** had no `busyBtn` at all — unlike `backupNow`
+  directly above it. A hanging `listBackups` left the admin tapping a
+  button that did nothing and said nothing. This is the button somebody
+  reaches for when something has **already** gone wrong, which correlates
+  with a bad evening and a bad signal.
+- **The import attribution screen** had a `.catch` for a refused request
+  and nothing for a hang, so after picking a backup file the screen
+  simply never arrived.
+
+Both fixed the same way as A176/A182 — visible work, a timer, and a
+degraded path that still works (`net_gave_up` says the network stopped
+answering; the import still offers "keep as written").
+
+### The shape is now a test, not a memory
+
+One block asserts that **every** guard is still in place — 🧾 খরচ, 🤝 জমা,
+the @ picker, restore, import. The fifth occurrence gets caught without
+anyone remembering the first four.
+
+And the lesson went into `~/.claude/skills/offline-first-pwa-field-lessons`,
+because it is not about this app: **a dead spot is not "offline", it
+hangs.** `navigator.onLine` is TRUE on a tower with no data, so the
+offline guard does not fire and `.catch` never runs either. Test it by
+hanging `fetch`, not by going offline — offline is the case that already
+works.
+
+Tests 2,545 (from 2,539). Both fixes mutation-proved. Schema stays 5.
+**Needs the deploy**, with A182.

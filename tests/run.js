@@ -101,6 +101,27 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
   eq(/data-at="' \+ g\[0\]/.test(blk), true,
      'A182: …and the groups it can always offer come from the local list');
 }
+
+// A183: the shape itself, pinned. Four times now a READ that gates a screen has
+// had no cache, no pre-paint and no timeout — and a phone in a dead spot
+// answers neither .then nor .catch, so the control goes silent for ever. Every
+// gating read must do ONE of: paint something first, or fall back on a timer.
+{
+  const A = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  // restore: the emergency path, and the button did not even look busy
+  const restore = (A.match(/admEl\('restore-btn'\)\.onclick[\s\S]*?listBackups/) || [''])[0];
+  eq(/busyBtn\(this\)/.test(restore), true, 'A183: ♻️ restore shows the button working');
+  eq(/setTimeout\(function \(\) \{ undo\(\); toast/.test(restore), true,
+     'A183: …and gives up out loud instead of going quiet');
+  // import attribution: offline was handled, a hang was not
+  const imp = (A.match(/let painted = false;[\s\S]*?listUsers/) || [''])[0];
+  eq(/setTimeout\(function \(\) \{ once\(\[\]\); \}, \d+\)/.test(imp), true,
+     'A183: the import screen arrives even if the user list never does');
+  // and the three earlier ones stay fixed
+  eq(/setTimeout\(function \(\) \{ once\(null\); \}, \d+\)/.test(A), true, 'A183: 🧾 খরচ still guarded (A176)');
+  eq(/setTimeout\(function \(\) \{ startOnce\(null\); \}, \d+\)/.test(A), true, 'A183: 🤝 জমা still guarded (A176)');
+  eq(/paint\(msgUserCache \|\| \[\]\);/.test(A), true, 'A183: @ picker still guarded (A182)');
+}
 eq(parseAmount('৫০০'), 500, 'bengali digits');
 eq(parseAmount(' ৫,০০০ টাকা '), 5000, 'bengali digits + comma + টাকা');
 eq(parseAmount('₹1,250'), 1250, 'rupee sign + comma');

@@ -6645,12 +6645,19 @@
         if (window.confirm(t('import_confirm') + '\n\n' + counts.join(', '))) done(null);
       };
     };
+    // A183: the .catch below covers a REFUSED request; a dead spot refuses
+    // nothing, it hangs — and then this screen never arrives at all, after the
+    // admin has already picked a file. Same degraded path either way: paint
+    // with nobody to attribute to, which still offers "keep as written".
+    let painted = false;
+    const once = function (list) { if (painted) return; painted = true; paint(list); };
+    setTimeout(function () { once([]); }, 8000);
     Auth.call('listUsers', { token: Auth.token() })
       .then(function (r) {
-        paint((r.users || []).filter(function (u) { return u.status === 'approved'; })
+        once((r.users || []).filter(function (u) { return u.status === 'approved'; })
           .map(function (u) { return { username: u.username, name: u.name }; }));
       })
-      .catch(function () { paint([]); }); // offline: only "keep as written" is offered
+      .catch(function () { once([]); }); // offline: only "keep as written" is offered
   }
 
   // Tell the ADMIN when the chat starts costing something, and give them the
@@ -8389,7 +8396,18 @@
       // restore: pick a snapshot, then type RESTORE — the server takes a
       // safety backup of the CURRENT state first, so this is itself undoable
       admEl('restore-btn').onclick = function () {
+        // A183: this is the button somebody reaches for when something has
+        // already gone wrong, which correlates with a bad evening and a bad
+        // signal. It had no busyBtn — unlike backupNow directly above it — so
+        // a request that hangs (a dead spot answers neither .then nor .catch)
+        // left the admin tapping a button that did nothing and said nothing.
+        // Fourth instance of A176's shape. busyBtn alone fixes the silence:
+        // "⏳ কাজ চলছে", then "ধীরে চলছে" after 2.5s.
+        const undo = busyBtn(this);
+        const guard = setTimeout(function () { undo(); toast(t('net_gave_up')); }, 15000);
+        const finish = function () { clearTimeout(guard); undo(); };
         Auth.call('listBackups', { token: Auth.token() }).then(function (r) {
+          finish();
           const list = r.backups || [];
           if (!list.length) { alert(t('restore_none')); return; }
           const menu = list.slice(0, 10).map(function (f, i) { return (i + 1) + '. ' + f.name; }).join('\n');
