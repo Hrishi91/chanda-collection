@@ -13530,3 +13530,47 @@ loudly. **A green grep is not a green suite.**
 
 Tests 2,458 (from 2,448). Version stays v4.53.0 — nothing about the
 app's behaviour changed in this release.
+
+## 2026-09-05 — A169 v4.54.0: "500/-" is how an amount is written here
+
+`parseAmount`, asked adversarially: Bengali numerals, spoken amounts,
+Indian comma grouping, fractions, negatives, blanks, twelve digits,
+paste artefacts.
+
+**It is in very good shape.** ২০০০ · ১,৫০০ · দেড় হাজার · আড়াই হাজার ·
+সাড়ে তিন হাজার · এক লাখ · 1,00,000 · তিন হাজার পাঁচশো — all correct.
+And everything that is **not** an amount comes back `NaN` rather than a
+silent zero: blank, spaces, `abc`, `হ্যাঁ`, `-500`, `½`. That direction
+is the one that matters, because a silent zero is a donation that
+vanishes without anybody being told.
+
+**One real gap: `500/-` parsed to `NaN`.** That is how amounts are
+written on every slip and receipt book in this district, and a collector
+copying one off a slip got "লিখতেই হবে" and no way forward. Now stripped
+— but only at the **end** of the string and only that exact pair, so the
+minus keeps its meaning everywhere else. `-500` must stay `NaN`: a
+negative চাঁদা is not a thing, and silently turning it into 500 would be
+worse than refusing it. Both directions are asserted, and the mutation
+that widens the strip to `[\/-]` fails on the negative, loudly.
+
+Verified through the screen on a fresh port: typing `750/-` into রোড
+কালেকশন gives ₹750 and moves on, with no error toast.
+
+### Two things looked at and deliberately left alone
+
+- **`500 600` parses to 500600.** That join is deliberate (line 77) —
+  speech-to-text splits "1 500" into digit groups, and rejoining them is
+  the whole point. The cost is two separate numbers merging, and it is
+  guarded twice: the flow shows the parsed amount back before saving,
+  and anything over ₹1,00,000 raises a confirm naming the figure. A
+  1000× error is the most visible kind.
+- **`0` parses to 0, so a ₹0 payment can be saved.** Not fixed, and the
+  reason matters: on the handover sheet "নগদ ০ + UPI ৫০০" is completely
+  normal, so a per-field zero guard would break a legitimate entry. That
+  is exactly the shape of the mistake A167 made two hours ago. If it is
+  ever worth guarding, the check belongs on the TOTAL, where
+  `wireCashSheet` already has one.
+
+Tests 2,463 (from 2,458). Schema stays 5. **Needs the deploy** — the
+version moves to v4.54.0, which Hrishi asked to ride the next real
+change, and this is it.

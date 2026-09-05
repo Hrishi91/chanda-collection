@@ -16,6 +16,17 @@ function eq(actual, expected, label) {
 
 // ---- parseAmount: digits ----
 eq(parseAmount('500'), 500, 'plain digits');
+// A169: the slip form. "500/-" is how amounts are written on every receipt
+// book in this district, and it parsed to NaN — the collector copying one off
+// a slip got "লিখতেই হবে" and no way forward. Stripped only at the END and
+// only that exact pair, because the minus must keep its meaning: a negative
+// চাঁদা is not a thing, and silently turning "-500" into 500 would be worse
+// than refusing it. Both directions asserted, so a wider strip fails here.
+eq(parseAmount('500/-'), 500, 'A169: the slip form parses');
+eq(parseAmount('১৫০০/-'), 1500, 'A169: …in Bengali digits too');
+eq(Number.isNaN(parseAmount('-500')), true, 'A169: …while a negative amount is still refused');
+eq(Number.isNaN(parseAmount('500-')), true, 'A169: …and a bare trailing minus is not a slip');
+eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not an amount');
 eq(parseAmount('৫০০'), 500, 'bengali digits');
 eq(parseAmount(' ৫,০০০ টাকা '), 5000, 'bengali digits + comma + টাকা');
 eq(parseAmount('₹1,250'), 1250, 'rupee sign + comma');

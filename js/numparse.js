@@ -68,7 +68,14 @@
   function parseAmount(input) {
     if (input == null) return NaN;
     let s = normalizeDigits(String(input)).toLowerCase().trim();
-    s = s.replace(/[,₹]/g, '')
+    // A169: "500/-" is how an amount is written on every slip and receipt in
+    // this district, and a collector copying one off a slip typed it and got
+    // "লিখতেই হবে". Stripped only at the END and only that exact pair, so the
+    // minus sign keeps its meaning everywhere else — "-500" must stay NaN,
+    // because a negative চাঁদা is not a thing and silently turning it into 500
+    // would be worse than refusing it.
+    s = s.replace(/\/-\s*$/, '')
+         .replace(/[,₹]/g, '')
          .replace(/\b(টাকা|taka|rupees?|rs\.?|inr|মাত্র|only)\b/g, ' ')
          .replace(/টাকা/g, ' ')
          .replace(/\s+/g, ' ').trim();
