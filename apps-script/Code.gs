@@ -1246,7 +1246,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.63.0';
+var CODE_VERSION = 'chanda-v4.64.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1415,7 +1415,20 @@ var ACTIONS = {
         if (r.store !== 'messages' && !yearAllowed_(user, r.row.year)) {
           heldIds.push(r.row.id); return;
         }
-        if (frozen && r.store !== 'messages' && String(r.row.createdAt || '') >= freezeAt) {
+        // A199: no `createdAt` means "held", not "let it through".
+        //
+        // The comparison is against the row's OWN stamp on purpose: a phone
+        // that wrote its morning round offline, before the freeze, must still
+        // be able to hand that work in — the server never saw those rows, so
+        // there is no other clock to read them by. A row with no stamp at all
+        // says nothing about when it was made, and `'' >= freezeAt` is false,
+        // so the empty string was quietly the ONE value that walked past a
+        // freeze. js/db.js stamps every row it saves, so nothing the app
+        // produces loses anything here; a row with no stamp is either a push
+        // built by hand or a row older than the field, and both are content to
+        // wait until the book reopens.
+        if (frozen && r.store !== 'messages' &&
+            (!String(r.row.createdAt || '') || String(r.row.createdAt) >= freezeAt)) {
           heldIds.push(r.row.id); return;
         }
         // A78: the access-block, and it is an ALLOW-LIST on purpose. Taking the

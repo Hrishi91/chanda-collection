@@ -14725,3 +14725,35 @@ same row lands by itself the moment the freeze lifts.
 
 Tests 2,635 (from 2,630). Mutation-proved: zeroing the held count, or
 dropping the toast, fails the new assertions by name.
+
+## A199 — the empty string walked past the freeze (2026-09-06)
+
+**Found while probing A198's held path.** The freeze holds a row whose own
+`createdAt` is at or after the freeze moment:
+
+```js
+String(r.row.createdAt || '') >= freezeAt
+```
+
+`'' >= '2026-09-06T…'` is **false**. So a row with no stamp — or a blank
+one — was the single value that sailed through a freeze and was **saved**.
+
+**Why the comparison reads the row's own stamp, and stays that way.** A
+collector who wrote their morning round offline, before the freeze, must
+still be able to hand that work in; the server never saw those rows, so
+there is no other clock to judge them by. That means a *backdated* stamp
+also gets through, and it always will — the server genuinely cannot tell a
+real offline queue from a doctored one, and destroying the real case to
+close the doctored one is the wrong trade for a coordination tool. What is
+NOT a trade is the missing value: it carries no claim at all, and the safe
+reading of no claim is "now".
+
+`js/db.js` stamps every row it saves, so nothing the app produces loses
+anything. A stampless row is a hand-built push or a row older than the
+field, and both are content to wait — verified: the held row lands by
+itself the moment the book reopens.
+
+v4.64.0. Tests 2,641 (from 2,635). Mutation-proved **both ways**: putting
+the old comparison back fails the two stampless assertions by name, and
+over-correcting to hold *everything* while frozen fails the offline-queue
+assertion by name.

@@ -3070,6 +3070,40 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A199: the freeze, and the one value that walked past it ---------
+    {
+      const bf = loadBackend(); bf.api.setup();
+      ['adm', 'col'].forEach(function (u, i) {
+        bf.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '9330000' + i });
+      });
+      const ta = bf.call('login', { username: 'adm', password: 'secret0', year: 2026 }).token;
+      const uid = bf.rows('Users').filter(function (x) { return x.username === 'col'; })[0].id;
+      bf.call('setStatus', { token: ta, userId: uid, status: 'approved' });
+      bf.call('approveYear', { token: ta, userId: uid, year: 2026 });
+      bf.call('setEntries', { token: ta, userId: uid, entries: ['shop', 'road'] });
+      const tcx = bf.call('login', { username: 'col', password: 'secret1', year: 2026 }).token;
+      const shove = function (row) {
+        return bf.call('push', { token: tcx, records: [rec('daily', Object.assign(
+          { year: 2026, type: 'road', amount: 100, cashAmount: 100, upiAmount: 0,
+            date: '2026-09-06', sector: 'puja' }, row))] });
+      };
+      const now = new Date().toISOString();
+      eq((shove({ id: 'fz0', createdAt: now }).savedIds || []).length, 1,
+         'backend A199: before the freeze the row simply lands');
+      bf.call('setFreeze', { token: ta, on: 1, confirm: 'FREEZE' });
+      eq((shove({ id: 'fz1', createdAt: new Date().toISOString() }).heldIds || []).length, 1,
+         'backend A199: a row made after the freeze waits');
+      eq((shove({ id: 'fz2' }).heldIds || []).length, 1,
+         'backend A199: …and so does one with NO createdAt — "" >= freezeAt was false, so it used to walk straight past');
+      eq((shove({ id: 'fz3', createdAt: '' }).heldIds || []).length, 1,
+         'backend A199: …an empty stamp counts the same as no stamp');
+      eq((shove({ id: 'fz4', createdAt: '2020-01-01T00:00:00.000Z' }).savedIds || []).length, 1,
+         'backend A199: …while genuinely older work still hands itself in — that is what the row-own stamp is FOR');
+      bf.call('setFreeze', { token: ta, on: 0 });
+      eq((shove({ id: 'fz2' }).savedIds || []).length, 1,
+         'backend A199: …and the held row lands by itself once the book reopens');
+    }
+
     // the 🩺 desk's pledge verdict, written to the server row
     put('ratan', 'payments', { id: 'cy2', year: 2026, partyId: 'c1', partyName: 'দোকান', amount: 20000, cashAmount: 20000, upiAmount: 0, date: '2026-09-05' });
     const kinds = function () {
