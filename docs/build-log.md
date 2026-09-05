@@ -14093,3 +14093,38 @@ payments are simply not in IndexedDB — so the honest measures are
 `viewData()` (which merges both) or the server. Written down because it
 produced three false alarms in one session, and the next person reading
 these tests will reach for `DB.allData()` for the same reason I did.
+
+## 2026-09-05 — A181: the handover's arithmetic, on two screens
+
+The biggest money movement in daily use, and until now only its
+permissions and its freeze gate had been tested — never the arithmetic,
+through the screens, on both sides.
+
+Driven end to end on one harness, logging out and in between:
+
+| | before | after |
+|---|---|---|
+| রতন (sends) | ₹3,800 | **₹0** |
+| কালী (receives) | ₹3,800 | **₹7,600** |
+
+Exactly −3,800 and +3,800. Money moved, not created and not lost.
+
+Two details worth keeping:
+
+- **The sender's figure does NOT drop when they send.** After the
+  handover is written it still reads ₹3,800, because the parcel is
+  `pending` — nobody has agreed it changed hands. `inHandRows` only
+  debits on `hoConfirmed`, and puts the amount in a `pending` bucket
+  meanwhile. That is the honest state: the cash may be in a pocket, in a
+  bag, or in dispute, and the book should not pretend otherwise.
+- **It moves on the cashier's ✅, on the cashier's phone**, and the
+  sender's own screen reflects it on his next login. One act, both books.
+
+### Measuring this correctly took three tries
+
+`DB.allData()` reads only the rows THIS phone wrote, and re-merging the
+central snapshot by hand produced nonsense (`undefined: ₹3800` eight
+times). The number on the home screen is the honest measure — it is what
+the collector actually sees, and it is computed by the same code the
+committee's reports use. Recorded with A180's version of the same
+lesson.
