@@ -1204,7 +1204,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.51.0';
+var CODE_VERSION = 'chanda-v4.52.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1742,7 +1742,19 @@ var ACTIONS = {
   report: function (b) {
     var u = requireUser_(b.token);
     if (allowedReports_(u).indexOf(b.id) < 0) throw new Error('no-report-access');
-    var d = readAll_(b.year ? Number(b.year) : new Date().getFullYear());
+    // A164: through visible_, exactly like pull. Without it this action computed
+    // over the WHOLE book, and `dues` returns donor rows by NAME — so anyone
+    // holding 📋 বাকির তালিকা could read every sponsor and every গুপ্ত দান
+    // donor with an outstanding pledge, sponsorview or not. Hrishi's rule was
+    // "dont show in any report or ledger if no permission", and this was the
+    // one door that did not obey it.
+    //
+    // No screen was affected: the phone computes every report locally from its
+    // own pulled snapshot, which has always been filtered. That is exactly why
+    // it survived — a hole nothing in the app walks through is a hole only a
+    // direct call finds, and this file closes those on purpose elsewhere
+    // (see confirmHandover's not-recipient guard).
+    var d = visible_(readAll_(b.year ? Number(b.year) : new Date().getFullYear()), u);
     return { ok: true, id: b.id, data: computeReport_(b.id, d) };
   },
 

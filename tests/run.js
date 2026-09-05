@@ -6963,6 +6963,16 @@ try {
     });
     eq(/entTxt \+ \(marks \? ' ' \+ marks : ''\)/.test(app), true,
        'A161: …and the marks actually reach the rendered line');
+
+    // A164: the ledger says it too. canSeeKind opens a 🤫/🎪 tab for anyone who
+    // may WRITE that kind, so a collector holding `gupt` without `guptview`
+    // gets a tab headed গুপ্ত দান holding only their own rows — which reads as
+    // the committee's whole list. The report screen has said this since A144;
+    // the ledger, which is the screen people actually browse, did not.
+    eq(/filterBar\(chips\.buttons[\s\S]{0,900}?partialBook\(\)[\s\S]{0,120}?report_partial[\s\S]{0,120}?list-body/.test(app), true,
+       'A164: the ledger warns a partial reader that kinds are missing');
+    eq((app.match(/t\('report_partial'\)/g) || []).length, 2,
+       'A164: …on both screens that show a book, and nowhere it would be noise');
     // every key the summary can hold is either an entry kind (spelled out) or
     // marked — nothing may be silently dropped again
     PERM_KEYS.forEach(function (k) {

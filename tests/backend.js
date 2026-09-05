@@ -1810,5 +1810,35 @@ module.exports = function runBackendTests(eq) {
       const orphan = S[u].payments.filter(function (p) { return p.partyId && !ids[p.partyId]; });
       eq(orphan.length, 0, 'backend A163: ' + u + ' holds no payment whose donor they cannot see');
     });
+
+    // --- A164: the reports obey the same rule as the ledger ------------------
+    // `report` computed over readAll_ — the WHOLE book — while `pull` went
+    // through visible_. `dues` returns donor rows by NAME, so anybody holding
+    // 📋 বাকির তালিকা could read every sponsor and every গুপ্ত দান donor with
+    // an outstanding pledge, sponsorview or not. No screen walked through it
+    // (the phone computes reports locally from its own filtered snapshot),
+    // which is exactly why it lasted: a hole the app never uses is a hole only
+    // a direct call finds.
+    const rl = require('../js/aggregate.js').REPORT_IDS.slice();
+    ['kali', 'ratan', 'bimal'].forEach(function (u) {
+      bk.call('setReports', { token: a, userId: row(u).id, reports: rl });
+    });
+    put('kali', 'parties', { id: 'r-p4', year: 2026, type: 'sponsor', name: 'ZZSPONSORZZ',
+                             pledged: 100000, sector: 'puja' });
+    put('kali', 'payments', { id: 'r-y4', year: 2026, partyId: 'r-p4', partyName: 'ZZSPONSORZZ',
+                              amount: 1000, cashAmount: 1000, upiAmount: 0, date: '2026-09-05' });
+    const duesFor = function (u) {
+      const r = bk.call('report', { token: tk[u], id: 'dues', year: 2026 });
+      return JSON.stringify((r && r.data) || {});
+    };
+    eq(duesFor('kali').indexOf('ZZSPONSORZZ') >= 0, true,
+       'backend A164: sponsorview reads the sponsor in the dues report');
+    eq(duesFor('ratan').indexOf('ZZSPONSORZZ') >= 0, false,
+       'backend A164: …and a collector without it does not, even calling the API directly');
+    eq(duesFor('bimal').indexOf('ZZSPONSORZZ') >= 0, false,
+       'backend A164: …nor one who may TAKE sponsors but not see everyone\'s');
+    eq(/var d = visible_\(readAll_\(/.test(
+         require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8')), true,
+       'backend A164: …because report goes through visible_, like pull');
   }
 };

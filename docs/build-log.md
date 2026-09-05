@@ -13236,3 +13236,57 @@ release is tests plus the version bump that keeps the three equal.
 - Deployed v4.51.0; probed three times (`codeVersion: chanda-v4.51.0`,
   `schema: 5`). `js/config.js` rebaked. **A162's server fix is live from
   here** — the 🎭 grants now decide what the programme team may save.
+
+## 2026-09-05 — A164 v4.52.0: the reports obeyed a different rule than the ledger
+
+"Check the reports and ledger from all roles." Eight reports × five
+roles, and the question was not whether the arithmetic is right — each
+role's arithmetic can be perfectly right about a book that is missing
+rows. The question was whether a partial book ever presents itself as
+the whole one, and whether a name ever escapes.
+
+**A name escaped.** The server's `report` action computed over
+`readAll_` — the whole book — while `pull` has always gone through
+`visible_`. `dues` returns donor rows **by name**, so anybody holding
+📋 বাকির তালিকা could read every sponsor and every গুপ্ত দান donor with
+an outstanding pledge, `sponsorview` or not. Hrishi's rule, in his own
+words when the feature was designed: *"dont show in any report or ledger
+if no permission."* This was the one door that did not obey it.
+
+No screen walked through that door — the phone computes every report
+locally from its own pulled snapshot, which has always been filtered —
+and that is exactly why it survived four releases. A hole the app never
+uses is a hole only a direct call finds, which is the same reasoning
+this file already applies to `confirmHandover`'s not-recipient guard.
+`report` now goes through `visible_`, like `pull`.
+
+**And the ledger did not say it was partial.** The report screen has
+carried one sentence since A144 — "এই হিসাবে সব ধরনের entry ধরা নেই" —
+because a reader's total is honestly smaller than the admin's and the
+danger is somebody quoting it in a meeting as the committee's. The
+ledger carried nothing, and the ledger is the screen people actually
+browse. `canSeeKind` opens a 🤫 or 🎪 tab for anyone who may **write**
+that kind, so a collector holding `gupt` without `guptview` gets a tab
+headed গুপ্ত দান containing only their own rows — indistinguishable
+from the committee's whole list. Same sentence, now on both screens, and
+nowhere else.
+
+Verified on a fresh port by logging in as two different people: the
+admin's ledger carries no notice and shows all seven tabs; a collector
+with `gupt` and no `guptview` sees five tabs (গুপ্ত দান yes, স্পনসর no)
+and the notice below the chips.
+
+### Not fixed, and why
+
+`REPORT_IDS` includes `program`, but `computeReport_` in `Code.gs`
+handles seven ids and not that one, so a direct `report({id:'program'})`
+answers "unknown report". No phone is affected — the 🎭 hisab is
+computed on the device like every other report. Porting the programme
+aggregation into `Code.gs` would be a **fifth** hand-written copy of
+logic that already lives in `js/aggregate.js`, which is the bug class
+this session has now fixed four times (A146–A149, A160, A163). Left
+alone deliberately; written down so it is not rediscovered as a defect.
+
+Tests 2,422 (from 2,416). Both fixes mutation-proved — the ledger notice
+needed a pin written for it first, because removing it broke nothing.
+Schema stays 5. **Needs the Apps Script redeploy** for the `report` fix.

@@ -3089,6 +3089,13 @@
         '<input id="search" class="search" enterkeyhint="search" placeholder="' +
           esc(t(busRows ? 'search_bus_ph' : 'search_party_ph')) + '" value="' + esc(listQuery) + '">' +
         filterBar(chips.buttons + (busRows ? '' : dueChip(listDueOnly)) + areaSel) +
+        // A164: the same sentence the report screen has carried since A144, on
+        // the screen that needed it just as much. canSeeKind opens a 🤫 / 🎪 tab
+        // for anyone who may WRITE that kind, so a collector holding `gupt` but
+        // not `guptview` gets a tab headed গুপ্ত দান that contains only their
+        // own — indistinguishable from the committee's whole list. Below the
+        // chips, because it is about what the chips do not show.
+        (partialBook() ? '<div class="hint" style="margin:0 2px 8px">' + esc(t('report_partial')) + '</div>' : '') +
         '<div id="list-body">' + buildBody() + '</div>';
       wireTabsCue();
       const af = document.getElementById('area-f');
