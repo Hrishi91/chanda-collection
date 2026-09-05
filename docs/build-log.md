@@ -14424,3 +14424,46 @@ checklist step 2 exists to fix — until then every grant has to be made
 person by person, and the posts do nothing.
 
 Tests 2,569 (from 2,557).
+
+## 2026-09-06 — A190: five surfaces in one pass
+
+Five things nobody had driven. All correct; the two worth keeping are
+now tests.
+
+**Report grants do exactly what they say.** Given `overview` and
+`daily`, the collector's report list is exactly those two, `overview`
+opens, `dues` and `inhand` answer `no-report-access` — and taking the
+grants away closes `overview` too. Both directions.
+
+**A new এলাকা or খরচের বিষয় reaches a collector's phone**, and removing
+one takes it away again. The admin's list edits are not a separate world
+from the entry flow.
+
+**📗 জমা-খাতা's three columns, including the case that can double-count
+money.** A collector takes ₹3,000, sends ₹1,000 (confirmed) and ₹500
+(refused). The book reads: collected ₹3,000 · handedOver **₹1,000** ·
+pending **₹0** · in hand **₹2,000**. The refused ₹500 is back in his
+pocket and counted **once** — not still "awaiting confirm" and also in
+his hand, which is exactly how a refusal quietly puts money in two
+places. Mutating either half fails several older tests by name,
+including the client/server mirror.
+
+**The bell tells the right person.** The recipient is told a parcel is
+waiting; the sender is not told about their own; the admin is told about
+an account waiting to be approved. Answering clears the card — and a
+**refusal travels back to the sender**, which matters because their
+money just became spendable again and nothing else on their screen would
+say so.
+
+**training → live reaches the phones.** Before 🚀 no `live_mode` anywhere;
+after it, the next `pull` carries `live_mode: on` and the receipt width
+is locked. The banner is not a local guess.
+
+Tests 2,578 (from 2,569).
+
+### Four assertions failed first; none was the app
+
+`notif.counts` (it is `notif.notifications`), and earlier `ov.collected`,
+`r.name`, `perms` as a string. Every value I could read was right on the
+first run. The pattern is now unmistakable: **when a check disagrees
+with a screen that plainly works, the check is wrong.**

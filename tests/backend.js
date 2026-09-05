@@ -2693,4 +2693,56 @@ module.exports = function runBackendTests(eq) {
     eq(/position-full/.test(e2), true, 'backend A189: a post capped at 1 refuses a second holder');
     eq(/kali/.test(e2), true, 'backend A189: …and names who already holds it, which is the useful half');
   }
+
+  // --- A190: the handover book's arithmetic, and who gets told -------------
+  // A181 checked that confirming moves the two in-hand figures. This checks
+  // the three columns behind them — collected / handedOver / pending — and
+  // what a REJECTED parcel does to each, which is the case that can quietly
+  // leave money in two places at once.
+  {
+    const bh = loadBackend();
+    bh.api.setup();
+    ['hrishi', 'kali', 'ratan', 'amal'].forEach(function (u, i) {
+      bh.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '87000000' + i });
+    });
+    let t0 = bh.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+    const rw = function (u) { return bh.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    ['kali', 'ratan'].forEach(function (u) {           // amal stays PENDING on purpose
+      bh.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+      bh.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+      bh.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'road'] });
+    });
+    bh.call('setCashier', { token: t0, userId: rw('kali').id, cashier: 1 });
+    const th = {};
+    ['hrishi', 'kali', 'ratan'].forEach(function (u, i) {
+      th[u] = bh.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+    });
+    const put = function (u, store, row) { bh.call('push', { token: th[u], records: [rec(store, row)] }); };
+    put('ratan', 'parties',  { id: 'h1', year: 2026, type: 'shop', name: 'দোকান', pledged: 9000, sector: 'puja' });
+    put('ratan', 'payments', { id: 'hy1', year: 2026, partyId: 'h1', partyName: 'দোকান', amount: 3000, cashAmount: 3000, upiAmount: 0, date: '2026-09-05' });
+    put('ratan', 'handovers', { id: 'hh1', year: 2026, amount: 1000, cashAmount: 1000, upiAmount: 0, toId: 'kali', date: '2026-09-05', status: 'pending' });
+    put('ratan', 'handovers', { id: 'hh2', year: 2026, amount: 500, cashAmount: 500, upiAmount: 0, toId: 'kali', date: '2026-09-05', status: 'pending' });
+
+    const notifOf = function (u) {
+      return (((bh.call('pull', { token: th[u], year: 2026, since: 0 }) || {}).notif || {}).notifications) || {};
+    };
+    eq(notifOf('kali').handovers, 1 + 1, 'backend A190: the RECIPIENT is told about parcels waiting');
+    eq(notifOf('ratan').handovers, 0, 'backend A190: …and the sender is not told about their own');
+    eq(notifOf('hrishi').approvals, 1, 'backend A190: the admin is told about the account waiting to be approved');
+
+    bh.call('confirmHandover', { token: th.kali, id: 'hh1', year: 2026 });
+    bh.call('rejectHandover', { token: th.kali, id: 'hh2', reason: 'পাইনি', year: 2026 });
+    eq(notifOf('kali').handovers, 0, 'backend A190: answering both clears the recipient\'s cards');
+    eq(notifOf('ratan').rejections, 1,
+       'backend A190: …and the REFUSAL travels back to the sender, whose money just became spendable again');
+
+    const A4 = require('../js/aggregate.js');
+    const d = (bh.call('pull', { token: th.ratan, year: 2026, since: 0 }) || {}).data || {};
+    const me = (A4.inHandRows(d) || []).filter(function (r) { return /ratan/.test(String(r.collector)); })[0] || {};
+    eq(me.collected, 3000, 'backend A190: collected is what he took');
+    eq(me.handedOver, 1000, 'backend A190: handedOver counts ONLY the confirmed parcel');
+    eq(me.pending, 0, 'backend A190: a rejected parcel is not "awaiting confirm" — it is over');
+    eq(me.inHand, 2000,
+       'backend A190: so he holds 3000−1000: the refused ₹500 is back in his pocket, counted once');
+  }
 };
