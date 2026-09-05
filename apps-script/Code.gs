@@ -1246,7 +1246,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.64.0';
+var CODE_VERSION = 'chanda-v4.65.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1662,6 +1662,28 @@ var ACTIONS = {
           }
         } else if (!entryAllowed_(user, permKey)) { rejectedIds.push(r.row.id); return; }
         (byStore[r.store] = byStore[r.store] || []).push(r.row);
+      });
+      // A200: one id, one row — inside the batch too.
+      //
+      // Every id downstream of here is looked up against the SHEET (`idRow`),
+      // never against the rows queued beside it, so two records carrying the
+      // same id both read as new: two sheet rows, two receipt serials, and the
+      // money counted twice. The 🩺 desk does report it as duplicate_id, but
+      // it cannot be cleaned up — a void targets an id, and both rows answer
+      // to that id, so cancelling the wrong one cancels the right one with it.
+      //
+      // js/db.js is keyed by id, so a real phone cannot queue the same id
+      // twice and nothing legitimate changes. Last occurrence wins, matching
+      // the upsert everywhere else: a batch is a set of rows to APPLY, and the
+      // newest state of a row is the one the phone means.
+      Object.keys(byStore).forEach(function (store) {
+        var seen = {}, deduped = [];
+        byStore[store].forEach(function (row) {
+          var key = String(row.id);
+          if (seen[key] !== undefined) { deduped[seen[key]] = row; return; }
+          seen[key] = deduped.length; deduped.push(row);
+        });
+        byStore[store] = deduped;
       });
       Object.keys(byStore).forEach(function (store) {
         var sh = ss.getSheetByName(SHEET_TITLES[store]);

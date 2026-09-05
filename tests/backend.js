@@ -3070,6 +3070,81 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A200: receipt serials, and one id meaning one row -----------------
+    // Two donors holding the same number is an argument nobody in the field
+    // can settle, and the paper is already in their hand.
+    {
+      const bs = loadBackend(); bs.api.setup();
+      ['zadm', 'zcola', 'zcolb'].forEach(function (u, i) {
+        bs.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '922000000' + i });
+      });
+      const ta = bs.call('login', { username: 'zadm', password: 'secret0', year: 2026 }).token;
+      ['zcola', 'zcolb'].forEach(function (u) {
+        const id = bs.rows('Users').filter(function (x) { return x.username === u; })[0].id;
+        bs.call('setStatus', { token: ta, userId: id, status: 'approved' });
+        bs.call('approveYear', { token: ta, userId: id, year: 2026 });
+        bs.call('setEntries', { token: ta, userId: id, entries: ['shop', 'road', 'bus'] });
+      });
+      const tt = { zcola: bs.call('login', { username: 'zcola', password: 'secret1', year: 2026 }).token,
+                   zcolb: bs.call('login', { username: 'zcolb', password: 'secret2', year: 2026 }).token };
+      const stamp = new Date().toISOString();
+      const pay = function (id, amt) {
+        return rec('payments', { id: id, year: 2026, partyId: 'zsp', partyName: 'দোকান',
+          amount: amt || 100, cashAmount: amt || 100, upiAmount: 0, date: '2026-09-06', createdAt: stamp });
+      };
+      const shove = function (u, records) { return bs.call('push', { token: tt[u], records: records }); };
+      shove('zcola', [rec('parties', { id: 'zsp', year: 2026, type: 'shop', name: 'দোকান',
+        pledged: 999999, sector: 'puja', createdAt: stamp })]);
+
+      // one 25-row offline catch-up: every row numbered, none undefined, none shared
+      const big = []; for (let i = 1; i <= 25; i++) big.push(pay('bg' + i));
+      const rb = shove('zcola', big);
+      const nums = Object.keys(rb.receipts || {}).map(function (k) { return rb.receipts[k]; });
+      eq(nums.length, 25, 'backend A200: a 25-row catch-up gets 25 serials');
+      eq(nums.filter(function (x) { return !x || String(x) === 'undefined'; }).length, 0,
+         'backend A200: …not one of them undefined — the reserve count and the stamp loop agree');
+      eq(Object.keys(nums.reduce(function (a, x) { a[x] = 1; return a; }, {})).length, 25,
+         'backend A200: …and no two of them the same');
+
+      // two collectors in turn must never be handed the same number
+      const seen = {};
+      let clash = 0, total = 0;
+      for (let r2 = 0; r2 < 4; r2++) {
+        ['zcola', 'zcolb'].forEach(function (u) {
+          const rr = shove(u, [pay(u + '-' + r2 + 'x'), pay(u + '-' + r2 + 'y')]);
+          Object.keys(rr.receipts || {}).forEach(function (k) {
+            total++; if (seen[rr.receipts[k]]) clash++; seen[rr.receipts[k]] = 1;
+          });
+        });
+      }
+      eq(total, 16, 'backend A200: sixteen more receipts handed out');
+      eq(clash, 0, 'backend A200: …and not one number reached two collectors');
+
+      // a retry must return the SAME number, never mint a second one
+      const one = shove('zcola', [pay('rt1')]);
+      const two = shove('zcola', [pay('rt1')]);
+      eq((two.receipts || {}).rt1, (one.receipts || {}).rt1,
+         'backend A200: re-pushing a row returns its existing serial, not a fresh one');
+      eq(bs.rows('Payments').filter(function (p) { return p.id === 'rt1'; }).length, 1,
+         'backend A200: …and still one row in the sheet');
+
+      // A200 proper: the same id TWICE in one batch
+      shove('zcola', [pay('twice', 100), pay('twice', 500)]);
+      eq(bs.rows('Payments').filter(function (p) { return p.id === 'twice'; }).length, 1,
+         'backend A200: one id in a batch means one row — it used to write two, and ₹600 where ₹500 was meant');
+      eq(Number(bs.rows('Payments').filter(function (p) { return p.id === 'twice'; })[0].amount), 500,
+         'backend A200: …and the LAST one wins, matching the upsert everywhere else');
+
+      // only what a donor actually holds paper for gets a number
+      const rd = shove('zcola', [
+        rec('daily', { id: 'zdr', year: 2026, type: 'road', amount: 100, cashAmount: 100, upiAmount: 0,
+          date: '2026-09-06', sector: 'puja', createdAt: stamp }),
+        rec('daily', { id: 'zdb', year: 2026, type: 'bus', busName: 'উত্তরবঙ্গ', busNumber: 'WB-1',
+          amount: 200, cashAmount: 200, upiAmount: 0, date: '2026-09-06', sector: 'puja', createdAt: stamp })]);
+      eq(!!(rd.receipts || {}).zdr, false, 'backend A200: a road round gets no serial — nobody is handed paper');
+      eq(!!(rd.receipts || {}).zdb, true, 'backend A200: …a bus does, because the conductor is');
+    }
+
     // --- A199: the freeze, and the one value that walked past it ---------
     {
       const bf = loadBackend(); bf.api.setup();

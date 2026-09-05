@@ -14757,3 +14757,34 @@ v4.64.0. Tests 2,641 (from 2,635). Mutation-proved **both ways**: putting
 the old comparison back fails the two stampless assertions by name, and
 over-correcting to hold *everything* while frozen fails the offline-queue
 assertion by name.
+
+## A200 — receipt serials, and one id meaning one row (2026-09-06)
+
+**Walked the serial allocator, because two donors holding the same number
+is an argument nobody in the field can settle** — the paper is already in
+their hand. Most of it was already right, and is now pinned:
+
+- a 25-row offline catch-up gets 25 serials, none `undefined` (the reserve
+  count and the stamping loop use the same test, so they cannot drift apart)
+- two collectors pushing in turn never share a number, and the run has no
+  gaps
+- a **re-push returns the existing serial** rather than minting a second —
+  the offline retry path, which is the common case
+- a road round gets no serial and a bus does: exactly who is handed paper
+
+**The one hole.** Every id downstream of the batch is looked up against the
+**sheet**, never against the rows queued beside it. Two records carrying
+the same id therefore both read as new: two sheet rows, two serials, and
+₹100 + ₹500 counted as ₹600 where ₹500 was meant. The 🩺 desk does say
+`duplicate_id` — and cannot be acted on, because a void targets an id and
+both rows answer to it, so cancelling the wrong one cancels the right one
+too.
+
+Fixed by collapsing a batch by id before it is written, **last occurrence
+wins**, matching the upsert everywhere else. `js/db.js` is keyed by id so a
+real phone cannot queue one twice; nothing legitimate changes, and the
+serial that used to be burned on the discarded row is no longer spent.
+
+v4.65.0. Tests 2,652 (from 2,641). Mutation-proved both ways: removing the
+collapse fails the row-count and the amount by name; keeping the FIRST
+occurrence instead of the last fails the amount by name.
