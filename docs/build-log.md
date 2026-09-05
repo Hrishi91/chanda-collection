@@ -13070,3 +13070,6 @@ names. Tests 2,357. Schema stays 5.
 **Needs an Apps Script redeploy** — not for behaviour (`Code.gs` logic is
 unchanged) but because the three versions are pinned equal; without it
 every phone shows the red 🛠️ "server is behind" bar.
+
+- Deployed v4.48.0; probed three times (`codeVersion: chanda-v4.48.0`,
+  `schema: 5`). `js/config.js` rebaked.
