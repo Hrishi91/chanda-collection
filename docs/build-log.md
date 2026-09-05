@@ -14788,3 +14788,25 @@ serial that used to be burned on the discarded row is no longer spent.
 v4.65.0. Tests 2,652 (from 2,641). Mutation-proved both ways: removing the
 collapse fails the row-count and the amount by name; keeping the FIRST
 occurrence instead of the last fails the amount by name.
+
+## A201 — the handover ceiling across a verdict (2026-09-06)
+
+**Checked, not changed.** Ten properties walked end to end through the real
+server — hand over part of a round, get it confirmed, get it refused, spend
+from the round, split cash and UPI. All ten were already right.
+
+`handoverable` is well covered in `tests/run.js` (25 assertions) but
+against a hand-built fixture, at rest. What had no test was the
+**transition**. A confirm does two things at once: it takes the cash off
+the sender's hand *and* it stops the parcel being pending. A ceiling that
+applied both to the same ₹2000 would tell a collector holding ₹3000 that
+they may hand over ₹0 — on the one evening of the year that number is used
+to plan. A refusal is the mirror: the ceiling has to come **all** the way
+back, or refused money can never be handed to anybody else.
+
+Five assertions added at the transitions only, so nothing duplicates
+run.js. Mutation-proved: classing a confirmed parcel as still pending gives
+₹0 where ₹1000 is right, and classing a refused one as still pending gives
+₹2000 where ₹4000 is right — both fail by name.
+
+Tests 2,657 (from 2,652). No app change.

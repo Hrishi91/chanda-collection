@@ -3070,6 +3070,52 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A201: the ceiling across a verdict ------------------------------
+    // handoverable is well covered in run.js against a hand-built fixture.
+    // What was not covered is the TRANSITION: a confirm takes the money off
+    // the hand AND clears the pending parcel, and doing both to the same
+    // ceiling would deduct ₹2000 twice — a collector holding ₹3000 told they
+    // may hand over ₹0, on the one evening the number is used to plan.
+    {
+      const bh = loadBackend(); bh.api.setup();
+      ['zzadm', 'zzkali', 'zzrat'].forEach(function (u, i) {
+        bh.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '911000000' + i });
+      });
+      const th = bh.call('login', { username: 'zzadm', password: 'secret0', year: 2026 }).token;
+      const rid = function (u) { return bh.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+      ['zzkali', 'zzrat'].forEach(function (u) {
+        bh.call('setStatus', { token: th, userId: rid(u), status: 'approved' });
+        bh.call('approveYear', { token: th, userId: rid(u), year: 2026 });
+        bh.call('setEntries', { token: th, userId: rid(u), entries: ['shop', 'road'] });
+      });
+      bh.call('setCashier', { token: th, userId: rid('zzkali'), cashier: 1 });
+      const tz = { kali: bh.call('login', { username: 'zzkali', password: 'secret1', year: 2026 }).token,
+                   rat: bh.call('login', { username: 'zzrat', password: 'secret2', year: 2026 }).token };
+      const A8 = require('../js/aggregate.js');
+      const stamp8 = new Date().toISOString();
+      const seed = function (hid) {
+        bh.call('push', { token: tz.rat, records: [rec('daily', { id: 'zq' + hid, year: 2026, type: 'road',
+          amount: 3000, cashAmount: 3000, upiAmount: 0, date: '2026-09-06', sector: 'puja', createdAt: stamp8 })] });
+        bh.call('push', { token: tz.rat, records: [rec('handovers', { id: hid, year: 2026, amount: 2000,
+          cashAmount: 2000, upiAmount: 0, toId: 'zzkali', date: '2026-09-06', status: 'pending',
+          createdAt: stamp8, breakdown: JSON.stringify({ road: { cash: 2000, upi: 0 } }) })] });
+      };
+      const book = function () { return (bh.call('pull', { token: th, year: 2026, since: 0 }) || {}).data || {}; };
+      seed('zh1');
+      eq(A8.handoverable(book(), 'zzrat').cash, 1000,
+         'backend A201: a parcel still awaiting a verdict is off the ceiling — never promised twice');
+      eq(A8.myAvailable(book(), 'zzrat').cash, 3000,
+         'backend A201: …while the cash is still in his hand, because it is');
+      bh.call('confirmHandover', { token: tz.kali, id: 'zh1', year: 2026 });
+      eq(A8.myAvailable(book(), 'zzrat').cash, 1000, 'backend A201: confirmed — ₹1000 left in hand');
+      eq(A8.handoverable(book(), 'zzrat').cash, 1000,
+         'backend A201: …and the ceiling is ₹1000, not ₹0 — the same ₹2000 is not deducted twice');
+      seed('zh2');
+      bh.call('rejectHandover', { token: tz.kali, id: 'zh2', reason: 'পাইনি', year: 2026 });
+      eq(A8.handoverable(book(), 'zzrat').cash, 4000,
+         'backend A201: a refused parcel gives the whole ceiling back — he can hand it to someone else tonight');
+    }
+
     // --- A200: receipt serials, and one id meaning one row -----------------
     // Two donors holding the same number is an argument nobody in the field
     // can settle, and the paper is already in their hand.
