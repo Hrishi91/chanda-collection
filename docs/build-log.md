@@ -13477,3 +13477,56 @@ chased down rather than waved through — it turned out to prove that
 double-subtraction is structurally impossible, and a sharper mutation
 (ignore voids entirely) confirmed the assertions are live. Version stays
 v4.53.0: no behaviour changed.
+
+## 2026-09-05 — A168: the 🩺 desk, and the fixture that kept lying
+
+"Keep checking." The anomaly desk is the screen a committee is meant to
+trust on the one night it matters, so it gets asked two questions — and
+the first matters more:
+
+1. On a book where **nothing** is wrong, does it say **nothing**?
+2. With one fault planted, does it name **exactly that fault**?
+
+**Both hold.** A complete evening's book — every entry kind, both funds,
+a sponsor, a গুপ্ত দান, a confirmed handover, an expense, a voided donor
+— raises **zero** of the thirteen anomaly types. Then seven faults were
+planted one at a time and each was named: orphan payment, duplicate id,
+overpaid, split mismatch, breakdown mismatch, a shop with no এলাকা, and
+the same amount to the same donor twice. The extra types that ride along
+are legitimate consequences, not noise (a duplicated row genuinely IS
+also a possible duplicate).
+
+Third result, and the nicest: **a reader without `guptview` accuses
+nobody — even without the `partialBook` flag.** That is A144's design
+paying off exactly as argued: confidential rows are withheld as WHOLE
+parcels, so both sides of the invariant shrink together and the equation
+still closes. The flag is belt and braces, not the mechanism.
+
+### The fixture lied three times, so it was retired
+
+Before any of that could be trusted, the "clean" book reported
+`negative_inhand` for a collector named `?` holding minus ₹2,900 — the
+exact handover amount. The cause was mine: `inHandRows` keys a parcel's
+sender by `fromId`, and **the server stamps `fromId` from the token on
+every push**. A hand-written handover has no such field, so the money
+left a phantom.
+
+That is the third time this session a hand-built fixture accused the app
+of a bug it did not have (A163: a handover with no `breakdown`; A163
+again: a payment whose party's push had been refused). The permanent
+test now **pushes every row through the real handler and pulls the book
+back** — the same discipline A151 was supposed to teach. A fixture the
+screens could not have produced proves nothing, and worse, it slanders.
+
+### And a mutation that "survived" because it crashed
+
+The first attempt to mutation-prove `reconcile` reported the mutation
+surviving. It had not: a shell quoting slip inserted a literal `\n`,
+`js/aggregate.js` stopped parsing, the suite **crashed** — and a crash
+prints a stack, not `FAIL`, so the grep found nothing and it read as a
+pass. This project already knows this one (A79, hit again in A145 and
+A150) and it still worked. Re-applied properly, the mutation is caught
+loudly. **A green grep is not a green suite.**
+
+Tests 2,458 (from 2,448). Version stays v4.53.0 — nothing about the
+app's behaviour changed in this release.

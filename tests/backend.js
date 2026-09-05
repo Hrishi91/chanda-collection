@@ -2077,4 +2077,97 @@ module.exports = function runBackendTests(eq) {
              { id: 'v2', targetStore: 'voids', targetId: 'v1' }]), 0,
        'backend A167: and voiding the void does NOT bring the money back — no undo-the-undo door');
   }
+
+  // --- A168: the 🩺 desk, on a book built by the server ---------------------
+  // Two questions, and the first matters more: on a book where nothing is
+  // wrong, does it say NOTHING? A red banner that overclaims teaches people to
+  // ignore red, and then it is worth nothing on the night it is right.
+  //
+  // The book is PUSHED through the real handler and pulled back, never written
+  // by hand. Three separate times this session a hand-built fixture accused the
+  // app of a bug it did not have — the last being a handover with no `fromId`,
+  // which the server stamps from the token on every push, and whose absence
+  // made a phantom collector hold minus ₹2,900.
+  {
+    function anomBook() {
+      const ba = loadBackend();
+      ba.api.setup();
+      const cast = ['hrishi', 'kali', 'ratan', 'subrata'];
+      cast.forEach(function (u, i) {
+        ba.post('register', { username: u, name: u, password: 'secret' + i, phone: '98100000' + i });
+      });
+      let t0 = ba.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+      const rw = function (u) { return ba.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+      cast.slice(1).forEach(function (u) {
+        ba.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+        ba.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+        ba.call('setEntries', { token: t0, userId: rw(u).id,
+          entries: ['shop', 'person', 'road', 'toto', 'sponsor', 'gupt'] });
+      });
+      ba.call('setEntries', { token: t0, userId: rw('subrata').id,
+        entries: ['progteam', 'progdonor', 'progmoney', 'ticket'] });
+      ba.call('setCashier', { token: t0, userId: rw('kali').id, cashier: 1 });
+      ba.call('addItem', { token: t0, kind: 'area', nameBn: 'মেন রোড', nameEn: 'Main Rd', id: 'main_malda' });
+      const tka = {};
+      cast.forEach(function (u, i) { tka[u] = ba.call('login', { username: u, password: 'secret' + i, year: 2026 }).token; });
+      const put = function (u, store, row) { ba.call('push', { token: tka[u], records: [rec(store, row)] }); };
+      put('ratan', 'parties',  { id: 'p1', year: 2026, type: 'shop', name: 'আদর্শ', pledged: 5000, side: 'main_malda' });
+      put('ratan', 'payments', { id: 'y1', year: 2026, partyId: 'p1', partyName: 'আদর্শ', amount: 2000, cashAmount: 2000, upiAmount: 0, date: '2026-09-05' });
+      put('ratan', 'parties',  { id: 'p2', year: 2026, type: 'person', name: 'রঞ্জিত', pledged: 3000, side: 'main_malda' });
+      put('ratan', 'payments', { id: 'y2', year: 2026, partyId: 'p2', partyName: 'রঞ্জিত', amount: 1000, cashAmount: 600, upiAmount: 400, date: '2026-09-05' });
+      put('kali',  'parties',  { id: 'p3', year: 2026, type: 'sponsor', name: 'Bose', pledged: 50000, side: 'main_malda' });
+      put('kali',  'payments', { id: 'y3', year: 2026, partyId: 'p3', partyName: 'Bose', amount: 20000, cashAmount: 20000, upiAmount: 0, date: '2026-09-05' });
+      put('kali',  'parties',  { id: 'p4', year: 2026, type: 'gupt', name: 'শুভাকাঙ্ক্ষী', pledged: 0, side: 'main_malda' });
+      put('kali',  'payments', { id: 'y4', year: 2026, partyId: 'p4', partyName: 'শুভাকাঙ্ক্ষী', amount: 8000, cashAmount: 8000, upiAmount: 0, date: '2026-09-05' });
+      put('ratan', 'daily',    { id: 'd1', year: 2026, type: 'road', amount: 900, cashAmount: 900, upiAmount: 0, date: '2026-09-05', sector: 'puja' });
+      put('ratan', 'daily',    { id: 'd2', year: 2026, type: 'toto', amount: 400, cashAmount: 400, upiAmount: 0, date: '2026-09-04', sector: 'puja' });
+      put('subrata','daily',   { id: 'd3', year: 2026, type: 'ticket', amount: 1500, cashAmount: 1500, upiAmount: 0, date: '2026-09-05', sector: 'program' });
+      put('kali',  'expenses', { id: 'e1', year: 2026, subject: 'আলো', amount: 1200, cashAmount: 1200, upiAmount: 0, date: '2026-09-05', srcCat: 'other' });
+      put('ratan', 'handovers',{ id: 'h1', year: 2026, amount: 2900, cashAmount: 2900, upiAmount: 0,
+        date: '2026-09-05', toId: 'kali', status: 'pending',
+        breakdown: JSON.stringify({ shop: { cash: 2000, upi: 0 }, road: { cash: 900, upi: 0 } }) });
+      ba.call('confirmHandover', { token: tka.kali, id: 'h1', year: 2026 });
+      put('ratan', 'parties',  { id: 'p6', year: 2026, type: 'shop', name: 'ভুল', pledged: 900, side: 'main_malda' });
+      put('kali',  'voids',    { id: 'v1', year: 2026, targetStore: 'parties', targetId: 'p6', reason: 'ভুল', date: '2026-09-05' });
+      return (ba.call('pull', { token: tka.hrishi, since: 0 }) || {}).data || {};
+    }
+    const A2 = require('../js/aggregate.js');
+    const seen = function (bk, rules) {
+      return ((A2.reconcile(bk, rules || {}) || {}).anomalies || [])
+        .map(function (a) { return a.type; }).sort();
+    };
+    const cloneBook = function (o) { return JSON.parse(JSON.stringify(o)); };
+
+    const good = anomBook();
+    eq(seen(good).join(',') || '(silent)', '(silent)',
+       'backend A168: a book with nothing wrong raises NOTHING — no red that cries wolf');
+
+    // one fault at a time, each named
+    const plant = function (fn) { const b2 = cloneBook(good); fn(b2); return seen(b2); };
+    eq(plant(function (b2) { b2.payments[0].partyId = 'gone'; }).indexOf('orphan_payment') >= 0, true,
+       'backend A168: a payment whose donor is missing is named');
+    eq(plant(function (b2) { b2.payments.push(cloneBook(b2.payments[0])); }).indexOf('duplicate_id') >= 0, true,
+       'backend A168: the same id twice is named');
+    eq(plant(function (b2) { b2.payments[0].amount = 999999; }).indexOf('overpaid') >= 0, true,
+       'backend A168: paying more than pledged is named');
+    eq(plant(function (b2) { b2.payments[1].cashAmount = 1; }).indexOf('split_mismatch') >= 0, true,
+       'backend A168: cash + UPI not adding to the total is named');
+    eq(plant(function (b2) { b2.handovers[0].amount = 5000; }).indexOf('breakdown_mismatch') >= 0, true,
+       'backend A168: a handover whose parts do not add up is named');
+    eq(plant(function (b2) { b2.parties[0].side = ''; }).indexOf('party_no_area') >= 0, true,
+       'backend A168: a shop with no এলাকা is named');
+    eq(plant(function (b2) { const c = cloneBook(b2.payments[0]); c.id = 'y1b'; b2.payments.push(c); })
+         .indexOf('possible_duplicate_payment') >= 0, true,
+       'backend A168: the same amount to the same donor twice is named');
+
+    // the partial reader: whole parcels are withheld, so BOTH sides of the
+    // invariant shrink together and the equation still closes (A144's design)
+    const partial = cloneBook(good);
+    partial.parties = partial.parties.filter(function (p) { return p.type !== 'gupt'; });
+    partial.payments = partial.payments.filter(function (p) { return p.partyId !== 'p4'; });
+    eq(seen(partial, { partialBook: true }).join(',') || '(silent)', '(silent)',
+       'backend A168: a reader without guptview accuses nobody');
+    eq(seen(partial).join(',') || '(silent)', '(silent)',
+       'backend A168: …and the arithmetic closes even without the partialBook flag, because the parcel left whole');
+  }
 };
