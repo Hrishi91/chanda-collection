@@ -1,6 +1,14 @@
 * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
 :root {
   --saffron: #d9531e; --saffron-dark: #b03e12; --gold: #f6b93b; --gold-ink: #8a5a00;
+  /* A177: the same saffron, one step darker, for the places where SMALL white
+     text sits on it. #d9531e against white measures 4.03:1 — under the 4.5 that
+     normal text needs, and the worst-placed instance is the SELECTED filter
+     chip, which is exactly what a person reads to know where they are. #cf4a17
+     measures 4.52:1 and is not visibly a different colour. The brand saffron is
+     untouched: headers and gradients keep it, because their text is large and
+     large text clears at 3:1. */
+  --saffron-ontext: #cf4a17;
   --bg: #fdf6ee; --card: #ffffff; --ink: #2d2418; --sub: #7f6f5b; /* A64 (audit 2.13): was #8a7a66 = 3.88:1 on --bg, below WCAG AA,
      and it is the colour of every secondary line in the app — the collector's
      name, every row-sub, every hint, the dues under each donor. Read outdoors,
@@ -225,7 +233,7 @@ select.chip { appearance: none; -webkit-appearance: none; max-width: 52vw; }
   border: 1.5px solid var(--line); background: var(--card); color: var(--ink);
   border-radius: 99px; padding: 10px 16px; font-size: 15px; font-weight: 600; cursor: pointer;
 }
-.chip.on { background: var(--saffron); border-color: var(--saffron); color: #fff; }
+.chip.on { background: var(--saffron-ontext); border-color: var(--saffron-ontext); color: #fff; }
 .flow-actions { display: flex; gap: 10px; margin-top: 10px; }
 .flow-actions .primary { flex: 1; }
 .search {
@@ -388,7 +396,7 @@ button.adm-stick {
 .cat-row .cat-name { font-weight: 600; }
 .cat-row .cat-split, .cat-group-sum .cat-split { margin-left: auto; font-size: 12.5px; color: var(--sub); white-space: nowrap; }
 .cat-row .cat-tot, .cat-group-sum .cat-tot { min-width: 62px; text-align: right; font-size: 15px; }
-.cat-row.on { background: var(--saffron); color: #fff; }
+.cat-row.on { background: var(--saffron-ontext); color: #fff; }
 .cat-row.on .cat-split { color: rgba(255,255,255,.85); }
 .cat-selected {
   display: flex; align-items: baseline; gap: 8px; margin: 4px 2px 10px;
@@ -479,7 +487,7 @@ b.msg-at { color: var(--saffron); }
   border-radius: 99px; padding: 12px 14px; font-size: 14px; font-weight: 700;
   cursor: pointer; white-space: nowrap;
 }
-.sh-pick.on { background: var(--saffron); border-color: var(--saffron); color: #fff; }
+.sh-pick.on { background: var(--saffron-ontext); border-color: var(--saffron-ontext); color: #fff; }
 .sh-none { font-size: 14px; color: var(--sub); padding: 0 10px; }
 
 /* ---- a handover's stored category breakdown, shown to the receiver ---- */

@@ -13915,3 +13915,36 @@ timeout that races a response is a double-call waiting to happen.
 
 Tests 2,528 (from 2,524). Three mutations, all caught. Schema stays 5.
 **Rides the deploy already waiting** for A174 and A175.
+
+## 2026-09-05 — A177 v4.59.0: the last surface — 320 px, and the dark
+
+The narrowest phone on this committee, with a 60-character donor name
+and a seven-digit amount planted first, because short fixtures hide
+layout faults.
+
+**Nothing is broken.** Nine screens, no sideways page scroll anywhere,
+no clipped text, the long name wraps cleanly and ₹12,34,567 renders in
+Indian grouping. 📒 খাতা's filter bar IS wider than the screen — and is
+supposed to be: it is a horizontal scroller, and its `›` cue was scrolled
+to the end to confirm it fades at the right moment rather than lying.
+
+**One real fault, fixed.** Small white text on the brand saffron measures
+**4.03:1**, under the 4.5 normal text needs — and the worst-placed
+instance is the *selected* filter chip, the one thing a person reads to
+know where they are. `--saffron-ontext: #cf4a17` measures 4.52:1 and is
+not visibly a different colour; it now serves the three "white label on a
+filled pill" rules. **The brand saffron is deliberately untouched** —
+headers and gradients carry large text, which clears at 3:1 — so the app
+looks the same and the one place that failed no longer does. After the
+change, nothing on a 320 px screen sits below AA.
+
+**One real fault, NOT fixed, and said plainly: there is no dark mode.**
+`prefers-color-scheme: dark` changes nothing — the body stays cream. On a
+phone at night in an unlit pandal that is a white torch in somebody's
+face. It is a whole palette rather than a patch: every colour in
+`css/style.css` is a literal, not a token pair, so the honest first step
+is tokenising — the "px→rem, dark mode" pass already scheduled in
+pending.md. Measured and recorded there; not a trial-week change.
+
+Tests 2,536 (from 2,528). Mutation-proved by putting the lighter saffron
+back on the chip. Schema stays 5. Rides the deploy waiting for A174–A176.

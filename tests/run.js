@@ -67,6 +67,24 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
   eq(/if \(started\) return; started = true;/.test(ho), true,
      'A176: …once, there as well');
 }
+
+// A177: small white text on saffron. #d9531e against white is 4.03:1, under
+// the 4.5 normal text needs, and the worst-placed instance is the SELECTED
+// filter chip — the thing a person reads to know where they are. The brand
+// saffron is deliberately untouched (headers are large text, which clears at
+// 3:1); only the three "white label on a filled pill" rules move.
+{
+  const css = require('fs').readFileSync(__dirname + '/../css/style.css', 'utf8');
+  eq(/--saffron-ontext:\s*#cf4a17/.test(css), true, 'A177: the darker saffron exists');
+  ['.chip.on', '.cat-row.on', '.sh-pick.on'].forEach(function (sel) {
+    const rule = (css.match(new RegExp('\\' + sel + ' \\{[^}]*\\}')) || [''])[0];
+    eq(/var\(--saffron-ontext\)/.test(rule), true, 'A177: ' + sel + ' uses it');
+    eq(/background: var\(--saffron\)/.test(rule), false,
+       'A177: …and not the lighter brand saffron it used to');
+  });
+  eq(/--saffron: #d9531e/.test(css), true,
+     'A177: …while the brand saffron itself is unchanged, so headers keep their colour');
+}
 eq(parseAmount('৫০০'), 500, 'bengali digits');
 eq(parseAmount(' ৫,০০০ টাকা '), 5000, 'bengali digits + comma + টাকা');
 eq(parseAmount('₹1,250'), 1250, 'rupee sign + comma');

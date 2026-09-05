@@ -636,7 +636,8 @@ What this buys, and the plan for the week:
   is the cheapest week the project will ever have for changes. Candidates, in
   order: the freeze-gates decision (#2 below), fmtMoney memoization, and — now
   affordable because a redeploy no longer risks live money — possibly the
-  SW-cache-key decoupling and the UI pass (px→rem, dark mode), which would then
+  SW-cache-key decoupling and the UI pass (px→rem, dark mode — see A177's
+  measurements below), which would then
   get a real-phones week of testing for free. (The js/help.js header-🔄 line
   rode the A130/v4.34.18 bump as planned — done.)
 - **Last 2 days: stable.** No deploys; the committee practices on what will go
@@ -710,6 +711,34 @@ Honest unknowns to answer before building either: will committees PAY, who
 supports 12×N phones in October, seasonality (income one month a year?). The
 twelve trial users are the first customer interviews — collect what confused
 them and what they'd pay for. No revenue promises; decision after the puja.
+
+## The UI pass, measured (A177, 2026-09-05)
+
+Driven at 320 px — the narrowest phone anybody on this committee carries —
+with a 60-character donor name and a seven-digit amount planted, because
+short fixtures hide layout faults.
+
+**Nothing is broken.** No screen scrolls the page sideways; no text is
+clipped; the long name wraps and the ₹12,34,567 renders in Indian
+grouping. 📒 খাতা's filter bar is wider than the screen **by design** —
+it is a horizontal scroller, and its `›` cue fades correctly at the end,
+verified by scrolling it.
+
+Two quality items, one fixed:
+
+- **FIXED — small white text on saffron was 4.03:1**, under the 4.5 that
+  normal text needs. The worst-placed instance was the SELECTED filter
+  chip, which is what a person reads to know where they are.
+  `--saffron-ontext: #cf4a17` (4.52:1) now serves the three
+  "white label on a filled pill" rules. The brand saffron is untouched —
+  headers are large text and clear at 3:1 — so nothing looks different.
+- **STILL OPEN — there is no dark mode at all.** `prefers-color-scheme:
+  dark` changes nothing; the body stays cream. On a phone at night in an
+  unlit pandal that is a white torch in somebody's face. This is a whole
+  palette, not a patch: every colour is a literal in `css/style.css`
+  rather than a token pair, so the honest first step is tokenising, which
+  is the "px→rem, dark mode" pass already scheduled above. **Not a
+  trial-week change.**
 
 ## AFTER THE COLLECTION — Hrishi's own list
 
