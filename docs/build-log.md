@@ -14209,3 +14209,34 @@ Tests 2,545 (from 2,539). Both fixes mutation-proved. Schema stays 5.
 - Deployed v4.61.0; probed three times (`codeVersion: chanda-v4.61.0`,
   `schema: 5`). `js/config.js` rebaked. Carries A182 (the @ picker opens
   in a dead spot) and A183 (restore and import guarded, the shape pinned).
+
+## 2026-09-06 — A184: the entry that was interrupted
+
+A field case nobody had driven: a collector is two questions into a new
+donor when the phone dies, or a call comes in, or they close the app.
+
+Driven for real — two answers in, then a full page load, which is what a
+killed app actually does.
+
+**The app opens on the draft, not on home.** It says *"একটা এন্ট্রি শেষ
+হয়নি · দোকান — এইমাত্র শুরু হয়েছিল"* and **shows what was already
+typed** ("অর্ধসমাপ্ত দোকান · হরি পাল") before asking anything — so the
+collector can tell at a glance whether it is worth resuming or throwing
+away. Two buttons: ▶️ চালিয়ে যাই · 🗑️ ফেলে দাও.
+
+▶️ returns to the **exact next question** with the earlier answers
+visible in the transcript above it. Finishing from there produced one
+correct row: the pre-crash answers (owner, area) intact, the post-resume
+ones on top (pledge ₹4,000, first instalment ₹1,000) — and **the draft
+cleared itself on save**, so the next open does not ask again.
+
+Nothing to fix.
+
+### My own driving bug, worth writing down
+
+My loop matched the question by reading the tail of the whole screen —
+which in a chat-style flow contains every question already answered. It
+kept re-answering "ফোন নম্বর?" while the app was asking for the pledge,
+and I nearly reported a stuck flow. The right selector is
+`.bubble.q.now`, the one question the app marks as current. Anyone
+scripting these flows later will reach for `innerText` first, as I did.
