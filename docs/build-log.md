@@ -13019,3 +13019,54 @@ no phone is locked out by this release.
 
 - Deployed v4.47.0; probed three times (`codeVersion: chanda-v4.47.0`,
   `schema: 5`) before pointing any phone at it. `js/config.js` rebaked.
+
+## 2026-09-05 — A160 v4.48.0: eight permissions with no chip to tick
+
+Hrishi asked me to work the go-live checklist. Walking its FIRST item on
+the harness — "অনুমতি, প্রত্যেককে নাম ধরে" — the screen turned out not
+to be able to do it.
+
+`entriesChips` built its chips from a **hand-written list of nine keys**.
+It was nine keys long before A144 and still nine keys long after A153,
+so the eight keys those two releases added — `sponsor`, `gupt`,
+`ticket`, `sponsorview`, `guptview`, `progteam`, `progdonor`,
+`progmoney` — had labels written for them, a server that enforced them,
+tests that covered them, and **no chip anywhere in the app to grant
+one**. The keys worked. They were simply unreachable.
+
+The only way to hand any of them out was the "সব দাও" bulk button, which
+takes `PERM_KEYS` and so grants all seventeen — including `guptview`, the
+key whose entire purpose is that it goes to one trusted person. The
+feature could be turned on only in the one shape it was built to
+prevent.
+
+This is A146–A149's list-duplication bug again (ten copies then, unified
+into `PARTY_KINDS`/`DAILY_KINDS`/`SUMMARY_GROUPS`), landing this time in
+the one screen where it locks the admin out of their own committee.
+
+- The chips now derive from `Aggregate.PERM_KEYS`, so a key that exists
+  is a key that can be granted.
+- Labels come from `CAT_LABEL_KEYS` — **reused, not copied**: A66 pinned
+  that map as the single definition after this exact duplication went
+  wrong once before, and the first attempt at this fix wrote a second
+  copy and was caught by that pin doing its job.
+- `tests/run.js` now asserts every `PERM_KEYS` entry has a resolvable
+  label, so the next key cannot ship unticked.
+
+**One test was weakened to fix it, deliberately.** A100 asserted that
+`CAT_LABEL_KEYS[k] || k` appears nowhere in `js/app.js` — its subject is
+the user LIST summary, which must use short names. Written file-wide, it
+matched as a substring the moment the permission chips (where A100's own
+comment says the long names belong) started reading that map: the pin
+fired on the code it exists to protect. It is now anchored to the
+summary line itself and still catches the long names being put back
+there — mutation-proved both ways.
+
+Verified through the screens on a fresh port: all 17 chips render, and
+`guptview` + `progteam` tick, save, survive a server round-trip, and
+appear in "✅ শেষমেশ যা পারবে" — while the list summary keeps its short
+names. Tests 2,357. Schema stays 5.
+
+**Needs an Apps Script redeploy** — not for behaviour (`Code.gs` logic is
+unchanged) but because the three versions are pinned equal; without it
+every phone shows the red 🛠️ "server is behind" bar.

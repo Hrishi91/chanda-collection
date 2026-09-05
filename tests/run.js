@@ -1245,8 +1245,17 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     // the summary line: short names, or eight of twelve rows wrap
     eq(/\.map\(function \(k\) \{ return t\('type_' \+ k\); \}\)\.join\(', '\)/.test(app100), true,
        'A100: the list summary uses the short category names (রোড, not রোড কালেকশন)');
-    eq(/CAT_LABEL_KEYS\[k\] \|\| k/.test(app100), false,
-       'A100: …the long ones are gone from the summary, and stay on the permission chips');
+    // A160: anchored on the SUMMARY, not the whole file. Written file-wide it
+    // matched as a substring the moment the permission chips — where A100 says
+    // the long names belong — started reading the same map, so it failed on the
+    // code it exists to protect. A pin that fires on its own subject is a pin
+    // that will be deleted rather than understood.
+    {
+      const sum = (app100.match(/const entTxt = [\s\S]{0,400}?join\(', '\)[^\n]*\n/) || [''])[0];
+      eq(sum.length > 0, true, 'A100: the summary line is findable');
+      eq(/CAT_LABEL_KEYS/.test(sum), false,
+         'A100: …the long ones are gone from the summary, and stay on the permission chips');
+    }
     // every category the summary can print must have a short name, or a row
     // renders the raw key
     ENTRY_KINDS.forEach(function (k) {
@@ -6912,6 +6921,38 @@ try {
   // where the amount handed over belongs
   eq(/step\.kind === 'cashsheet'[\s\S]{0,320}?val\.__cash[\s\S]{0,200}?val\.__upi/.test(app), true,
      'A159: …and the handover shows the amount, not [object Object]');
+
+  // --- A160: every grantable key must have a chip on the admin screen -------
+  // The hand-written list stayed nine keys long through A144 and A153, so the
+  // eight keys they added could only be granted by "সব দাও" — which hands out
+  // guptview with everything else. The chips derive from PERM_KEYS now; this
+  // asserts the label map covers it, so a new key cannot ship unticked.
+  {
+    const m = app.match(/const PERM_ONLY_LABELS = \{([\s\S]*?)\};/);
+    eq(!!m, true, 'A160: the admin screen has a PERM_ONLY_LABELS map');
+    const cm = app.match(/const CAT_LABEL_KEYS = \{([\s\S]*?)\};/);
+    const names = function (blk) {
+      return ((blk || '').match(/(\w+):/g) || []).map(function (x) { return x.slice(0, -1); });
+    };
+    // a key is grantable if EITHER map labels it — the perm-only map or the
+    // shared category map it deliberately reuses
+    const have = names(m && m[1]).concat(names(cm && cm[1]));
+    PERM_KEYS.forEach(function (k) {
+      eq(have.indexOf(k) >= 0, true, 'A160: permission chip exists for ' + k);
+    });
+    eq(/const kinds = Aggregate\.PERM_KEYS\.map/.test(app), true,
+       'A160: …and the chips are DERIVED from PERM_KEYS, not hand-written');
+    eq(/PERM_ONLY_LABELS\[k\] \|\| CAT_LABEL_KEYS\[k\]/.test(app), true,
+       'A160: …reusing the category map rather than copying it (A66)');
+    // every label key the map names must actually resolve, or the chip is blank
+    const i18nSrc = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+    have.forEach(function (k) {
+      const blk = (m[1] + (cm ? cm[1] : ''));
+      const lk = ((blk.match(new RegExp('\\b' + k + ": '([a-z_]+)'")) || [])[1]);
+      if (lk) eq(new RegExp('\\n\\s*' + lk + ': \\{').test(i18nSrc), true,
+                 'A160: label ' + lk + ' exists in i18n for ' + k);
+    });
+  }
 }
 
 try {

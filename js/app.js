@@ -7734,10 +7734,30 @@
         const own = admDraft.entries;
         const post = Lists.permsOf(admDraft.position || '');
         const eff = String(u.entries || '').split(',').filter(Boolean);
-        const kinds = [['shop', t('new_shop')], ['person', t('new_person')], ['member', t('new_member')],
-                       ['bus', t('daily_bus')], ['road', t('daily_road')], ['toto', t('daily_toto')],
-                       ['review', t('review_title')], ['otherdonor', t('perm_otherdonor')],
-                       ['memberadmin', t('perm_memberadmin')]];
+        // A160: derived from PERM_KEYS, not hand-written. The hand-written list
+        // was nine keys long and stayed nine keys long through A144 and A153,
+        // so the eight keys those releases added — sponsor, gupt, ticket, the
+        // two *view* grants and the three 🎭 ones — had labels written for them
+        // and NO CHIP TO TICK. The only way to grant one was "সব দাও", which
+        // hands out guptview along with everything else: the exact opposite of
+        // what the confidential kinds are for. Same list-duplication bug as
+        // A146–A149, in the one screen where it locks the admin out.
+        // tests/run.js asserts every PERM_KEYS entry appears here, so the next
+        // key cannot be added without its chip.
+        // The entry kinds already have labels in CAT_LABEL_KEYS — reused, not
+        // copied, because A66 pinned that map as the single definition after
+        // exactly this duplication went wrong once before. Only the keys that
+        // are NOT an entry kind need their own line.
+        const PERM_ONLY_LABELS = {
+          review: 'review_title', otherdonor: 'perm_otherdonor',
+          memberadmin: 'perm_memberadmin',
+          sponsorview: 'perm_sponsorview', guptview: 'perm_guptview',
+          progteam: 'perm_progteam', progdonor: 'perm_progdonor',
+          progmoney: 'perm_progmoney',
+        };
+        const kinds = Aggregate.PERM_KEYS.map(function (k) {
+          return [k, t(PERM_ONLY_LABELS[k] || CAT_LABEL_KEYS[k] || k)];
+        });
         let nPost = 0;
         const chips = kinds.map(function (k) {
           const fromPost = post.indexOf(k[0]) >= 0;
