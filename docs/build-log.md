@@ -14699,3 +14699,29 @@ verdict guard fails the new assertions **by name**, and so does making
 `reconcile` ignore `pledgeOk`. Removing `pledgeOk` from `ANOMALY_FLAGS`
 aborts the suite on an older pin instead — that permission was already
 guarded before today.
+
+## A198 — "⏳ ৫" and "no signal" looked exactly the same (2026-09-06)
+
+**Found by asking what a wrong phone clock does.** The clock turned out to
+be handled (A75 filters another year's rows rather than deleting them), but
+the trail led somewhere worse: `js/sync.js` never read `heldIds` at all.
+
+**The server has three answers, the phone knew two.** Saved, rejected, and
+**held** — and held is the one the collector can actually do something
+about. The server holds a row when the book is **frozen**, when the year is
+**not approved** for that person, and when they are **on their way out**.
+In every one of those the row correctly stays in the queue and the badge
+shows `⏳ 5` — pixel-identical to standing in a dead spot. Worse,
+`autoSync` toasts only `if (r.ok && r.sent)`, so a push where everything
+was held said **nothing at all**. The collector taps 🔄, sees nothing, and
+walks off looking for a bar of signal that was never the problem.
+
+**Fix.** `sync.js` returns `held` and `frozen` off the response it was
+already receiving; `autoSync` says which it is — ⏸️ "সার্ভার এখনো নিচ্ছে না
+— নেটওয়ার্কের দোষ নয়… ক্যাশিয়ারকে জিজ্ঞেস করো" or 🛑 "admin সব entry
+থামিয়ে রেখেছেন। খুললেই আপনা থেকে চলে যাবে।" The row is still **not**
+marked rejected — it must go on retrying, and it does: verified that the
+same row lands by itself the moment the freeze lifts.
+
+Tests 2,635 (from 2,630). Mutation-proved: zeroing the held count, or
+dropping the toast, fails the new assertions by name.

@@ -229,6 +229,12 @@
     syncTimer = setTimeout(function () {
       Sync.syncNow().then(function (r) {
         if (r.ok && r.sent) { toast('☁️ Sync: ' + r.sent); pullCentral({ force: true }); } // refresh the snapshot after a push
+        // A198: the push reached the server and the server declined to take
+        // them — yet. Without this the collector sees ⏳ and no toast at all,
+        // which is exactly what no-signal looks like, and goes looking for a
+        // network that was never the problem.
+        else if (r.ok && r.held) toast((r.frozen ? '🛑 ' : '⏸️ ') +
+          t(r.frozen ? 'sync_held_frozen' : 'sync_held').replace('{n}', r.held));
         updateBadge();
         if (r.reason === 'busy') autoSync(); // a sync was in flight — retry the tail
       });

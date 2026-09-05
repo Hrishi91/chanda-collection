@@ -78,7 +78,16 @@ const Sync = (function () {
             inFlight = false;
             // after the writes, so the listener's own count agrees with the book
             if (rejectedNow) { try { window.dispatchEvent(new CustomEvent('ck-rejected')); } catch (e) {} }
-            return { ok: true, sent: (resp.savedIds || []).length };
+            // A198: HELD is not REJECTED and it is not "no network" either.
+            // The server holds a row when the book is frozen, when the year is
+            // not approved for this collector, or when they are on their way
+            // out — every one of those is fixable by a person, and none of them
+            // is fixed by walking around looking for a bar of signal. The row
+            // stays in the queue (correct: it must go the moment the reason
+            // lifts), so the badge stays ⏳ — identical to being offline. The
+            // count comes back here so the caller can say which it is.
+            return { ok: true, sent: (resp.savedIds || []).length,
+                     held: (resp.heldIds || []).length, frozen: !!resp.frozen };
           });
         });
     }).catch(function (e) {

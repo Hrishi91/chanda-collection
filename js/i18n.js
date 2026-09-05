@@ -665,6 +665,10 @@ const I18N = {
   // A110: the emergency freeze — money entries stopped for everyone, reading
   // untouched. Said on every screen, because a collector who cannot find the
   // দোকান button must not have to guess why.
+  sync_held: { bn: '{n}টি entry সার্ভার এখনো নিচ্ছে না — নেটওয়ার্কের দোষ নয়। ফোনেই আছে, কারণ মিটলে চলে যাবে। ক্যাশিয়ারকে জিজ্ঞেস করো।',
+               en: "The server is not taking {n} entr(y/ies) yet — this is not the network. They are safe on the phone and will go the moment the reason clears. Ask the cashier." },
+  sync_held_frozen: { bn: '{n}টি entry অপেক্ষায় — admin সব entry থামিয়ে রেখেছেন। খুললেই আপনা থেকে চলে যাবে।',
+                      en: '{n} entr(y/ies) waiting — the admin has paused all entry. They go by themselves once it reopens.' },
   freeze_bar: { bn: '🛑 সব entry সাময়িক বন্ধ — admin থামিয়েছেন',
                 en: '🛑 Entries paused by the admin' },
   freeze_bar_sub: { bn: 'দেখা-শোনা সব খোলা। যা লিখেছ ফোনেই আছে — খুললেই চলে যাবে।',

@@ -102,6 +102,27 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A182: …and the groups it can always offer come from the local list');
 }
 
+// A198: HELD is a third answer, and the phone must say which one it got.
+// A frozen book, an unapproved year and an exiting collector all leave the row
+// in the queue showing ⏳ — pixel-identical to no signal. The server sends the
+// count; the phone has to read it, or the collector goes hunting for a network
+// that was never the problem.
+{
+  const syncSrc = require('fs').readFileSync(__dirname + '/../js/sync.js', 'utf8');
+  eq(/held: \(resp\.heldIds \|\| \[\]\)\.length/.test(syncSrc), true,
+     'A198: sync reads the held count off the push response');
+  eq(/frozen: !!resp\.frozen/.test(syncSrc), true,
+     'A198: …and whether the whole book is paused, which needs a different sentence');
+  eq(/if \(!savedIds\[r\.id\] && !rejectedIds\[r\.id\]\) return;/.test(syncSrc), true,
+     'A198: …while a held row is still NOT marked rejected — it must go on retrying');
+  const appSrc3 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const auto = (appSrc3.match(/function autoSync\(\)[\s\S]*?\n  \}/) || [''])[0];
+  eq(/r\.ok && r\.held/.test(auto), true,
+     'A198: a push that saved nothing but was held still tells the collector something');
+  eq(/sync_held_frozen/.test(auto) && /sync_held/.test(auto), true,
+     'A198: …and names the reason, so they ask the right person instead of walking');
+}
+
 // A183: the shape itself, pinned. Four times now a READ that gates a screen has
 // had no cache, no pre-paint and no timeout — and a phone in a dead spot
 // answers neither .then nor .catch, so the control goes silent for ever. Every
