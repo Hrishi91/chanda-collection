@@ -138,15 +138,34 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A206: …in both languages, each carrying the count of what is standing on it');
 }
 
-// A205: the confirm text has to name the log-out. Everything else about the
-// dialog was already honest; this is the half that surprises people.
+// A205 / A209: the confirm text has to name BOTH halves, and the second half
+// was wrong when A205 wrote it.
+//
+// A205 said "nothing anybody wrote is lost — it stays on their phone and goes
+// up once they are back in". It does not. A restore bumps data_epoch, and the
+// epoch branch in pullCentral saves the unsynced rows to the 🪦 list, calls
+// DB.clearAll() and alerts the collector — its own comment says it "took queued
+// entries with it". So the rows must be RE-ENTERED BY HAND, and the admin is
+// pressing this button in a crisis. The false half is pinned as false.
 {
   const i18nR = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
-  const line = (i18nR.match(/restore_confirm: \{[\s\S]*?\},/) || [''])[0];
-  eq(/লগ-আউট/.test(line), true, 'A205: the Bengali confirm says everyone is logged out');
-  eq(/logged out/.test(line), true, 'A205: …and so does the English');
-  eq(/হারাবে না/.test(line) && /Nothing anybody wrote is lost/.test(line), true,
-     'A205: …and both say the work itself is safe, or the warning reads worse than the truth');
+  const line = (i18nR.match(/restore_confirm: \{[\s\S]*?\n(?=  [a-z_]+: \{)/) || [''])[0];
+  eq(/লগ-আউট/.test(line), true, 'A209: the Bengali confirm says everyone is logged out');
+  eq(/logged out/.test(line), true, 'A209: …and so does the English');
+  // the correction: unsent work does NOT ride it out
+  eq(/হারাবে না/.test(line), false,
+     'A209: the Bengali must NOT promise unsent work survives — A205 promised exactly that, and it was false');
+  eq(/Nothing anybody wrote is lost/.test(line), false, 'A209: …nor the English');
+  eq(/নিজে থেকে যাবে না/.test(line) && /NOT go up by itself/.test(line), true,
+     'A209: …both say plainly that unsent entries do not go up on their own');
+  // and it must point at the list they are actually recoverable from, by its
+  // real label — the same list epoch_wiped_unsynced sends people to
+  const grave = (i18nR.match(/graveyard_title: \{ bn: '([^']*)', en: '([^']*)'/) || []);
+  eq(line.indexOf(grave[1]) >= 0, true, 'A209: …and names the 🪦 list in Bengali, as ⚙️ labels it');
+  eq(line.indexOf(grave[2]) >= 0, true, 'A209: …and in English');
+  const wiped = (i18nR.match(/epoch_wiped_unsynced: \{[\s\S]*?\n(?=  [a-z_]+: \{)/) || [''])[0];
+  eq(wiped.indexOf(grave[1]) >= 0 && wiped.indexOf(grave[2]) >= 0, true,
+     'A209: …the same list the collector\'s own alert sends them to, so the two sides of the disaster agree');
 }
 
 // A203: the phone must refuse a reserved name too — before the round trip,

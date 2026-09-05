@@ -15049,3 +15049,49 @@ under-claim, and falling back through to `unknown report` — each by name.
 **Not urgent to deploy.** Nothing in the field calls this surface; the only
 visible effect until Code.gs is redeployed is the "server is behind" strip,
 which is drawn for the admin alone and for nobody else.
+
+## A209 — correcting A205: unsent work does NOT survive a restore (2026-09-06)
+
+**A205 shipped a false sentence, and this fixes it.** Two releases ago I
+added a warning to `restore_confirm` saying the admin's committee would be
+logged out, and finished it with:
+
+> *nothing anybody wrote is lost: it stays on their phone and goes up once
+> they are back in.*
+
+The first half is true. The second is **wrong**, and it went out in
+v4.67.0 and is live in v4.69.0 — a false reassurance shown at the exact
+moment the admin most needs the truth.
+
+**What actually happens.** A restore bumps `data_epoch`. On the next pull
+every phone takes the epoch branch in `pullCentral`, which saves its unsent
+rows to the 🪦 list, calls `DB.clearAll()` and alerts the collector by
+count. Its own comment says it plainly: *"it took queued entries with it
+and said NOTHING."* So those entries do **not** go up by themselves — they
+are wiped and must be re-entered by hand from ⚙️ → 🪦.
+
+**How I got it wrong.** I verified that `logout()` and `ck-auth-invalid`
+leave IndexedDB alone — which is true — and stopped there, without asking
+what the *epoch bump* does. Losing a session and losing the book are two
+different events and a restore causes both.
+
+The sentence now says both halves, names the 🪦 list by the label ⚙️
+actually gives it, and tells the admin the thing that prevents the loss:
+**get everybody synced first** — until no ⏳ remains.
+
+**Pinned as false.** The test asserts the old wording is absent, not merely
+that some warning exists, and cross-checks the 🪦 label against
+`graveyard_title` and against `epoch_wiped_unsynced`, so the admin's
+sentence and the collector's alert cannot drift apart. Mutation-proved:
+restoring the old promise fails three assertions by name; renaming the 🪦
+list fails three more; and removing the wipe itself — which would have made
+A205's sentence true — fails A92 and A132, which have guarded that
+behaviour since before this mistake.
+
+Also walked the whole account lifecycle while here (register → pending →
+approve → block → unblock, admin reset with its server-generated 6-digit
+temp and forced change, one-account-one-device). Twenty-one properties, all
+already correct, nothing added.
+
+v4.71.0. Tests 2,722 (from 2,717). **Client-only** — the corrected sentence
+reaches phones with ⚙️ → 🔄 alone; no Apps Script redeploy is needed for it.
