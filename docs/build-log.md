@@ -12921,3 +12921,47 @@ Mutations 2/2 red. Tests **2,296 → 2,304**. Schema unchanged at 5.
 Browser-probed three times: `chanda-v4.46.0 / schema 5`, each rejecting the bad
 token cleanly. `js/config.js` rebaked. Carries A156 — the 🎭 tab's account can
 now be printed, and its খাতা has a total, a "who still owes" filter and a search.
+
+## A157 + A158 — the plainest entry in the app was broken, and the nav would not repaint
+
+Hrishi said "do entry". Doing it — a shop, through the screens, before go-live —
+found two things. The second is the worst bug of the season.
+
+### A158: every new donor threw at save. Live for three deployments.
+
+A153 moved the ভাঁড়ার out of the answers and into the flow's argument. One of
+those edits landed inside **`savePartyAndFirstPayment`** — a TOP-LEVEL helper,
+not a closure inside `newPartyFlow` — so `sector || 'puja'` referred to nothing.
+**Every new দোকান / ব্যক্তি / সদস্য / স্পনসর / গুপ্ত দান threw ReferenceError at
+save**, in v4.45.0, v4.45.1 and v4.46.0.
+
+It presents as *nothing happening*: the last question stays on screen, no error,
+no toast — because `finishFlow` had already set `savingFlow = true`, and every
+later tap returns early on that flag. A collector would tap "পরের প্রশ্ন" and
+watch the app do nothing at all.
+
+Reproduced on a fresh port, in a fresh tab, as the first action — so it was the
+code, not a poisoned page. Fixed by passing `sector` as an argument, and driven
+afterwards: donor saved, ₹2,000 payment written, receipt screen.
+
+**The THIRD time this exact shape has shipped** — A115e (`from`), A151 (`type`),
+now `sector`. Always a flow's local read from the helper it calls; always
+invisible to `node --check` because the file parses; always thrown only when
+somebody taps. `sector` is on `tests/scope-check.js`'s named list now, and with
+it the checker names the bug precisely: *"savePartyAndFirstPayment() reads bare
+`sector` — declared in no reachable scope"*.
+
+### A157: the nav is chrome, and chrome has to keep up
+
+The 🎭 tab was hidden at boot and appeared after any navigation. A changed pull
+only re-renders `list`, `party` and `report` — deliberately, so a background poll
+never rebuilds the screen under a finger — so a phone sitting on the HOME screen
+never repainted its nav. A collector granted the programme, or an admin
+switching the fund on, would see five tabs until they happened to tap something.
+
+The nav is five buttons; it now repaints on every pull as well as every render,
+and the screen-rebuild rule is untouched. Same fix covers the 💬 tab when an
+admin turns chat off. A155's `program_on`-changed repaint stays, but this is the
+real fix — it does not depend on the value having changed.
+
+Mutations 3/3 red. Tests **2,304 → 2,311**. Schema unchanged at 5.

@@ -6835,6 +6835,51 @@ try {
      'A156: …and the caret survives the re-render');
 }
 
+// ---- A157: the nav is chrome, and chrome keeps up -------------------------
+//
+// Found while driving a plain entry pass before go-live. A changed pull only
+// re-renders `list`, `party` and `report` — deliberately, so a background poll
+// never rebuilds the screen under somebody's finger. But whether a TAB exists
+// can change on any pull, and a phone sitting on the home screen never
+// repainted: hidden at boot, present after any navigation. A collector granted
+// the programme would have seen five tabs until they happened to tap something.
+{
+  const app = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/function paintNav\(\) \{/.test(app), true, 'A157: the nav paints from one place…');
+  eq((app.match(/paintNav\(\);/g) || []).length, 2,
+     'A157: …called by render AND by the pull');
+  // the order is the whole point: BEFORE the early return that skips idle polls
+  eq(/if \(Auth\.loggedIn\(\)\) paintNav\(\);\s*\n\s*if \(!changed \|\| flowState\) return;/.test(app), true,
+     'A157: …and from the pull BEFORE the return that leaves screens alone');
+  // and the screen-rebuild rule is untouched — that was never the bug
+  eq(/if \(\['list', 'party', 'report'\]\.indexOf\(current\.view\) >= 0\) render\(\);/.test(app), true,
+     'A157: …while a background poll still refuses to rebuild the screen under a finger');
+}
+
+// ---- A158: every new donor was broken, for three deployments ---------------
+//
+// Found by doing the plainest thing in the app — entering a shop — before
+// go-live. A153 moved the fund out of the answers and into the flow's argument,
+// and one of those edits landed inside `savePartyAndFirstPayment`, which is a
+// TOP-LEVEL helper with no `sector` of its own. Every new দোকান / ব্যক্তি /
+// সদস্য / স্পনসর / গুপ্ত দান threw ReferenceError at save. Live in v4.45.0,
+// v4.45.1 and v4.46.0.
+//
+// The THIRD time this exact shape has shipped: A115e (`from`), A151 (`type`),
+// now `sector`. Always a flow's local read from the helper it calls, always
+// invisible to `node --check` because the file parses, always only thrown when
+// somebody taps. `sector` is on scope-check's named list now.
+{
+  const app = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/function savePartyAndFirstPayment\(type, a, sector\) \{/.test(app), true,
+     'A158: the helper RECEIVES the fund…');
+  eq(/return savePartyAndFirstPayment\(type, a, sector\);/.test(app), true,
+     'A158: …and the flow passes its own');
+  const chk = require('fs').readFileSync(__dirname + '/../tests/scope-check.js', 'utf8');
+  eq(/const RENDER_LOCALS = \['from', 'params', 'type', 'sector'\];/.test(chk), true,
+     'A158: …and the checker knows the word, so a fourth one is caught before it ships');
+}
+
 try {
   require('./backend.js')(eq);
 } catch (e) {

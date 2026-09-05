@@ -124,7 +124,11 @@ fns.forEach(f => {
   // `params`: a short word that is a parameter of one flow builder and has no
   // business being read in another. Object keys (`type:`) and property reads
   // (`row.type`) are already excluded by the pattern, so it does not cry wolf.
-  const RENDER_LOCALS = ['from', 'params', 'type'];
+  // A158: `sector` is the FOURTH. A153 wrote `sector || 'puja'` inside
+  // savePartyAndFirstPayment — a top-level helper with no such name — and every
+  // new donor threw ReferenceError for three deployments. Same shape as the
+  // three before it: a flow's local, read from the helper it calls.
+  const RENDER_LOCALS = ['from', 'params', 'type', 'sector'];
   RENDER_LOCALS.forEach(function (nm) {
     if (seen.has(nm)) return; // this function declares or receives it — fine
     const bare = new RegExp('(?<![A-Za-z0-9_$.\'"])' + nm + '(?![A-Za-z0-9_$:\'"])', 'g');

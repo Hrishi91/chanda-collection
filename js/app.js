@@ -557,6 +557,11 @@
         renderNotifBanner();
       }).catch(function () {});
       updateBadge(); // unread chat count on the 💬 tab
+      // A157: before the early return. Whether a tab EXISTS can change on any
+      // pull — a grant, or the admin switching the 🎭 fund on — and the nav must
+      // show it wherever the person is standing, not only on the three screens
+      // a changed pull rebuilds.
+      if (Auth.loggedIn()) paintNav();
       if (!changed || flowState) return; // idle poll (empty delta) → no re-render
       // new chat and nothing else: the badge and the chat screen are the only
       // things that could look different, so leave every other screen alone
@@ -1690,7 +1695,16 @@
       { key: 'upiAmount', qKey: 'q_upi_amount', kind: 'amount', showIf: needUpi },
     ];
   }
-  function savePartyAndFirstPayment(type, a) {
+  // A158: `sector` is an ARGUMENT. It has to be — this is a top-level function,
+  // not a closure inside newPartyFlow, so A153's `sector || 'puja'` landed here
+  // with nothing of that name in scope and threw ReferenceError on EVERY new
+  // donor. Shipped in v4.45.0 and live for three deployments.
+  //
+  // Third time this exact mistake: A115e (`from`), A151 (`type`), now this. The
+  // shape is always the same — a flow's local read from the top-level helper it
+  // calls. tests/scope-check.js keeps a named list for it, and `sector` is on it
+  // now, so the fourth one gets caught before it ships.
+  function savePartyAndFirstPayment(type, a, sector) {
     const party = DB.newRow({
       type: type, name: a.name, owner: a.owner || '', side: a.side || '',
       // A148: the ভাঁড়ার lives on the DONOR, so their pledge and every instalment
@@ -1804,7 +1818,7 @@
             const msg = (byPhone.length ? t('dup_party_phone') : t('dup_party_warn')).replace('{row}', line);
             if (!window.confirm(msg)) throw new Error('cancelled');
           }
-          return savePartyAndFirstPayment(type, a);
+          return savePartyAndFirstPayment(type, a, sector);
         }).then(function (res) {
           const undo = [{ store: 'parties', id: res.party.id }];
           if (res.paymentId) undo.push({ store: 'payments', id: res.paymentId });
@@ -8503,6 +8517,29 @@
     render();
     window.scrollTo(0, 0); // a user navigation starts at the top of the new screen
   }
+  // A157: the bottom nav is CHROME, and chrome has to keep up even when no
+  // screen is rebuilt.
+  //
+  // A changed pull only re-renders `list`, `party` and `report` — deliberately,
+  // so a background poll never rebuilds the screen under somebody's finger. But
+  // that meant a phone sitting on the HOME screen never repainted the nav: a
+  // collector granted the programme, or an admin switching the 🎭 fund on, saw
+  // five tabs until they happened to tap something. Measured: hidden at boot,
+  // present after any navigation.
+  //
+  // Five buttons is nothing to repaint, so it is done on every pull as well as
+  // every render, and the screen-rebuild rule is left exactly as it was. Same
+  // fix covers the 💬 tab when an admin turns chat off.
+  function paintNav() {
+    document.querySelectorAll('#bottomnav button').forEach(function (b) {
+      b.classList.toggle('on', b.dataset.nav === current.view);
+      const k = b.dataset.nav;
+      if (k === 'messages') b.hidden = !chatOn();
+      if (k === 'program') b.hidden = !programTabOn();
+      b.querySelector('span').textContent = t(k === 'list' ? 'khata'
+        : k === 'messages' ? 'nav_messages' : k === 'program' ? 'nav_program' : k);
+    });
+  }
   function render() {
     document.getElementById('app-title').textContent = '🙏 ' + pujaName();
     // A108: the tab title was baked into index.html, so it stayed Bengali in an
@@ -8520,17 +8557,7 @@
     // driving the screen, not by reading the code. Repaint on every render, the
     // same rhythm the title and the training bar already use.
     paintCurtain();
-    document.querySelectorAll('#bottomnav button').forEach(function (b) {
-      b.classList.toggle('on', b.dataset.nav === current.view);
-      const k = b.dataset.nav;
-      if (k === 'messages') b.hidden = !chatOn();
-      // A153: the 🎭 tab appears only when there IS a programme and this person
-      // is on it. A tab that leads to an empty book is a tab that teaches people
-      // to ignore the row.
-      if (k === 'program') b.hidden = !programTabOn();
-      b.querySelector('span').textContent = t(k === 'list' ? 'khata'
-        : k === 'messages' ? 'nav_messages' : k === 'program' ? 'nav_program' : k);
-    });
+    paintNav();
     // A91: a logged-out phone showed all five tabs and the sync badge, and not
     // one of them did anything — tapping any of them left the login screen
     // exactly where it was. Five dead controls at the first moment somebody
