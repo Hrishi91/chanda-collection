@@ -13350,3 +13350,6 @@ knows ₹15,800 is on its way and simply cannot take it yet.
 
 Tests 2,432 (from 2,422). Six mutations, all caught. Schema stays 5.
 **Needs the Apps Script redeploy** — the three gates are server-side.
+
+- Deployed v4.53.0; probed three times (`codeVersion: chanda-v4.53.0`,
+  `schema: 5`). `js/config.js` rebaked. A165's freeze gates are live.
