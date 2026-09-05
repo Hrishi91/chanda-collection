@@ -3070,6 +3070,53 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A202: a transfer survives the Sheet -----------------------------
+    // run.js proves sectorSplit's arithmetic (A149/A150) on a hand-built book,
+    // and A162 above proves who may move what. Neither can see the column
+    // mapping: `transferTo` lives in SHEETS.expenses, and if it were ever
+    // dropped the row would come back as an ORDINARY expense — the puja fund
+    // ₹3000 lighter, the programme never credited, and মোট খরচ inflated by
+    // money that never left the committee.
+    {
+      const bt = loadBackend(); bt.api.setup();
+      ['ztadm', 'ztkali'].forEach(function (u, i) {
+        bt.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '944000000' + i });
+      });
+      const tta = bt.call('login', { username: 'ztadm', password: 'secret0', year: 2026 }).token;
+      const kid = bt.rows('Users').filter(function (x) { return x.username === 'ztkali'; })[0].id;
+      bt.call('setStatus', { token: tta, userId: kid, status: 'approved' });
+      bt.call('approveYear', { token: tta, userId: kid, year: 2026 });
+      bt.call('setEntries', { token: tta, userId: kid, entries: ['shop', 'person', 'road', 'progteam', 'progdonor', 'progmoney'] });
+      bt.call('setCashier', { token: tta, userId: kid, cashier: 1 });
+      const ttk = bt.call('login', { username: 'ztkali', password: 'secret1', year: 2026 }).token;
+      const A9 = require('../js/aggregate.js');
+      const st9 = new Date().toISOString();
+      const shove9 = function (row, store) { return bt.call('push', { token: ttk, records: [rec(store, Object.assign({ year: 2026, createdAt: st9 }, row))] }); };
+      shove9({ id: 'zt1', type: 'shop', name: 'দোকান', pledged: 10000, sector: 'puja' }, 'parties');
+      shove9({ id: 'zty1', partyId: 'zt1', partyName: 'দোকান', amount: 10000, cashAmount: 10000, upiAmount: 0, date: '2026-09-06' }, 'payments');
+      shove9({ id: 'zt2', type: 'person', name: 'দাতা', pledged: 4000, sector: 'program' }, 'parties');
+      shove9({ id: 'zty2', partyId: 'zt2', partyName: 'দাতা', amount: 4000, cashAmount: 4000, upiAmount: 0, date: '2026-09-06' }, 'payments');
+      const book9 = function () {
+        return (bt.call('pull', { token: tta, year: 2026, since: 0 }) || {}).data || {};
+      };
+      const before = A9.sectorSplit(book9());
+      eq([before.puja.balance, before.program.balance], [10000, 4000],
+         'backend A202: two funds, ₹10,000 and ₹4,000');
+      eq((shove9({ id: 'ztt', amount: 3000, cashAmount: 0, upiAmount: 0, source: 'transfer',
+        sector: 'puja', transferTo: 'program', subject: '', desc: 'শিল্পীর জন্য',
+        srcCat: '', collectionType: '', date: '2026-09-06' }, 'expenses').savedIds || []).length, 1,
+         'backend A202: the cashier moves ₹3,000 across');
+      const after = A9.sectorSplit(book9()), tot9 = A9.computeTotals(book9(), {});
+      eq([after.puja.transferOut, after.program.transferIn], [3000, 3000],
+         'backend A202: it comes back off the Sheet still knowing BOTH ends — transferTo survived the column map');
+      eq([after.puja.balance, after.program.balance], [7000, 7000],
+         'backend A202: …so ₹3,000 left one fund and arrived in the other');
+      eq(tot9.totalExpense, 0,
+         'backend A202: …and মোট খরচ is still ₹0 — nothing was spent, the money only changed pocket');
+      eq(after.puja.balance + after.program.balance, tot9.totalCollection - tot9.totalExpense,
+         'backend A202: …the two balances still add up to what the committee holds');
+    }
+
     // --- A201: the ceiling across a verdict ------------------------------
     // handoverable is well covered in run.js against a hand-built fixture.
     // What was not covered is the TRANSITION: a confirm takes the money off

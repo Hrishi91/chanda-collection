@@ -14810,3 +14810,26 @@ run.js. Mutation-proved: classing a confirmed parcel as still pending gives
 ₹2000 where ₹4000 is right — both fail by name.
 
 Tests 2,657 (from 2,652). No app change.
+
+## A202 — a transfer has to survive the Sheet, not just the arithmetic (2026-09-06)
+
+**Checked, not changed.** Seventeen properties of the two ভাঁড়ার walked
+end to end: collect in both, spend in both, move ₹3,000 puja → 🎭, move it
+back, and read each book from inside its own tab. All seventeen already
+right.
+
+`run.js` proves `sectorSplit`'s arithmetic (A149/A150) and A162 above
+proves who may move what — including both halves, `progmoney` moving the
+programme's own money but never the committee's. What **neither** can see
+is the column map. A transfer is an `expenses` row whose second end lives
+in `transferTo`; drop that column from `SHEETS.expenses` and the row comes
+back off the Sheet as an ordinary spend — the two funds never move, while
+the committee has been told the money changed pocket. A hand-built fixture
+can never catch that, because it never goes through the Sheet.
+
+Five assertions on the round-trip only. Mutation-proved: removing
+`transferTo` from the column list, and making `isTransfer` always false,
+each fail by name — the second inflating মোট খরচ by ₹3,000 that never left
+the committee.
+
+Tests 2,663 (from 2,657). No app change.
