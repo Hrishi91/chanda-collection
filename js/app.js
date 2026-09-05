@@ -6807,10 +6807,23 @@
     // paint the cache at once so the picker feels instant, then refresh it in
     // the background — a cashier appointed an hour ago must be mentionable
     // without anyone reloading the app
-    if (msgUserCache) paint(msgUserCache);
+    // A182: ALWAYS paint, even with nothing — the three group mentions
+    // (@সবাই / @ক্যাশিয়ার / @admin) are built from i18n and need no server at
+    // all, so the picker has no business depending on one to open.
+    //
+    // The old line opened it only if the cache was already filled. The .catch
+    // below covers a REFUSED request, but a phone in a dead spot does not get
+    // a refusal — the request hangs, neither branch ever runs, and the @ button
+    // does nothing at all, for ever, with no message. Third instance of A176's
+    // shape, found by clearing the cache with a reload and hanging fetch.
+    //
+    // It matters more than it looks: the comment above sendMessage says a
+    // mention cannot be spelled from memory and a typo'd one notifies nobody,
+    // which is exactly why this picker exists.
+    paint(msgUserCache || []);
     Auth.call('cashiers', { token: Auth.token() })
       .then(function (r) { msgUserCache = r.cashiers || []; if (!box.hidden) paint(msgUserCache); })
-      .catch(function () { if (!msgUserCache) paint([]); }); // offline → groups only
+      .catch(function () {}); // already open with the groups; names arrive or they do not
   }
   let msgUserCache = null;
   function sendMessage(input) {

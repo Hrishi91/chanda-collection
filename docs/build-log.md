@@ -14128,3 +14128,36 @@ times). The number on the home screen is the honest measure — it is what
 the collector actually sees, and it is computed by the same code the
 committee's reports use. Recorded with A180's version of the same
 lesson.
+
+## 2026-09-06 — A182: the @ button that did nothing, in a dead spot
+
+Chat, driven for the first time. The message list, the send box and the
+@ picker all work normally — three group mentions (@সবাই · @ক্যাশিয়ার ·
+@admin) plus everyone by name.
+
+**Then the third instance of A176's shape.** `toggleMentionPicker`
+painted the box only `if (msgUserCache)` — a cache that is empty on every
+fresh load — and otherwise waited for `cashiers`. Its `.catch` covers a
+**refused** request, which is the offline case. A phone in a dead spot
+gets neither: the request hangs, `.then` and `.catch` both never run, and
+the **@ button does nothing at all, for ever, with no message.**
+Reproduced by reloading (which empties the cache) and hanging `fetch`:
+the picker was still hidden after eight seconds.
+
+The fix is smaller than a timeout and better. **The three group mentions
+are built from i18n and need no server**, so the picker had no business
+depending on one to open. It now paints immediately with whatever it
+has — nothing, a cache, or fresh names — and the round trip only adds
+the names.
+
+It matters more than it looks. The code's own comment above
+`sendMessage` says a mention cannot be spelled from memory and **a
+typo'd mention notifies nobody** — which is precisely why the picker
+exists, and precisely what a collector in a weak-signal pandal loses.
+
+Verified on screen after a reload with `fetch` hanging: the picker opens
+with @সবাই · @ক্যাশিয়ার · @admin.
+
+Tests 2,539. Mutation-proved by restoring the cache-only condition.
+Schema stays 5. **Needs the deploy** (client-side, so the shell bump
+carries it).

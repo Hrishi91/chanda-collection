@@ -85,6 +85,22 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
   eq(/--saffron: #d9531e/.test(css), true,
      'A177: …while the brand saffron itself is unchanged, so headers keep their colour');
 }
+
+// A182: the @ picker opens without the server. The three group mentions come
+// from i18n; only the NAMES need a round trip. Opening only when the cache was
+// already filled meant a phone in a dead spot — where the request hangs rather
+// than fails, so neither .then nor .catch runs — had an @ button that did
+// nothing at all. Third instance of A176's shape.
+{
+  const appSrc2 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const blk = (appSrc2.match(/function toggleMentionPicker\(input\)[\s\S]*?\n  \}/) || [''])[0];
+  eq(/paint\(msgUserCache \|\| \[\]\);/.test(blk), true,
+     'A182: the mention picker paints before any request');
+  eq(/if \(msgUserCache\) paint\(msgUserCache\);/.test(blk), false,
+     'A182: …not only when a cache already exists');
+  eq(/data-at="' \+ g\[0\]/.test(blk), true,
+     'A182: …and the groups it can always offer come from the local list');
+}
 eq(parseAmount('৫০০'), 500, 'bengali digits');
 eq(parseAmount(' ৫,০০০ টাকা '), 5000, 'bengali digits + comma + টাকা');
 eq(parseAmount('₹1,250'), 1250, 'rupee sign + comma');
