@@ -14273,3 +14273,41 @@ door" have been different answers here before, and because the search
 door is only visible to somebody holding `otherdonor` — a collector
 without it never sees the screen at all, which is also correct and was
 confirmed on the way.
+
+## 2026-09-06 — A186: the 🩺 desk as a screen, not as arithmetic
+
+A168 proved `reconcile` names the right faults. This is the other half:
+what the desk *does* with them.
+
+The desk is question-shaped, and its header promises something specific
+— *"বেশিরভাগ কার্ডই একটা প্রশ্ন — উত্তর দিলে কার্ড সরে, সব ফোন থেকেই."*
+Both halves of that promise were tested.
+
+**A duplicate card does not say "problem".** It shows **both receipt
+numbers, both amounts, who took each and when**, then asks: ✓ আলাদা
+কিস্তি or ✖️ বাড়তিটা বাতিল. That is the same design as the entry-time
+duplicate guard (A179) — hand over the facts, let the person who was
+there decide.
+
+**✓ আলাদা কিস্তি** removes the card — and the answer is written to the
+**server row** as `dupOk = 1`, not to this phone. Verified by reloading
+and by reading the row back off the server: the flag is on the payment
+itself, so **every one of the twelve phones stops asking**. That is the
+"সব ফোন থেকেই" claim, and it holds.
+
+**✖️ বাড়তিটা বাতিল** asks for a reason first, then voids: live payments
+2 → 1, both rows still on the server, and the void carries the words
+typed ("নকল — একই টাকা দুবার লেখা").
+
+The other cards behave the same way: an overpaid donor offers ✓ ঠিক আছে,
+বেশিই দিয়েছেন or ✏️ কথার অঙ্ক ঠিক করো; the account-less committee member
+card names the person, says why the row can no longer be saved, and
+points at the screen that fixes it.
+
+### My driving mistake, again worth writing down
+
+✖️ does **not** void on the click — it opens the reason screen
+(`renderVoidReason`). I clicked, looked for a void, found none, and had
+written half a bug report before noticing I was standing on a form
+waiting for me to type. Third time this session that "nothing happened"
+turned out to be "something happened that I did not look at".
