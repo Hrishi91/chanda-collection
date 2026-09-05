@@ -14240,3 +14240,36 @@ kept re-answering "ফোন নম্বর?" while the app was asking for the 
 and I nearly reported a stuck flow. The right selector is
 `.bubble.q.now`, the one question the app marks as current. Anyone
 scripting these flows later will reach for `innerText` first, as I did.
+
+## 2026-09-06 — A185: back navigation, all three doors
+
+The field-lessons skill devotes a section to this and names the failure
+shape: *"three mechanisms that must agree — a `from` param through
+multi-door screens, a flow-level `exitTo`, and `returnTo` honoured BOTH
+after save and on back-out; fixing only one direction is the classic
+half-fix."* Never driven. Now driven.
+
+**Two doors into the ledger** — 📒 খাতা and the home tile 💰 টাকা জমা /
+বাকি আছে — both return to the ledger from a donor screen. No jump home.
+
+**A flow returns to where it started, not to a default.** Opened from
+the donor screen, ← পেছনে lands back on that donor; opened from home, on
+home. Two different answers from the same flow, which is the whole point.
+
+**And after save, too** — the half that gets forgotten. Saving a payment
+from a donor screen lands on the receipt, whose ← পেছনে returns to **that
+donor**, not to the ledger and not home. Saving a daily collection from
+home lands on a "what next" card (➕ আরেকটা · কালেকশন খরচ · শেষ, হোমে
+ফিরি), which is right for a task done many times an evening.
+
+**The deepest chain, from the third door:** 🔍 খোঁজা → pick a donor →
+straight into টাকা জমা (the search screen exists to take money, so it
+skips the detail page) → back → **the donor** → back → **the search** →
+back → **the ledger**. Four screens, popped in the order they were
+pushed, nothing skipped and no source lost.
+
+Nothing to fix. Recorded because "back works" and "back works from every
+door" have been different answers here before, and because the search
+door is only visible to somebody holding `otherdonor` — a collector
+without it never sees the screen at all, which is also correct and was
+confirmed on the way.
