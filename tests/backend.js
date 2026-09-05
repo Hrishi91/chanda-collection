@@ -1913,4 +1913,74 @@ module.exports = function runBackendTests(eq) {
     eq(stateOf(f.bb, 'Handovers', 'f-h2', 'status'), 'pending',
        'backend A165: a refused action leaves the row pending, not lost');
   }
+
+  // --- A166: every pushed row lands in exactly ONE list ---------------------
+  // A row in none is re-pushed for ever; a row in two is a contradiction the
+  // client resolves by guessing. The rule has been written down since the
+  // sync protocol was designed, and every new `return` inside push's record
+  // loop is a chance to break it — A162 added four of those returns, which is
+  // why this is a test and not a one-off script.
+  {
+    function qBook(opts) {
+      const bq = loadBackend();
+      bq.api.setup();
+      const cast = ['hrishi', 'kali', 'ratan', 'subrata', 'dipak'];
+      cast.forEach(function (u, i) {
+        bq.post('register', { username: u, name: u, password: 'secret' + i, phone: '98400000' + i });
+      });
+      let t0 = bq.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+      const rw = function (u) { return bq.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+      cast.slice(1).forEach(function (u) {
+        bq.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+        bq.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+        bq.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'person', 'road'] });
+      });
+      bq.call('setEntries', { token: t0, userId: rw('subrata').id,
+        entries: ['progteam', 'progdonor', 'progmoney', 'ticket'] });
+      bq.call('setCashier', { token: t0, userId: rw('kali').id, cashier: 1 });
+      if (opts.exiting) bq.call('setAccess', { token: t0, userId: rw('dipak').id, access: 'exiting' });
+      const tq = {};
+      cast.forEach(function (u, i) { tq[u] = bq.call('login', { username: u, password: 'secret' + i, year: 2026 }).token; });
+      if (opts.frozen) bq.call('setFreeze', { token: tq.hrishi, on: '1', confirm: 'FREEZE', year: 2026 });
+      return { bq: bq, tq: tq };
+    }
+    let qn = 0;
+    const QID = function () { return 'a166-' + (++qn); };
+    const SHAPES = [
+      ['ok shop',            'ratan',   'parties',     function () { return { type: 'shop', name: 'X', pledged: 100, sector: 'puja' }; }],
+      ['ungranted kind',     'ratan',   'parties',     function () { return { type: 'gupt', name: 'G', pledged: 0, sector: 'puja' }; }],
+      ['programme donor',    'ratan',   'parties',     function () { return { type: 'person', name: 'P', pledged: 100, sector: 'program' }; }],
+      ['programme expense',  'ratan',   'expenses',    function () { return { subject: 'শিল্পী', amount: 10, cashAmount: 10, upiAmount: 0, date: '2026-09-05', sector: 'program', srcCat: 'other' }; }],
+      ['transfer',           'subrata', 'expenses',    function () { return { source: 'transfer', transferTo: 'program', sector: 'puja', amount: 10, cashAmount: 10, upiAmount: 0, date: '2026-09-05' }; }],
+      ['empty commitment',   'subrata', 'expenses',    function () { return { source: 'commitment', payee: '', committed: 0, amount: 0, date: '2026-09-05', sector: 'program' }; }],
+      ['expense, no cashier','ratan',   'expenses',    function () { return { subject: 'আলো', amount: 10, cashAmount: 10, upiAmount: 0, date: '2026-09-05', srcCat: 'other' }; }],
+      ['payment, no donor',  'ratan',   'payments',    function () { return { partyId: 'nope', partyName: '?', amount: 10, cashAmount: 10, upiAmount: 0, date: '2026-09-05' }; }],
+      ['handover, no one',   'ratan',   'handovers',   function () { return { amount: 10, cashAmount: 10, upiAmount: 0, toId: '', toName: '', date: '2026-09-05', status: 'pending' }; }],
+      ['handover, shut',     'ratan',   'handovers',   function () { return { amount: 10, cashAmount: 10, upiAmount: 0, toId: 'dipak', toName: 'dipak', date: '2026-09-05', status: 'pending' }; }],
+      ['unknown store',      'ratan',   'nosuchstore', function () { return { amount: 10 }; }],
+      ['void, not theirs',   'ratan',   'voids',       function () { return { targetStore: 'payments', targetId: 'nope', reason: 'x', date: '2026-09-05' }; }],
+      ['correction flag',    'ratan',   'corrections', function () { return { targetStore: 'payments', targetId: 'nope', note: 'ভুল', date: '2026-09-05' }; }],
+      ['message',            'ratan',   'messages',    function () { return { text: 'হ্যালো', date: '2026-09-05', createdAt: new Date().toISOString() }; }],
+      ['daily road',         'ratan',   'daily',       function () { return { type: 'road', amount: 50, cashAmount: 50, upiAmount: 0, date: '2026-09-05', sector: 'puja' }; }],
+      ['ticket, ungranted',  'ratan',   'daily',       function () { return { type: 'ticket', amount: 50, cashAmount: 50, upiAmount: 0, date: '2026-09-05', sector: 'program' }; }],
+    ];
+    [{ label: 'normal', o: {} }, { label: 'frozen', o: { frozen: true } },
+     { label: 'with a stood-down user', o: { exiting: true } }].forEach(function (mode) {
+      const k = qBook(mode.o);
+      const strays = [];
+      SHAPES.forEach(function (sh) {
+        const row = Object.assign({ id: QID(), year: 2026 }, sh[3]());
+        if (mode.o.frozen) row.createdAt = new Date(Date.now() + 9e8).toISOString();
+        let r;
+        try { r = k.bq.call('push', { token: k.tq[sh[1]], records: [rec(sh[2], row)] }); }
+        catch (e) { strays.push(sh[0] + ' (threw)'); return; }
+        const c = ((r.savedIds || []).indexOf(row.id) >= 0 ? 1 : 0) +
+                  ((r.rejectedIds || []).indexOf(row.id) >= 0 ? 1 : 0) +
+                  ((r.heldIds || []).indexOf(row.id) >= 0 ? 1 : 0);
+        if (c !== 1) strays.push(sh[0] + ' (' + c + ' lists)');
+      });
+      eq(strays.join(', ') || '(none)', '(none)',
+         'backend A166: [' + mode.label + '] every pushed row lands in exactly one list');
+    });
+  }
 };

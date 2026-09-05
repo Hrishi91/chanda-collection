@@ -723,10 +723,26 @@ rough order of value:
    collector's morning round, queued offline before the committee decided,
    lands in rejectedIds — collected cash with no central record. Fix shape:
    hold (heldIds) rows whose createdAt predates the access change.
-2. **Freeze does not gate confirmHandover / rejectHandover / resolveCorrection
-   / setAnomalyFlag** — cashiers can settle money during the emergency stop.
-   May be WANTED (getting cash into the cashier's hands during an incident is
-   arguably the point). A decision for Hrishi, then one gate.
+2. ~~**Freeze does not gate confirmHandover / rejectHandover /
+   resolveCorrection / setAnomalyFlag**~~ — **shipped as A165 (v4.53.0), but
+   the DECISION half is still Hrishi's and one line reverses it.**
+   Measured before fixing: with the year frozen, all three money actions still
+   changed state (`pending → confirmed`, `pending → rejected`, `pending →
+   rejected`), so a committee that closed its year could watch the figures move
+   afterwards. The three are now **refused** for everyone but the admin;
+   `setAnomalyFlag` is deliberately left open, because it marks a row as checked
+   and moves no money.
+   The note above said this "may be WANTED — getting cash into the cashier's
+   hands during an incident is arguably the point", and that argument is not
+   dead. What settled it for now: `push` already HOLDS a new handover during a
+   freeze, so a collector cannot send money while frozen either — leaving the
+   confirm open let the second half of a transaction complete while the first
+   half was blocked. Refusing loses nothing: the parcel stays `pending` and the
+   action returns the moment the freeze lifts.
+   **If Hrishi wants the other behaviour, it is one line** — drop
+   `requireUnfrozen_(u)` from `confirmHandover` (and keep it on the other two,
+   or not, as he decides). Both halves are pinned in `tests/backend.js`, so
+   changing it will fail loudly rather than quietly.
 3. **confirmHandover/rejectHandover still read/write by `cols` position** —
    the A81 ghost-column class, aligned today, latent. Move to sheetHeader_.
 4. **Last-admin guards race**: two admins demoting each other concurrently can

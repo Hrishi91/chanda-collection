@@ -13353,3 +13353,46 @@ Tests 2,432 (from 2,422). Six mutations, all caught. Schema stays 5.
 
 - Deployed v4.53.0; probed three times (`codeVersion: chanda-v4.53.0`,
   `schema: 5`). `js/config.js` rebaked. A165's freeze gates are live.
+
+## 2026-09-05 — A166 v4.54.0: the queue invariant, proved rather than assumed
+
+Every pushed row must land in exactly one of `savedIds` / `rejectedIds` /
+`heldIds`. A row in none is re-pushed for ever; a row in two is a
+contradiction the client resolves by guessing. The rule is as old as the
+sync protocol, and **every new `return` inside push's record loop is a
+chance to break it** — A162 added four of those returns two hours ago,
+which is exactly why this is now a test and not a comment.
+
+Sixteen row shapes × three books (normal, frozen, with a stood-down
+user) = 48 pushes. **All 48 land in exactly one list.** No bug — but the
+sweep is kept, because the next gate someone adds is the one that
+forgets.
+
+Two results are worth writing down, because both look wrong and are not:
+
+- **A payment whose donor does not exist is SAVED.** Offline-first: the
+  party may arrive in a later batch, and the 🩺 desk exists to catch the
+  one that never does. Refusing it would lose collected money to a race.
+- **A handover to a name matching no account is SAVED**, but one to a
+  stood-down user is **rejected**. "We cannot tell" must never become
+  "no" (A78b's wording), while a recipient known to be shut is a
+  stranded parcel waiting to happen.
+
+Mutation-proved in both directions — a rejection made silent (`return`
+without pushing the id) and a row deliberately put in two lists. Each
+failure names the shape, so the next one is diagnosable rather than a
+bare count.
+
+### pending.md item 2 closed, with its decision half flagged
+
+A165 gated the freeze on the three money actions. `pending.md` had that
+item marked "a decision for Hrishi, then one gate" — the case for
+leaving it open was that consolidating cash during an incident is
+arguably the point of an emergency stop. What settled it: `push` already
+HOLDS a new handover while frozen, so leaving the confirm open let the
+second half of a transaction complete while the first half was blocked.
+Recorded as a decision that **one line reverses**, with both halves
+pinned so reversing it fails loudly.
+
+Tests 2,435 (from 2,432). Schema stays 5. No behaviour change in this
+release — tests, docs, and the version bump that keeps the three equal.
