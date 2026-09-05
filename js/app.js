@@ -6983,6 +6983,12 @@
     userEl.oninput = function () {
       const v = userEl.value.trim();
       if (!v) { hint.textContent = t('username_rule'); hint.className = 'hint'; }
+      else if (Aggregate.MENTION_GROUPS.indexOf(v.toLowerCase()) >= 0) {
+        // A203: say it WHILE they type. Finding out after submit that the name
+        // they chose is taken by nobody, with no reason given, is the worst
+        // version of this.
+        hint.textContent = t('err_reserved_username'); hint.className = 'hint err-hint';
+      }
       else if (USERNAME_RE.test(v)) { hint.textContent = t('username_ok'); hint.className = 'hint ok-hint'; }
       else { hint.textContent = t('username_rule'); hint.className = 'hint err-hint'; }
     };
@@ -6995,6 +7001,7 @@
       // client-side checks with clear, persistent messages
       if (!name) { authError(t('fill_all')); return; }
       if (!USERNAME_RE.test(username)) { authError(t('err_bad_username')); return; }
+      if (Aggregate.MENTION_GROUPS.indexOf(username.toLowerCase()) >= 0) { authError(t('err_reserved_username')); return; }
       if (pw.length < 6) { authError(t('err_bad_input')); return; }
       if (pw !== pw2) { authError(t('pw_mismatch')); return; }
       const phone = document.getElementById('rg-phone').value.trim();

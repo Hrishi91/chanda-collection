@@ -101,6 +101,8 @@ const I18N = {
                    en: 'What is this contribution for? (monthly / function / special — required)' },
   q_position: { bn: 'কমিটিতে পদ কী?', en: 'Position on the committee?' },
   q_email: { bn: 'Email ঠিকানা? (না থাকলে Skip)', en: 'Email address? (Skip if none)' },
+  err_reserved_username: { bn: 'এই নামটা 💬-তে দল ডাকার জন্য রাখা আছে (all / admin / cashiers) — অন্য একটা নাম বেছে নাও',
+                           en: 'That name is reserved for calling a group in 💬 (all / admin / cashiers) — please pick another' },
   err_email: { bn: 'Email ঠিকানাটা ঠিক লাগছে না', en: "That doesn't look like an email address" },
   check_update: { bn: 'আপডেট খুঁজি', en: 'Check for update' },
   upd_found: { bn: '⬇️ নতুন version আসছে — এক মুহূর্তে নিজে থেকেই খুলবে', en: '⬇️ A new version is downloading — it will reload itself in a moment' },

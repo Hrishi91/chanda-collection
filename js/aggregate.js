@@ -1097,11 +1097,20 @@
   // message is "for me" when it names me, names a group I am in, or is @all.
   // Group membership is decided here, not stored, so promoting somebody to
   // cashier immediately changes which past messages count as theirs.
+  // The three names a @mention addresses a GROUP by. The server refuses them
+  // as usernames (apps-script/Code.gs MENTION_GROUPS) — these two lists are one
+  // decision and must be changed together.
+  const MENTION_GROUPS = ['all', 'admin', 'cashiers'];
   function mentionsMe(msg, me) {
     const m = String((msg && msg.mentions) || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
     if (!m.length) return false;
     if (m.indexOf('all') >= 0) return true;
-    if (m.indexOf(String(me.username)) >= 0) return true;
+    // A203: matched as a group above / below, never as a person. The server
+    // now refuses these three as usernames, but an account registered before
+    // that would otherwise receive every @admin in the book — and the group
+    // rule is the one that must win, because that is what the sender meant.
+    if (MENTION_GROUPS.indexOf(String(me.username)) < 0 &&
+        m.indexOf(String(me.username)) >= 0) return true;
     if (m.indexOf('admin') >= 0 && me.role === 'admin') return true;
     if (m.indexOf('cashiers') >= 0 && (Number(me.cashier) === 1 || me.role === 'admin')) return true;
     return false;
@@ -2021,6 +2030,7 @@
                 cashierView: cashierView, handoverReport: handoverReport,
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,
                 samePaymentsOn: samePaymentsOn, dayOf: dayOf, potDetail: potDetail,
+                MENTION_GROUPS: MENTION_GROUPS,
                 mentionsMe: mentionsMe, messageFeed: messageFeed,
                 activeData: activeData, chatLoad: chatLoad, homeTiles: homeTiles,
                 // A60: exported because js/app.js was rebuilding this same map

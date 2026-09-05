@@ -102,6 +102,21 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A182: …and the groups it can always offer come from the local list');
 }
 
+// A203: the phone must refuse a reserved name too — before the round trip,
+// and while they are still typing, or the user is told their chosen name is
+// taken by nobody with no reason given.
+{
+  const appR = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/Aggregate\.MENTION_GROUPS\.indexOf\(v\.toLowerCase\(\)\) >= 0/.test(appR), true,
+     'A203: the live hint marks a reserved name as they type');
+  eq(/Aggregate\.MENTION_GROUPS\.indexOf\(username\.toLowerCase\(\)\) >= 0/.test(appR), true,
+     'A203: …and submitting one is stopped on the phone');
+  eq(/err_reserved_username/.test(appR), true, 'A203: …with a sentence, not a raw code');
+  const gs = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  eq(/var MENTION_GROUPS = \['all', 'admin', 'cashiers'\];/.test(gs), true,
+     'A203: the server holds the same three, so the two lists cannot drift');
+}
+
 // A198: HELD is a third answer, and the phone must say which one it got.
 // A frozen book, an unapproved year and an exiting collector all leave the row
 // in the queue showing ⏳ — pixel-identical to no signal. The server sends the

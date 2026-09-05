@@ -147,6 +147,10 @@ var AUDIT_COLS = ['id', 'ts', 'actor', 'actorId', 'action', 'detail'];
 // fields it accepts. Still a fixed table and never a caller-supplied column
 // name: this action must not become a way to set an arbitrary cell.
 var ANOMALY_FLAGS = { payments: ['dupOk'], daily: ['dupOk'], parties: ['pledgeOk', 'dupOk'] };
+// A203: the group names a @mention may carry — never available as a username.
+// Kept beside the other shared tables so the two lists cannot drift apart:
+// js/aggregate.js mentionsMe reads exactly these three.
+var MENTION_GROUPS = ['all', 'admin', 'cashiers'];
 // A148: 'program' — the অনুষ্ঠান ভাঁড়ার's own account. Listing it here also
 // makes it a grantable permission (REPORT_IDS feeds POSITION_PERM_KEYS).
 var REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily', 'program'];
@@ -1246,7 +1250,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.65.0';
+var CODE_VERSION = 'chanda-v4.66.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1262,6 +1266,13 @@ var ACTIONS = {
     var name = String(b.name || '').trim();
     var password = String(b.password || '');
     if (!/^[a-z0-9._-]{3,20}$/.test(username)) throw new Error('bad-username');
+    // A203: 'all', 'admin' and 'cashiers' are the three GROUP names a @mention
+    // can carry (js/aggregate.js mentionsMe). A person holding one of them as a
+    // username collapses the two: every @admin would ping them, and naming
+    // them would ping every admin — in the one channel twelve people use to
+    // sort out the night. Nobody needs these as a login, so they are refused
+    // here, where it costs nothing.
+    if (MENTION_GROUPS.indexOf(username) >= 0) throw new Error('reserved-username');
     if (!name || password.length < 6) throw new Error('bad-input');
     var lock = LockService.getScriptLock();
     lock.waitLock(20000);

@@ -749,6 +749,16 @@ Two quality items, one fixed:
   is the "px→rem, dark mode" pass already scheduled above. **Not a
   trial-week change.**
 
+### Check once: is any live account named all / admin / cashiers?
+
+A203 (v4.66.0) reserved those three usernames, because 💬 uses them as group
+names — an account holding one would receive every `@admin` in the book. The
+reservation only applies to NEW registrations. On the live book, open 👥 and
+look: if any of the twelve accounts is literally `all`, `admin` or
+`cashiers`, it should be renamed. `mentionsMe` already refuses to give such
+an account the group's mentions, so nothing is mis-delivered in the
+meantime — the name is just unusable as a mention until it changes.
+
 ## AFTER THE COLLECTION — Hrishi's own list
 
 - **ব্যাঙ্ক অ্যাকাউন্টের ব্যালান্স** (Hrishi, 2026-09-05: *"bank account

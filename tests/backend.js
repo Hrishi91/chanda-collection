@@ -3070,6 +3070,34 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A203: a group name is not a person ------------------------------
+    // 💬 addresses groups by three literal words. Held as a username they
+    // collapse: every @admin reaches that person, and naming them reaches
+    // every admin — in the channel twelve people use to sort out the night.
+    {
+      const bm = loadBackend(); bm.api.setup();
+      bm.post('register', { username: 'mgadm', name: 'আসল admin', password: 'secret0', phone: '9550000001' });
+      ['all', 'admin', 'cashiers'].forEach(function (u) {
+        let err = '';
+        try { const r = bm.post('register', { username: u, name: 'x', password: 'secret1', phone: '9550000002' });
+              err = (r && r.error) || ''; } catch (e) { err = String(e.message || e); }
+        eq(err, 'reserved-username', 'backend A203: "' + u + '" cannot be taken as a username');
+      });
+      eq((bm.post('register', { username: 'ratan', name: 'রতন', password: 'secret1', phone: '9550000003' }) || {}).ok,
+         true, 'backend A203: …while an ordinary name still registers');
+      // and the client half: even an account that predates the rule loses the
+      // group ping rather than stealing it
+      const A10 = require('../js/aggregate.js');
+      eq(A10.mentionsMe({ mentions: 'admin' }, { username: 'admin', role: 'collector', cashier: 0 }), false,
+         'backend A203: an old account literally named "admin" does not collect every @admin');
+      eq(A10.mentionsMe({ mentions: 'admin' }, { username: 'realadm', role: 'admin', cashier: 0 }), true,
+         'backend A203: …the real admin still does');
+      eq(A10.mentionsMe({ mentions: 'cashiers' }, { username: 'kali', role: 'collector', cashier: 1 }), true,
+         'backend A203: …and a cashier still answers to @cashiers by role, not by name');
+      eq(A10.MENTION_GROUPS.join(','), 'all,admin,cashiers',
+         'backend A203: one list, exported — Code.gs MENTION_GROUPS must say the same three');
+    }
+
     // --- A202: a transfer survives the Sheet -----------------------------
     // run.js proves sectorSplit's arithmetic (A149/A150) on a hand-built book,
     // and A162 above proves who may move what. Neither can see the column

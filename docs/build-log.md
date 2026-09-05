@@ -14833,3 +14833,36 @@ each fail by name — the second inflating মোট খরচ by ₹3,000 that 
 the committee.
 
 Tests 2,663 (from 2,657). No app change.
+
+## A203 — a group name is not a person (2026-09-06)
+
+**Walked 💬 end to end** — who a @mention reaches, what counts as unread, a
+voided message leaving the feed *and* the count, the order a conversation
+reads in, A193's 500-character trim landing server-side, and identity being
+stamped from the token so nobody can post in someone else's name. Thirteen
+properties, all already right.
+
+**The one hole.** A @mention addresses a group by three literal words —
+`all`, `admin`, `cashiers` — and `register` happily accepted all three as
+**usernames**. Held by a person the two collapse in both directions: every
+`@admin` would ping them, and naming them would ping every real admin, in
+the one channel twelve people use to sort out the night. (`ALL` and `Admin`
+were already refused, but only because the username is lowercased first and
+the lowercase form was then taken — which is how it surfaced.)
+
+**Closed on three sides.** The server refuses them (`reserved-username`,
+against a `MENTION_GROUPS` constant kept beside the other shared tables);
+`mentionsMe` no longer matches a group word as a *username*, so an account
+registered before this rule loses the group ping rather than stealing it;
+and the phone says so **while they type** and again on submit, with a
+sentence in both languages rather than a raw code. One list, exported from
+`js/aggregate.js` and mirrored in `Code.gs` with a comment on each saying
+they are one decision.
+
+**For Hrishi:** the reservation only stops NEW registrations. If an account
+on the live book already holds one of those three names it should be
+renamed — filed in pending.md.
+
+v4.66.0. Tests 2,675 (from 2,663). Mutation-proved on all three sides:
+dropping the server rule, letting `mentionsMe` match the name again, and
+removing the phone's check each fail by name.
