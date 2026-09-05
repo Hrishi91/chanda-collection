@@ -13948,3 +13948,63 @@ pending.md. Measured and recorded there; not a trial-week change.
 
 Tests 2,536 (from 2,528). Mutation-proved by putting the lighter saffron
 back on the chip. Schema stays 5. Rides the deploy waiting for A174–A176.
+
+## 2026-09-05 — A178: the things I had said were untested
+
+Asked "have you tested everything", the answer was no, with a list.
+Hrishi: "check all". This is that list, worked through — and **nothing
+needed fixing**. What follows is evidence, not changes.
+
+**Twelve phones at once — six, really at once.** Two browser tabs are
+*one* phone: they share localStorage and IndexedDB, so the second login
+silently took the first's session and credited all twenty rows to the
+wrong collector. That is the trap the harness header warns about, walked
+into live. Redone as genuine parallel HTTP with six tokens: **96 rows,
+all landed, 48 distinct receipt numbers in one unbroken run
+(2026000053…2026000100), and every row attributed to the person who sent
+it** — eight each, no leakage.
+
+**The receipt, finally looked at.** It is never previewed on screen — it
+is drawn when the collector taps 📷, so nobody had ever seen it. Captured
+by stubbing `navigator.share`: a 720×620 PNG that renders ॐ শ্রী শ্রী
+সিদ্ধিদাতা গণেশায় নমঃ, the serial, "শ্রী/শ্রীমতী … এর নিকট হইতে … চাঁদা
+বাবদ", **₹৫০০/- with the amount spelled out in Bengali words**, and — in
+training mode — a **নমুনা · SAMPLE watermark**, which is a real
+safeguard doing its job. One inconsistency, noted not fixed: the serial
+is in Latin digits while everything else is Bengali, which is probably
+deliberate so it matches the Sheet.
+
+**Voice, the headline feature nobody had driven.** The real
+`SpeechRecognition` class was patched at the prototype so the app used
+its own code path with a scripted transcript. It asks in **`bn-IN`**,
+shows **"বুঝলাম: ₹3,500"** for *"সাড়ে তিন হাজার"* before committing,
+does **not** auto-advance, and saved ₹3,500 correctly. Fed a
+mis-hearing — *"হ্যাঁ ঠিক আছে দাও"* — it answers **"টাকার অঙ্কটা বুঝলাম
+না"** and refuses to move on. It never becomes a silent zero, which is
+the only property that really matters here.
+
+**Backup on the phone, and losing the phone.** The export carries every
+store with the live counts. Restoring from a file turns out to be
+**admin-only** — the button is simply absent for a cashier, which is
+right, since importing could resurrect voided rows. Then the real
+recovery path, tested by actually deleting the phone's IndexedDB: the
+screen came back with all 104 rows. The architecture is why — IndexedDB
+holds only what THIS phone wrote, the committee's book rides in the
+pulled snapshot — so **a reinstalled phone gets the book back**, and the
+only thing that can be lost for ever is that phone's own unsynced rows.
+
+### Still untestable from here, and why
+
+- **The service worker update cycle.** `sw.js` is served correctly
+  (200, `text/javascript`) and registration still fails with "an unknown
+  error occurred when fetching the script" — this browser pane does not
+  run service workers. It needs a real phone. Given this is the failure
+  this project has hit most often, it is the one thing worth Hrishi
+  checking by hand: ⚙️ → 🔄 আপডেট on each phone after a deploy.
+- **The real Apps Script runtime.** Every server test runs on
+  `tests/gas-shim.js` — faithful, but not Google's runtime: no quotas, no
+  six-minute limit, no real lock contention, no real Drive.
+- **iOS / Safari.** Everything here was Chromium.
+
+Tests unchanged at 2,536; version unchanged at v4.59.0. Four releases
+(A174–A177) are still waiting on one deploy.
