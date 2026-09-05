@@ -2627,4 +2627,70 @@ module.exports = function runBackendTests(eq) {
     eq(rows.reduce(function (a, r) { return a + (Number(r.inHand) || 0); }, 0), 3100,
        'backend A188: …and the two of them add back to the committee figure');
   }
+
+  // --- A189: a committee post grants, and un-grants ------------------------
+  // The whole permission model rests on "অনুমতি পদ থেকেই আসে", and Hrishi's
+  // go-live step 2 is to set levels and permissions on the four posts. The
+  // mechanism itself had never been driven — only the admin gate around it.
+  {
+    const bp = loadBackend();
+    bp.api.setup();
+    ['hrishi', 'kali', 'ratan', 'tapan'].forEach(function (u, i) {
+      bp.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '89000000' + i });
+    });
+    let t0 = bp.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+    const rw = function (u) { return bp.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    ['kali', 'ratan', 'tapan'].forEach(function (u) {
+      bp.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+      bp.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+    });
+    const tp = {};
+    ['hrishi', 'kali', 'ratan', 'tapan'].forEach(function (u, i) {
+      tp[u] = bp.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+    });
+    t0 = tp.hrishi;
+    const post = ((bp.call('listItems', { token: t0, kind: 'position' }) || {}).items || [])
+      .filter(function (p) { return /কোষাধ্যক্ষ/.test(p.nameBn); })[0];
+    eq(!!post, true, 'backend A189: the কোষাধ্যক্ষ post exists to hang permissions on');
+    bp.call('setPositionRules', { token: t0, id: post.id,
+      perms: ['cashier', 'shop', 'person', 'review'], maxCount: 1, level: 3 });
+
+    const view = function (u) {
+      const x = ((bp.call('listUsers', { token: t0 }) || {}).users || [])
+        .filter(function (y) { return y.username === u; })[0] || {};
+      return { own: String(x.ownEntries || ''), eff: String(x.entries || ''), cashier: Number(x.cashier) || 0 };
+    };
+    const shove = function (u, store, row) {
+      return ((bp.call('push', { token: tp[u], records: [rec(store, row)] }) || {}).savedIds || []).length > 0;
+    };
+
+    eq(view('tapan').own, '', 'backend A189: he starts with nothing of his own');
+    bp.call('setUserPosition', { token: t0, userId: rw('tapan').id, position: post.id });
+    const withPost = view('tapan');
+    eq(withPost.eff.indexOf('shop') >= 0 && withPost.eff.indexOf('review') >= 0, true,
+       'backend A189: the post\'s permissions become effective');
+    eq(withPost.own, '',
+       'backend A189: …and are DERIVED, never copied into his own column — that is why they leave with the post');
+    eq(withPost.cashier, 1, 'backend A189: …the cashier flag rides the post too');
+    eq(shove('tapan', 'parties', { id: 'pp1', year: 2026, type: 'shop', name: 'পদের দোকান', pledged: 100, sector: 'puja' }), true,
+       'backend A189: and they WORK — a donor written on a permission he was never personally given');
+    eq(shove('tapan', 'expenses', { id: 'pe1', year: 2026, subject: 'আলো', amount: 50, cashAmount: 50, upiAmount: 0, date: '2026-09-05', srcCat: 'other' }), true,
+       'backend A189: …an expense too, on the post\'s cashier flag');
+
+    // the other half — the one this project has historically forgotten
+    bp.call('setUserPosition', { token: t0, userId: rw('tapan').id, position: '' });
+    const without = view('tapan');
+    eq(without.eff.indexOf('shop') < 0, true, 'backend A189: taking the post back takes the permissions');
+    eq(without.cashier, 0, 'backend A189: …and the cashier flag');
+    eq(shove('tapan', 'parties', { id: 'pp2', year: 2026, type: 'shop', name: 'পরের', pledged: 100, sector: 'puja' }), false,
+       'backend A189: …and the very next entry is refused');
+
+    // a capped post holds one person
+    bp.call('setUserPosition', { token: t0, userId: rw('kali').id, position: post.id });
+    let e2 = '';
+    try { const r = bp.call('setUserPosition', { token: t0, userId: rw('ratan').id, position: post.id });
+          e2 = (r && r.error) || ''; } catch (err) { e2 = String(err.message || err); }
+    eq(/position-full/.test(e2), true, 'backend A189: a post capped at 1 refuses a second holder');
+    eq(/kali/.test(e2), true, 'backend A189: …and names who already holds it, which is the useful half');
+  }
 };

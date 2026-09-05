@@ -14387,3 +14387,40 @@ from in-hand (kali reads ₹1,000 instead of −₹200, **and the
 client/server mirror test catches the disagreement too**).
 
 Tests 2,557 (from 2,545).
+
+## 2026-09-06 — A189: what a committee post actually does
+
+The whole permission model rests on one sentence the admin screen prints
+— *"🎖️ কমিটিতে পদ (এখান থেকেই অনুমতি আসে)"* — and Hrishi's go-live step
+2 is to set levels and permissions on the four posts. Only the admin gate
+around that had ever been tested. The mechanism had not.
+
+Driven against the server, not read off a field:
+
+- **Giving তপন the কোষাধ্যক্ষ post** makes `shop, person, review`
+  effective and sets his cashier flag — while **his own permission column
+  stays empty**. The grant is *derived*, never copied, which is exactly
+  why it can leave again.
+- **It genuinely works**: he wrote a donor on a `shop` permission he was
+  never personally given, and an expense on the post's cashier flag.
+  Pushed to the server, not inferred from a screen.
+- **Taking the post back takes it all** — effective permissions empty,
+  cashier flag 0, and the very next entry refused. This is the half this
+  project has historically forgotten (the mirror rule), and it holds.
+- **A post capped at 1 refuses a second holder** with
+  `position-full:kali` — naming who already has it, which is the useful
+  half of an error.
+
+Nothing to fix. Pinned, and mutation-proved in both directions: dropping
+the post's permissions from `effPerms_` fails by name (and takes an
+older 🧹 test with it), dropping only its cashier flag fails the two
+assertions about the flag — while a harmless rewrite of the same line
+changes nothing, which is how the pins say they are about behaviour
+rather than text.
+
+**Worth telling Hrishi:** on a fresh book all four posts have **no level
+and no permissions at all**. That is the seeded state and it is what his
+checklist step 2 exists to fix — until then every grant has to be made
+person by person, and the posts do nothing.
+
+Tests 2,569 (from 2,557).
