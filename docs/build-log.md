@@ -14311,3 +14311,35 @@ points at the screen that fixes it.
 written half a bug report before noticing I was standing on a form
 waiting for me to type. Third time this session that "nothing happened"
 turned out to be "something happened that I did not look at".
+
+## 2026-09-06 — A187: a new collector's whole first day
+
+The last unchecked chain, and the one Hrishi will run a dozen times this
+week: somebody installs the app, registers, waits, is approved, is
+granted, and starts collecting.
+
+**The request finds the admin, not the other way round.** It is already
+on the home screen — *"🙋 অমল কৃষ্ণ বসাক (@amal) — approve চায়"* with ✅ /
+🚫 / 👁 on the card. No hunting through the admin panel.
+
+**Before approval, no permission chips are drawn at all** — correct:
+there is nothing to grant to somebody who is not yet in the year.
+Approving stamps the year (`years: 2026`), and the seventeen chips appear
+(A160's fix, working here too).
+
+**The empty state is the best screen in this flow.** A user approved but
+not yet granted logs in and sees: *"⚠️ তোমাকে এখনও কিছু দেওয়া হয়নি —
+admin ঠিক করে দিলে তবেই এন্ট্রি করতে পারবে। ততক্ষণ 📒 খাতা, 📊 রিপোর্ট
+আর 💬 বার্তা দেখতে পারো"*, **the admin's name and number, and 📞 ফোন করো /
+💬 WhatsApp buttons.** Not "no permissions" — who to call, and one tap to
+call them. Zero entry tiles, which is right.
+
+**Then the grant, end to end on two screens.** Given `shop` and `road`,
+his next login shows exactly 🏪 দোকান and 🛣️ রোড কালেকশন — not ব্যক্তি,
+not সদস্য, not টোটো, not বাস — alongside what is open to everyone (খাতা,
+জমা দিলাম, জমা-খাতা, আমার entry). The warning is gone.
+
+Nothing to fix. This closes the last chain on the list: entry, money,
+permissions, reports, freeze, void, corrections, the 🩺 desk, receipts,
+offline, sync, back navigation, drafts, duplicates, language, and now
+onboarding.
