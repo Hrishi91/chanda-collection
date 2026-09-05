@@ -13627,3 +13627,7 @@ real note underneath.
 
 Tests 2,471 (from 2,463). Version stays v4.54.0 — this release is tests
 and docs; A169 carries the bump.
+
+- Deployed v4.54.0; probed three times (`codeVersion: chanda-v4.54.0`,
+  `schema: 5`). `js/config.js` rebaked. Carries A169 (the `500/-` slip
+  form) to the phones.
