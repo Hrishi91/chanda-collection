@@ -420,6 +420,33 @@ give different numbers:
       🚫 Block are the whole story, and Hrishi has confirmed that is enough
       (see PROJECT_CONTEXT "Known limitations").
 
+### Added by the A144–A156 week (2026-09-05) — all pre-go-live, all survive 🚀
+
+The confidential kinds and the অনুষ্ঠান tab all default to OFF or ungranted, so
+none of them work until the admin acts. Every item here is set BEFORE 🚀 and
+survives it.
+
+- [ ] **Grant the new keys, by name.** `sponsor` / `gupt` to whoever takes them;
+      **`sponsorview` + `guptview` to the কোষাধ্যক্ষ — without both, that money
+      cannot be handed over at all**; `progteam` (the master — no 🎭 tab without
+      it) plus `progdonor` / `progmoney` / `ticket` to the programme team.
+      The two *view* keys cannot ride a committee post, deliberately: seeing
+      every sponsor is a confidence given to a person, and hanging it on a post
+      would move it silently the day somebody is made কোষাধ্যক্ষ.
+- [ ] **⚙️ → 🎭 অনুষ্ঠানের ভাঁড়ার → চালু করো.** Off by default; with it off the
+      tab does not exist for anybody, `progteam` or not.
+- [ ] **Add the programme's expense subjects** (শিল্পী · সাউন্ড · অতিথি · মঞ্চ),
+      choosing 🎭 অনুষ্ঠান as you add each. Existing subjects have no fund, which
+      means BOTH — nothing to migrate.
+- [ ] **The 16 `demo-` rows** in the live training book (A138): **🚀 removes them
+      with everything else**, so no separate cleanup is needed if go-live is
+      next. Only if the trial continues: void them from ✏️ আমার লেখা entry, in
+      this order — handover (`demo-h1`) first, then payments/daily/expenses,
+      **parties (`demo-p1…p4`) LAST**. A party voided before its payments leaves
+      them orphaned and the 🩺 desk says so until the rest are cleared.
+- [ ] **Record each দায় BEFORE the booking is made.** Written afterwards, the
+      gap it exists to show is already invisible.
+
 ## Next decision — Go Live
 
 Training mode is still ON (default since it shipped). Every entry made so
