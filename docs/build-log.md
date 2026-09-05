@@ -14343,3 +14343,47 @@ Nothing to fix. This closes the last chain on the list: entry, money,
 permissions, reports, freeze, void, corrections, the 🩺 desk, receipts,
 offline, sync, back navigation, drafts, duplicates, language, and now
 onboarding.
+
+## 2026-09-06 — A188: are the numbers right?
+
+Every report check so far answered **who may see it**. This one asks the
+question a committee actually cares about: **is the figure on the screen
+the figure a person with a calculator would get?** Nobody had asked.
+
+A book small enough to add up by hand — two shops, three payments, two
+daily rows, one expense — and, deliberately, **one voided payment of
+₹2,000 (₹1,500 cash + ₹500 UPI)**, because a void is where a total goes
+wrong quietly.
+
+**Fourteen figures, all correct:**
+
+| | |
+|---|---|
+| মোট তোলা | ₹4,300 — the voided ₹2,000 is gone |
+| কথা / বাকি | ₹8,000 / ₹5,000 |
+| খরচ / হাতে | ₹1,200 / ₹3,100 |
+| নগদ / UPI | ₹4,300 / **₹0** — the void took its ₹500 UPI with it, and it was the only UPI in the book |
+| দোকান থেকে জমা | ₹3,000 — the per-kind figure drops it too |
+| রোড + টোটো | ₹1,300 |
+| রতনের হাতে | ₹3,300 |
+| কালীর হাতে | **−₹200** |
+
+That last one deserves its own line: kali collected ₹1,000 and spent
+₹1,200, so the book says **minus two hundred** rather than clamping to
+zero. A negative in-hand is a real state — she spent from her own pocket
+or from money not yet confirmed to her — and hiding it would be the
+lie. The two collectors still add back to the committee's ₹3,100.
+
+### Four of my assertions failed first, and none was the app
+
+`ov.collected`, `ov.expense`, `r.name` — invented field names. The real
+ones are `totalCollection`, `totalExpense`, `collector`. The three
+figures I *could* read were right from the first run, which is what said
+the failures were mine. Corrected, all fourteen match.
+
+Pinned in `tests/backend.js`. Mutation-proved twice: stop excluding
+voids (three older tests fail by name), and stop subtracting expenses
+from in-hand (kali reads ₹1,000 instead of −₹200, **and the
+client/server mirror test catches the disagreement too**).
+
+Tests 2,557 (from 2,545).

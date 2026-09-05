@@ -2569,4 +2569,62 @@ module.exports = function runBackendTests(eq) {
     eq(err(function () { return by.call('pull', { token: ty.notin27, year: 2026, since: 0 }); }) !== '', true,
        'backend A175: …and 🔓 সেশন ছাড়ো puts a phone out too');
   }
+
+  // --- A188: the reports' arithmetic, against a book small enough to add up --
+  // Everything before this proved WHO may open a report. This asks whether the
+  // number on it is the number a person with a calculator would get — because
+  // that is the number somebody reads out at a committee meeting.
+  //
+  // The book is deliberately tiny and includes ONE VOIDED payment, which is
+  // the real test: ₹2,000 (₹1,500 cash + ₹500 UPI) must vanish from every
+  // total, including the cash/UPI split and the per-donor paid figure.
+  {
+    const bm = loadBackend();
+    bm.api.setup();
+    ['hrishi', 'kali', 'ratan'].forEach(function (u, i) {
+      bm.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '90000000' + i });
+    });
+    let t0 = bm.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+    const rw = function (u) { return bm.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    ['kali', 'ratan'].forEach(function (u) {
+      bm.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+      bm.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+      bm.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'person', 'road', 'toto', 'bus'] });
+    });
+    bm.call('setCashier', { token: t0, userId: rw('kali').id, cashier: 1 });
+    bm.call('addSubject', { token: t0, name: 'আলো' });
+    const tm = {};
+    ['hrishi', 'kali', 'ratan'].forEach(function (u, i) {
+      tm[u] = bm.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+    });
+    const put = function (u, store, row) { bm.call('push', { token: tm[u], records: [rec(store, row)] }); };
+    put('ratan', 'parties',  { id: 's1', year: 2026, type: 'shop', name: 'দোকান ১', pledged: 5000, side: 'main_malda', sector: 'puja' });
+    put('ratan', 'parties',  { id: 's2', year: 2026, type: 'shop', name: 'দোকান ২', pledged: 3000, side: 'main_malda', sector: 'puja' });
+    put('ratan', 'payments', { id: 'y1', year: 2026, partyId: 's1', partyName: 'দোকান ১', amount: 2000, cashAmount: 2000, upiAmount: 0, date: '2026-09-05' });
+    put('ratan', 'payments', { id: 'y2', year: 2026, partyId: 's1', partyName: 'দোকান ১', amount: 2000, cashAmount: 1500, upiAmount: 500, date: '2026-09-05' });
+    put('kali',  'payments', { id: 'y3', year: 2026, partyId: 's2', partyName: 'দোকান ২', amount: 1000, cashAmount: 1000, upiAmount: 0, date: '2026-09-05' });
+    put('ratan', 'daily',    { id: 'd1', year: 2026, type: 'road', amount: 900, cashAmount: 900, upiAmount: 0, date: '2026-09-05', sector: 'puja' });
+    put('ratan', 'daily',    { id: 'd2', year: 2026, type: 'toto', amount: 400, cashAmount: 400, upiAmount: 0, date: '2026-09-05', sector: 'puja' });
+    put('kali',  'expenses', { id: 'e1', year: 2026, subject: 'আলো', amount: 1200, cashAmount: 1200, upiAmount: 0, date: '2026-09-05', srcCat: 'other' });
+    put('kali',  'voids',    { id: 'v1', year: 2026, targetStore: 'payments', targetId: 'y2', reason: 'ভুল', date: '2026-09-05' });
+
+    const rep = function (id) { const r = bm.call('report', { token: tm.hrishi, id: id, year: 2026 }); return (r && r.data) || {}; };
+    const ov = rep('overview');
+    eq(ov.totalCollection, 4300, 'backend A188: total collected excludes the voided ₹2,000 (2000+1000+900+400)');
+    eq(ov.totalPledged, 8000, 'backend A188: pledged is 5000+3000');
+    eq(ov.totalDue, 5000, 'backend A188: due is (5000−2000)+(3000−1000)');
+    eq(ov.totalExpense, 1200, 'backend A188: expenses');
+    eq(ov.inHand, 3100, 'backend A188: in hand is 4300−1200');
+    eq(ov.totalCash, 4300, 'backend A188: the voided row takes its ₹1,500 cash with it');
+    eq(ov.totalUpi, 0, 'backend A188: …and its ₹500 UPI, which was the only UPI in the book');
+    eq(ov.byType.shop.paid, 3000, 'backend A188: per-kind paid also drops the voided instalment');
+    eq(ov.dailyByType.road + ov.dailyByType.toto, 1300, 'backend A188: the daily split adds up');
+
+    const rows = (rep('inhand').rows || []);
+    const held = function (u) { const r = rows.filter(function (x) { return String(x.collector).indexOf(u) >= 0; })[0]; return r ? r.inHand : null; };
+    eq(held('ratan'), 3300, 'backend A188: ratan holds 2000+900+400 — not the voided 2000');
+    eq(held('kali'), -200, 'backend A188: kali holds 1000−1200, and the book says minus rather than hiding it');
+    eq(rows.reduce(function (a, r) { return a + (Number(r.inHand) || 0); }, 0), 3100,
+       'backend A188: …and the two of them add back to the committee figure');
+  }
 };
