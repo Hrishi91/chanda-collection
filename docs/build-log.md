@@ -13016,3 +13016,6 @@ buttons are gated on `isCashier()`, not on the book being non-empty.
 
 Tests 2,316 (from 2,314); each fix mutation-proved. Schema stays 5 —
 no phone is locked out by this release.
+
+- Deployed v4.47.0; probed three times (`codeVersion: chanda-v4.47.0`,
+  `schema: 5`) before pointing any phone at it. `js/config.js` rebaked.
