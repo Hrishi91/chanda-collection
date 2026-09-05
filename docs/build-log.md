@@ -14866,3 +14866,30 @@ renamed — filed in pending.md.
 v4.66.0. Tests 2,675 (from 2,663). Mutation-proved on all three sides:
 dropping the server rule, letting `mentionsMe` match the name again, and
 removing the phone's check each fail by name.
+
+## A204 — the correction bell had no test at all (2026-09-06)
+
+**Checked, not changed.** Twelve properties of 🔔 walked end to end: a
+parcel raises the recipient's bell and not the sender's, confirming clears
+it, refusing clears the cashier's and raises the sender's, a pending
+account reaches only the admin, and a correction flag reaches the desk.
+All twelve already right.
+
+Also confirmed a design I had misread as a bug: the server reports **every**
+rejection the person ever sent, with no "seen" state — because the marker is
+a per-device read receipt (`rejSeen` in `js/app.js`), applied on the phone
+before the count is drawn, and set by the button that shows the card. The
+server is right to be stateless here; the bell does clear.
+
+**What had no test:** the corrections branch. It sits behind its own gate
+(`canReview_` inside `isCashier`), and a flag that never reaches a desk is a
+collector owning up to their own mistake and being ignored. A190 pins the
+other three counts; this pins the fourth.
+
+Mutation-proved, and the result is the point: making the flag never leave
+`pending` fails the clearing assertion by name, and opening **both** gates
+at once — neither alone is enough, each covers the other — makes the flag
+land on the raiser's own bell, which is the **only** failure in all 2,679
+assertions. Nothing else in the suite was watching that.
+
+Tests 2,679 (from 2,675). No app change.

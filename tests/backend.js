@@ -3070,6 +3070,43 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A204: the correction bell -------------------------------------
+    // A190 pins the handover, approval and rejection counts. The corrections
+    // branch has its own gate (canReview_, inside isCashier_) and had none: a
+    // flag that never reaches a desk is a collector telling the committee
+    // about their own mistake and being ignored.
+    {
+      const bn = loadBackend(); bn.api.setup();
+      ['nfadm', 'nfkali', 'nfratan'].forEach(function (u, i) {
+        bn.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '977000000' + i });
+      });
+      const tn0 = bn.call('login', { username: 'nfadm', password: 'secret0', year: 2026 }).token;
+      const nid = function (u) { return bn.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+      ['nfkali', 'nfratan'].forEach(function (u) {
+        bn.call('setStatus', { token: tn0, userId: nid(u), status: 'approved' });
+        bn.call('approveYear', { token: tn0, userId: nid(u), year: 2026 });
+        bn.call('setEntries', { token: tn0, userId: nid(u), entries: ['shop', 'road', 'review'] });
+      });
+      bn.call('setCashier', { token: tn0, userId: nid('nfkali'), cashier: 1 });
+      const tn = { nfadm: bn.call('login', { username: 'nfadm', password: 'secret0', year: 2026 }).token,
+                   nfkali: bn.call('login', { username: 'nfkali', password: 'secret1', year: 2026 }).token,
+                   nfratan: bn.call('login', { username: 'nfratan', password: 'secret2', year: 2026 }).token };
+      const st4 = new Date().toISOString();
+      const bell4 = function (u) {
+        return (((bn.call('pull', { token: tn[u], year: 2026, since: 0 }) || {}).notif || {}).notifications) || {};
+      };
+      bn.call('push', { token: tn.nfratan, records: [rec('daily', { id: 'nd1', year: 2026, type: 'road',
+        amount: 3000, cashAmount: 3000, upiAmount: 0, date: '2026-09-06', sector: 'puja', createdAt: st4 })] });
+      eq(bell4('nfkali').corrections, 0, 'backend A204: no flag raised, the desk is quiet');
+      bn.call('push', { token: tn.nfratan, records: [rec('corrections', { id: 'nc1', year: 2026,
+        targetStore: 'daily', targetId: 'nd1', note: 'ভুল লিখেছি', date: '2026-09-06', createdAt: st4 })] });
+      eq(bell4('nfkali').corrections, 1, 'backend A204: a collector owning up reaches the desk that can act');
+      eq(bell4('nfratan').corrections, 0, 'backend A204: …and not their own bell — it is not their task');
+      bn.call('resolveCorrection', { token: tn.nfkali, id: 'nc1', decision: 'accept', year: 2026 });
+      eq(bell4('nfkali').corrections, 0,
+         'backend A204: …and it stops the moment it is answered — a bell that never clears is a bell nobody reads');
+    }
+
     // --- A203: a group name is not a person ------------------------------
     // 💬 addresses groups by three literal words. Held as a username they
     // collapse: every @admin reaches that person, and naming them reaches
