@@ -102,6 +102,31 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A182: …and the groups it can always offer come from the local list');
 }
 
+// A207: 🎭 keys are drawn whatever program_on says, and the programme is OFF by
+// default. Granting one while it is off is a key to a door that is not there —
+// and this same function already carries the rule for exactly this shape: say
+// it in words, on the screen, never on hover.
+{
+  const app7 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const blk7 = (app7.match(/function entriesChips\(u\)[\s\S]*?return permGroup\(u, 'entry_perms'/) || [''])[0];
+  eq(/const progOff = !programOn\(\) &&/.test(blk7), true,
+     'A207: the screen notices a 🎭 grant made while the programme is off');
+  eq(/\['progteam', 'progdonor', 'progmoney'\]\.some/.test(blk7), true,
+     'A207: …for all three of them, from a post or granted personally');
+  eq(/post\.indexOf\(k\) >= 0 \|\| own\.indexOf\(k\) >= 0/.test(blk7), true,
+     'A207: …a post-granted 🎭 key is just as doorless as a personal one');
+  eq(/progOff \? '  ' \+ t\('perm_prog_off'\) : ''/.test(blk7), true,
+     'A207: …and it lands in the note under the chips, which a phone can actually show');
+  // the sentence has to point at a real place
+  const i18n7 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const line7 = (i18n7.match(/perm_prog_off: \{[\s\S]*?\},/) || [''])[0];
+  const dataLabel = (i18n7.match(/adm_data: \{ bn: '([^']*)'/) || [])[1];
+  const fundLabel = (i18n7.match(/program_fund: \{ bn: '([^']*)'/) || [])[1];
+  eq(line7.indexOf(dataLabel) >= 0, true,
+     'A207: the directions name the admin section as it is actually labelled');
+  eq(line7.indexOf(fundLabel) >= 0, true, 'A207: …and the row inside it');
+}
+
 // A206: the refusal must reach the admin as a sentence, through A115's family
 // fallback — `item-in-use:1` has no key of its own, so the family one must
 // exist and must carry the count.

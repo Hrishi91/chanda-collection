@@ -14964,3 +14964,35 @@ the check restores the old silent delete (fails by name); checking posts
 but forgetting areas — the classic half-fix — fails the area assertions by
 name; and over-correcting so nothing can ever be deleted is caught too,
 loudly, by an existing test that deletes an unused item.
+
+## A207 — a key to a door that is not there (2026-09-06)
+
+**Walked 🏠 for every role** — plain collector, cashier, admin, 🎭 team,
+somebody brand new with nothing granted, somebody on their way out — plus
+the three states that replace the whole screen (a phone behind the server,
+a freeze, an exit). Every door was in the right hands and, the half that
+matters as much, absent from the wrong ones. `homeTiles` already carries 25
+assertions covering exactly this, so **no new test was written for it**;
+two things I first read as failures were my own wrong model — the
+programme's entry doors live in the 🎭 **tab**, not on home, and the admin
+panel is reached from ⚙️, drawn only `if (Auth.isAdmin())`.
+
+**What the walk did turn up** is one step earlier. The three 🎭 permission
+chips are drawn in the admin's grant screen whatever `program_on` says —
+and the programme is **off by default**, deliberately, because it is the
+committee's switch. So an admin can tick 🎭 keys for somebody while there
+is no 🎭 tab to open: no entry screens, nothing. The person rings the
+admin, and the admin's own screen is showing a ticked chip.
+
+`entriesChips` already carries the rule for this exact shape, six lines
+away, written after A72: *a screen headed "give this person permissions"
+that shows permissions it did not give has to say so in words, on the
+screen, not on hover.* So it now says so — under the chips, naming the
+admin section and the row by the labels those places actually carry, and
+counting a 🎭 key that arrives from a **post** as just as doorless as a
+personal one.
+
+v4.69.0. Tests 2,705 (from 2,699). Mutation-proved: dropping the note,
+noticing only personal grants, and renaming the admin section so the
+directions go stale each fail by name — the last one because the test
+reads the labels from i18n rather than repeating them.

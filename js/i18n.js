@@ -998,6 +998,8 @@ const I18N = {
   // Permission chips reuse the tile labels themselves (new_shop, daily_bus …)
   // so a grant reads exactly like the button it turns on. Only the section
   // heading and the always-open note live here.
+  perm_prog_off: { bn: '⚠️ 🎭 অনুষ্ঠানের ভাঁড়ার এখন বন্ধ, তাই এই 🎭 অনুমতিগুলো ওঁর ফোনে কোনো দরজাই খুলবে না। admin প্যানেল → “ডেটা ও হিসাব রক্ষা” → 🎭 অনুষ্ঠানের ভাঁড়ার → “চালু করো”।',
+                   en: '⚠️ The 🎭 programme fund is switched off, so these 🎭 permissions open no door on their phone. Admin panel → “Data & records” → Programme fund → “Turn on”.' },
   perms_common: { bn: 'সবার জন্য খোলা: নিজের দাতার চাঁদা · জমা দেওয়া · আমার entry/সংশোধন · বাকি',
                   en: "Open to everyone: payments from one's own donors · handover · my entries/fix · dues" },
   inhand_auto_cashier: { bn: '(ক্যাশিয়ার হলে "কার হাতে কত" এমনিই থাকে)', en: '(cashiers always get "Cash in hand")' },

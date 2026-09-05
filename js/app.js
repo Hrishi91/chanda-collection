@@ -7870,10 +7870,23 @@
         // indistinguishable from "the clear did not work". A screen headed "give
         // this person permissions" that shows permissions it did not give has to
         // say so in words, on the screen, not on hover.
-        const note = nPost
+        // A207: the three 🎭 keys are drawn whatever `program_on` says, and the
+        // programme is OFF by default — deliberately, it is the committee's
+        // switch. So granting one while it is off is a key to a door that is
+        // not there: no 🎭 tab, no entry screens, nothing. The person rings the
+        // admin, and the admin's own screen showed a ticked chip.
+        //
+        // The rule is already written six lines up, for a different case:
+        // a screen headed "give this person permissions" that shows something
+        // it did not give has to say so IN WORDS, on the screen. Same here.
+        const progOff = !programOn() &&
+          ['progteam', 'progdonor', 'progmoney'].some(function (k) {
+            return post.indexOf(k) >= 0 || own.indexOf(k) >= 0;
+          });
+        const note = (nPost
           ? t('perm_from_post_n').replace('{n}', String(nPost))
               .replace('{post}', Lists.labelOf('position', admDraft.position || '')) + '  ' + t('perms_common')
-          : t('perms_common');
+          : t('perms_common')) + (progOff ? '  ' + t('perm_prog_off') : '');
         return permGroup(u, 'entry_perms', 'ent', chips, note, false, !eff.length);
       }
       // which master areas a collector is responsible for (drives area reports)
