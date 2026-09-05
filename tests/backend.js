@@ -2245,4 +2245,67 @@ module.exports = function runBackendTests(eq) {
     eq(sees(pull('kali')), false,
        'backend A170: revoking takes the rows away again — a delta can never say "delete"');
   }
+
+  // --- A172: receipt numbers ------------------------------------------------
+  // The donor keeps this slip. If two donors hold the same number, or a number
+  // changes after it was shown, nobody in the committee finds out until an
+  // argument — there is no screen that would notice.
+  {
+    const br = loadBackend();
+    br.api.setup();
+    ['hrishi', 'ratan', 'kali'].forEach(function (u, i) {
+      br.post('register', { username: u, name: u, password: 'secret' + i, phone: '96000000' + i });
+    });
+    let t0 = br.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+    const rw = function (u) { return br.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    ['ratan', 'kali'].forEach(function (u) {
+      br.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+      br.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+      br.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'person', 'road', 'bus'] });
+    });
+    const tr = {};
+    ['hrishi', 'ratan', 'kali'].forEach(function (u, i) {
+      tr[u] = br.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+    });
+    const shove = function (u, recs) { return br.call('push', { token: tr[u], records: recs }); };
+    const pay = function (id, amt) {
+      return rec('payments', { id: id, year: 2026, partyId: 'rp1', partyName: 'দোকান',
+        amount: amt, cashAmount: amt, upiAmount: 0, date: '2026-09-05' });
+    };
+    shove('ratan', [rec('parties', { id: 'rp1', year: 2026, type: 'shop', name: 'দোকান', pledged: 99999, sector: 'puja' })]);
+    const nos = function () {
+      return br.rows('Payments').map(function (p) { return String(p.receiptNo || ''); }).filter(Boolean);
+    };
+
+    // two collectors, three batches
+    shove('ratan', [pay('a1', 100), pay('a2', 200), pay('a3', 300)]);
+    shove('kali',  [pay('b1', 400), pay('b2', 500)]);
+    shove('ratan', [pay('c1', 600)]);
+    const all = nos();
+    eq(all.length, 6, 'backend A172: every payment got a receipt number');
+    eq(new Set(all).size, 6, 'backend A172: …and no two donors hold the same one');
+    const asNum = all.map(Number).sort(function (x, y) { return x - y; });
+    eq(asNum[5] - asNum[0], 5, 'backend A172: …allocated as one unbroken run across collectors and batches');
+
+    // the retry a flaky network causes must not move a number already shown
+    const was = br.rows('Payments').filter(function (p) { return p.id === 'a1'; })[0].receiptNo;
+    shove('ratan', [pay('a1', 100)]);
+    const now = br.rows('Payments').filter(function (p) { return p.id === 'a1'; })[0].receiptNo;
+    eq(String(was), String(now), 'backend A172: a re-push keeps the number the donor was already shown');
+    eq(nos().length, 6, 'backend A172: …and burns no new one, so the sequence does not jump');
+
+    // a void leaves a gap, exactly like a paper receipt book
+    shove('kali', [rec('voids', { id: 'vd1', year: 2026, targetStore: 'payments', targetId: 'a2', reason: 'ভুল', date: '2026-09-05' })]);
+    shove('ratan', [pay('d1', 700)]);
+    const later = nos().map(Number).sort(function (x, y) { return x - y; });
+    eq(later[later.length - 1], asNum[5] + 1,
+       'backend A172: the next receipt takes the next number — a voided one is never reissued');
+
+    // daily rows share the same sequence and must not collide with payments
+    shove('ratan', [rec('daily', { id: 'bs1', year: 2026, type: 'bus', busName: 'সোনালী', busNumber: 'WB-01',
+      amount: 800, cashAmount: 800, upiAmount: 0, date: '2026-09-05', sector: 'puja' })]);
+    const busNo = String(br.rows('DailyCollections').filter(function (d) { return d.id === 'bs1'; })[0].receiptNo || '');
+    eq(busNo.length > 0, true, 'backend A172: a bus collection gets a receipt number too');
+    eq(nos().indexOf(busNo), -1, 'backend A172: …drawn from the same run, so it can never repeat a payment\'s');
+  }
 };

@@ -13678,3 +13678,33 @@ Needs the deploy.
 - Deployed v4.55.0; probed three times (`codeVersion: chanda-v4.55.0`,
   `schema: 5`). `js/config.js` rebaked. Carries A171's honest rollover
   wording — which, being i18n, needed the shell bump to travel at all.
+
+## 2026-09-05 — A172: receipt numbers hold up
+
+The donor keeps this slip. If two donors hold the same number, or a
+number changes after it was shown, **nothing in the app would notice** —
+there is no screen whose job that is. So it gets asked directly.
+
+All correct, across two collectors and three batches:
+
+- Six payments, six **distinct** numbers, allocated as one unbroken run.
+  `reserveReceiptNos_` reads config once, counts in memory and writes
+  once, inside push's script lock — so a batch cannot interleave with
+  another collector's.
+- **A retry keeps the number the donor was already shown.** This is the
+  case that matters most in the field: a flaky evening makes the phone
+  re-push, and A59's `keep: ['receiptNo']` rule defends the serial while
+  still letting a genuine correction through. Mutating that rule away
+  fails three tests, one of them by the exact sentence "the retry does
+  NOT write an empty string over the donor's serial".
+- **A voided payment leaves a gap.** The next receipt takes the next
+  number; a voided one is never reissued — the same way a paper receipt
+  book works, and the only behaviour an auditor would accept.
+- **Bus collections draw from the same run**, so a daily row's serial can
+  never repeat a payment's.
+
+Mutation-proved in the direction that costs money: making every row in a
+batch take the same number collapses six donors onto three serials and
+is caught by name.
+
+Tests 2,483 (from 2,475). No behaviour changed; version stays v4.55.0.
