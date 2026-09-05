@@ -14008,3 +14008,42 @@ only thing that can be lost for ever is that phone's own unsynced rows.
 
 Tests unchanged at 2,536; version unchanged at v4.59.0. Four releases
 (A174–A177) are still waiting on one deploy.
+
+## 2026-09-05 — A179: the same thing entered twice
+
+Hrishi asked whether "same details entry" had been checked. It had not —
+A168 planted duplicates and watched the 🩺 desk *notice* them afterwards,
+which is a different question from whether the app stops a collector at
+the moment they do it. That moment matters, because the commonest cause
+is not carelessness: **the sync was slow, the collector was not sure it
+saved, so they entered it again.**
+
+Driven through the screens. **Both guards exist and both work, in both
+directions** — which is the part that has historically broken (A22 built
+the guard, A54 found that cancelling looped, A115d found A54 had fixed
+only one of the two flows and the other had been wrong for five months).
+
+**A donor entered twice** raises, on the phone match:
+
+> ⚠️ এই ফোন নম্বরে দাতা আগে থেকেই আছে … "Cancel" = একই দাতা, যোগ করব
+> না · "OK" = আলাদা, যোগ করো
+
+Answering OK adds the second donor. Answering **Cancel adds nothing and
+ends the entry cleanly** — donor count unchanged, flow returned to home,
+no loop, nothing filed under the wrong name. That is exactly A115d's
+failure re-tested, and it holds.
+
+**The same payment twice**, on the same donor, on the same day, raises
+something better than a warning — **evidence**:
+
+> ⚠️ মা তারা ভাণ্ডার-এর আজ ₹1,500 ইতিমধ্যে জমা আছে:
+> • রসিদ নং 2026000035 · ₹1,500 · রতন কুমার মণ্ডল · 2026-09-05 23:17
+
+Receipt number, amount, who took it, when. It does **not** refuse — a
+donor can genuinely pay twice in a day — it hands the collector the four
+facts needed to decide. Answering Cancel leaves the count unchanged and
+ends the entry; answering OK records the second instalment.
+
+Nothing to fix. Recorded because "the guard exists" and "the guard works
+from the wrong side" have been different answers in this codebase three
+times.
