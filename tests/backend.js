@@ -1693,4 +1693,122 @@ module.exports = function runBackendTests(eq) {
         amount: 0, date: '2026-09-05', sector: 'puja' }), false,
        'backend A151: …nor one for nothing');
   }
+
+  // --- A163: every action in the table, attempted by a plain collector ------
+  // The mirror rule this project keeps relearning: a power is guarded only if
+  // BOTH halves are, and the unguarded half is where the exploit lives. Rather
+  // than a hand-written list — the duplication bug that produced A146-A149 and
+  // A160 — the cases are DERIVED from ACTIONS in Code.gs, so an action added
+  // tomorrow without a guard fails here without anyone remembering to add it.
+  {
+    const gs = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+    const table = gs.slice(gs.indexOf('var ACTIONS = {'));
+    const actions = (table.match(/^  [a-zA-Z_]+: function/gm) || [])
+      .map(function (m) { return m.trim().split(':')[0]; });
+    eq(actions.length > 40, true, 'backend A163: the action table was found (' + actions.length + ')');
+
+    // Actions a logged-in collector is SUPPOSED to reach. Everything else must
+    // refuse them. Listing the open ones is safe in a way that listing the
+    // guarded ones is not: forgetting an entry here makes the test stricter,
+    // never blinder.
+    const OPEN = ['register', 'login', 'logout', 'changePassword', 'push', 'pull',
+                  'getConfig', 'reportList', 'report', 'myReport', 'notifications',
+                  'pendingHandovers', 'pendingCorrections', 'cashiers', 'listSubjects',
+                  'listItems', 'updateProfile', 'listBackups'];
+    const b2 = loadBackend();
+    b2.api.setup();
+    b2.post('register', { username: 'hrishi', name: 'হৃষিকেশ', password: 'secret1', phone: '9876543210' });
+    b2.post('register', { username: 'ratan', name: 'রতন', password: 'secret2', phone: '9876543299' });
+    const admin2 = b2.call('login', { username: 'hrishi', password: 'secret1', year: 2026 }).token;
+    const rat = b2.rows('Users').filter(function (x) { return x.username === 'ratan'; })[0];
+    b2.call('setStatus', { token: admin2, userId: rat.id, status: 'approved' });
+    b2.call('approveYear', { token: admin2, userId: rat.id, year: 2026 });
+    const plain = b2.call('login', { username: 'ratan', password: 'secret2', year: 2026 }).token;
+
+    const leaked = [];
+    actions.forEach(function (a) {
+      if (OPEN.indexOf(a) >= 0) return;
+      let allowed = false;
+      try {
+        // every plausible shape at once — the guard must fire before any of it
+        // is looked at, so a wrong parameter cannot be mistaken for a refusal
+        const r = b2.call(a, { token: plain, userId: rat.id, year: 2027, role: 'admin',
+          cashier: 1, entries: ['guptview'], reports: ['summary'], areas: [], position: '',
+          status: 'approved', access: '', frozen: 1, confirm: 'LIVE', receiptDigits: 6,
+          config: { program_on: 'on' }, name: 'x', nameBn: 'x', nameEn: 'x', kind: 'area',
+          id: rat.id, perms: 'cashier', store: 'payments', field: 'anomalyOk', decision: 'accept',
+          reason: 'x', appUser: 'ratan', phone: '9000000001' });
+        allowed = !(r && r.error);
+      } catch (e) { allowed = false; }
+      if (allowed) leaked.push(a);
+    });
+    eq(leaked.join(',') || '(none)', '(none)',
+       'backend A163: no action outside the open list answers a plain collector');
+  }
+
+  // --- A163: one book, read from six roles ---------------------------------
+  // The check Hrishi asked for by hand, kept. Every earlier confidentiality
+  // test asserted one rule at a time on rows built for it; this builds ONE
+  // book — an open donor, a sponsor, a গুপ্ত দান, a programme fund, a
+  // confidential handover — and asks each role what it can see. Two of the
+  // failures it first reported were the fixture's own fault (a handover with
+  // no breakdown, a party whose push was refused), which is the point: a
+  // fixture the screens could not have produced proves nothing.
+  {
+    const bk = loadBackend();
+    bk.api.setup();
+    const who = ['hrishi', 'kali', 'bimal', 'ratan', 'subrata'];
+    who.forEach(function (u, i) {
+      bk.post('register', { username: u, name: u, password: 'secret' + i, phone: '98700000' + i });
+    });
+    const a = bk.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+    const row = function (u) { return bk.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    who.slice(1).forEach(function (u) {
+      bk.call('setStatus', { token: a, userId: row(u).id, status: 'approved' });
+      bk.call('approveYear', { token: a, userId: row(u).id, year: 2026 });
+    });
+    bk.call('setEntries', { token: a, userId: row('kali').id,
+      entries: ['shop', 'person', 'sponsor', 'gupt', 'sponsorview', 'guptview'] });
+    bk.call('setEntries', { token: a, userId: row('bimal').id, entries: ['shop', 'person', 'sponsor', 'gupt'] });
+    bk.call('setEntries', { token: a, userId: row('ratan').id, entries: ['shop', 'person'] });
+    bk.call('setEntries', { token: a, userId: row('subrata').id, entries: ['shop', 'progteam', 'progdonor', 'progmoney', 'ticket'] });
+    bk.call('setCashier', { token: a, userId: row('kali').id, cashier: 1 });
+    const tk = { hrishi: a };
+    who.slice(1).forEach(function (u, i) {
+      tk[u] = bk.call('login', { username: u, password: 'secret' + (i + 1), year: 2026 }).token;
+    });
+    const put = function (u, store, r) { bk.call('push', { token: tk[u], records: [rec(store, r)] }); };
+    put('ratan', 'parties', { id: 'r-p1', year: 2026, type: 'shop', name: 'দোকান', pledged: 5000, sector: 'puja' });
+    put('ratan', 'payments', { id: 'r-y1', year: 2026, partyId: 'r-p1', partyName: 'দোকান', amount: 2000, cashAmount: 2000, upiAmount: 0, date: '2026-09-05' });
+    put('kali', 'parties', { id: 'r-p2', year: 2026, type: 'sponsor', name: 'Bose', pledged: 50000, sector: 'puja' });
+    put('kali', 'payments', { id: 'r-y2', year: 2026, partyId: 'r-p2', partyName: 'Bose', amount: 20000, cashAmount: 20000, upiAmount: 0, date: '2026-09-05' });
+    put('bimal', 'parties', { id: 'r-p3', year: 2026, type: 'gupt', name: 'শুভাকাঙ্ক্ষী', pledged: 0, sector: 'puja' });
+    put('bimal', 'payments', { id: 'r-y3', year: 2026, partyId: 'r-p3', partyName: 'শুভাকাঙ্ক্ষী', amount: 8000, cashAmount: 8000, upiAmount: 0, date: '2026-09-05' });
+    put('bimal', 'handovers', { id: 'r-h1', year: 2026, amount: 8000, cashAmount: 8000, upiAmount: 0,
+      toId: 'kali', toName: 'kali', date: '2026-09-05', status: 'confirmed',
+      breakdown: JSON.stringify({ gupt: { cash: 8000, upi: 0 } }) });
+
+    const sees = function (u) {
+      const d = (bk.call('pull', { token: tk[u], since: 0 }) || {}).data || {};
+      const k = {};
+      (d.parties || []).forEach(function (p) { k[p.type] = (k[p.type] || 0) + 1; });
+      return { kinds: k, parties: d.parties || [], payments: d.payments || [], handovers: d.handovers || [] };
+    };
+    const S = {}; who.forEach(function (u) { S[u] = sees(u); });
+
+    eq(!!(S.hrishi.kinds.sponsor && S.hrishi.kinds.gupt), true, 'backend A163: admin sees both confidential kinds');
+    eq(!!(S.kali.kinds.sponsor && S.kali.kinds.gupt), true, 'backend A163: both view grants see both');
+    eq(!S.ratan.kinds.sponsor && !S.ratan.kinds.gupt, true, 'backend A163: no view grant sees neither');
+    eq(!!S.bimal.kinds.gupt, true, 'backend A163: the writer sees their OWN গুপ্ত দান without guptview');
+    eq(!S.bimal.kinds.sponsor, true, 'backend A163: …and still not somebody else\'s sponsor');
+    eq(S.kali.handovers.length, 1, 'backend A163: guptview sees the handover of that money');
+    eq(S.ratan.handovers.length, 0, 'backend A163: …and nobody else does');
+
+    // whole parcels — the invariant the whole design rests on
+    who.forEach(function (u) {
+      const ids = {}; S[u].parties.forEach(function (p) { ids[p.id] = 1; });
+      const orphan = S[u].payments.filter(function (p) { return p.partyId && !ids[p.partyId]; });
+      eq(orphan.length, 0, 'backend A163: ' + u + ' holds no payment whose donor they cannot see');
+    });
+  }
 };

@@ -13183,3 +13183,52 @@ that the destination is still validated at all.
 
 Tests 2,402 (from 2,381). Schema stays 5. **This one genuinely needs the
 Apps Script redeploy** — the fix is entirely server-side.
+
+## 2026-09-05 — A163 v4.51.0: the checks themselves, kept
+
+A162 found its bug by reading one book from six roles and by trying
+every power from the wrong chair. Both sweeps were throwaway scripts.
+This release makes them tests, so nobody has to remember to run them —
+including me, next time I am about to say "সব সবুজ".
+
+**Every action, from the wrong chair.** All 52 entries in `ACTIONS` are
+now attempted by a plain approved collector, with every plausible
+parameter supplied at once so a wrong argument cannot be mistaken for a
+refusal. The cases are **derived from `Code.gs`**, not hand-listed —
+this project has now shipped the hand-written-list bug four times
+(A146–A149, A160), and a guard list is the worst possible place for the
+fifth. Only the deliberately-open actions are named; forgetting an entry
+there makes the test stricter, never blinder.
+
+Result: **no holes.** Every give/take pair — setRole, setCashier,
+setEntries, setReports, setAreas, setUserPosition, setStatus, setAccess
+— refuses a non-admin in *both* directions, which is the half this
+project has historically got wrong. Mutation-proved by turning
+`requireAdmin_` into `requireUser_` on `setEntries` and on `goLive`;
+both are named in the failure.
+
+**One book, six roles.** An open donor, a sponsor, a গুপ্ত দান, a
+programme fund and a confidential handover, read by admin, a treasurer
+with both view grants, the collector who took the গুপ্ত দান, a
+collector with no confidential grant at all, and the programme team.
+Twenty-three assertions, all green.
+
+### Two of its findings were the fixture's own fault
+
+Worth writing down, because both looked exactly like app bugs:
+
+- A collector appeared to see a confidential handover. The hand-written
+  handover row carried no `breakdown`, so the server had no way to know
+  which pot the money came from. The screen always fills it.
+- Every role appeared to hold an orphan payment. The party's push had
+  been **refused** (that refusal was A162's real bug) while its payment
+  went through, because my fixture pushed them separately — the flow
+  sends them together.
+
+Both are the A151 lesson again: **a fixture the screens could not have
+produced proves nothing**, and it accuses the app of things it did not
+do. The permanent test now builds its rows the way the flows build them,
+and `push` failures are reported rather than swallowed.
+
+Tests 2,416 (from 2,402). Schema stays 5. Client unchanged — this
+release is tests plus the version bump that keeps the three equal.
