@@ -14526,3 +14526,37 @@ Nothing to fix. Pinned; mutating the dues filter to include zero-due rows
 fails two older tests by name, one of them A62's rounding guard.
 
 Tests 2,595 (from 2,585).
+
+## 2026-09-06 — A193: editing, the audit line, and one cap that was client-only
+
+**A permission change is auditable, with who and what.** Granting
+`gupt` writes `entries · নাম-hrishi · @ratan → [shop,road,gupt]`;
+`setCashier` and `setReports` write their own lines. It records the NEW
+value and not the old one — which is precisely the gap already noted
+under Hrishi's audit item in pending.md, where `member:edit` is the
+counter-example that writes "কালী → কালীপদ".
+
+**Editing a donor is correct in every direction.** The same id updates
+**in place** — an edit is not a second donor — both name and pledge
+change, the **dues report follows the new pledge on its own** (₹5,000 →
+₹3,000 drops the total by exactly ₹2,000), the payment history is
+untouched, and **another collector cannot rewrite it**.
+
+**One real gap: the 500-character message cap was client-only.**
+`js/app.js` guards it twice — `maxlength` on the input and a slice in
+`sendMessage` — and its comment says exactly why: *"one pasted essay
+would ride every phone's pull forever"*. Messages ride **every** pull to
+**all twelve phones**, so an unbounded one is not a sheet-size problem,
+it is everybody's data and everybody's battery for the rest of the
+season. Measured: 600 characters pushed straight at the API were stored
+at 600.
+
+Now truncated server-side. **Truncated, not refused** — the sender meant
+their first 500 characters, and a refused row leaves their phone for good
+(A174's lesson, applied without being asked twice).
+
+Also confirmed on the way: with 💬 turned off in config, a message push
+does not land at all.
+
+Tests 2,605 (from 2,595). Mutation-proved. Schema stays 5. **Needs the
+deploy** — server-side.

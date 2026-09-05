@@ -2855,4 +2855,59 @@ module.exports = function runBackendTests(eq) {
     eq((dues.rows || []).some(function (r) { return String(r.type) === 'member'; }), false,
        'backend A192: …but a member never appears in বাকির তালিকা — nothing was promised, so nothing is owed');
   }
+
+  // --- A193: editing a donor, the audit line, and the message cap ----------
+  {
+    const be2 = loadBackend();
+    be2.api.setup();
+    ['hrishi', 'kali', 'ratan'].forEach(function (u, i) {
+      be2.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '84000000' + i });
+    });
+    let t0 = be2.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+    const rw = function (u) { return be2.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    ['kali', 'ratan'].forEach(function (u) {
+      be2.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+      be2.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+      be2.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'road'] });
+    });
+    const te = {};
+    ['hrishi', 'kali', 'ratan'].forEach(function (u, i) {
+      te[u] = be2.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+    });
+    t0 = te.hrishi;
+    const put = function (u, store, row) {
+      return ((be2.call('push', { token: te[u], records: [rec(store, row)] }) || {}).savedIds || []).length > 0;
+    };
+    const book = function () { return (be2.call('pull', { token: t0, year: 2026, since: 0 }) || {}).data || {}; };
+    const due = function () { return ((be2.call('report', { token: t0, id: 'dues', year: 2026 }) || {}).data || {}).totalDue; };
+
+    // a permission change is auditable, with WHO and WHAT
+    const n0 = be2.rows('Audit').length;
+    be2.call('setEntries', { token: t0, userId: rw('ratan').id, entries: ['shop', 'road', 'gupt'] });
+    const line = be2.rows('Audit').slice(n0)[0] || {};
+    eq(String(line.action), 'entries', 'backend A193: a permission change writes an audit line');
+    eq(/gupt/.test(String(line.detail)), true, 'backend A193: …naming what was granted');
+    eq(String(line.actor).length > 0, true, 'backend A193: …and who granted it');
+
+    // editing a donor in place
+    put('ratan', 'parties',  { id: 'ed1', year: 2026, type: 'shop', name: 'পুরনো নাম', pledged: 5000, side: 'main_malda', sector: 'puja' });
+    put('ratan', 'payments', { id: 'ey1', year: 2026, partyId: 'ed1', partyName: 'পুরনো নাম', amount: 2000, cashAmount: 2000, upiAmount: 0, date: '2026-09-05' });
+    const before = due();
+    eq(put('ratan', 'parties', { id: 'ed1', year: 2026, type: 'shop', name: 'নতুন নাম', pledged: 3000, side: 'main_malda', sector: 'puja' }), true,
+       'backend A193: a collector may correct their own donor');
+    const rows = (book().parties || []).filter(function (p) { return p.id === 'ed1'; });
+    eq(rows.length, 1, 'backend A193: …in place — an edit is not a second donor');
+    eq(rows[0].name + '|' + rows[0].pledged, 'নতুন নাম|3000', 'backend A193: …with both fields changed');
+    eq(due(), before - 2000, 'backend A193: …and the dues report follows the new pledge on its own');
+    eq((book().payments || []).filter(function (p) { return p.partyId === 'ed1'; }).length, 1,
+       'backend A193: …while the payment history is untouched');
+    eq(put('kali', 'parties', { id: 'ed1', year: 2026, type: 'shop', name: 'কালীর বদল', pledged: 9999, side: 'main_malda', sector: 'puja' }), false,
+       'backend A193: …and another collector cannot rewrite it');
+
+    // the message cap, on the side that decides
+    put('ratan', 'messages', { id: 'ms1', year: 2026, text: 'ক'.repeat(600), date: '2026-09-05', createdAt: new Date().toISOString() });
+    const msg = (book().messages || []).filter(function (m) { return m.id === 'ms1'; })[0] || {};
+    eq(String(msg.text || '').length, 500,
+       'backend A193: a 600-character message is stored at 500 — messages ride every pull to every phone');
+  }
 };

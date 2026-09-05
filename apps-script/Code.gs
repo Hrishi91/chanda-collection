@@ -1246,7 +1246,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.61.0';
+var CODE_VERSION = 'chanda-v4.62.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1548,6 +1548,19 @@ var ACTIONS = {
             !isCashier && !(isProgramRow_(r.row) && hasProg_(user, 'progmoney'))) {
           rejectedIds.push(r.row.id); return;
         }
+        // A193: the 500-character cap, on the side that decides.
+        //
+        // js/app.js guards it twice — `maxlength` on the input and a slice in
+        // sendMessage — and its comment says exactly why: "one pasted essay
+        // would ride every phone's pull forever". Messages ride EVERY pull to
+        // all twelve phones, so an unbounded one is not a sheet-size problem,
+        // it is everybody's data and everybody's battery, for the rest of the
+        // season. Measured: a 600-character message pushed straight at the API
+        // was stored at 600.
+        //
+        // Truncate rather than refuse: the sender meant the first 500
+        // characters, and a refused row leaves their phone for good (A174).
+        if (r.store === 'messages') r.row.text = String(r.row.text || '').slice(0, 500);
         if (r.store === 'voids' && !voidAllowed_(user, r.row)) { rejectedIds.push(r.row.id); return; }
         // A60 (audit 2.1): correcting a DONOR row is now offered in the UI
         // (canEditParty), so the rule has to exist here too or it is decoration.
