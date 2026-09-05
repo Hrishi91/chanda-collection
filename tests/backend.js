@@ -1983,4 +1983,98 @@ module.exports = function runBackendTests(eq) {
          'backend A166: [' + mode.label + '] every pushed row lands in exactly one list');
     });
   }
+
+  // --- A167: void and correction, from every chair -------------------------
+  // Both take money OUT of the book, so a hole here is money, not a screen.
+  // The find: voidAllowed_ said `return true` for one's OWN row under the
+  // comment "undo / self-correction", while js/app.js canVoid has said the
+  // opposite ("never one's own") all along. The server is the authority and
+  // the server was the permissive one, so the screen's rule was decoration —
+  // a collector reaching the API directly could erase a payment they had
+  // taken, the book would still balance (the row leaves, their in-hand falls
+  // by the same amount), and the cash would simply be gone. This file already
+  // spells that danger out word for word, for a collector on their way out.
+  {
+    function vBook() {
+      const bv = loadBackend();
+      bv.api.setup();
+      const cast = ['hrishi', 'kali', 'ratan', 'tapan'];
+      cast.forEach(function (u, i) {
+        bv.post('register', { username: u, name: u, password: 'secret' + i, phone: '98200000' + i });
+      });
+      let t0 = bv.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+      const rw = function (u) { return bv.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+      cast.slice(1).forEach(function (u) {
+        bv.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+        bv.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+        bv.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'person', 'road', 'review'] });
+      });
+      bv.call('setCashier', { token: t0, userId: rw('kali').id, cashier: 1 });
+      const tv = {};
+      cast.forEach(function (u, i) { tv[u] = bv.call('login', { username: u, password: 'secret' + i, year: 2026 }).token; });
+      const put = function (u, store, row) {
+        const r = bv.call('push', { token: tv[u], records: [rec(store, row)] });
+        return (r.savedIds || []).length > 0;
+      };
+      put('ratan', 'parties',  { id: 'v-p1', year: 2026, type: 'shop', name: 'A', pledged: 5000, sector: 'puja' });
+      put('ratan', 'payments', { id: 'v-y1', year: 2026, partyId: 'v-p1', partyName: 'A', amount: 2000, cashAmount: 2000, upiAmount: 0, date: '2026-09-05' });
+      put('ratan', 'daily',    { id: 'v-d1', year: 2026, type: 'road', amount: 900, cashAmount: 900, upiAmount: 0, date: '2026-09-05', sector: 'puja' });
+      put('ratan', 'parties',  { id: 'v-p5', year: 2026, type: 'shop', name: 'empty', pledged: 400, sector: 'puja' });
+      put('tapan', 'parties',  { id: 'v-p2', year: 2026, type: 'shop', name: 'B', pledged: 3000, sector: 'puja' });
+      put('tapan', 'payments', { id: 'v-y2', year: 2026, partyId: 'v-p2', partyName: 'B', amount: 1500, cashAmount: 1500, upiAmount: 0, date: '2026-09-05' });
+      put('hrishi','parties',  { id: 'v-p3', year: 2026, type: 'shop', name: 'C', pledged: 1000, sector: 'puja' });
+      put('hrishi','payments', { id: 'v-y3', year: 2026, partyId: 'v-p3', partyName: 'C', amount: 700, cashAmount: 700, upiAmount: 0, date: '2026-09-05' });
+      put('kali',  'parties',  { id: 'v-p4', year: 2026, type: 'shop', name: 'D', pledged: 800, sector: 'puja' });
+      return { put: put };
+    }
+    let vn = 0;
+    const canVoid = function (who, store, id) {
+      return vBook().put(who, 'voids', { id: 'a167-' + (++vn), year: 2026,
+        targetStore: store, targetId: id, reason: 'test', date: '2026-09-05' });
+    };
+    // A collector CAN void their own row, and that is the UNDO path — the
+    // 5-second toast writes a void with reason 'undo' on a row that may
+    // already be on its way to the Sheet, where a local delete would
+    // resurrect on the next pull. js/app.js canVoid says "never one's own"
+    // about a DIFFERENT door: the ✖️ বাতিল button on old rows, where the
+    // right path is a correction flag. Two doors, two rules, both correct —
+    // asserted here so the next person who spots the "contradiction" reads
+    // this instead of removing the feature, which is what I did.
+    eq(canVoid('ratan', 'payments', 'v-y1'), true,
+       'backend A167: a collector may void their OWN payment — this is Undo');
+    eq(canVoid('ratan', 'daily', 'v-d1'), true, 'backend A167: …and their own daily row');
+    eq(canVoid('kali', 'parties', 'v-p4'), true,
+       'backend A167: …the cashier likewise, on the row they just wrote');
+    eq(canVoid('tapan', 'payments', 'v-y1'), false,
+       'backend A167: one collector cannot void another\'s work');
+    eq(canVoid('kali', 'payments', 'v-y1'), true,
+       'backend A167: the cashier may void a collector\'s payment — that is the desk\'s job');
+    eq(canVoid('kali', 'payments', 'v-y3'), false,
+       'backend A167: …but not an admin\'s row');
+    eq(canVoid('hrishi', 'payments', 'v-y2'), true, 'backend A167: the admin may void anyone\'s');
+    eq(canVoid('hrishi', 'parties', 'v-p1'), false,
+       'backend A167: nobody may void a donor that has money on it — its payments would be orphaned');
+    eq(canVoid('kali', 'parties', 'v-p5'), true,
+       'backend A167: …while a donor with nothing on it can go');
+
+    // Two shapes that look dangerous and are not — recorded so they are not
+    // "fixed" into something worse later.
+    const A = require('../js/aggregate.js');
+    const base = { parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'X', pledged: 5000 }],
+      payments: [{ id: 'y1', year: 2026, partyId: 'p1', partyName: 'X', amount: 2000,
+                   cashAmount: 2000, upiAmount: 0, date: '2026-09-05', collectorId: 'ratan' }],
+      daily: [], expenses: [], handovers: [], corrections: [] };
+    const live = function (voids) {
+      return A.activeData(Object.assign({}, base, { voids: voids }))
+        .payments.reduce(function (a, p) { return a + (Number(p.amount) || 0); }, 0);
+    };
+    eq(live([]), 2000, 'backend A167: unvoided money counts');
+    eq(live([{ id: 'v1', targetStore: 'payments', targetId: 'y1' }]), 0, 'backend A167: a void removes it');
+    eq(live([{ id: 'v1', targetStore: 'payments', targetId: 'y1' },
+             { id: 'v2', targetStore: 'payments', targetId: 'y1' }]), 0,
+       'backend A167: a SECOND void of the same row does not subtract twice — voidedIds is a set');
+    eq(live([{ id: 'v1', targetStore: 'payments', targetId: 'y1' },
+             { id: 'v2', targetStore: 'voids', targetId: 'v1' }]), 0,
+       'backend A167: and voiding the void does NOT bring the money back — no undo-the-undo door');
+  }
 };

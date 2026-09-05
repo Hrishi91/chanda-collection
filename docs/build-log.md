@@ -13407,3 +13407,73 @@ takes the bump and the deploy together.
 The tri-equality rule is what makes this safe to get wrong loudly — the
 suite pins `APP_VERSION` = `VERSION` = `CODE_VERSION`, so a half-done
 bump cannot ship.
+
+## 2026-09-05 — A167: the void and correction paths — and a "bug" I invented
+
+"Check the void and correction paths." Both take money OUT of the book,
+so a hole here is money, not a screen. Ten who-may-void-what cells across
+four roles, plus the correction desk, plus the arithmetic.
+
+**Everything was already correct.** The only code change this release is
+a comment — but the wrong turn on the way there is worth more than the
+result, so it is written down in full.
+
+### What I got wrong
+
+`voidAllowed_` returns `true` for one's OWN row, under the comment
+"undo / self-correction". `js/app.js canVoid` says the opposite —
+"never one's own". I read those two lines, called it a client/server
+contradiction of exactly the kind this project keeps finding, wrote the
+fix, and shipped it into the suite.
+
+Then A59, A60 and backend 2.9 failed by name:
+
+> *"a collector may still void their own row"*
+> *"a void travelling in the SAME batch as its target is accepted"*
+
+They were not stale pins. They were **naming the feature I was
+deleting**: the 5-second Undo toast. `attemptUndo` writes a void with
+`reason: 'undo'` on your own just-saved row, because a row that may
+already be in flight cannot be retracted by a local delete — it would
+resurrect on the next pull. The server *must* permit a self-void.
+
+`canVoid` governs a **different door**: the ✖️ বাতিল button on OLD rows,
+where the right path is to flag a correction and let the cashier decide.
+Two doors, two rules, both correct. Reverted, and the reasoning is now a
+comment in `voidAllowed_` and an assertion in `tests/backend.js`, so the
+next person who spots the "contradiction" reads why before removing it.
+
+The lesson is not "trust the tests" — it is that **a contradiction
+between two rules is only real once you know which door each one
+guards**, and I never asked.
+
+### The residual gap, filed where it belongs
+
+The server cannot tell an undo three seconds later from a self-erasure
+tomorrow: the void carries no timestamp it can trust. That is the same
+root as pending.md item 7 (the freeze hold trusts client `createdAt`),
+so they are now one item. Recorded with an explicit warning not to
+"fix" it by refusing self-voids.
+
+### What the sweep did confirm
+
+- A collector cannot touch another collector's row; a cashier can void a
+  collector's but not an admin's; the admin may void anyone's.
+- **No donor with money on it can be voided — not even by the admin.**
+  Its payments would be orphaned. A donor with nothing on it can go.
+- A void removes the money from every live total while the row stays in
+  the book with a ✖️ tag naming who and why — it is a ledger, not a
+  delete.
+- **A second void of the same row does not subtract twice** (the filter
+  is membership, not a sum), and **voiding a void does not bring the
+  money back** — there is no undo-the-undo door. Both look dangerous and
+  are not; asserted so they are not "fixed" into something worse.
+- Anyone may flag a correction on anyone's row — seeing a mistake is not
+  a privilege — but **nobody may rule on their own flag**; that is the
+  cashier's, and only with the `review` grant.
+
+Tests 2,448 (from 2,435). Five mutations; the one that survived was
+chased down rather than waved through — it turned out to prove that
+double-subtraction is structurally impossible, and a sharper mutation
+(ignore voids entirely) confirmed the assertions are live. Version stays
+v4.53.0: no behaviour changed.

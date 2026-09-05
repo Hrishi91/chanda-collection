@@ -3542,7 +3542,24 @@ function voidAllowed_(u, row) {
   if (u.row.role === 'admin') return true;
   var owner = targetOwner_(String(row.targetStore || ''), row.targetId);
   if (!owner) return false;
-  if (owner.collectorId && owner.collectorId === u.row.username) return true; // undo / self-correction
+  // A167: this `true` is the UNDO path, not an oversight. The 5-second toast
+  // after a save writes a void on your OWN row with reason 'undo' (js/app.js
+  // attemptUndo), because a row that may already be on its way to the Sheet
+  // cannot be retracted by a local delete — it would resurrect on the next
+  // pull. So the server must permit a self-void.
+  //
+  // js/app.js canVoid says the opposite ("never one's own"), and that is NOT a
+  // contradiction: it gates the ✖️ বাতিল button on OLD rows, where the right
+  // path is to flag a correction and let the cashier decide. Two doors, two
+  // rules, both correct. I tried to "fix" this and the A59 / A60 / 2.9 tests
+  // named the feature I was breaking.
+  //
+  // The residual gap is real but narrower than it looks: the server cannot
+  // tell an undo three seconds later from a self-erasure tomorrow, because
+  // the void carries no trustworthy timestamp. See pending.md — it belongs
+  // with item 7 (freeze hold trusts client createdAt), and needs a
+  // server-stamped createdAt to fix properly.
+  if (owner.collectorId && owner.collectorId === u.row.username) return true;
   return isCashier_(u.row) && owner.role === 'collector';
 }
 // A59: same one-read index. rowRole_ is applied on the way IN now, so rows

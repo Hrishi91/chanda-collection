@@ -754,6 +754,21 @@ rough order of value:
    server accepts any collector, UI offers admin only. Harmless until somebody
    hand-types a row; align the two.
 7. **Freeze hold trusts client createdAt** — blank/backdated stamps slide past.
+   **A167 found a second symptom of the same root, so fix them together.**
+   `voidAllowed_` permits a collector to void their OWN row, and it must:
+   that is the Undo path (js/app.js `attemptUndo` writes a void with
+   `reason: 'undo'` on a row that may already be in flight, where a local
+   delete would resurrect on the next pull). But the server cannot tell an
+   undo three seconds later from a self-erasure tomorrow, because the void
+   carries no timestamp it can trust — the same weakness as the freeze hold.
+   The danger, in this file's own words from the `exiting` gate: the row
+   leaves the book, the collector's in-hand falls by the same amount, the
+   arithmetic still balances, and the cash is simply gone.
+   What limits it today: the void row is kept and shown (✖️ tag with who and
+   why on the party screen), the 🩺 desk sees the shape, and a cashier reviews.
+   Proper fix: a server-stamped `createdAt` on every row, then a short window
+   for self-voids — which also closes item 7. **Do not "fix" it by refusing
+   self-voids**; that removes Undo, and A59 / A60 / backend 2.9 will say so.
    Inherent to offline design; note kept so nobody mistakes it for a guarantee.
 8. **Mixed-year push batches mint serials from the first row's year** — only
    matters in the New-Year straddle window.
