@@ -2308,4 +2308,94 @@ module.exports = function runBackendTests(eq) {
     eq(busNo.length > 0, true, 'backend A172: a bus collection gets a receipt number too');
     eq(nos().indexOf(busNo), -1, 'backend A172: …drawn from the same run, so it can never repeat a payment\'s');
   }
+
+  // --- A173: 🚀 goLive, and the undo it promises ----------------------------
+  // The most consequential button in the app, about to be pressed for real.
+  // The checklist handed to Hrishi claims what survives and what goes; this
+  // measures that claim against the handler, and then checks the safety net
+  // actually catches — a mandatory backup nobody has ever restored from is a
+  // promise, not a net.
+  {
+    function liveBook() {
+      const bg = loadBackend();
+      bg.api.setup();
+      ['hrishi', 'kali', 'ratan'].forEach(function (u, i) {
+        bg.post('register', { username: u, name: u, password: 'secret' + i, phone: '93000000' + i });
+      });
+      let t0 = bg.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+      const rw = function (u) { return bg.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+      ['kali', 'ratan'].forEach(function (u) {
+        bg.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+        bg.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+        bg.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'person', 'gupt', 'guptview'] });
+        bg.call('setAreas', { token: t0, userId: rw(u).id, areas: ['main_malda'] });
+      });
+      bg.call('setCashier', { token: t0, userId: rw('kali').id, cashier: 1 });
+      bg.call('addItem', { token: t0, kind: 'area', nameBn: 'মেন রোড', nameEn: 'Main Rd' });
+      bg.call('addSubject', { token: t0, name: 'প্যান্ডেল' });
+      bg.call('setConfig', { token: t0, config: { program_on: 'on', target_amount: '250000' } });
+      const tg = {};
+      ['hrishi', 'kali', 'ratan'].forEach(function (u, i) {
+        tg[u] = bg.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+      });
+      const put = function (u, store, row) { bg.call('push', { token: tg[u], records: [rec(store, row)] }); };
+      put('ratan', 'parties',  { id: 'bp1', year: 2026, type: 'shop', name: 'আদর্শ', pledged: 5000, side: 'main_malda', sector: 'puja' });
+      put('ratan', 'payments', { id: 'by1', year: 2026, partyId: 'bp1', partyName: 'আদর্শ', amount: 2000, cashAmount: 2000, upiAmount: 0, date: '2026-09-05' });
+      put('kali',  'parties',  { id: 'bp2', year: 2026, type: 'gupt', name: 'গোপন', pledged: 0, sector: 'puja' });
+      put('kali',  'payments', { id: 'by2', year: 2026, partyId: 'bp2', partyName: 'গোপন', amount: 9000, cashAmount: 9000, upiAmount: 0, date: '2026-09-05' });
+      return { bg: bg, tg: tg, rw: rw };
+    }
+    const money = function (bg) {
+      return bg.rows('Payments').reduce(function (a, p) { return a + (Number(p.amount) || 0); }, 0);
+    };
+    const cfgVal = function (bg, k) {
+      const r = bg.rows('Config').filter(function (x) { return x.key === k; })[0];
+      return r ? String(r.value) : '';
+    };
+
+    // what survives, measured — this is the checklist's claim
+    let L = liveBook();
+    const usersBefore = L.bg.rows('Users').length, listsBefore = L.bg.rows('Lists').length;
+    const permsBefore = String(L.rw('kali').entries || '');
+    L.bg.call('goLive', { token: L.tg.hrishi, confirm: 'LIVE', digits: 6 });
+    eq(L.bg.rows('Parties').length + L.bg.rows('Payments').length, 0, 'backend A173: 🚀 wipes every entry');
+    eq(L.bg.rows('Users').length, usersBefore, 'backend A173: …and keeps the accounts');
+    eq(String(L.rw('kali').entries || ''), permsBefore, 'backend A173: …and their permissions, untouched');
+    eq(L.bg.rows('Lists').length, listsBefore, 'backend A173: …and the areas and posts');
+    eq(L.bg.rows('ExpenseSubjects').length > 0, true, 'backend A173: …and the expense subjects');
+    eq(cfgVal(L.bg, 'program_on'), 'on', 'backend A173: …and the 🎭 fund switch');
+    eq(cfgVal(L.bg, 'target_amount'), '250000', 'backend A173: …and the 🎯 target');
+    eq(cfgVal(L.bg, 'receipt_digits'), '6', 'backend A173: …while the receipt width is locked in');
+
+    // one-way, and typed
+    let thrown = '';
+    try { L.bg.call('goLive', { token: L.tg.hrishi, confirm: 'LIVE', digits: 6 }); } catch (e) { thrown = String(e.message || e); }
+    eq(thrown, 'already-live', 'backend A173: a second 🚀 is refused — it would erase the season\'s real takings');
+    L = liveBook();
+    thrown = '';
+    try { L.bg.call('goLive', { token: L.tg.hrishi, digits: 6 }); } catch (e) { thrown = String(e.message || e); }
+    eq(thrown, 'confirm-required', 'backend A173: …and the typed word must actually reach the server');
+
+    // THE safety net: if the backup cannot be written, nothing may be destroyed
+    L = liveBook();
+    L.bg.env.DriveApp.createFolder = function () { throw new Error('Drive quota exceeded'); };
+    L.bg.env.DriveApp.getFoldersByName = function () { throw new Error('Drive quota exceeded'); };
+    thrown = '';
+    try { L.bg.call('goLive', { token: L.tg.hrishi, confirm: 'LIVE', digits: 6 }); } catch (e) { thrown = String(e.message || e); }
+    eq(/^backup-failed/.test(thrown), true, 'backend A173: a failed backup stops 🚀 dead');
+    eq(cfgVal(L.bg, 'live_mode'), '', 'backend A173: …live_mode is never set');
+    eq(money(L.bg), 11000, 'backend A173: …and NOT ONE ROW is deleted without a snapshot behind it');
+
+    // and the net actually catches: backup → wipe → restore
+    L = liveBook();
+    const before = money(L.bg);
+    const bk = L.bg.call('backupNow', { token: L.tg.hrishi });
+    L.bg.call('goLive', { token: L.tg.hrishi, confirm: 'LIVE', digits: 6 });
+    eq(money(L.bg), 0, 'backend A173: after 🚀 the money is gone');
+    L.bg.call('restoreBackup', { token: L.tg.hrishi, fileId: bk.file, confirm: 'RESTORE' });
+    eq(money(L.bg), before, 'backend A173: …and restore brings back the exact figure, ₹' + before);
+    eq(L.bg.rows('Payments').length, 2, 'backend A173: …every row, including the গুপ্ত দান');
+    eq(String(L.rw('kali').passwordHash || '').length > 0, true,
+       'backend A173: …with password hashes intact, so people can still log in (A52\'s bug, still fixed)');
+  }
 };

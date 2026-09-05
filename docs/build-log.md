@@ -13708,3 +13708,54 @@ batch take the same number collapses six donors onto three serials and
 is caught by name.
 
 Tests 2,483 (from 2,475). No behaviour changed; version stays v4.55.0.
+
+## 2026-09-05 — A173: 🚀 goLive, and the undo it promises
+
+The most consequential button in the app, days from being pressed for
+real. The checklist handed to Hrishi claims what survives and what goes;
+this measures the claim against the handler, and then asks the question
+that matters more — **has anyone ever restored from the mandatory
+backup?**
+
+**The claim holds.** 🚀 and 🧹 both wipe every entry and keep: accounts,
+their permissions and areas, committee posts, expense subjects, the 🎭
+fund switch, the 🎯 target and the puja name. 🚀 additionally locks the
+receipt width (verified with `digits: 8` → `202600000001`) and resets the
+serial to 1.
+
+**The guards hold.** A second 🚀 is refused (`already-live`) — without
+that it is a "delete the season's takings" button. The typed word must
+actually reach the server (`confirm-required`), not merely be typed on
+the phone.
+
+**The safety net is real, and it catches.** With Drive made to fail:
+goLive throws `backup-failed`, `live_mode` is never set, and **not one
+row is deleted**. Then the round trip, end to end: backup → 🚀 wipes
+everything → `restoreBackup` brings back the exact figure (₹11,000),
+every row including the গুপ্ত দান, and **the password hashes**, so people
+can still log in. That last one is A52's bug — the backup wrote `users`
+lowercase and restore looked for `Users`, silently losing every account
+on the one action that is goLive's only undo. Still fixed, now proved by
+running it rather than by reading it.
+
+Worth telling Hrishi: **🧹 clearTraining takes the same mandatory
+snapshot.** The checklist mentions it only for 🚀.
+
+### Three parameter names guessed, three times wrong
+
+`receiptDigits` (it is `digits`), `id` (it is `fileId`), and a mutation
+aimed at `clearTraining`'s copy of a guard that also exists in `goLive`.
+Each looked like a finding for a minute. The habit that caught all three
+is the same one: when a check says something surprising, assume the
+check is wrong first and go read the caller.
+
+### And a mutation that "survived" — the third this session
+
+Making the backup best-effort changed nothing. The anchor matched, the
+file parsed, the tests passed. The two guards are **textually
+identical**, and `replace(..., 1)` had rewritten `clearTraining`'s.
+Aimed at goLive's own copy, all three assertions fail loudly, including
+"NOT ONE ROW is deleted". A mutation that lands somewhere else is not a
+surviving mutation — it is no mutation at all.
+
+Tests 2,500 (from 2,483). No behaviour changed; version stays v4.55.0.
