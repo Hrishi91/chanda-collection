@@ -122,6 +122,23 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
   eq(/setTimeout\(function \(\) \{ startOnce\(null\); \}, \d+\)/.test(A), true, 'A183: 🤝 জমা still guarded (A176)');
   eq(/paint\(msgUserCache \|\| \[\]\);/.test(A), true, 'A183: @ picker still guarded (A182)');
 }
+
+// A195: a phone behind the server's contract. Measured on screen: the red bar
+// appears, the home screen says "নতুন entry বন্ধ", and every entry tile is
+// gone — but 🤝 জমা দিলাম and 📗 জমা-খাতা REMAIN. That is the part worth
+// pinning: an out-of-date phone must still be able to hand in the cash it is
+// already holding. Money in a pocket does not wait for an app update.
+{
+  const A2 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/if \(key && Auth\.schemaCmp\(\) === -1\) return false;/.test(A2), true,
+     'A195: being behind the contract turns every keyed entry permission off');
+  const canEntry = (A2.match(/function canEntry\(key\)[\s\S]{0,400}?\n  \}/) || [''])[0];
+  eq(/if \(key &&/.test(canEntry), true,
+     'A195: …and it is guarded on the KEY, so a keyless door is deliberately left open');
+  // the two doors that must survive it
+  eq(/data-go="handover"|dataset\.go === 'handover'|'handover'/.test(A2), true,
+     'A195: the handover door exists to be that keyless one');
+}
 eq(parseAmount('৫০০'), 500, 'bengali digits');
 eq(parseAmount(' ৫,০০০ টাকা '), 5000, 'bengali digits + comma + টাকা');
 eq(parseAmount('₹1,250'), 1250, 'rupee sign + comma');

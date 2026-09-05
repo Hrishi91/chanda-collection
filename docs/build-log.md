@@ -14607,3 +14607,31 @@ fund comes from its donor (`ofSector` reads the party), so money cannot
 be filed into the wrong book by the payment row.
 
 Tests 2,611 (from 2,605). No code changes.
+
+## 2026-09-06 — A195: a phone left behind, and the English voice
+
+**The stale-version guard, driven on screen** by faking a server schema
+ahead of the app's. It is the guard that matters most operationally,
+because the one thing this project has failed at most often is getting a
+new version onto twelve phones.
+
+What the collector sees: a **red bar** with an update button, and a home
+screen that says **"🔴 পুরনো version — নতুন entry বন্ধ"** with the two
+version numbers and a second update button. **Every entry tile is gone.**
+
+And the part worth keeping: **🤝 জমা দিলাম and 📗 জমা-খাতা remain.** An
+out-of-date phone cannot write anything new, but it can still **hand in
+the cash it is already holding**. Money in somebody's pocket does not
+wait for an app update. The mechanism is `canEntry`'s guard being on the
+KEY — `if (key && schemaCmp() === -1)` — so a keyless door stays open by
+construction. Pinned; removing it fails A36 as well as the new
+assertion.
+
+**The English voice.** Only bn-IN had been driven. Switching the app to
+English switches the recogniser too — `lang: en-IN` — and *"two thousand
+five hundred"* comes back as **"Understood: ₹2,500"** in a flow that is
+English throughout. The parser handles English number words as well as
+Bengali ones, which A169 had shown for text but not through the mic
+path.
+
+Tests 2,614 (from 2,611). No code changes.
