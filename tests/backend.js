@@ -2799,4 +2799,60 @@ module.exports = function runBackendTests(eq) {
        'backend A191: …and leaves the money exactly where it was');
     eq((d3.voids || []).length, 0, 'backend A191: …writing no void at all');
   }
+
+  // --- A192: buses and committee members ------------------------------------
+  // Two kinds with rules of their own that nothing else shares.
+  {
+    const bb2 = loadBackend();
+    bb2.api.setup();
+    ['hrishi', 'kali', 'ratan'].forEach(function (u, i) {
+      bb2.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '85000000' + i });
+    });
+    let t0 = bb2.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+    const rw = function (u) { return bb2.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    ['kali', 'ratan'].forEach(function (u) {
+      bb2.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+      bb2.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+      bb2.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'bus', 'member', 'memberadmin', 'road'] });
+    });
+    const tb = {};
+    ['hrishi', 'kali', 'ratan'].forEach(function (u, i) {
+      tb[u] = bb2.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+    });
+    t0 = tb.hrishi;
+    const put = function (u, store, row) {
+      return ((bb2.call('push', { token: tb[u], records: [rec(store, row)] }) || {}).savedIds || []).length > 0;
+    };
+    const book = function () { return (bb2.call('pull', { token: t0, year: 2026, since: 0 }) || {}).data || {}; };
+    const A6 = require('../js/aggregate.js');
+
+    const BUS = { year: 2026, type: 'bus', busName: 'সোনালী পরিবহন', busNumber: 'WB-59-1234',
+                  amount: 2500, cashAmount: 2500, upiAmount: 0, date: '2026-09-05', sector: 'puja' };
+    eq(put('ratan', 'daily', Object.assign({ id: 'b1' }, BUS)), true, 'backend A192: a bus collection saves');
+    const bus = (book().daily || []).filter(function (d) { return d.id === 'b1'; })[0] || {};
+    eq(bus.busName + '|' + bus.busNumber, 'সোনালী পরিবহন|WB-59-1234',
+       'backend A192: …keeping the two fields only a bus has');
+    eq(String(bus.receiptNo || '').length > 0, true,
+       'backend A192: …and a receipt number, because a bus is handed one too');
+    eq(put('ratan', 'daily', Object.assign({ id: 'b2' }, BUS)), true,
+       'backend A192: the SERVER does not refuse the same bus twice — a bus can be collected from twice in a day');
+    eq(((A6.reconcile(book(), {}) || {}).anomalies || []).map(function (a) { return a.type; })
+       .indexOf('possible_duplicate_daily') >= 0, true,
+       'backend A192: …the 🩺 desk asks about it instead, which is the right place for a maybe');
+    const rt = (A6.inHandRows(book()) || []).filter(function (x) { return /ratan/.test(String(x.collector)); })[0] || {};
+    eq(rt.inHand, 5000, 'backend A192: and the bus money is in the collector\'s hand like any other');
+
+    // a committee member: no pledge, so no dues — the rule that keeps the
+    // বাকির তালিকা about donors who promised something
+    bb2.call('saveMember', { token: t0, name: 'নাম-kali', appUser: 'kali', phone: '9000000001', year: 2026 });
+    const mem = (book().parties || []).filter(function (p) { return p.type === 'member'; })[0] || {};
+    eq(mem.appUser, 'kali', 'backend A192: a member row carries the linked account');
+    eq(Number(mem.pledged || 0), 0, 'backend A192: …and no pledge — a member gives what they give');
+    eq(put('ratan', 'payments', { id: 'mp1', year: 2026, partyId: mem.id, partyName: mem.name,
+        amount: 700, cashAmount: 700, upiAmount: 0, date: '2026-09-05', note: 'মাসিক' }), true,
+       'backend A192: …their contribution is taken like any other payment');
+    const dues = (bb2.call('report', { token: t0, id: 'dues', year: 2026 }) || {}).data || {};
+    eq((dues.rows || []).some(function (r) { return String(r.type) === 'member'; }), false,
+       'backend A192: …but a member never appears in বাকির তালিকা — nothing was promised, so nothing is owed');
+  }
 };

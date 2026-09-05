@@ -14499,3 +14499,30 @@ Two of my assertions failed first and both were mine: subtracting from an
 
 Tests 2,585 (from 2,578). Pinned and mutation-proved — attributing every
 payment to one person fails three older in-hand tests by name.
+
+## 2026-09-06 — A192: buses, and committee members
+
+Two kinds with rules nothing else shares.
+
+**A bus** keeps two fields no other row has — `busName` and `busNumber` —
+and gets a **receipt number**, because somebody hands a bus conductor a
+slip like any other donor. Its money lands in the collector's hand like
+any other collection.
+
+And a deliberate non-rule: **the server does not refuse the same bus
+twice in a day.** It shouldn't — a bus can genuinely be collected from
+twice — so the 🩺 desk raises `possible_duplicate_daily` and asks
+instead. Refusal is for what is certainly wrong; a question is for what
+is only probably wrong. Same shape as the payment guard (A179).
+
+**A committee member** carries a linked account and **no pledge**. That
+second fact is the interesting one: because nothing was promised, a
+member **never appears in the বাকির তালিকা** — which keeps that report
+about donors who agreed to something and have not paid it. Their
+contribution is taken like any other payment; only the chasing list
+leaves them alone.
+
+Nothing to fix. Pinned; mutating the dues filter to include zero-due rows
+fails two older tests by name, one of them A62's rounding guard.
+
+Tests 2,595 (from 2,585).
