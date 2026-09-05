@@ -13818,3 +13818,55 @@ admin release it? Holding is deliberately the safe half — a backdated
 
 Tests 2,508 (from 2,500). Three mutations, all caught. Schema stays 5.
 **Needs the deploy** — the gate is server-side.
+
+## 2026-09-05 — A175 v4.57.0: a season was a door with no wall around it
+
+The three surfaces nobody had driven: year scoping, the committee
+register, and sessions. Two were already right. One was not.
+
+**`approveYear` gated login and nothing else.** `hasYear_` appears in
+exactly one place in `Code.gs` — the login handler. After that the token
+carries no year, and every handler takes `b.year` from the caller.
+
+Measured, with somebody deliberately not carried into 2027:
+
+- 2027 login → **refused**, `year-not-approved`. The boundary is stated
+  out loud, which is what makes the rest a hole rather than a design.
+- 2027 `pull` with their **2026 token** → the whole season came back:
+  ₹31,000 and every donor name.
+- 2027 `push` → **written**.
+
+No screen sends a year but its own, so this is the direct-call path
+again — the same shape as A164's dues leak, and this file closes those on
+purpose (see `confirmHandover`'s not-recipient guard, which exists for
+exactly that reason).
+
+Now `pull` and `report` refuse an unapproved season with the same word
+login uses, so the two agree about what a season is. A `push` into one is
+**held, never refused** — A174's lesson, one release old: a refused row
+leaves the phone for good, and a wrong year is either tampering (which
+loses nothing by waiting) or a clock that rolled over, where the year is
+wrong but the money is real.
+
+**The admin is exempt, and must be.** `rolloverYear`, `backupNow` and
+`restoreBackup` all reach across seasons, and an admin's own `years`
+holds only the year they registered in. The mutation that removes that
+exemption fails by name.
+
+### Checked at the same time, and already correct
+
+- **The committee register:** an admin writes somebody else's row;
+  **nobody writes their own** (`member-self`), admin included; one
+  account cannot be linked to two rows (`account-taken`); a member row
+  needs an account (`member-needs-account`, Hrishi's A115 decision). The
+  permission gate runs first — my own fixture forgot `memberadmin` and
+  got `forbidden` before reaching any of these, which is the right order.
+- **Sessions:** a new login mints a new token and the old phone is out;
+  🔓 সেশন ছাড়ো puts a phone out too. One account, one device.
+- **The last admin** (pending.md item 4, checked in A174): no path leaves
+  zero admins.
+
+Tests 2,524 (from 2,508). Three mutations, all caught — including one
+that had to be re-applied with a verified anchor after a quoting slip,
+for the fourth time this session. Schema stays 5. **Needs the deploy**,
+together with A174's.

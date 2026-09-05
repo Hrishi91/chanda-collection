@@ -1110,6 +1110,26 @@ function requireUnfrozen_(u) {
   var freezeAt = String(readConfig_().freeze_at || '');
   if (freezeAt && String(u.row.role) !== 'admin') throw new Error('frozen');
 }
+// A175: `approveYear` is a door lock with no wall around it.
+//
+// hasYear_ is checked in exactly one place — login. After that the token
+// carries no year, and every handler takes `b.year` from the caller. Measured:
+// a person deliberately NOT carried into 2027 is refused at login for 2027
+// ("year-not-approved", so the boundary is stated out loud) and can then pull
+// 2027 with their 2026 token and read the whole season — ₹31,000 and every
+// donor name — and push into it as well.
+//
+// No screen sends a year other than its own, so this is the direct-call path
+// again, the same shape as A164's dues leak. This file closes those on purpose.
+//
+// The admin is exempt, and must be: rolloverYear, backups and restore all
+// reach across seasons, and an admin's own `years` only ever holds the year
+// they registered in.
+function yearAllowed_(u, year) {
+  if (!u || !u.row) return false;
+  if (u.row.role === 'admin') return true;
+  return hasYear_(u.row.years, Number(year) || new Date().getFullYear());
+}
 function entryAllowed_(u, key) {
   if (u.row.role === 'admin') return true;
   if (!key) return true;
@@ -1226,7 +1246,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.56.0';
+var CODE_VERSION = 'chanda-v4.57.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1388,6 +1408,13 @@ var ACTIONS = {
         // `>=` against the stamp, so a row written in the same second as the
         // freeze is held rather than let through — when the two cannot be
         // ordered, the safe reading wins.
+        // A175: a row for a season this person is not part of waits; it is never
+        // refused. A refused row leaves the phone for good (A174), and a wrong
+        // year is either tampering — which loses nothing by waiting — or a
+        // clock that rolled over, where the money is real and the year is not.
+        if (r.store !== 'messages' && !yearAllowed_(user, r.row.year)) {
+          heldIds.push(r.row.id); return;
+        }
         if (frozen && r.store !== 'messages' && String(r.row.createdAt || '') >= freezeAt) {
           heldIds.push(r.row.id); return;
         }
@@ -1805,6 +1832,7 @@ var ACTIONS = {
 
   report: function (b) {
     var u = requireUser_(b.token);
+    if (!yearAllowed_(u, b.year)) throw new Error('year-not-approved'); // A175
     if (allowedReports_(u).indexOf(b.id) < 0) throw new Error('no-report-access');
     // A164: through visible_, exactly like pull. Without it this action computed
     // over the WHOLE book, and `dues` returns donor rows by NAME — so anyone
@@ -1921,6 +1949,8 @@ var ACTIONS = {
   // whether the Sheet stored receivedAt as an ISO string or a Date cell.
   pull: function (b) {
     var u = requireUser_(b.token);
+    // A175: the same word login uses, so the two agree about what a season is
+    if (!yearAllowed_(u, b.year)) throw new Error('year-not-approved');
     // FAST PATH. A delta pull whose cursor is already at or past the last write
     // needs no sheet read at all — and that is what almost every poll is. Note
     // `me` and `config` still ride along, so a permission change still reaches

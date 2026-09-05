@@ -2485,4 +2485,88 @@ module.exports = function runBackendTests(eq) {
     eq((v.rejectedIds || []).join(','), 'ex-v1',
        'backend A174: …while erasing what they took stays REFUSED, never held — a held void is a landmine');
   }
+
+  // --- A175: a season is a wall, not just a door ----------------------------
+  // hasYear_ was checked in exactly one place: login. After that the token
+  // carried no year and every handler took `b.year` from the caller. Measured:
+  // somebody deliberately not carried into 2027 is refused at login for 2027 —
+  // so the boundary is stated out loud — and could then pull 2027 with their
+  // 2026 token and read the whole season, ₹31,000 and every donor name, and
+  // push into it. No screen sends a year but its own, so this is the
+  // direct-call path again, the same shape as A164's dues leak.
+  //
+  // Also covered here: the committee register's own rules and one-device
+  // sessions, both checked at the same time and both already correct.
+  {
+    const by = loadBackend();
+    by.api.setup();
+    ['hrishi', 'ratan', 'notin27'].forEach(function (u, i) {
+      by.post('register', { username: u, name: u, password: 'secret' + i, phone: '91000000' + i });
+    });
+    let t0 = by.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+    const rw = function (u) { return by.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    ['ratan', 'notin27'].forEach(function (u) {
+      by.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+      by.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+      // memberadmin, or saveMember answers 'forbidden' before the rules this
+      // block is about ever run — the permission gate comes first, correctly
+      by.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'person', 'member', 'memberadmin'] });
+      by.call('setReports', { token: t0, userId: rw(u).id, reports: ['overview', 'dues'] });
+    });
+    by.call('approveYear', { token: t0, userId: rw('ratan').id, year: 2027 }); // only ratan is carried over
+    const ty = {};
+    ['hrishi', 'ratan', 'notin27'].forEach(function (u, i) {
+      ty[u] = by.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+    });
+    by.call('push', { token: ty.hrishi, records: [
+      rec('parties',  { id: 'p27', year: 2027, type: 'shop', name: '২০২৭', pledged: 50000, sector: 'puja' }),
+      rec('payments', { id: 'y27', year: 2027, partyId: 'p27', partyName: '২০২৭', amount: 31000, cashAmount: 31000, upiAmount: 0, date: '2027-09-05' })] });
+
+    const err = function (fn) { try { const r = fn(); return (r && r.error) || ''; } catch (e) { return String(e.message || e); } };
+    eq(err(function () { return by.call('login', { username: 'notin27', password: 'secret2', year: 2027 }); }),
+       'year-not-approved', 'backend A175: login states the boundary');
+    eq(err(function () { return by.call('pull', { token: ty.notin27, year: 2027, since: 0 }); }),
+       'year-not-approved', 'backend A175: …and a pull with last season\'s token no longer walks around it');
+    eq(err(function () { return by.call('report', { token: ty.notin27, id: 'dues', year: 2027 }); }),
+       'year-not-approved', 'backend A175: …nor a report');
+    const w = by.call('push', { token: ty.notin27, records: [rec('payments', { id: 'bad27', year: 2027,
+      partyId: 'p27', partyName: '২০২৭', amount: 9, cashAmount: 9, upiAmount: 0, date: '2027-09-05' })] });
+    eq((w.savedIds || []).length, 0, 'backend A175: …nor a write into that season');
+    eq((w.heldIds || []).join(','), 'bad27',
+       'backend A175: …and the write is HELD, never refused — a refused row leaves the phone for good (A174)');
+
+    // and none of it may cost anybody their own year, or the admin their reach
+    eq(err(function () { return by.call('pull', { token: ty.notin27, year: 2026, since: 0 }); }), '',
+       'backend A175: their OWN season still opens');
+    eq((by.call('push', { token: ty.notin27, records: [rec('parties', { id: 'ok26', year: 2026,
+        type: 'shop', name: 'নিজের বছর', pledged: 100, sector: 'puja' })] }).savedIds || []).join(','), 'ok26',
+       'backend A175: …and still takes entries');
+    eq(err(function () { return by.call('pull', { token: ty.ratan, year: 2027, since: 0 }); }), '',
+       'backend A175: somebody carried into the new season reaches it');
+    eq(err(function () { return by.call('pull', { token: ty.hrishi, year: 2027, since: 0 }); }), '',
+       'backend A175: and the admin reaches every season — rolloverYear, backup and restore all cross them');
+
+    // the committee register, checked at the same time
+    const mErr = function (who, name, appUser) {
+      return err(function () { return by.call('saveMember', { token: ty[who], name: name,
+        appUser: appUser, phone: '9000000001', year: 2026 }); });
+    };
+    eq(mErr('hrishi', 'নাম-ratan', 'ratan'), '', 'backend A175: an admin writes somebody else\'s member row');
+    eq(mErr('ratan', 'নাম-ratan', 'ratan'), 'member-self',
+       'backend A175: …and nobody writes their own, admin included');
+    eq(mErr('notin27', 'দ্বিতীয়বার', 'ratan'), 'account-taken',
+       'backend A175: …one account cannot be linked to two member rows');
+    eq(mErr('hrishi', 'ফোনহীন', ''), 'member-needs-account',
+       'backend A175: …and a member row needs an account (A115, Hrishi\'s call)');
+
+    // one account, one device
+    const before = ty.ratan;
+    const after = by.call('login', { username: 'ratan', password: 'secret1', year: 2026 }).token;
+    eq(before === after, false, 'backend A175: a new login mints a new token');
+    eq(err(function () { return by.call('pull', { token: before, year: 2026, since: 0 }); }) !== '', true,
+       'backend A175: …and the old phone is logged out — one account, one device');
+    by.call('releaseSession', { token: ty.hrishi, userId: rw('notin27').id });
+    eq(err(function () { return by.call('pull', { token: ty.notin27, year: 2026, since: 0 }); }) !== '', true,
+       'backend A175: …and 🔓 সেশন ছাড়ো puts a phone out too');
+  }
 };
