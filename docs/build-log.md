@@ -13394,5 +13394,16 @@ second half of a transaction complete while the first half was blocked.
 Recorded as a decision that **one line reverses**, with both halves
 pinned so reversing it fails loudly.
 
-Tests 2,435 (from 2,432). Schema stays 5. No behaviour change in this
-release — tests, docs, and the version bump that keeps the three equal.
+Tests 2,435 (from 2,432). Schema stays 5.
+
+**Version stays at v4.53.0 — deliberately, and the bump was reverted.**
+A166 changes no behaviour: it is tests and docs. Bumping to v4.54.0 would
+have put Pages a version ahead of the deployed `Code.gs` and shown every
+phone the red 🛠️ "server is behind" bar for a release that does nothing.
+Hrishi's call ("deploy with the next change"): the three versions stay
+equal at v4.53.0, and the next release that actually changes behaviour
+takes the bump and the deploy together.
+
+The tri-equality rule is what makes this safe to get wrong loudly — the
+suite pins `APP_VERSION` = `VERSION` = `CODE_VERSION`, so a half-done
+bump cannot ship.

@@ -739,10 +739,10 @@ rough order of value:
    confirm open let the second half of a transaction complete while the first
    half was blocked. Refusing loses nothing: the parcel stays `pending` and the
    action returns the moment the freeze lifts.
-   **If Hrishi wants the other behaviour, it is one line** — drop
-   `requireUnfrozen_(u)` from `confirmHandover` (and keep it on the other two,
-   or not, as he decides). Both halves are pinned in `tests/backend.js`, so
-   changing it will fail loudly rather than quietly.
+   **DECIDED (Hrishi, 2026-09-05): keep the gate.** The reversal is still one
+   line — drop `requireUnfrozen_(u)` from `confirmHandover` — and both halves
+   stay pinned in `tests/backend.js`, so a future change of mind fails loudly
+   rather than quietly. Item closed.
 3. **confirmHandover/rejectHandover still read/write by `cols` position** —
    the A81 ghost-column class, aligned today, latent. Move to sheetHeader_.
 4. **Last-admin guards race**: two admins demoting each other concurrently can
