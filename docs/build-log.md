@@ -12965,3 +12965,12 @@ admin turns chat off. A155's `program_on`-changed repaint stays, but this is the
 real fix — it does not depend on the value having changed.
 
 Mutations 3/3 red. Tests **2,304 → 2,311**. Schema unchanged at 5.
+
+### v4.46.1 deployed (2026-09-05)
+
+Browser-probed three times: `chanda-v4.46.1 / schema 5`. `js/config.js` rebaked.
+
+**This one is not optional.** Until a phone takes it, no new donor can be
+entered on it at all — the last question sits there and the button does nothing
+(A158). Every collector needs 🔄 before the next collection round, and certainly
+before 🚀.
