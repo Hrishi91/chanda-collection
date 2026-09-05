@@ -13114,3 +13114,6 @@ the names are real; the token buys nothing, because who should hold
 session's own evidence — walking the checklist by hand is what found
 A160 and A161, both of which a token holder pressing "সব দাও" would
 have walked straight past.
+
+- Deployed v4.49.0; probed three times (`codeVersion: chanda-v4.49.0`,
+  `schema: 5`). `js/config.js` rebaked.
