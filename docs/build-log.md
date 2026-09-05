@@ -13232,3 +13232,7 @@ and `push` failures are reported rather than swallowed.
 
 Tests 2,416 (from 2,402). Schema stays 5. Client unchanged — this
 release is tests plus the version bump that keeps the three equal.
+
+- Deployed v4.51.0; probed three times (`codeVersion: chanda-v4.51.0`,
+  `schema: 5`). `js/config.js` rebaked. **A162's server fix is live from
+  here** — the 🎭 grants now decide what the programme team may save.
