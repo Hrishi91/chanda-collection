@@ -4665,8 +4665,40 @@
         (r.type === 'bus' && r.busName ? ' ' + r.busName : '') + ' — ' + amt;
     }
     if (store === 'expenses') return '🧾 ' + t('es_expense') + ' · ' + expenseTitle(r) + ' — ' + amt;
-    if (store === 'handovers') return '🤝 ' + t('handover') + ' → ' + (r.to || '?') + ' — ' + amt;
+    // A210: t('handover') is ALREADY '🤝 জমা দিলাম'. This line prepended a
+    // second 🤝, so every handover row in the ledger, in 🍯 pot detail and now
+    // in 🪦 read "🤝 🤝 জমা দিলাম". One emoji, from the label that owns it.
+    if (store === 'handovers') return t('handover') + ' → ' + (r.to || '?') + ' — ' + amt;
+    // A210: the three stores that reach 🪦 and had no line of their own.
+    //
+    // Every store in DB.STORES can be sitting unsynced when a restore bumps
+    // the epoch, and A209 sends the admin — and through them twelve
+    // collectors — to that list as THE way back. These three fell through to
+    // `return amt`, so a cancelled ₹2,000 donation, a correction nobody ever
+    // received and a chat line all rendered as one indistinguishable "₹0".
+    //
+    // The void is the one that costs money: the payment it cancelled comes
+    // BACK with the restored book while the cancellation does not, so the
+    // collector has to know to do it again — and a row reading ₹0 tells them
+    // nothing at all. The reason they typed is the only human-readable thing
+    // on that row, so it leads.
+    if (store === 'voids') {
+      // kind first, then why — the same shape as every other line here
+      return '✖️ ' + t('es_void') + (r.targetStore ? ': ' + storeNoun(r.targetStore) : '') +
+        (r.reason ? ' — ' + r.reason : '');
+    }
+    // a RECORD of what was done, not the imperative the flag button carries
+    if (store === 'corrections') return '🚩 ' + t('es_flagged') + (r.note ? ' — ' + r.note : '');
+    if (store === 'messages') return '💬 ' + String(r.text || '').slice(0, 60);
     return amt;
+  }
+  // A210: a store's name in a sentence, for the 🪦 list. Reuses the labels the
+  // rest of the app already prints, so a wiped void says what KIND of thing it
+  // cancelled rather than showing a uuid nobody can read.
+  function storeNoun(store) {
+    const K = { parties: 'es_donor', payments: 'es_payment', daily: 'es_daily',
+                expenses: 'es_expense', handovers: 'handover' };
+    return K[store] ? t(K[store]) : store;
   }
   // A140: one pot, opened. The equation comes first and DERIVES the figure the
   // caller tapped — same discipline as A136's season line — then the rows that

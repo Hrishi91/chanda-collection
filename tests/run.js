@@ -138,6 +138,42 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A206: …in both languages, each carrying the count of what is standing on it');
 }
 
+// A210: every store that can reach 🪦 must have a line of its own.
+//
+// A209 sent the admin — and through them twelve collectors — to the 🪦 list as
+// the way back from a restore. lostRows walks DB.STORES, so ANY store can land
+// there; entrySummary answered four of them and renderGraveyard handled
+// `parties`, leaving voids, corrections and messages to fall through to
+// `return amt` and render as one indistinguishable "₹0". The void is the one
+// that costs money: the payment it cancelled comes back with the restored book
+// while the cancellation does not.
+{
+  const A10 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const dbSrc = require('fs').readFileSync(__dirname + '/../js/db.js', 'utf8');
+  const stores = ((dbSrc.match(/const STORES = \[([^\]]*)\]/) || [])[1] || '')
+    .split(',').map(function (x) { return x.trim().replace(/'/g, ''); }).filter(Boolean);
+  eq(stores.length >= 8, true, 'A210: DB.STORES read from db.js, not typed out here');
+  const es = (A10.match(/function entrySummary\(store, r\)[\s\S]*?\n  \}/) || [''])[0];
+  const grave = (A10.match(/function renderGraveyard\(\)[\s\S]*?\n  \}/) || [''])[0];
+  const answered = (es.match(/store === '([a-z]+)'/g) || [])
+    .map(function (m) { return m.replace(/store === '|'/g, ''); })
+    .concat((grave.match(/x\.store === '([a-z]+)'/g) || [])
+      .map(function (m) { return m.replace(/x\.store === '|'/g, ''); }));
+  const missing = stores.filter(function (st) { return answered.indexOf(st) < 0; });
+  eq(missing.join(','), '',
+     'A210: every store a wipe can save has its own line — anything missing renders as a bare ₹0');
+  // the void carries the two things a collector needs to act on it
+  const vb = (es.match(/if \(store === 'voids'\)[\s\S]*?\n    \}/) || [''])[0];
+  eq(/storeNoun\(r\.targetStore\)/.test(vb), true, 'A210: a wiped void says WHAT KIND of row it cancelled');
+  eq(/r\.reason/.test(vb), true, 'A210: …and the reason the collector typed, the only human-readable part');
+  // and the emoji is not doubled: t('handover') already carries one
+  const i18nA = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const hv = (i18nA.match(/\n  handover: \{ bn: '([^']*)'/) || [])[1] || '';
+  eq(/🤝/.test(hv), true, 'A210: the handover label owns its emoji');
+  eq(/'🤝 ' \+ t\('handover'\)/.test(es), false,
+     'A210: …so entrySummary must not prepend a second one — every handover row read "🤝 🤝 জমা দিলাম"');
+}
+
 // A205 / A209: the confirm text has to name BOTH halves, and the second half
 // was wrong when A205 wrote it.
 //

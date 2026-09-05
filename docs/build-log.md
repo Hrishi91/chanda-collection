@@ -15095,3 +15095,45 @@ already correct, nothing added.
 
 v4.71.0. Tests 2,722 (from 2,717). **Client-only** — the corrected sentence
 reaches phones with ⚙️ → 🔄 alone; no Apps Script redeploy is needed for it.
+
+## A210 — the 🪦 list had to be worth pointing at (2026-09-06)
+
+**Follows directly from A209.** Having just told the admin — and through
+them twelve collectors — that the 🪦 list is the way back from a restore, I
+had to check whether it actually is.
+
+**Most of it already was**, and is now pinned: the wipe saves the WHOLE
+row, not a summary, so no field is lost; it saves exactly what sync would
+have pushed (`!synced && !rejected`); the screen prints each row through
+the same `entrySummary` the ledger uses; name, pledge, amount, date and
+note are all there; the door in ⚙️ is drawn only when there is something
+behind it; the wipe does not clear the list it just wrote; and clearing it
+by hand asks first.
+
+**The hole.** `lostRows` walks **`DB.STORES`** — all eight — while
+`entrySummary` answered four and `renderGraveyard` handled `parties`. So
+**voids, corrections and messages** fell through to `return amt` and
+rendered as one indistinguishable **"₹0"**.
+
+The void is the one that costs money. A collector cancels a ₹2,000
+donation; the cancellation has not synced when the restore lands; the
+**payment comes back with the restored book and the cancellation does
+not** — and the only trace is a 🪦 row reading ₹0. They cannot know to do
+it again. It now names what kind of row it cancelled and the reason they
+typed, which is the only human-readable thing on a void.
+
+**Found while rendering it: a doubled emoji.** `t('handover')` is already
+`'🤝 জমা দিলাম'` and this line prepended another, so every handover row —
+in the ledger, in 🍯 pot detail, and now in 🪦 — read **"🤝 🤝 জমা দিলাম"**.
+One emoji, owned by the label. (`~/.claude/skills` has carried this exact
+rule since the trial: never let a title carry an emoji the builder also
+prepends.)
+
+Corrections now read as a record — "ভুল বলে জানিয়েছিলাম" — rather than the
+imperative the flag *button* carries.
+
+v4.72.0. Tests 2,728 (from 2,722). Mutation-proved four ways, the last one
+being the point: adding a ninth store to `js/db.js` fails by name, because
+the test reads `DB.STORES` from db.js rather than repeating it.
+
+**Client-only** — reaches phones with ⚙️ → 🔄, no redeploy needed.
