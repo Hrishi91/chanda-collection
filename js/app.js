@@ -747,8 +747,14 @@
         '<button class="chip" data-nav="admin">👁 ' + esc(t('view')) + '</button>');
     });
     (it.handovers || []).filter(function (h) { return !answeredNotifs['ho|' + h.id]; }).forEach(function (h) {
+      // A165: the SECOND door. Hiding the desk's ✅ while a freeze is on and
+      // leaving this one is the two-doors-one-guard bug this project has now
+      // hit at least four times (A31's update button, A45's skip, A115e, and
+      // every mirror rule in Code.gs). The server refuses confirmHandover
+      // while frozen; a card that still offers it is a button that answers an
+      // error. 👁 দেখো stays — looking is never frozen.
       html += notifRow('💰 <b>' + esc(h.from) + '</b> — ' + fmtMoney(h.amount) + ' <span class="row-sub">' + esc(fmtDate(h.date)) + '</span>' + breakdownLines(h),
-        '<button class="chip on" data-na="confirm-handover" data-id="' + esc(h.id) + '">✅ ' + esc(t('confirm_received')) + '</button>' +
+        (frozen() ? '' : '<button class="chip on" data-na="confirm-handover" data-id="' + esc(h.id) + '">✅ ' + esc(t('confirm_received')) + '</button>') +
         '<button class="chip" data-nav="cashier">👁 ' + esc(t('view')) + '</button>');
     });
     (it.corrections || []).forEach(function (c) {
@@ -5781,7 +5787,15 @@
         $view().innerHTML = backBar('home') + '<div class="flow-title">' + esc(t('confirm_handover')) + '</div>' +
           '<div class="hint" style="margin-bottom:10px">' + esc(t('cashier_hint')) + guideDoor('confirm') + '</div>' +
           '<div class="section">📥 ' + esc(t('pending_handovers')) + ' (' + pending.length + ')</div>' +
-          (pending.length ? pending.map(function (h) { return card(h, true); }).join('')
+          // A165: no buttons while the book is frozen. The server refuses these
+          // two actions now — they move money in two people's books — and a
+          // drawn button that answers "frozen" is the drawn-but-dead control
+          // this project has shipped twice. The strip above says why, so the
+          // cashier is told rather than left tapping. frozen() carries the
+          // admin exemption inside it, exactly as it does everywhere else.
+          (frozen() && pending.length
+            ? '<div class="hint" style="margin:0 2px 8px">' + esc(t('freeze_bar')) + '</div>' : '') +
+          (pending.length ? pending.map(function (h) { return card(h, !frozen()); }).join('')
                           : '<div class="empty">' + esc(t('none_here')) + '</div>') +
           '<div class="section">📥 ' + esc(t('confirmed_handovers')) + '</div>' +
           (done.length ? done.map(function (h) { return card(h, false); }).join('')

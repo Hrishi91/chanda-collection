@@ -1841,4 +1841,76 @@ module.exports = function runBackendTests(eq) {
          require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8')), true,
        'backend A164: …because report goes through visible_, like pull');
   }
+
+  // --- A165: the freeze, for the actions that skip push --------------------
+  // push has held rows since A110. The three actions that move money WITHOUT
+  // push were never gated — a suspicion already written down in pending.md,
+  // and true: confirmHandover and rejectHandover each move money in two
+  // people's books, resolveCorrection settles a disputed amount, and all three
+  // ran against a frozen year, so a closed final statement could still change.
+  {
+    function frozenBook() {
+      const bb = loadBackend();
+      bb.api.setup();
+      ['hrishi', 'kali', 'ratan'].forEach(function (u, i) {
+        bb.post('register', { username: u, name: u, password: 'secret' + i, phone: '98600000' + i });
+      });
+      let t0 = bb.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+      const rw = function (u) { return bb.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+      ['kali', 'ratan'].forEach(function (u) {
+        bb.call('setStatus', { token: t0, userId: rw(u).id, status: 'approved' });
+        bb.call('approveYear', { token: t0, userId: rw(u).id, year: 2026 });
+        bb.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'person', 'review'] });
+      });
+      bb.call('setCashier', { token: t0, userId: rw('kali').id, cashier: 1 });
+      // NOTE: logging in again mints a new token and kills the old one — the
+      // harness says so in its own header, and it cost a debugging detour here.
+      const tt = {};
+      ['hrishi', 'kali', 'ratan'].forEach(function (u, i) {
+        tt[u] = bb.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+      });
+      const put = function (u, store, row) { bb.call('push', { token: tt[u], records: [rec(store, row)] }); };
+      put('ratan', 'parties', { id: 'f-p1', year: 2026, type: 'shop', name: 'X', pledged: 5000, sector: 'puja' });
+      put('ratan', 'payments', { id: 'f-y1', year: 2026, partyId: 'f-p1', partyName: 'X', amount: 5000, cashAmount: 5000, upiAmount: 0, date: '2026-09-05' });
+      put('ratan', 'handovers', { id: 'f-h1', year: 2026, amount: 5000, cashAmount: 5000, upiAmount: 0, toId: 'kali', toName: 'kali', date: '2026-09-05', status: 'pending' });
+      put('ratan', 'handovers', { id: 'f-h2', year: 2026, amount: 1000, cashAmount: 1000, upiAmount: 0, toId: 'kali', toName: 'kali', date: '2026-09-05', status: 'pending' });
+      put('ratan', 'corrections', { id: 'f-c1', year: 2026, targetStore: 'payments', targetId: 'f-y1', note: 'ভুল', date: '2026-09-05' });
+      bb.call('setFreeze', { token: tt.hrishi, on: '1', confirm: 'FREEZE', year: 2026 });
+      return { bb: bb, tt: tt };
+    }
+    // state, not the error — an action can throw for a dozen reasons and only
+    // the sheet says whether the money actually moved
+    const stateOf = function (bb, store, id, field) {
+      const r = bb.rows(store).filter(function (x) { return String(x.id) === id; })[0];
+      return r ? String(r[field] || '—') : '(gone)';
+    };
+    const attempt = function (bb, fn) { try { fn(); } catch (e) { /* the state check decides */ } };
+
+    let f = frozenBook();
+    attempt(f.bb, function () { f.bb.call('confirmHandover', { token: f.tt.kali, id: 'f-h1', year: 2026 }); });
+    eq(stateOf(f.bb, 'Handovers', 'f-h1', 'status'), 'pending',
+       'backend A165: a frozen year does not let a cashier confirm a handover');
+    attempt(f.bb, function () { f.bb.call('rejectHandover', { token: f.tt.kali, id: 'f-h2', reason: 'x', year: 2026 }); });
+    eq(stateOf(f.bb, 'Handovers', 'f-h2', 'status'), 'pending',
+       'backend A165: …nor reject one');
+    attempt(f.bb, function () { f.bb.call('resolveCorrection', { token: f.tt.kali, id: 'f-c1', decision: 'accept', year: 2026 }); });
+    eq(stateOf(f.bb, 'Corrections', 'f-c1', 'status'), 'pending',
+       'backend A165: …nor settle a disputed amount');
+
+    // the other half — a lock with no key is not a fix
+    f = frozenBook();
+    attempt(f.bb, function () { f.bb.call('confirmHandover', { token: f.tt.hrishi, id: 'f-h1', year: 2026 }); });
+    eq(stateOf(f.bb, 'Handovers', 'f-h1', 'status'), 'confirmed',
+       'backend A165: …but the admin still can, as in push — a locked-out fixer helps nobody');
+
+    f = frozenBook();
+    f.bb.call('setFreeze', { token: f.tt.hrishi, on: '0', year: 2026 });
+    attempt(f.bb, function () { f.bb.call('confirmHandover', { token: f.tt.kali, id: 'f-h1', year: 2026 }); });
+    eq(stateOf(f.bb, 'Handovers', 'f-h1', 'status'), 'confirmed',
+       'backend A165: …and lifting the freeze gives the cashier the action back');
+
+    // nothing was destroyed by refusing: the parcel is still there to confirm
+    eq(stateOf(f.bb, 'Handovers', 'f-h2', 'status'), 'pending',
+       'backend A165: a refused action leaves the row pending, not lost');
+  }
 };

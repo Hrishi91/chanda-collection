@@ -6973,6 +6973,23 @@ try {
        'A164: the ledger warns a partial reader that kinds are missing');
     eq((app.match(/t\('report_partial'\)/g) || []).length, 2,
        'A164: …on both screens that show a book, and nowhere it would be noise');
+
+    // A165: the cashier's desk agrees with the server. confirmHandover and
+    // rejectHandover are refused while frozen (backend A165), so the buttons
+    // must not be drawn — a control that answers "frozen" is the drawn-but-dead
+    // failure this project has shipped twice, and Code.gs states the rule
+    // itself: the guard has to agree with the door the user came through.
+    eq(/pending\.map\(function \(h\) \{ return card\(h, !frozen\(\)\); \}\)/.test(app), true,
+       'A165: a frozen book draws no ✅ পেয়েছি button');
+    eq(/frozen\(\) && pending\.length[\s\S]{0,140}?freeze_bar/.test(app), true,
+       'A165: …and says why, instead of just removing them');
+    // the SECOND door: the home screen's notification card offers the same
+    // action, and hiding one while leaving the other is this project's most
+    // repeated bug shape
+    eq(/\(frozen\(\) \? '' : '<button class="chip on" data-na="confirm-handover"/.test(app), true,
+       'A165: …and the home notification hides it too, not just the desk');
+    eq((app.match(/data-na="confirm-handover"/g) || []).length, 1,
+       'A165: …there being exactly one place that draws it');
     // every key the summary can hold is either an entry kind (spelled out) or
     // marked — nothing may be silently dropped again
     PERM_KEYS.forEach(function (k) {

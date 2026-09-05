@@ -1088,6 +1088,28 @@ function handoverConfidentialErr_(row) {
 // May this user do this? A permission is something you are GIVEN: an empty
 // field grants nothing. admin = everything; a null key is common to everyone.
 // Mirrors js/aggregate.js permAllowed.
+// A165: the freeze, for the actions that do not go through push.
+//
+// push has been frozen-gated since A110 — it HOLDS the row, so nothing is lost
+// and the queue drains when the freeze lifts. The three actions that move money
+// WITHOUT push were never gated at all, and this was already on pending.md as a
+// suspicion: confirmHandover and rejectHandover each move money in two people's
+// books, and resolveCorrection settles a disputed amount. All three ran happily
+// against a frozen year, so the final statement could change after the
+// committee had closed it.
+//
+// Refuse rather than hold: there is no queue to hold them in, and refusing
+// destroys nothing — a pending handover simply stays pending until the freeze
+// lifts, which is the honest state. The admin stays exempt, exactly as in push:
+// they are the person expected to be fixing whatever caused the freeze.
+//
+// setAnomalyFlag is deliberately NOT here. It marks a row as checked; it moves
+// no money, and "money is frozen; talking is not" is the rule this file already
+// states for messages.
+function requireUnfrozen_(u) {
+  var freezeAt = String(readConfig_().freeze_at || '');
+  if (freezeAt && String(u.row.role) !== 'admin') throw new Error('frozen');
+}
 function entryAllowed_(u, key) {
   if (u.row.role === 'admin') return true;
   if (!key) return true;
@@ -1204,7 +1226,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.52.0';
+var CODE_VERSION = 'chanda-v4.53.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1791,6 +1813,7 @@ var ACTIONS = {
   // approve a flag (→ creates the void) or reject it; enforces the void rule
   resolveCorrection: function (b) {
     var u = requireUser_(b.token);
+    requireUnfrozen_(u);
     if (!canReview_(u)) throw new Error('not-cashier');
     var lock = LockService.getScriptLock(); lock.waitLock(20000);
     try {
@@ -2301,6 +2324,7 @@ var ACTIONS = {
   // cashier (or admin) confirms receiving a handover addressed to them
   confirmHandover: function (b) {
     var u = requireUser_(b.token);
+    requireUnfrozen_(u);
     if (!isCashier_(u.row)) throw new Error('not-cashier');
     var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.handovers);
     var cols = SHEETS.handovers;
@@ -2392,6 +2416,7 @@ var ACTIONS = {
   // information, and they know whether to re-send or to talk.
   rejectHandover: function (b) {
     var u = requireUser_(b.token);
+    requireUnfrozen_(u);
     if (!isCashier_(u.row)) throw new Error('not-cashier');
     var reason = String(b.reason || '').trim().slice(0, 200);
     if (!reason) throw new Error('reason-required');

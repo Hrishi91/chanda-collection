@@ -13293,3 +13293,60 @@ Schema stays 5. **Needs the Apps Script redeploy** for the `report` fix.
 
 - Deployed v4.52.0; probed three times (`codeVersion: chanda-v4.52.0`,
   `schema: 5`). `js/config.js` rebaked. A164's `report` filter is live.
+
+## 2026-09-05 — A165 v4.53.0: the freeze stopped at push
+
+`docs/pending.md` has carried a suspicion for weeks — "freeze gating for
+confirmHandover/resolveCorrection". It was right, and worse than it
+reads.
+
+`push` has been frozen-gated since A110: a row arriving after the freeze
+is **held**, not refused, so nothing is lost and the queue drains when
+the freeze lifts. But three actions move money **without going through
+push**, and `frozen` was checked in exactly one place — inside push.
+
+- `confirmHandover` moves money in two people's books: the collector's
+  in-hand falls, the cashier's rises.
+- `rejectHandover` moves it back.
+- `resolveCorrection` settles a disputed amount.
+
+All three ran happily against a frozen year. Measured, not inferred: the
+book was frozen and each one changed state — `pending → confirmed`,
+`pending → rejected`, `pending → rejected`. A committee that closes its
+year and prints a statement could watch the figures move afterwards.
+
+Refused rather than held, because there is no queue to hold them in and
+refusing destroys nothing — a pending handover stays pending, which is
+the honest state, and the action is available again the moment the
+freeze lifts. The admin stays exempt exactly as in push: a locked-out
+fixer helps nobody. **Both halves are pinned** — the lock and the key —
+because a lock whose key does not work is not a fix, and the mutation
+that jams the admin out is one of the three this release is proved
+against.
+
+`setAnomalyFlag` is deliberately not gated. It marks a row as checked
+and moves no money; "money is frozen, talking is not" is the rule this
+file already applies to messages.
+
+### And then the client had two doors
+
+The server refusing an action makes every button that still offers it a
+control that answers an error. The cashier's desk drew ✅ পেয়েছি /
+❌ পাইনি unconditionally — fixed, with the freeze strip above it saying
+why rather than leaving the buttons silently absent.
+
+Driving it on a fresh port then showed the **second door**: the home
+screen's notification card offers the same ✅ জমা নিলাম, from a
+different call site. Hiding one and leaving the other is this project's
+single most repeated bug shape — A31's update button, A45's skip, A115e,
+and every mirror rule in `Code.gs`. Both are gated now, and a test
+asserts there is exactly **one** place in the file that draws that
+button, so a third door cannot appear quietly.
+
+Verified through the screens, logged in as two people: unfrozen, the
+cashier sees one ✅ and one ❌ on the desk; frozen, the desk has neither
+and says why, and the home card keeps 👁 দেখো but loses ✅ — so she still
+knows ₹15,800 is on its way and simply cannot take it yet.
+
+Tests 2,432 (from 2,422). Six mutations, all caught. Schema stays 5.
+**Needs the Apps Script redeploy** — the three gates are server-side.
