@@ -711,6 +711,24 @@ supports 12×N phones in October, seasonality (income one month a year?). The
 twelve trial users are the first customer interviews — collect what confused
 them and what they'd pay for. No revenue promises; decision after the puja.
 
+## AFTER THE COLLECTION — Hrishi's own list
+
+- **Entry: ask, or show-and-edit?** (Hrishi, 2026-09-05: *"in live we can take
+  the input or we can show the details and can give the details to edit"* —
+  and, asked where it lands: *"these things we will do after collection"*.)
+  Deferred deliberately, recorded so it is not lost.
+  What exists today, so the discussion starts from facts rather than memory:
+  - an EXISTING donor already works the second way — tapping the name shows
+    name, owner, এলাকা, phone, pledged/paid/due, who collected what and the
+    whole payment history, with **✏️ তথ্য সংশোধন** and 💰 টাকা জমা on it;
+  - a NEW donor is the guided Q→A flow, one question at a time;
+  - **🚀 wipes every donor**, so on the first live evening there is nothing to
+    show and every donor is re-entered by answering questions.
+  The three things this could mean are different pieces of work — carrying a
+  donor list across 🚀 (which touches `rolloverYear`, see item 5 below), a
+  form-shaped alternative to the guided flow, or more on the party screen.
+  Decide which after the season; do not guess.
+
 ## AFTER THE PUJA — the A116 review's deferred findings (2026-08-16)
 
 From the two adversarial reviews the night before go-live. Each was verified
