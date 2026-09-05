@@ -14560,3 +14560,50 @@ does not land at all.
 
 Tests 2,605 (from 2,595). Mutation-proved. Schema stays 5. **Needs the
 deploy** — server-side.
+
+## 2026-09-06 — A194: standing somebody down, and bringing them back
+
+A174 covered the money queued during an exit. This is the round trip.
+
+**An exit takes everything.** `setAccess('exiting')` clears the post, the
+entry permissions, the report permissions and the cashier flag — not
+merely an access flag. Measured, not read.
+
+**A restore refuses to happen without a post**, named in the same call:
+`position-required`. The reason is written in the code and is a good one
+— *"a post is what a returning member is being given; without one they
+would be active with nothing granted, which looks identical to standing
+them down again."*
+
+**But a post that grants nothing gives nothing back.** Restored onto the
+seeded সদস্য post — which, like all four, carries no permissions on a
+fresh book — he is active and **cannot write a single row**: exactly the
+state the guard exists to prevent. Configure that post with one
+permission and he can work immediately.
+
+Nothing is broken; the guard checks that a post was named, not that the
+post means anything. What this measures is the **cost of Hrishi's
+checklist step 2 being undone**: configuring the four posts is not
+tidiness, it is what makes exit-and-return work at all. Recorded there
+with the numbers.
+
+The person is not stranded silently, at least — A187 showed what they
+see: "তোমাকে এখনও কিছু দেওয়া হয়নি", the admin's name and a 📞 button.
+
+### Three of my premises were wrong, and each was the app being right
+
+- A collector **cannot** move a donor into the programme fund (A162), so
+  my "the payments follow the party across funds" test never ran the
+  move at all. With `progdonor` it still failed — because **only the
+  creator or an admin may edit an existing donor** (A60). Both refusals
+  are correct; my fixture was asking the wrong person to do it.
+- Restoring reads the post from **the restore call**, not from a post
+  assigned beforehand.
+- `userSnapshot` returns `{ok, user, saved, live, since}` — the figures
+  are under `live`, not at the top.
+
+Also confirmed on the way: a payment carries **no fund of its own**; its
+fund comes from its donor (`ofSector` reads the party), so money cannot
+be filed into the wrong book by the payment row.
+
+Tests 2,611 (from 2,605). No code changes.

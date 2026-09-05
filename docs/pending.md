@@ -426,7 +426,16 @@ The confidential kinds and the অনুষ্ঠান tab all default to OFF o
 none of them work until the admin acts. Every item here is set BEFORE 🚀 and
 survives it.
 
-- [ ] **Grant the new keys, by name.** `sponsor` / `gupt` to whoever takes them;
+- [ ] **A194 measured what unconfigured posts actually cost.** Standing somebody
+   down clears their post, entries, reports and cashier flag outright. Bringing
+   them back REQUIRES naming a post in the same call — because a post is what a
+   returning member is given. But a post carrying **no permissions** gives back
+   nothing: they return active and unable to work, which is precisely the state
+   that guard exists to prevent. With the posts configured, they can work the
+   moment they are restored. So configuring the four posts is not tidiness — it
+   is what makes exit-and-return work at all.
+
+**Grant the new keys, by name.** `sponsor` / `gupt` to whoever takes them;
       **`sponsorview` + `guptview` to the কোষাধ্যক্ষ — without both, that money
       cannot be handed over at all**; `progteam` (the master — no 🎭 tab without
       it) plus `progdonor` / `progmoney` / `ticket` to the programme team.

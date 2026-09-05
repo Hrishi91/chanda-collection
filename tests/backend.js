@@ -2910,4 +2910,50 @@ module.exports = function runBackendTests(eq) {
     eq(String(msg.text || '').length, 500,
        'backend A193: a 600-character message is stored at 500 — messages ride every pull to every phone');
   }
+
+  // --- A194: standing somebody down, and bringing them back ----------------
+  // A174 covered the money queued during an exit. This is the round trip:
+  // what an exit takes away, and whether a restore gives it back.
+  {
+    const bx = loadBackend();
+    bx.api.setup();
+    ['hrishi', 'ratan'].forEach(function (u, i) {
+      bx.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '8200000' + i });
+    });
+    let t0 = bx.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token;
+    const rw = function (u) { return bx.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    bx.call('setStatus', { token: t0, userId: rw('ratan').id, status: 'approved' });
+    bx.call('approveYear', { token: t0, userId: rw('ratan').id, year: 2026 });
+    bx.call('setEntries', { token: t0, userId: rw('ratan').id, entries: ['shop'] });
+    const tx = { hrishi: bx.call('login', { username: 'hrishi', password: 'secret0', year: 2026 }).token };
+    tx.ratan = bx.call('login', { username: 'ratan', password: 'secret1', year: 2026 }).token;
+    t0 = tx.hrishi;
+    let n = 0;
+    const canWrite = function () {
+      return ((bx.call('push', { token: tx.ratan, records: [rec('parties', { id: 'z' + (++n),
+        year: 2026, type: 'shop', name: 'দোকান', pledged: 100, sector: 'puja' })] }) || {}).savedIds || []).length > 0;
+    };
+    const post = ((bx.call('listItems', { token: t0, kind: 'position' }) || {}).items || [])
+      .filter(function (p) { return /সদস্য/.test(p.nameBn); })[0];
+
+    eq(canWrite(), true, 'backend A194: he works before anything happens');
+    bx.call('setAccess', { token: t0, userId: rw('ratan').id, access: 'exiting' });
+    eq(String(rw('ratan').entries || ''), '',
+       'backend A194: standing him down clears his grants outright — not just his access flag');
+
+    let e = '';
+    try { const r = bx.call('setAccess', { token: t0, userId: rw('ratan').id, access: '' });
+          e = (r && r.error) || ''; } catch (err) { e = String(err.message || err); }
+    eq(e, 'position-required',
+       'backend A194: bringing him back REQUIRES naming a post in the same call — a post is what he is given back');
+
+    // restoring onto a post that grants nothing leaves him active and powerless
+    bx.call('setAccess', { token: t0, userId: rw('ratan').id, access: '', position: post.id });
+    eq(String(rw('ratan').access || ''), '', 'backend A194: he is active again');
+    eq(canWrite(), false,
+       'backend A194: …but an UNCONFIGURED post gives nothing back — exactly the state the guard exists to prevent');
+    bx.call('setPositionRules', { token: t0, id: post.id, perms: ['shop'], maxCount: 0, level: 1 });
+    eq(canWrite(), true,
+       'backend A194: …and the moment the post carries a permission, he can work again');
+  }
 };
