@@ -6478,8 +6478,14 @@ try {
   eq(cols.indexOf('transferTo') > cols.indexOf('srcCat'), true,
      'A150: …appended after what came before it, per the header rule');
   eq(cols[cols.length - 1], 'commitmentId', 'A151: …and the newest column is last in turn');
-  eq(/if \(!isCashier \|\| SECTORS\.indexOf\(toS\) < 0 \|\| toS === fromS\)/.test(gs), true,
-     'A150: the server refuses a transfer from a collector, or one that names no real destination');
+  // A162: was a regex on the literal `!isCashier`, which broke the day that
+  // clause grew a second way to be true (progmoney, out of the programme only).
+  // The RULE now lives in tests/backend.js as executed requests — a collector
+  // refused, a nonexistent destination refused, a transfer to its own fund
+  // refused. Kept here only as a shape check that the destination is still
+  // validated at all.
+  eq(/SECTORS\.indexOf\(toS\) < 0 \|\| toS === fromS/.test(gs), true,
+     'A150: the server still validates a transfer destination (behaviour: backend A150)');
   eq(/var SECTORS = \['puja', 'program'\];/.test(gs), true, 'A150 mirror: the server knows the funds');
   eq(/const tb = document\.getElementById\('transfer-btn'\);\s*\n\s*if \(tb\) tb\.onclick/.test(app), true,
      'A150: the button is WIRED where the report is painted — this project has shipped two dead ones');
@@ -6572,8 +6578,8 @@ try {
   ['payee', 'committed', 'commitmentId'].forEach(function (c) {
     eq(cols.indexOf(c) >= 0, true, 'A151: ' + c + ' has a real column');
   });
-  eq(/if \(!isCashier \|\| !String\(r\.row\.payee \|\| ''\)\.trim\(\) \|\| !\(Number\(r\.row\.committed\) > 0\)\)/.test(gs), true,
-     'A151: the server refuses a promise from a collector, to nobody, or for nothing');
+  eq(/!String\(r\.row\.payee \|\| ''\)\.trim\(\) \|\| !\(Number\(r\.row\.committed\) > 0\)/.test(gs), true,
+     'A151: a promise still needs a payee and a figure (behaviour: backend A151)');
   eq(/const db2 = document\.getElementById\('duty-btn'\);\s*\n\s*if \(db2\) db2\.onclick/.test(app), true,
      'A151: the "record a দায়" button is WIRED where the report is painted');
   eq(/dutyBlockHTML\(tt\.commitments, \(tt\.spokenFor \|\| \{\}\)\.total\)/.test(app), true,

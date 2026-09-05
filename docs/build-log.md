@@ -13117,3 +13117,69 @@ have walked straight past.
 
 - Deployed v4.49.0; probed three times (`codeVersion: chanda-v4.49.0`,
   `schema: 5`). `js/config.js` rebaked.
+
+## 2026-09-05 — A162 v4.50.0: the 🎭 permissions were never enforced
+
+Hrishi: "check from all perspective and use your roles." So I built one
+seeded book and read it from six roles at once — admin, a treasurer with
+both view grants, a collector who takes গুপ্ত দান but may not see
+others', a collector with nothing confidential, the programme team, and
+a plain collector.
+
+**The confidentiality machinery passed every check.** Each role saw
+exactly its own share, nobody held a payment whose donor they could not
+see, and the two *view* grants behaved as designed.
+
+Then the write side, and it was much worse than the read side.
+
+`PROGRAM_KEYS` appeared in `Code.gs` exactly once — **in its own
+declaration.** No gate read it. So the server answered every 🎭 entry
+with the puja book's rules: a general expense, a দায় and a ভাঁড়ার-বদল
+each required `isCashier`, and a programme donor required the plain
+`person` key. The client meanwhile drew all six tiles for anyone holding
+`progmoney` / `progdonor`.
+
+Measured, not inferred — a programme-team member could save **one of
+five kinds**: টিকিট, the only one whose key happens to be an
+`ENTRY_KIND`. The other four drew their tile, walked their whole flow,
+and were discarded at push. On a phone that is indistinguishable from
+the app doing nothing, which is exactly how A158 presented.
+
+This is the field rule the project already knows: the client's check is
+UX, the server's is the truth, and **both must decide identically**.
+A153 wrote the client half and stopped.
+
+Fixed, and deliberately narrower than the client:
+
+- `progmoney` spends the **programme** fund, records a দায় against it,
+  and moves money **out** of it. It does not touch the puja fund.
+- Seeding the programme (puja → program) stays a treasurer's act.
+  Handing the programme team a key that pulls from the committee's purse
+  would make "its own grant, separate from the puja cashier's" untrue in
+  the one direction that costs the committee money. **Hrishi can reverse
+  this with one word — it is a policy call, not a technical one.**
+- `progdonor` opens the programme's book **and shuts it**: a collector
+  holding the commonest grant in the app (`person`) could file into the
+  programme's ledger, and no longer can. A confidential kind still needs
+  its own key on top, so the 🎭 tab does not become a second door to
+  taking sponsors.
+
+Proved as a 9×4 matrix — nine actions by four roles, 36 cells, every one
+asserted against what it *should* be, not what it does. All five gates
+mutation-proved. One mutation survived and was chased down rather than
+waved through: the transfer-direction clause turns out to be a second
+layer behind the general expense gate, so the test was re-run with both
+broken to prove it is not vacuous.
+
+### Two regex pins retired
+
+A150 and A151 asserted the literal text `!isCashier` in `Code.gs`. Both
+broke the moment that clause grew a second way to be true — the pins
+fired on the fix, not on a regression. What they were guarding (a
+collector refused, a transfer to a fund that does not exist, a promise
+naming nobody or worth nothing) is now in `tests/backend.js` as executed
+requests against the real handler. The regexes that remain check only
+that the destination is still validated at all.
+
+Tests 2,402 (from 2,381). Schema stays 5. **This one genuinely needs the
+Apps Script redeploy** — the fix is entirely server-side.

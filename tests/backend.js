@@ -1585,4 +1585,112 @@ module.exports = function runBackendTests(eq) {
     eq(/কালী .*→.*কালীপদ/.test(String(edit.detail)), true,
        'backend A115: …and the edit line says what it was before, not only after');
   }
+
+  // --- A162: the 🎭 keys are enforced HERE, not only drawn on the client -----
+  // Measured from every role before the fix: a person holding progdonor and
+  // progmoney could save ONE of the programme's five kinds — টিকিট, the only
+  // one whose key happens to be an ENTRY_KIND. The other four walked their
+  // whole flow and vanished at push, because Code.gs answered every 🎭 entry
+  // with the puja book's rules (isCashier for money, the plain 'person' key
+  // for a donor) and PROGRAM_KEYS appeared nowhere but its own declaration.
+  // A drawn tile that silently discards the entry is worse than no tile.
+  {
+    function progBook() {
+      const b = loadBackend();
+      b.api.setup();
+      b.post('register', { username: 'hrishi', name: 'হৃষিকেশ', password: 'secret1', phone: '9876543210' });
+      ['subrata', 'tapan', 'kali'].forEach(function (u, i) {
+        b.post('register', { username: u, name: u, password: 'secret' + i, phone: '98765400' + (20 + i) });
+      });
+      const admin = b.call('login', { username: 'hrishi', password: 'secret1', year: 2026 }).token;
+      const rowOf = function (u) { return b.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+      ['subrata', 'tapan', 'kali'].forEach(function (u) {
+        b.call('setStatus', { token: admin, userId: rowOf(u).id, status: 'approved' });
+        b.call('approveYear', { token: admin, userId: rowOf(u).id, year: 2026 });
+      });
+      b.call('setEntries', { token: admin, userId: rowOf('subrata').id,
+                             entries: ['progteam', 'progdonor', 'progmoney', 'ticket'] });
+      b.call('setEntries', { token: admin, userId: rowOf('tapan').id, entries: ['shop', 'person'] });
+      b.call('setEntries', { token: admin, userId: rowOf('kali').id, entries: ['shop', 'person'] });
+      b.call('setCashier', { token: admin, userId: rowOf('kali').id, cashier: 1 });
+      const tok = { admin: admin };
+      ['subrata', 'tapan', 'kali'].forEach(function (u, i) {
+        tok[u] = b.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+      });
+      return { b: b, tok: tok };
+    }
+    let seq = 0;
+    const saves = function (bk, who, store, row) {
+      const r = bk.b.call('push', { token: bk.tok[who],
+        records: [rec(store, Object.assign({ id: 'a162-' + (++seq), year: 2026 }, row))] });
+      return (r.savedIds || []).length > 0;
+    };
+    const PROG_EXPENSE = { subject: 'শিল্পী', amount: 500, cashAmount: 500, upiAmount: 0, date: '2026-09-05', sector: 'program' };
+    const PUJA_EXPENSE = { subject: 'আলো', amount: 500, cashAmount: 500, upiAmount: 0, date: '2026-09-05', sector: 'puja' };
+    const PROG_DUTY = { source: 'commitment', payee: 'রূপা', committed: 5000, amount: 0, date: '2026-09-05', sector: 'program' };
+    const OUT = { source: 'transfer', transferTo: 'puja', sector: 'program', amount: 100, cashAmount: 100, upiAmount: 0, date: '2026-09-05' };
+    const IN = { source: 'transfer', transferTo: 'program', sector: 'puja', amount: 100, cashAmount: 100, upiAmount: 0, date: '2026-09-05' };
+    const PROG_DONOR = { type: 'person', name: 'D', pledged: 100, sector: 'program' };
+    const PUJA_DONOR = { type: 'person', name: 'E', pledged: 100, sector: 'puja' };
+    const PROG_SPONSOR = { type: 'sponsor', name: 'S', pledged: 100, sector: 'program' };
+
+    let k = progBook();
+    eq(saves(k, 'subrata', 'expenses', PROG_EXPENSE), true,
+       'backend A162: progmoney spends the PROGRAMME fund without being a cashier');
+    eq(saves(k, 'subrata', 'expenses', PROG_DUTY), true,
+       'backend A162: …and records a দায় against it');
+    eq(saves(k, 'subrata', 'expenses', OUT), true,
+       'backend A162: …and moves money OUT of the programme');
+    eq(saves(k, 'subrata', 'parties', PROG_DONOR), true,
+       'backend A162: progdonor writes a donor into the programme book');
+
+    // the other half of every pair — the grant must not reach the puja's purse
+    k = progBook();
+    eq(saves(k, 'subrata', 'expenses', PUJA_EXPENSE), false,
+       'backend A162: …but progmoney does NOT spend the puja fund');
+    eq(saves(k, 'subrata', 'expenses', IN), false,
+       'backend A162: …and does NOT pull committee money INTO the programme');
+    eq(saves(k, 'subrata', 'parties', PUJA_DONOR), false,
+       'backend A162: …and progdonor does not write into the puja book');
+    eq(saves(k, 'subrata', 'parties', PROG_SPONSOR), false,
+       'backend A162: …and a সponsor still needs the sponsor key, 🎭 tab or not');
+
+    // and the programme's book is shut to a collector holding the commonest key
+    k = progBook();
+    eq(saves(k, 'tapan', 'parties', PROG_DONOR), false,
+       'backend A162: a plain "person" grant cannot file into the programme book');
+    eq(saves(k, 'tapan', 'expenses', PROG_EXPENSE), false,
+       'backend A162: …nor spend its money');
+    eq(saves(k, 'tapan', 'parties', PUJA_DONOR), true,
+       'backend A162: …while the puja book still works for them');
+
+    // the treasurer keeps every power they had
+    k = progBook();
+    eq(saves(k, 'kali', 'expenses', PUJA_EXPENSE), true, 'backend A162: the cashier still spends the puja fund');
+    eq(saves(k, 'kali', 'expenses', PROG_EXPENSE), true, 'backend A162: …and the programme fund');
+    eq(saves(k, 'kali', 'expenses', IN), true, 'backend A162: …and may seed the programme, which only they may');
+    eq(saves(k, 'kali', 'parties', PROG_DONOR), false,
+       'backend A162: …but being cashier is not being on the programme team');
+
+    // A150/A151's own rules, moved from a regex over Code.gs to a real request.
+    // The regexes matched the literal `!isCashier` and broke the moment that
+    // clause grew a second way to be true; what they were guarding is here.
+    k = progBook();
+    eq(saves(k, 'tapan', 'expenses', OUT), false,
+       'backend A150: a collector cannot move money between funds at all');
+    eq(saves(k, 'kali', 'expenses', { source: 'transfer', transferTo: 'nowhere', sector: 'puja',
+        amount: 100, cashAmount: 100, upiAmount: 0, date: '2026-09-05' }), false,
+       'backend A150: …and a transfer to a fund that does not exist is refused');
+    eq(saves(k, 'kali', 'expenses', { source: 'transfer', transferTo: 'puja', sector: 'puja',
+        amount: 100, cashAmount: 100, upiAmount: 0, date: '2026-09-05' }), false,
+       'backend A150: …as is one that goes nowhere');
+    eq(saves(k, 'tapan', 'expenses', PROG_DUTY), false,
+       'backend A151: a collector cannot record a promise');
+    eq(saves(k, 'kali', 'expenses', { source: 'commitment', payee: '', committed: 5000,
+        amount: 0, date: '2026-09-05', sector: 'puja' }), false,
+       'backend A151: …nor a cashier one that names nobody');
+    eq(saves(k, 'kali', 'expenses', { source: 'commitment', payee: 'রূপা', committed: 0,
+        amount: 0, date: '2026-09-05', sector: 'puja' }), false,
+       'backend A151: …nor one for nothing');
+  }
 };

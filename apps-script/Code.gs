@@ -870,6 +870,26 @@ var ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor',
 // one — but it rides the same field so granting stays one screen.
 // A153: the 🎭 tab's master + sub-permissions. Mirrors js/aggregate.js.
 var PROGRAM_KEYS = ['progteam', 'progdonor', 'progmoney'];
+// A162: until now these three keys existed ONLY on the line above. Nothing on
+// this side read them, so the server answered every 🎭 entry with the puja
+// book's rules: a general expense, a দায় and a ভাঁড়ার-বদল all required
+// isCashier, and a programme donor required the plain 'person' key. The client
+// meanwhile drew all six tiles for anyone holding progmoney/progdonor. Result,
+// measured from every role: the programme team could save ONE of its five
+// kinds — টিকিট, the only one whose key happens to be an ENTRY_KIND. The other
+// four walked their whole flow and vanished at push, which on a phone looks
+// exactly like nothing happening.
+//
+// This is the "both sides must decide identically" rule: the client says
+// canProgMoney() = admin || progmoney, so the server must say the same thing —
+// but ONLY inside the programme's own fund, which is the whole point of giving
+// the programme its own purse rather than the committee's.
+function hasProg_(u, key) {
+  if (!u || !u.row) return false;
+  if (u.row.role === 'admin') return true;
+  return effPerms_(u.row).entries.indexOf(key) >= 0;
+}
+function isProgramRow_(row) { return String((row && row.sector) || 'puja') === 'program'; }
 var PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin'])
   .concat(VIEW_PERM_KEYS).concat(PROGRAM_KEYS);
 
@@ -1184,7 +1204,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.49.0';
+var CODE_VERSION = 'chanda-v4.50.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1415,18 +1435,26 @@ var ACTIONS = {
         // name somebody and a real figure, or the book would carry a promise to
         // nobody that quietly reduces what everyone thinks is free.
         if (r.store === 'expenses' && String(r.row.source) === 'commitment') {
-          if (!isCashier || !String(r.row.payee || '').trim() || !(Number(r.row.committed) > 0)) {
+          var mayPromise = isCashier || (isProgramRow_(r.row) && hasProg_(user, 'progmoney'));
+          if (!mayPromise || !String(r.row.payee || '').trim() || !(Number(r.row.committed) > 0)) {
             rejectedIds.push(r.row.id); return;
           }
         }
         if (r.store === 'expenses' && String(r.row.source) === 'transfer') {
           var toS = String(r.row.transferTo || '');
           var fromS = String(r.row.sector || 'puja') || 'puja';
-          if (!isCashier || SECTORS.indexOf(toS) < 0 || toS === fromS) {
+          // A162: progmoney moves money OUT of the programme's purse, never
+          // INTO it. Handing the programme team a key that pulls from the
+          // committee's fund would make "its own grant, separate from the puja
+          // cashier's" untrue in the one direction that costs the committee
+          // money. Seeding the programme stays a treasurer's act.
+          var mayMove = isCashier || (fromS === 'program' && hasProg_(user, 'progmoney'));
+          if (!mayMove || SECTORS.indexOf(toS) < 0 || toS === fromS) {
             rejectedIds.push(r.row.id); return;
           }
         }
-        if (r.store === 'expenses' && String(r.row.source) !== 'collection' && !isCashier) {
+        if (r.store === 'expenses' && String(r.row.source) !== 'collection' &&
+            !isCashier && !(isProgramRow_(r.row) && hasProg_(user, 'progmoney'))) {
           rejectedIds.push(r.row.id); return;
         }
         if (r.store === 'voids' && !voidAllowed_(user, r.row)) { rejectedIds.push(r.row.id); return; }
@@ -1498,7 +1526,24 @@ var ACTIONS = {
           if (pRow && !canSeeParty_(user, pRow)) { rejectedIds.push(r.row.id); return; }
         }
         if (r.store === 'handovers' && handoverConfidentialErr_(r.row)) { rejectedIds.push(r.row.id); return; }
-        if (!entryAllowed_(user, permForRow_(r.store, r.row))) { rejectedIds.push(r.row.id); return; }
+        // A162: a party in the PROGRAMME's book answers to progdonor. A
+        // confidential kind still needs its own key on top — who may take a
+        // sponsor is one decision for the whole committee, and routing it
+        // through the 🎭 tab must not become a second door to it.
+        var permKey = permForRow_(r.store, r.row);
+        if (r.store === 'parties' && isProgramRow_(r.row)) {
+          // The programme's book answers to progdonor in BOTH directions: it
+          // opens for the team, and it stays shut to a collector whose 'person'
+          // key is for the puja's book. Without the second half the membrane
+          // is one-way and anybody with the commonest grant in the app can file
+          // into the programme's ledger. A confidential kind still needs its
+          // own key on top — who may take a sponsor is one decision for the
+          // whole committee, and the 🎭 tab must not become a second door to it.
+          var restricted = RESTRICTED_TYPES.indexOf(String(r.row.type || '')) >= 0;
+          if (!hasProg_(user, 'progdonor') || (restricted && !entryAllowed_(user, permKey))) {
+            rejectedIds.push(r.row.id); return;
+          }
+        } else if (!entryAllowed_(user, permKey)) { rejectedIds.push(r.row.id); return; }
         (byStore[r.store] = byStore[r.store] || []).push(r.row);
       });
       Object.keys(byStore).forEach(function (store) {
