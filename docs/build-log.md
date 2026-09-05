@@ -13290,3 +13290,6 @@ alone deliberately; written down so it is not rediscovered as a defect.
 Tests 2,422 (from 2,416). Both fixes mutation-proved — the ledger notice
 needed a pin written for it first, because removing it broke nothing.
 Schema stays 5. **Needs the Apps Script redeploy** for the `report` fix.
+
+- Deployed v4.52.0; probed three times (`codeVersion: chanda-v4.52.0`,
+  `schema: 5`). `js/config.js` rebaked. A164's `report` filter is live.
