@@ -3070,6 +3070,61 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A205: the door to the recovery path ------------------------------
+    // A73 already round-trips a restore, and already pins that it logs
+    // everybody out. What it reaches through is `b.api.dailyBackup()` and the
+    // shim's file map — the INTERNALS. The way an admin actually gets there is
+    // listBackups → pick one → restore, and listBackups had no functional test
+    // at all, because the shim's folder could not list a file it had been
+    // given. A recovery path whose front door is untested is a recovery path
+    // you find out about on the night.
+    {
+      const br = loadBackend(); br.api.setup();
+      ['rsadm', 'rskali'].forEach(function (u, i) {
+        br.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '988000000' + i });
+      });
+      const tr0 = br.call('login', { username: 'rsadm', password: 'secret0', year: 2026 }).token;
+      const rkid = br.rows('Users').filter(function (x) { return x.username === 'rskali'; })[0].id;
+      br.call('setStatus', { token: tr0, userId: rkid, status: 'approved' });
+      br.call('approveYear', { token: tr0, userId: rkid, year: 2026 });
+      br.call('setEntries', { token: tr0, userId: rkid, entries: ['shop', 'road'] });
+      br.call('setCashier', { token: tr0, userId: rkid, cashier: 1 });
+      const trk = br.call('login', { username: 'rskali', password: 'secret1', year: 2026 }).token;
+      const st5 = new Date().toISOString();
+      br.call('push', { token: trk, records: [rec('parties', { id: 'rp1', year: 2026, type: 'shop',
+        name: 'দোকান', pledged: 5000, sector: 'puja', createdAt: st5 })] });
+
+      br.call('backupNow', { token: tr0 });
+      const list5 = br.call('listBackups', { token: tr0 }) || {};
+      eq((list5.backups || []).length, 1,
+         'backend A205: the backup this code just wrote is OFFERED for restore — the admin has no other way in');
+      const f5 = list5.backups[0] || {};
+      eq(String(f5.name || '').indexOf('chanda-backup') === 0 && Number(f5.size) > 0 && !!f5.created, true,
+         'backend A205: …with the name, size and time the picker shows, so one can be told from another');
+
+      // the two guards on the door itself, neither of which A73 exercises
+      let e5 = '';
+      try { const z = br.call('restoreBackup', { token: tr0, fileId: f5.id }); e5 = (z && z.error) || ''; }
+      catch (e) { e5 = String(e.message || e); }
+      eq(e5, 'confirm-required', 'backend A205: a restore needs the typed word — never one stray tap');
+      let e6 = '';
+      try { br.call('restoreBackup', { token: trk, fileId: f5.id, confirm: 'RESTORE' }); }
+      catch (e) { e6 = String(e.message || e); }
+      eq(e6, 'not-admin', 'backend A205: …and a cashier cannot do it, however senior');
+
+      // and the whole way through, driven by the id the LIST gave
+      br.call('push', { token: trk, records: [rec('daily', { id: 'rd9', year: 2026, type: 'road',
+        amount: 900, cashAmount: 900, upiAmount: 0, date: '2026-09-06', sector: 'puja', createdAt: st5 })] });
+      let done = {}, restoreErr = '';
+      try { done = br.call('restoreBackup', { token: tr0, fileId: f5.id, confirm: 'RESTORE' }) || {}; }
+      catch (e) { restoreErr = String(e.message || e); }
+      eq(restoreErr, '', 'backend A205: the id the picker hands over is one restoreBackup accepts');
+      eq(br.rows('DailyCollections').filter(function (r) { return r.id === 'rd9'; }).length, 0,
+         'backend A205: …and what landed after the snapshot is gone');
+      eq(String(done.safetyBackup || '') !== '', true,
+         'backend A205: …while the state it replaced was itself backed up, so even this is undoable');
+    }
+
     // --- A204: the correction bell -------------------------------------
     // A190 pins the handover, approval and rejection counts. The corrections
     // branch has its own gate (canReview_, inside isCashier_) and had none: a

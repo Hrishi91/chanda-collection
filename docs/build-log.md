@@ -14893,3 +14893,39 @@ land on the raiser's own bell, which is the **only** failure in all 2,679
 assertions. Nothing else in the suite was watching that.
 
 Tests 2,679 (from 2,675). No app change.
+
+## A205 — the front door to the recovery path, and the half nobody is told (2026-09-06)
+
+**Correction to my own first reading.** I set out believing no test could
+run a restore. That is wrong: A73's block already round-trips one, already
+pins that a restore blanks every token and logs the committee out, and
+already checks that an unknown sheet is refused before anything is cleared.
+It reaches the path through `b.api.dailyBackup()` and the shim's file map —
+the **internals**.
+
+**What genuinely had nothing.** The way an admin actually gets there:
+`listBackups` → pick one → restore. `listBackups` had no functional test,
+because the shim's Drive folder answered "empty" to `getFiles()` no matter
+what had been written to it. A recovery path whose front door is untested
+is one you find out about on the night.
+
+- `tests/gas-shim.js`: the folder now remembers what was created in it, and
+  a file knows its size and creation time. Nothing else in the suite
+  changed behaviour.
+- Six assertions: the backup this code just wrote is offered; it carries
+  the name, size and time the picker distinguishes files by; the typed word
+  and the admin token are both required at the door; and the whole thing
+  runs **driven by the id the list handed over**, with the replaced state
+  itself backed up.
+
+**The half nobody is told.** A73 pins the log-out as correct — a backup
+must not be a file full of live sessions — and it is. But
+`restore_confirm` never mentioned it. The admin presses RESTORE in a
+crisis and the next thing that happens is twelve people at a login screen,
+some of whom will not remember their password. The dialog now says so in
+both languages, and says the other half too: nothing anybody wrote is lost,
+because each phone keeps its own queue and sends it once they are back in.
+
+v4.67.0. Tests 2,689 (from 2,679). Mutation-proved: listing anything but a
+backup, or dropping the file details, or cutting the warning out of the
+sentence, each fail by name.

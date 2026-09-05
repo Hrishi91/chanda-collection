@@ -145,18 +145,49 @@ function makeEnv(opts) {
       Charset: { UTF_8: 'UTF_8' },
     },
     Session: { getScriptTimeZone: () => 'Asia/Kolkata' },
-    DriveApp: {
-      getFileById: (id) => files[id] || (() => { throw new Error('no-file'); })(),
-      getFoldersByName: () => ({ hasNext: () => false, next: () => null }),
-      createFolder: (n) => ({
-        getName: () => n,
-        createFile: (fn, content) => (files[fn] = {
-          getName: () => fn, getId: () => fn, getBlob: () => ({ getDataAsString: () => content }),
-        }),
-        getFiles: () => ({ hasNext: () => false, next: () => null }),
-      }),
-      getRootFolder: () => null,
-    },
+    // A205: the folder now REMEMBERS what was written to it, and a file knows
+    // its size and creation time. Before this, getFiles() always answered
+    // "empty", so listBackups could only ever return [] and no test in the
+    // suite was able to run a restore at all — which is precisely how A73's
+    // bug survived: the A52 test matched the TEXT of the guard and never once
+    // exercised the path. A harness that cannot reach the recovery path cannot
+    // report that it is broken.
+    DriveApp: (function () {
+      let folder = null;
+      const mkFolder = function (n) {
+        const mine = [];
+        return {
+          getName: () => n,
+          createFile: function (fn, content) {
+            const f = {
+              getName: () => fn, getId: () => fn,
+              getBlob: () => ({ getDataAsString: () => content }),
+              getSize: () => String(content).length,
+              getDateCreated: () => new Date(env._now()),
+            };
+            files[fn] = f;
+            // same name overwrites, the way Drive does NOT — but a backup name
+            // carries its minute, so two in one minute really are one file here
+            const at = mine.findIndex((x) => x.getName() === fn);
+            if (at >= 0) mine[at] = f; else mine.push(f);
+            return f;
+          },
+          getFiles: function () {
+            let i = 0;
+            return { hasNext: () => i < mine.length, next: () => mine[i++] };
+          },
+        };
+      };
+      return {
+        getFileById: (id) => files[id] || (() => { throw new Error('no-file'); })(),
+        getFoldersByName: function (n) {
+          let served = false;
+          return { hasNext: () => !!folder, next: function () { served = true; return folder; } };
+        },
+        createFolder: function (n) { folder = folder || mkFolder(n); return folder; },
+        getRootFolder: () => null,
+      };
+    })(),
     ScriptApp: { getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ atHour: () => ({ everyDays: () => ({ create: () => {} }) }) }) }) },
     Logger: { log: () => {} },
     ContentService: {

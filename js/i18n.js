@@ -551,7 +551,14 @@ const I18N = {
   restore_btn: { bn: '♻️ Backup থেকে ফেরাও', en: '♻️ Restore from backup' },
   restore_none: { bn: 'কোনো backup পাওয়া যায়নি', en: 'No backups found' },
   restore_pick: { bn: 'কোন backup ফেরাবে? নম্বর লেখো:', en: 'Which backup? Type its number:' },
-  restore_confirm: { bn: '⚠️ "{f}" ফেরালে এখনকার সব ডেটা ওই সময়ের অবস্থায় ফিরে যাবে। (নিরাপত্তার জন্য এখনকার অবস্থার backup আগে নেওয়া হবে।) এগোবে?', en: '⚠️ Restoring "{f}" replaces all current data with that snapshot. (A safety backup of the current state is taken first.) Continue?' },
+  // A205: the log-out is the half nobody expects. Backups are written with the
+  // session column blank on purpose — a file sitting in Drive must not be full
+  // of live sessions — so a restore ends every session in the committee. The
+  // admin presses this in a crisis; they have to know that the next thing that
+  // happens is twelve people at a login screen, some of whom will not remember
+  // their password. Nothing anybody wrote is lost (each phone keeps its own
+  // queue and sends it once they are back in), and that is worth saying too.
+  restore_confirm: { bn: '⚠️ "{f}" ফেরালে এখনকার সব ডেটা ওই সময়ের অবস্থায় ফিরে যাবে। (নিরাপত্তার জন্য এখনকার অবস্থার backup আগে নেওয়া হবে।)\n\n🔑 সবাই — তুমি সহ — লগ-আউট হয়ে যাবে, আবার login করতে হবে। কারো লেখা কিছু হারাবে না, ফোনেই থাকবে আর login করলেই চলে যাবে। এগোবে?', en: '⚠️ Restoring "{f}" replaces all current data with that snapshot. (A safety backup of the current state is taken first.)\n\n🔑 Everyone — you included — will be logged out and must sign in again. Nothing anybody wrote is lost: it stays on their phone and goes up once they are back in. Continue?' },
   restore_type: { bn: 'নিশ্চিত হতে RESTORE টাইপ করো', en: 'Type RESTORE to confirm' },
   restore_done: { bn: '✅ ফেরানো হয়েছে: {n}\n(এখনকার অবস্থার safety backup: {s})', en: '✅ Restored: {n}\n(safety backup of previous state: {s})' },
   // A171: the old wording said only "no payments are copied" — true, and

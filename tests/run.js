@@ -102,6 +102,17 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A182: …and the groups it can always offer come from the local list');
 }
 
+// A205: the confirm text has to name the log-out. Everything else about the
+// dialog was already honest; this is the half that surprises people.
+{
+  const i18nR = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const line = (i18nR.match(/restore_confirm: \{[\s\S]*?\},/) || [''])[0];
+  eq(/লগ-আউট/.test(line), true, 'A205: the Bengali confirm says everyone is logged out');
+  eq(/logged out/.test(line), true, 'A205: …and so does the English');
+  eq(/হারাবে না/.test(line) && /Nothing anybody wrote is lost/.test(line), true,
+     'A205: …and both say the work itself is safe, or the warning reads worse than the truth');
+}
+
 // A203: the phone must refuse a reserved name too — before the round trip,
 // and while they are still typing, or the user is told their chosen name is
 // taken by nobody with no reason given.
