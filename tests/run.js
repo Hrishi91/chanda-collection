@@ -6944,6 +6944,27 @@ try {
        'A160: …and the chips are DERIVED from PERM_KEYS, not hand-written');
     eq(/PERM_ONLY_LABELS\[k\] \|\| CAT_LABEL_KEYS\[k\]/.test(app), true,
        'A160: …reusing the category map rather than copying it (A66)');
+
+  // --- A161: the sensitive grants must be visible ON the user list ----------
+  // The summary filters to ENTRY_KINDS, so guptview/sponsorview/prog* appeared
+  // nowhere on it and "who can see গুপ্ত দান?" needed twelve screens opened
+  // one at a time. Markers, so A100's width fix survives.
+  {
+    const m = app.match(/const MARKS = \[([\s\S]*?)\];/);
+    eq(!!m, true, 'A161: the user list marks the non-entry grants');
+    ['sponsorview', 'guptview', 'progteam', 'progdonor', 'progmoney'].forEach(function (k) {
+      eq(m && m[1].indexOf("'" + k + "'") >= 0, true, 'A161: …including ' + k);
+    });
+    eq(/entTxt \+ \(marks \? ' ' \+ marks : ''\)/.test(app), true,
+       'A161: …and the marks actually reach the rendered line');
+    // every key the summary can hold is either an entry kind (spelled out) or
+    // marked — nothing may be silently dropped again
+    PERM_KEYS.forEach(function (k) {
+      const shown = ENTRY_KINDS.indexOf(k) >= 0 || (m && m[1].indexOf("'" + k + "'") >= 0) ||
+                    ['review', 'otherdonor', 'memberadmin'].indexOf(k) >= 0;
+      eq(shown, true, 'A161: the user list accounts for ' + k);
+    });
+  }
     // every label key the map names must actually resolve, or the chip is blank
     const i18nSrc = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
     have.forEach(function (k) {

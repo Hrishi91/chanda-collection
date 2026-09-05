@@ -13073,3 +13073,44 @@ every phone shows the red 🛠️ "server is behind" bar.
 
 - Deployed v4.48.0; probed three times (`codeVersion: chanda-v4.48.0`,
   `schema: 5`). `js/config.js` rebaked.
+
+## 2026-09-05 — A161 v4.49.0: the user list hid the grant that matters most
+
+Straight out of A160. With the eight new keys finally grantable, the
+next question is the one an admin actually asks: **who holds them?**
+The 👥 list could not answer it.
+
+`userSummary` filters its line to `ENTRY_KINDS`, so `sponsorview`,
+`guptview` and the three 🎭 keys were dropped from it silently — present
+on the server, ticked inside the person's own screen, and invisible on
+the list that exists to be scanned. Answering "who can see গুপ্ত দান?"
+meant opening twelve people one at a time, which is the same as not
+being able to answer it. The most sensitive grant in the app was the one
+the audit screen hid.
+
+Fixed with markers rather than words — 🎪 sponsorview, 🤫 guptview, 🎭 any
+of the three programme keys — because A100 shortened this line for a
+real reason (long names wrapped eight rows of twelve at 375px) and three
+glyphs cost nothing. `tests/run.js` now walks every `PERM_KEYS` entry and
+asserts the summary either spells it out or marks it, so no future key
+can go quiet here again.
+
+Verified on a fresh port: granted 🎪+🤫+🎭 to one collector, saved, went
+back to the list — `দোকান, ব্যক্তি, সদস্য, রোড, টোটো 🎪🤫🎭`, every other
+row unchanged.
+
+Tests 2,381. Schema stays 5. Needs the Apps Script redeploy for version
+equality, as A160 did.
+
+### Not done, and why
+
+Hrishi offered an admin session token and then an account, to have this
+work done directly on the live book. Declined both, and the tool layer
+independently blocked the credentialed call. Three reasons, in order of
+weight: an account for a person who is not on the committee would put
+that name beside real money in an audit trail whose whole value is that
+the names are real; the token buys nothing, because who should hold
+`guptview` is a committee decision and not a technical one; and this
+session's own evidence — walking the checklist by hand is what found
+A160 and A161, both of which a token holder pressing "সব দাও" would
+have walked straight past.

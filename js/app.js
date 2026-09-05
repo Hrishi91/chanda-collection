@@ -7670,9 +7670,21 @@
         const entTxt = !ent.length ? '⚠️ ' + t('sum_none')
           : ent.filter(function (k) { return Aggregate.ENTRY_KINDS.indexOf(k) >= 0; })
                .map(function (k) { return t('type_' + k); }).join(', ') || '⚠️ ' + t('sum_none');
+        // A161: the grants that are NOT entry kinds were filtered out of this
+        // line and appeared nowhere on it — so an admin scanning 👥 to answer
+        // "who can see গুপ্ত দান?" saw nothing about it and had to open all
+        // twelve people one at a time. That is the one audit this screen exists
+        // for, and the most sensitive grant in the app was the one it hid.
+        // Markers, not words: A100 shortened this line because long names
+        // wrapped eight rows of twelve, and three glyphs do not.
+        const MARKS = [['sponsorview', '🎪'], ['guptview', '🤫'],
+                       ['progteam', '🎭'], ['progdonor', '🎭'], ['progmoney', '🎭']];
+        const marks = MARKS.filter(function (m) { return ent.indexOf(m[0]) >= 0; })
+          .map(function (m) { return m[1]; })
+          .filter(function (g, i, a) { return a.indexOf(g) === i; }).join('');
         const reps = String(u.reports || '').split(',').filter(Boolean).length + (u.cashier ? 1 : 0);
         const ars = String(u.areas || '').split(',').filter(Boolean).length;
-        return [entTxt,
+        return [entTxt + (marks ? ' ' + marks : ''),
                 reps ? reps + ' ' + t('sum_reports') : t('sum_no_report'),
                 ars ? ars + ' ' + t('sum_areas') : t('sum_no_area')].join(' · ');
       }
