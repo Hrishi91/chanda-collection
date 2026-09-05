@@ -12974,3 +12974,45 @@ Browser-probed three times: `chanda-v4.46.1 / schema 5`. `js/config.js` rebaked.
 entered on it at all — the last question sits there and the button does nothing
 (A158). Every collector needs 🔄 before the next collection round, and certainly
 before 🚀.
+
+## 2026-09-05 — A159 v4.47.0: the entry sweep, done through the screens
+
+Hrishi: "i told to check from your side." The A158 report had said green
+after checking totals and roles, without once walking an ordinary entry
+path. This is that walk — every entry door in the app, driven through
+the UI on a fresh harness port, one at a time. Three bugs, all of them
+invisible to the test suite as it stood.
+
+- **The 🎭 tab's খরচ saved into the puja fund.** A153 removed the
+  per-entry "কোন ভাঁড়ার?" question and moved the answer to the tab, but
+  the edit meant for `expenseFlow`'s save never matched its target —
+  `commitmentId` sits above the line it was aimed at — and failed
+  silently. `a.sector` has been undefined ever since, so EVERY expense,
+  including the ones started in the programme tab, was written as
+  `puja`. Fixed to read `sector` from the flow argument, the same way
+  A158's `savePartyAndFirstPayment` had to. Both bugs are one bug: an
+  edit that looked applied and was not.
+- **"কোনোটার নয়" could never be chosen.** The দায় step's escape hatch
+  is worth `''`, and the step was not marked `optional`, so the
+  mandatory-field guard in `submitAnswer` rejected it and the flow
+  simply refused to advance. A spend that answers to no promise is the
+  ordinary case, and it had no way through. Marked `optional`.
+- **The handover transcript read `[object Object]`.** The cashsheet
+  answer is `{__cash, __upi}` — an object — and `answerDisplay` had no
+  branch for `kind: 'cashsheet'`, so it fell to `return val`. On the one
+  screen where somebody is parting with real notes, the amount they had
+  just entered was displayed as `[object Object]`, on that step and
+  every step after it. Now shows `₹2,000 (💵₹2,000 · 📱₹0)`.
+
+Swept and confirmed working through the screens: দোকান, ব্যক্তি, সদস্য,
+রোড/টোটো/বাস, 🎪 স্পনসর, 🤫 গুপ্ত দান, 🎟️ টিকিট, 🎭 অনুষ্ঠানের দাতা,
+চাঁদা on an existing donor, খরচ from both funds, 🤝 দায়, 🤝 জমা দিলাম,
+🔁 ভাঁড়ার-বদল (₹4,000 puja → program), ✖️ বাতিল.
+
+One thing checked and found NOT broken, recorded so it is not
+re-investigated: the empty 🎭 report shows no 🔁/🤝 buttons, but those
+doors live in 📥 এন্ট্রি, where a cashier meets them first. The report's
+buttons are gated on `isCashier()`, not on the book being non-empty.
+
+Tests 2,316 (from 2,314); each fix mutation-proved. Schema stays 5 —
+no phone is locked out by this release.

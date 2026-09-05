@@ -6880,6 +6880,40 @@ try {
      'A158: …and the checker knows the word, so a fourth one is caught before it ships');
 }
 
+// ---- A159: every entry flow writes the fund it was STARTED in ---------------
+//
+// Found by sweeping every entry path through the screens — the check Hrishi
+// asked for and I had not actually done. A153 removed the "কোন ভাঁড়ার?"
+// question, so `a.sector` has been undefined in every flow ever since. Three of
+// the four flows were switched to the argument; the FOURTH edit never matched
+// (commitmentId sits above the line it targeted) and failed silently, so every
+// expense — including the ones started in the 🎭 tab — saved as puja money.
+//
+// Same failure mode as A158: an edit that did not land, and nothing asserting
+// that it had. All four are pinned here by shape, so a fifth flow cannot be
+// added without one.
+{
+  const app = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq((app.match(/sector: a\.sector \|\| 'puja'/g) || []).length, 0,
+     'A159: no flow reads the fund from an ANSWER any more — the question is gone');
+  // three SAVES (donor, expense, দায়) plus two RESUME records, which must carry
+  // it too or a draft picked up tomorrow loses its book
+  eq((app.match(/sector: sector \|\| 'puja'/g) || []).length, 5,
+     'A159: the donor, expense and দায় saves take it as an argument, and both resumable flows carry it…');
+  eq(/sector: type === 'ticket' \? 'program' : \(sector \|\| 'puja'\)/.test(app), true,
+     'A159: …and the daily flow too, with টিকিট forced regardless');
+  // "কোনোটার নয়" is worth '' — without `optional` the mandatory-field guard in
+  // submitAnswer rejects it and the escape hatch can never be taken, so a spend
+  // belonging to no promise cannot be recorded at all
+  eq(/key: 'commitmentId', qKey: 'q_duty_against', kind: 'choice',\s*\n(?:\s*\/\/[^\n]*\n)*\s*optional: true,/.test(app), true,
+     'A159: …and a spend against NO দায় can actually be recorded');
+  // the cashsheet answer is an object; without its own branch answerDisplay
+  // falls to `return val` and the handover transcript reads "[object Object]"
+  // where the amount handed over belongs
+  eq(/step\.kind === 'cashsheet'[\s\S]{0,320}?val\.__cash[\s\S]{0,200}?val\.__upi/.test(app), true,
+     'A159: …and the handover shows the amount, not [object Object]');
+}
+
 try {
   require('./backend.js')(eq);
 } catch (e) {

@@ -1091,6 +1091,15 @@
       const o = opts.find(function (o) { return o.v === val; });
       return o ? (o.labelKey ? t(o.labelKey) : o.label) : val;
     }
+    // A159: the cashsheet's answer is {__cash, __upi} — an OBJECT, and with no
+    // branch of its own it fell to `return val` and the handover transcript read
+    // "[object Object]" where the amount just handed over should be. On the one
+    // screen where a collector is parting with real notes, and on every step
+    // after it. Kept next to 'sheet' so the pair stays visible.
+    if (step.kind === 'cashsheet') {
+      const c = Number(val.__cash) || 0, u = Number(val.__upi) || 0;
+      return fmtMoney(c + u) + ' (💵' + fmtMoney(c) + ' · 📱' + fmtMoney(u) + ')';
+    }
     if (step.kind === 'sheet') {
       // show what the sheet actually hands over: total, then each category
       let cash = 0, upi = 0;
@@ -2232,6 +2241,12 @@
         { key: 'subject', qKey: 'q_subject', kind: 'choice',
           options: forSector(sector) },
         { key: 'commitmentId', qKey: 'q_duty_against', kind: 'choice',
+          // A159: `optional`, because "কোনোটার নয়" is worth '' — and without
+          // this the mandatory-field guard in submitAnswer rejects an empty
+          // answer and the option can never be chosen at all. A spend that
+          // belongs to no promise is completely ordinary, so the escape hatch
+          // has to work; found by sweeping the flows through the screens.
+          optional: true,
           optionsFn: function (a) {
             return openDuties.filter(function (d) { return d.sector === (sector || 'puja'); })
               .map(function (d) { return { v: d.id, label: d.payee + ' — ' + fmtMoney(d.owed) }; })
@@ -2253,11 +2268,16 @@
         const row = DB.newRow({
           subject: isOther ? 'Other' : a.subject, desc: a.comment || '',
           commitmentId: a.commitmentId || '', // A152: an instalment against a দায়
-          // A148: which ভাঁড়ার paid for it. (A149's ticket clause belongs to the
-          // DAILY flow, which has a `type`; a copy of it landed here, where
-          // `type` is not in scope — so every general খরচ threw ReferenceError
-          // at save. Shipped in v4.40.0, found while writing A151.)
-          sector: a.sector || 'puja',
+          // A159: from the TAB, not from an answer — A153 removed the question,
+          // so `a.sector` has been undefined ever since and EVERY expense saved
+          // as puja, including the ones started in the 🎭 tab. The A153 edit
+          // meant for this line never matched (commitmentId sits above it) and
+          // failed silently, which is the same way A158 shipped.
+          //
+          // (A149's ticket clause belongs to the DAILY flow, which has a `type`;
+          // a copy of it landed here once, where `type` is not in scope, and
+          // every general খরচ threw at save until A151 found it.)
+          sector: sector || 'puja',
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
           srcCat: 'other', // pooled money has no honest category — see above
           spentBy: Settings.get('collectorName'),
