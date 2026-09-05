@@ -13674,3 +13674,7 @@ only, no logic — version stays put" and the hook refused the commit:
 one phone**. Exactly the failure the hook exists to prevent, and I
 walked into it while writing a release note about a misleading message.
 Needs the deploy.
+
+- Deployed v4.55.0; probed three times (`codeVersion: chanda-v4.55.0`,
+  `schema: 5`). `js/config.js` rebaked. Carries A171's honest rollover
+  wording — which, being i18n, needed the shell bump to travel at all.
