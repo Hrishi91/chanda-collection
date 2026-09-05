@@ -14047,3 +14047,9 @@ ends the entry; answering OK records the second instalment.
 Nothing to fix. Recorded because "the guard exists" and "the guard works
 from the wrong side" have been different answers in this codebase three
 times.
+
+- Deployed v4.59.0; probed three times (`codeVersion: chanda-v4.59.0`,
+  `schema: 5`). `js/config.js` rebaked. **This one carries four releases
+  at once** — A174 (a stood-down collector's round is held, not deleted),
+  A175 (a season is a wall, not just a door), A176 (🧾 খরচ opens in a dead
+  spot) and A177 (the selected chip clears AA).
