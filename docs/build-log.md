@@ -13870,3 +13870,48 @@ Tests 2,524 (from 2,508). Three mutations, all caught — including one
 that had to be re-applied with a verified anchor after a quoting slip,
 for the fourth time this session. Schema stays 5. **Needs the deploy**,
 together with A174's.
+
+## 2026-09-05 — A176 v4.58.0: the tile you tap where nothing happens
+
+The phone side, checked the way the field lesson says to: with the
+server made SLOW, and then with every request made to hang for ever —
+the dead spot where a phone still reports `navigator.onLine === true`
+because it has a tower and no data.
+
+**All five tabs and twelve of the thirteen home tiles paint offline**,
+instantly, with no spinner. The local-first design holds: `viewData()`
+reads IndexedDB and the cached snapshot, and the round trip only
+refreshes.
+
+**One did not. 🧾 খরচ never opened at all.** Not slowly — never. No
+spinner, no toast, no error: the tile is tapped and the home screen
+stays. Exactly how A158 presented, and exactly what the field rule
+forbids — *a round trip may REFRESH a screen, it may never gate the
+first paint.*
+
+The cause is narrow and the design around it is careful. A118b already
+caches the subject list and opens instantly from it; the round trip only
+runs on a phone that has **never** opened the expense screen. That
+branch guards on `navigator.onLine`, which is exactly the signal a dead
+spot lies about, and `Auth.call` has no timeout — so `after` was never
+called and the flow was never started.
+
+Fixed with a timeout, not a redesign: the first-ever open still waits a
+moment for the real list, then opens anyway. `expenseFlow` already
+survives a null list — it always appends **➕ অন্য কিছু** — so the cashier
+types the subject and the money is recorded. Verified on a slow harness
+with `fetch` hanging and no cached list: the screen was still on home at
+1.5 s and open at 6.5 s.
+
+The same shape lives in 🤝 জমা দিলাম's recipient fallback — it runs only
+when the pulled roster names no cashier, and a hang there means the
+screen never arrives while the money is in somebody's pocket. Given the
+same guard. In the ordinary case that branch never runs at all: driven
+on the same hanging network, the handover screen opened in 1.5 s from
+the local roster.
+
+Both callbacks now run exactly once, whichever finishes first — a
+timeout that races a response is a double-call waiting to happen.
+
+Tests 2,528 (from 2,524). Three mutations, all caught. Schema stays 5.
+**Rides the deploy already waiting** for A174 and A175.

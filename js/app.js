@@ -2156,9 +2156,21 @@
     if (rosterCashiers.length) {
       availP.then(function (a) { begin(others(rosterCashiers), a); });
     } else if (navigator.onLine && Sync.configured()) {
+      // A176: the same guard as 🧾 খরচ, on the screen where it matters most.
+      // This branch only runs when the pulled roster names no cashier, and a
+      // hanging request would mean `begin` is never called — the collector taps
+      // 🤝 জমা দিলাম with money in their pocket and the screen never arrives.
+      // The timeout falls through to `begin(null)`, which is the same path an
+      // offline phone already takes: type the name instead of picking it.
+      let started = false;
+      const startOnce = function (list) {
+        if (started) return; started = true;
+        availP.then(function (a) { begin(list, a); });
+      };
+      setTimeout(function () { startOnce(null); }, 5000);
       Auth.call('cashiers', { token: Auth.token() })
-        .then(function (resp) { return availP.then(function (a) { begin(others(resp.cashiers), a); }); })
-        .catch(function () { availP.then(function (a) { begin(null, a); }); });
+        .then(function (resp) { startOnce(others(resp.cashiers)); })
+        .catch(function () { startOnce(null); });
     } else {
       availP.then(function (a) { begin(null, a); });
     }
@@ -2413,13 +2425,29 @@
     let cached = null;
     try { cached = JSON.parse(localStorage.getItem('ck_subjects') || 'null'); } catch (e) {}
     const refresh = function (after) {
-      if (!(navigator.onLine && Sync.configured() && Auth.loggedIn())) { if (after) after(null); return; }
+      // A176: `after` must run exactly once, and it must run. The offline guard
+      // below trusts navigator.onLine, and a phone in a dead spot reports
+      // ONLINE while its requests hang for ever — a tower with no data, a
+      // captive wifi. Measured with fetch made to hang: 🧾 খরচ never opened at
+      // all. No spinner, no toast, no error; the tile was tapped and nothing
+      // happened, which is exactly how A158 presented and exactly what the
+      // field rule forbids — a round trip may REFRESH a screen, never gate its
+      // first paint.
+      //
+      // A timeout, not a redesign: the first-ever open still waits a moment for
+      // the real list, and then opens anyway. expenseFlow already survives a
+      // null list — it always appends "অন্য কিছু", so the cashier can type the
+      // subject and the entry is not lost.
+      let done = false;
+      const once = function (v) { if (done) return; done = true; if (after) after(v); };
+      if (!(navigator.onLine && Sync.configured() && Auth.loggedIn())) { once(null); return; }
+      setTimeout(function () { once(null); }, 5000);
       Auth.call('listSubjects', { token: Auth.token() })
         .then(function (r) {
           const subs = r.subjects || [];
           try { localStorage.setItem('ck_subjects', JSON.stringify(subs)); } catch (e) {}
-          if (after) after(subs);
-        }).catch(function () { if (after) after(null); });
+          once(subs);
+        }).catch(function () { once(null); });
     };
     // viewData() is local (IndexedDB + the cached snapshot), so this resolves in
     // a tick — it does not put the round-trip back that A118b removed.

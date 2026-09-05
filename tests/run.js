@@ -45,6 +45,28 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
   eq(/দেখে নিতে হবে|need reviewing/i.test(line), true,
      'A171: …and that they need reviewing, which is the action it implies');
 }
+
+// A176: a round trip may REFRESH a screen; it may never gate the first paint.
+// Both of these branches only run on a phone that has no cached list yet, and
+// both trust navigator.onLine — which reports ONLINE in a dead spot where
+// requests simply hang. Measured with fetch made to hang: 🧾 খরচ never opened
+// at all, no spinner and no toast, which is exactly how A158 presented. A
+// timeout is the whole fix: the screen opens with what it has (expenseFlow
+// always offers "অন্য কিছু"; the handover falls back to typing the name).
+{
+  // read the source here — `app` is not in scope this early in the file
+  const appSrc = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const subj = (appSrc.match(/const refresh = function \(after\) \{[\s\S]*?\n    \};/) || [''])[0];
+  eq(/setTimeout\(function \(\) \{ once\(null\); \}, \d+\)/.test(subj), true,
+     'A176: 🧾 খরচ cannot be held open for ever by a hanging request');
+  eq(/let done = false;[\s\S]{0,160}?if \(done\) return;/.test(subj), true,
+     'A176: …and the callback runs exactly once, whichever finishes first');
+  const ho = (appSrc.match(/\} else if \(navigator\.onLine && Sync\.configured\(\)\) \{[\s\S]*?\n    \} else \{/) || [''])[0];
+  eq(/setTimeout\(function \(\) \{ startOnce\(null\); \}, \d+\)/.test(ho), true,
+     'A176: …and 🤝 জমা দিলাম opens too, on the screen where money is in a pocket');
+  eq(/if \(started\) return; started = true;/.test(ho), true,
+     'A176: …once, there as well');
+}
 eq(parseAmount('৫০০'), 500, 'bengali digits');
 eq(parseAmount(' ৫,০০০ টাকা '), 5000, 'bengali digits + comma + টাকা');
 eq(parseAmount('₹1,250'), 1250, 'rupee sign + comma');
