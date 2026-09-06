@@ -3070,6 +3070,45 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A230: the receipt-design config, server side ----------------------
+    {
+      const bd2 = loadBackend(); bd2.api.setup();
+      ['rcadm', 'rccol'].forEach(function (u, i) {
+        bd2.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '94400000' + i });
+      });
+      const tad = bd2.call('login', { username: 'rcadm', password: 'secret0', year: 2026 }).token;
+      const cid2 = bd2.rows('Users').filter(function (x) { return x.username === 'rccol'; })[0].id;
+      bd2.call('setStatus', { token: tad, userId: cid2, status: 'approved' });
+      bd2.call('approveYear', { token: tad, userId: cid2, year: 2026 });
+      const tcd = bd2.call('login', { username: 'rccol', password: 'secret1', year: 2026 }).token;
+      const oops30 = function (fn) {
+        try { const r = fn(); return (r && r.error) || ''; } catch (e) { return String(e.message || e); }
+      };
+      eq(oops30(function () { return bd2.call('setConfig', { token: tcd, config: { puja_name: 'দখল' } }); }) !== '',
+         true, 'backend A230: a collector cannot rebrand the committee\'s receipts');
+      eq(oops30(function () { return bd2.call('getConfig', { token: tcd }); }), '',
+         'backend A230: …but can read it, or their phone could not draw a receipt at all');
+      bd2.call('setConfig', { token: tad, config: { puja_name: 'শ্রী শ্রী গণেশ পূজা কমিটি' } });
+      const cfg30 = function () { return (bd2.call('getConfig', { token: tcd }) || {}).config || {}; };
+      eq(cfg30().puja_name, 'শ্রী শ্রী গণেশ পূজা কমিটি', 'backend A230: what the admin sets is what everyone reads');
+      eq(Object.keys(cfg30()).filter(function (k) { return /^receiptSeq_/.test(k); }).join(','), '',
+         'backend A230: the receipt counters are never handed out — they are the serial supply');
+      // the whitelist refuses LOUDLY: a silent ignore is how a switch becomes a
+      // button that answers ok and does nothing (the chat_off lesson)
+      [['live_mode', 'on'], ['data_epoch', '1'], ['receiptSeq_2026', '9999'], ['freeze_at', 'x']]
+        .forEach(function (kv) {
+          const before = String(cfg30()[kv[0]] || '');
+          const err = oops30(function () {
+            const c = {}; c[kv[0]] = kv[1];
+            return bd2.call('setConfig', { token: tad, config: c });
+          });
+          eq(err, 'unknown-config-key',
+             'backend A230: setConfig refuses "' + kv[0] + '" by name, rather than ignoring it');
+          eq(String(cfg30()[kv[0]] || ''), before,
+             'backend A230: …and the value really is untouched');
+        });
+    }
+
     // --- A227: a dead phone's book lands on ITS owner, not on the admin -----
     // A9 pins that identity comes from the token, and A73/V2 that an admin may
     // reassign a row. What neither reaches is the figure a cashier actually

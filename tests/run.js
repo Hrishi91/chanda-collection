@@ -210,6 +210,52 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A222: every grantable permission has words — a chip echoing its own key is one nobody can act on');
 }
 
+// A230: the receipt's branding — the only thing this app produces that leaves
+// the committee. An admin sets it and TWELVE phones render it, so the shape
+// that matters is not "does it look nice" but "can an admin-set string reach
+// HTML on somebody else's device".
+{
+  const app30 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const rc30 = (app30.match(/function receiptConfig\(\)[\s\S]*?\n  \}/) || [''])[0];
+
+  // a receipt is never untitled, never colourless, and never in English
+  eq(/puja: c\.puja_name \|\| c\.committee_name \|\| tBn\('app_title'\)/.test(rc30), true,
+     'A230: with no puja name it falls back to the committee, then to the app — a receipt is never untitled');
+  eq(/footer: c\.receipt_footer \|\| tBn\('receipt_thanks'\)/.test(rc30), true,
+     'A230: …and never footerless');
+  eq(/color: c\.receipt_color \|\| '#c0392b'/.test(rc30), true, 'A230: …nor colourless');
+  eq(/committee: c\.committee_name \|\| ''/.test(rc30), true,
+     'A230: the signatory line stays EMPTY when unset — a receipt must not invent a committee name');
+  eq((rc30.match(/tBn\(/g) || []).length >= 2, true,
+     'A230: those defaults are tBn, so a receipt is Bengali even when the collector runs the app in English');
+
+  // the colour chips offer a fixed palette, so the value interpolated into a
+  // style attribute is never the stored one
+  eq(/const colors = \['#[0-9a-f]{6}'(, '#[0-9a-f]{6}')*\];/.test(app30), true,
+     'A230: the colour chips are a literal palette, not the stored value echoed into style=');
+
+  // THE shape: no admin-set string reaches HTML unescaped
+  const adminStrings = ['pujaName\\(\\)', 'cfg\\.puja', 'cfg\\.committee', 'cfg\\.footer',
+                        'cfg\\.color', 'cfg\\.logo', 'form\\.puja_name', 'form\\.committee_name',
+                        'form\\.receipt_footer', 'form\\.committee_logo'];
+  const unsafe = [];
+  adminStrings.forEach(function (n) {
+    const re = new RegExp("'[^'\n]*'\\s*\\+\\s*" + n, 'g');
+    let m;
+    while ((m = re.exec(app30)) !== null) {
+      const ln = app30.slice(0, m.index).split('\n').length;
+      const line = app30.split('\n')[ln - 1];
+      // safe by construction, not by escaping: textContent never parses HTML,
+      // a Notification title is plain text, and receiptMessage is an SMS body
+      if (/esc\(/.test(line) || /textContent/.test(line) || /new Notification\(/.test(line)) continue;
+      if (/receiptMessage|'🙏 ' \+ cfg\.committee/.test(line)) continue;
+      unsafe.push(ln + ': ' + line.trim().slice(0, 80));
+    }
+  });
+  eq(unsafe.join(' | '), '',
+     'A230: every admin-set string reaching HTML goes through esc() — an admin plants it, twelve phones render it');
+}
+
 // A229: an amount the Sheet hands back as TEXT.
 //
 // Every total reads Number(r.amount) || 0, so a cell holding "২০০০" — Bengali

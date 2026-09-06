@@ -15799,3 +15799,44 @@ Everything else since v4.69.0 is client-side and reaches a phone only on
 ⚙️ → 🔄: A209 (the corrected restore warning — until a phone updates it is
 still showing the FALSE one), A210, A214, A215, A216, A222, A226, A228,
 A229.
+
+## A230 — the receipt's branding (2026-09-06)
+
+**Checked, nothing wrong.** This is the only thing the app produces that
+leaves the committee, and one person sets it while twelve phones render it,
+so the question worth asking is not "does it look right" but **"can an
+admin-set string reach HTML on somebody else's device?"**
+
+**It cannot.** Every use of `pujaName()` in markup is `esc(pujaName())`;
+the other four sites are safe by construction rather than by escaping —
+two are `.textContent` (which never parses HTML), one is a browser
+`Notification` title, one is the SMS body. The colour chips interpolate a
+**fixed local palette** into `style=`, never the stored value, and the
+stored colour's only other destination is canvas `fillStyle`.
+
+The fallbacks are right too: no puja name falls back to the committee and
+then to the app, so a receipt is never untitled; the footer falls back to
+the thanks line; the colour to the house red. The **signatory line stays
+empty** when unset — a receipt must not invent a committee name. All of
+those defaults go through `tBn`, so the receipt is Bengali even when the
+collector runs the app in English.
+
+Server side: a collector may **read** the config (their phone has to draw
+the receipt) but not write it; the receipt counters are never handed out;
+and `setConfig` refuses an unlisted key **by name** — `unknown-config-key`
+— rather than ignoring it, which is the chat_off lesson (a switch that
+answers ok and does nothing).
+
+**One 🚨 in my probe was my own inverted regex**, not a defect: I asserted
+`committee_name` had *no* fallback by writing the pattern that matches the
+fallback and negating it.
+
+`receipt_color` does accept any string over the API. Harmless — its only
+paths are `fillStyle`, where an invalid value is ignored, and a comparison
+against the palette — and an admin who wants to spoil a receipt can already
+set the name. Not worth a validator.
+
+Tests 2,950 (from 2,931). Mutation-proved four ways, including removing a
+single `esc()`.
+
+No app change.
