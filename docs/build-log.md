@@ -15705,3 +15705,35 @@ puts ₹3,700 in the admin's hand, keeping the name but not the role gives
 the row `admin`, and opening the branch to non-admins fails A9 by name.
 
 No app change.
+
+## A228 — the 🎯 bar turned a partial book into a percentage (2026-09-06)
+
+**Measured, not reasoned.** With a ₹1,00,000 target and a book holding
+₹40,000 of ordinary shops, a ₹50,000 sponsor and ₹10,000 গুপ্ত:
+
+| reader | bar says |
+|---|---|
+| cashier with both view grants | **100% · ₹0 বাকি** |
+| collector with neither | **40% · ₹60,000 বাকি** |
+
+Same home screen, same evening. The second one then tells a donor the
+committee still needs sixty thousand.
+
+The numerator is `computeTotals` over **the reader's own visible book**,
+which is right — showing the true total would leak the existence of money
+the reader may not see. What was missing is the **admission**. The ledger
+and the report screen have said "ℹ️ এই হিসাবে সব ধরনের entry ধরা নেই" since
+A144/A164; the one surface that renders it as a *percentage* did not.
+
+**A164's own pin blocked the fix, and deserved to be rewritten.** It
+asserted `t('report_partial')` appears exactly **twice** — a raw count,
+which says nothing about *where* and refuses the third screen that needs
+the same sentence. It now names the three surfaces that present a
+committee-wide figure and requires each to carry the line **behind
+`partialBook()`**, plus that the sentence never appears outside that guard —
+so "always print it" fails too, which is the red-banner-that-lies failure
+this project keeps naming.
+
+v4.79.0. Tests 2,917 (from 2,911). Mutation-proved both ways.
+
+**Client-only** — reaches phones with ⚙️ → 🔄.

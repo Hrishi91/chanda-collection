@@ -2740,7 +2740,16 @@
         '<div style="height:100%;width:' + pct + '%;background:' + (pct >= 100 ? '#2e7d32' : '#d9a441') + '"></div></div>' +
       '<div class="row-sub">' + fmtMoney(got) + ' / ' + fmtMoney(target) +
         (left > 0 ? ' · ' + esc(t('target_left')).replace('{amt}', fmtMoney(left))
-                  : ' · ' + esc(t('target_done'))) + '</div></div>';
+                  : ' · ' + esc(t('target_done'))) + '</div>' +
+      // A228: the numerator is what THIS READER may see. Measured: with a
+      // ₹1,00,000 target and ₹10,000 গুপ্ত plus ₹50,000 sponsor in the book, a
+      // cashier who may see both reads "100% · ₹0 বাকি" while a collector who
+      // may see neither reads "40% · ₹60,000 বাকি" — same screen, same evening.
+      // The second one then tells a donor the committee still needs sixty
+      // thousand. The ledger and the report already admit this (A164); the bar
+      // that turns it into a percentage did not.
+      (partialBook() ? '<div class="row-sub" style="margin-top:4px;opacity:.85">' +
+        esc(t('report_partial')) + '</div>' : '') + '</div>';
   }
   // A78: what a stood-down member sees instead of "ask the admin for
   // permissions". They must not be sent to argue about a decision the committee

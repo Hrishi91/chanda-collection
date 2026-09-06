@@ -7587,8 +7587,20 @@ try {
     // the ledger, which is the screen people actually browse, did not.
     eq(/filterBar\(chips\.buttons[\s\S]{0,900}?partialBook\(\)[\s\S]{0,120}?report_partial[\s\S]{0,120}?list-body/.test(app), true,
        'A164: the ledger warns a partial reader that kinds are missing');
-    eq((app.match(/t\('report_partial'\)/g) || []).length, 2,
-       'A164: …on both screens that show a book, and nowhere it would be noise');
+    // A228 replaced a raw count with the actual claim. "Two uses" said nothing
+    // about WHERE, and it blocked the third screen that needed the same
+    // sentence. What has to hold is that every surface presenting a
+    // committee-wide FIGURE admits when the reader's copy is partial, and that
+    // each one guards it on partialBook() rather than printing it always.
+    ['drawList', 'renderReport', 'targetBar'].forEach(function (fn) {
+      const blk = (app.match(new RegExp('function ' + fn + '\\([^)]*\\)[\\s\\S]*?\\n  \\}\\n')) || [''])[0];
+      eq(blk !== '', true, 'A164: ' + fn + ' is readable');
+      eq(/partialBook\(\)[\s\S]{0,140}?report_partial/.test(blk), true,
+         'A164: ' + fn + ' admits a partial book, and only when it is one');
+    });
+    eq((app.match(/t\('report_partial'\)/g) || []).length,
+       (app.match(/partialBook\(\) \?/g) || []).length,
+       'A164: …and the sentence is never printed except behind that guard');
 
     // A165: the cashier's desk agrees with the server. confirmHandover and
     // rejectHandover are refused while frozen (backend A165), so the buttons
