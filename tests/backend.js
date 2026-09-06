@@ -3070,6 +3070,106 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A212: one book, every kind of row, the three headline numbers ----
+    // মোট আদায় / মোট খরচ / হাতে আছে are the most-read figures in the app. Each
+    // is covered in isolation; what was not covered is all of it AT ONCE —
+    // five donor kinds, three daily kinds, the programme's own book, a real
+    // spend, a fund transfer, a দায়, and a voided donation, pushed through the
+    // server and read back. A new row type leaking into the wrong total is the
+    // most-read wrong number there is.
+    {
+      const bz = loadBackend(); bz.api.setup();
+      ['tzadm', 'tzkali', 'tzratan', 'tzsub'].forEach(function (u, i) {
+        bz.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '933000000' + i });
+      });
+      const tz0 = bz.call('login', { username: 'tzadm', password: 'secret0', year: 2026 }).token;
+      const zid = function (u) { return bz.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+      ['tzkali', 'tzratan', 'tzsub'].forEach(function (u) {
+        bz.call('setStatus', { token: tz0, userId: zid(u), status: 'approved' });
+        bz.call('approveYear', { token: tz0, userId: zid(u), year: 2026 });
+      });
+      bz.call('setEntries', { token: tz0, userId: zid('tzkali'), entries: ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor', 'gupt', 'review', 'progteam', 'progdonor', 'progmoney', 'ticket'] });
+      bz.call('setEntries', { token: tz0, userId: zid('tzratan'), entries: ['shop', 'person', 'road', 'toto'] });
+      bz.call('setEntries', { token: tz0, userId: zid('tzsub'), entries: ['progteam', 'progdonor', 'progmoney', 'ticket'] });
+      bz.call('setCashier', { token: tz0, userId: zid('tzkali'), cashier: 1 });
+      const tz = {};
+      ['tzadm', 'tzkali', 'tzratan', 'tzsub'].forEach(function (u, i) {
+        tz[u] = bz.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+      });
+      const sz = new Date().toISOString();
+      const shovez = function (who, store, row) {
+        const r = bz.call('push', { token: tz[who], records: [rec(store, Object.assign({ year: 2026, createdAt: sz }, row))] });
+        // a fixture the screens could not have produced proves nothing — say so
+        // loudly rather than quietly measuring a book that was never written
+        eq((r.savedIds || []).length, 1, 'backend A212: fixture row ' + store + '/' + row.id + ' was accepted');
+        return r;
+      };
+      [['zsh', 'shop', 'দোকান', 5000, 2000], ['zpe', 'person', 'রঞ্জিত', 3000, 1000],
+       ['zme', 'member', 'সদস্য', 2000, 500], ['zsp', 'sponsor', 'Bose', 50000, 20000],
+       ['zgu', 'gupt', 'শুভাকাঙ্ক্ষী', 0, 8000]].forEach(function (a) {
+        shovez('tzkali', 'parties',  { id: a[0], type: a[1], name: a[2], pledged: a[3], sector: 'puja' });
+        shovez('tzkali', 'payments', { id: a[0] + 'y', partyId: a[0], partyName: a[2], amount: a[4], cashAmount: a[4], upiAmount: 0, date: '2026-09-06' });
+      });
+      shovez('tzratan', 'daily', { id: 'zr1', type: 'road', amount: 900, cashAmount: 900, upiAmount: 0, date: '2026-09-06', sector: 'puja' });
+      shovez('tzratan', 'daily', { id: 'zt1', type: 'toto', amount: 400, cashAmount: 400, upiAmount: 0, date: '2026-09-06', sector: 'puja' });
+      shovez('tzkali',  'daily', { id: 'zb1', type: 'bus', busName: 'উত্তরবঙ্গ', busNumber: 'WB-1', amount: 700, cashAmount: 700, upiAmount: 0, date: '2026-09-06', sector: 'puja' });
+      shovez('tzsub', 'parties',  { id: 'zpr', type: 'person', name: 'অনুষ্ঠানের দাতা', pledged: 4000, sector: 'program' });
+      shovez('tzsub', 'payments', { id: 'zpry', partyId: 'zpr', partyName: 'অনুষ্ঠানের দাতা', amount: 4000, cashAmount: 4000, upiAmount: 0, date: '2026-09-06' });
+      shovez('tzsub', 'daily',    { id: 'ztk', type: 'ticket', amount: 1500, cashAmount: 1500, upiAmount: 0, date: '2026-09-06', sector: 'program' });
+      shovez('tzkali', 'expenses', { id: 'zx1', subject: 'আলো', amount: 1200, cashAmount: 1200, upiAmount: 0, date: '2026-09-06', srcCat: 'other', source: 'general', sector: 'puja' });
+      shovez('tzkali', 'expenses', { id: 'zx2', amount: 3000, cashAmount: 0, upiAmount: 0, source: 'transfer', sector: 'puja', transferTo: 'program', subject: '', desc: 'শিল্পীর জন্য', srcCat: '', collectionType: '', date: '2026-09-06' });
+      shovez('tzkali', 'expenses', { id: 'zx3', subject: 'শিল্পী', amount: 0, cashAmount: 0, upiAmount: 0, date: '2026-09-06', srcCat: '', source: 'commitment', sector: 'program', collectionType: '', payee: 'শিল্পী দল', committed: 25000 });
+      shovez('tzratan', 'parties',  { id: 'zbad', type: 'shop', name: 'ভুল দোকান', pledged: 1000, sector: 'puja' });
+      shovez('tzratan', 'payments', { id: 'zbady', partyId: 'zbad', partyName: 'ভুল দোকান', amount: 777, cashAmount: 777, upiAmount: 0, date: '2026-09-06' });
+      shovez('tzkali',  'voids',    { id: 'zv1', targetStore: 'payments', targetId: 'zbady', reason: 'ভুল', date: '2026-09-06' });
+
+      const A13 = require('../js/aggregate.js');
+      const dz = (bz.call('pull', { token: tz.tzadm, year: 2026, since: 0 }) || {}).data || {};
+      const TZ = A13.computeTotals(dz, {}), SZ = A13.sectorSplit(dz), FZ = A13.spokenFor(dz);
+      eq(TZ.totalCollection, 31500 + 2000 + 5500,
+         'backend A212: মোট আদায় counts every donor kind, every daily kind and the programme\'s book');
+      eq(TZ.totalCollection, 39000, 'backend A212: …and the ₹777 that was voided is not in it');
+      eq(TZ.totalExpense, 1200, 'backend A212: মোট খরচ is only money that actually left');
+      eq(TZ.totalExpense === 1200 + 3000, false, 'backend A212: …a fund transfer is not a spend, it changed pocket');
+      // The দায় row carries amount 0 — the figure lives in `committed` — so
+      // "it does not inflate মোট খরচ" is true no matter what and proves
+      // nothing. What has to hold is that it is SPLIT OFF from the spends
+      // entirely and reported as its own thing.
+      eq((A13.activeData(dz).expenses || []).filter(function (e) { return e.id === 'zx3'; }).length, 0,
+         'backend A212: a দায় is not in the expense list at all — it is a promise, not a payment');
+      eq((A13.commitmentRows(dz) || []).filter(function (c) { return c.id === 'zx3'; }).length, 1,
+         'backend A212: …it is carried as a commitment instead');
+      eq(FZ.program, 25000, 'backend A212: …and reported as ₹25,000 already spoken for');
+      eq(TZ.inHand, TZ.totalCollection - TZ.totalExpense, 'backend A212: হাতে আছে = আদায় − খরচ');
+      eq(SZ.puja.collected + SZ.program.collected, TZ.totalCollection, 'backend A212: the two funds\' income sums to মোট আদায়');
+      eq(SZ.puja.expense + SZ.program.expense, TZ.totalExpense, 'backend A212: …their spend to মোট খরচ');
+      eq(SZ.puja.balance + SZ.program.balance, TZ.inHand, 'backend A212: …and their balances to what the committee holds');
+      eq(TZ.totalPledged, 5000 + 3000 + 2000 + 50000 + 0 + 4000 + 1000,
+         'backend A212: every donor is counted in কথা দেওয়া, including the গুপ্ত donor who pledged nothing');
+      // …and the per-kind breakdown the overview screen draws its rows from.
+      // totalPledged sums the parties directly, so it survives a kind being
+      // dropped from PARTY_KINDS — this is the figure that does not. A148:
+      // six hand-written copies of this list, every one a screen that quietly
+      // stopped counting a new donor kind.
+      A13.PARTY_KINDS.forEach(function (k) {
+        eq(!!TZ.byType[k], true, 'backend A212: the breakdown has a row for "' + k + '"');
+      });
+      // `|| {}` on purpose: a kind dropped from PARTY_KINDS makes its bucket
+      // undefined, and a bare `.count` would throw — which aborts the run with
+      // a stack instead of naming what broke. A crash is not a test result.
+      const bt = function (k) { return TZ.byType[k] || {}; };
+      eq([bt('sponsor').count, bt('sponsor').pledged, bt('sponsor').paid], [1, 50000, 20000],
+         'backend A212: a sponsor is counted as a sponsor — kind, pledge and what has come in');
+      eq([bt('gupt').count, bt('gupt').paid], [1, 8000],
+         'backend A212: …and a গুপ্ত donor as গুপ্ত, pledging nothing but having paid ₹8,000');
+      eq([bt('member').count, bt('member').paid], [1, 500],
+         'backend A212: …and a committee member, who both collects and gives');
+      // and the same book through eyes that may not see the confidential kinds
+      const dr2 = (bz.call('pull', { token: tz.tzratan, year: 2026, since: 0 }) || {}).data || {};
+      eq(A13.computeTotals(dr2, {}).totalCollection, TZ.totalCollection - 8000 - 20000,
+         'backend A212: a reader without the গুপ্ত/sponsor keys does not get their money in the total either — the arithmetic must not leak what the rows do not');
+    }
+
     // --- A211: 🍯 through the Sheet ---------------------------------------
     // A140 in run.js proves the pot equation closes, against a hand-built
     // fixture. What it cannot see is that the two fields the attribution

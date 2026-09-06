@@ -15173,3 +15173,44 @@ handover is not a thing — my first fixture assumed otherwise and the server
 refused it.
 
 Tests 2,735 (from 2,728). No app change.
+
+## A212 — one book, every kind of row, the three headline numbers (2026-09-06)
+
+**Checked, not changed.** মোট আদায় / মোট খরচ / হাতে আছে are the most-read
+figures in the app, and each was covered in isolation. What was not covered
+is **all of it at once**: five donor kinds, three daily kinds, the
+programme's own book, a real spend, a fund transfer, a দায়, and a donation
+written by mistake and voided — pushed through the server and read back.
+A new row type leaking into the wrong total is the most-read wrong number
+there is. Twelve properties, all already right:
+
+- মোট আদায় ₹39,000 counts every donor kind, every daily kind and the
+  programme's book, and excludes the ₹777 that was voided
+- মোট খরচ is ₹1,200 — the transfer is not a spend (it changed pocket) and
+  the দায় is not one either (it has not been paid)
+- the দায় is **split off from the expense list entirely** and reported as
+  ₹25,000 already spoken for
+- হাতে = আদায় − খরচ; the two funds' income, spend and balances each sum to
+  the committee-wide figure
+- the per-kind breakdown the overview draws its rows from has a bucket for
+  every `PARTY_KINDS` entry, with sponsor, গুপ্ত and member each counted as
+  themselves
+- **and the same book read by somebody without the গুপ্ত/sponsor keys gives
+  a total ₹28,000 smaller** — the arithmetic must not leak what the rows do
+  not
+
+**Two of my own assertions were vacuous and were replaced.** "A দায় does
+not inflate মোট খরচ" is true no matter what, because the row carries
+`amount: 0` and its figure lives in `committed`; the real property is that
+it is absent from the expense list and present as a commitment. And
+`totalPledged` sums the parties directly, so it survives a kind being
+dropped from `PARTY_KINDS` — the figure that does not is the per-kind
+breakdown, which is now asserted.
+
+**A note on the harness, not the app.** Dropping `sponsor` from
+`PARTY_KINDS` IS caught — by A144 — but as a `TypeError` stack rather than
+a named FAIL, so a `grep FAIL` shows nothing and the mutation looks like it
+survived. Mine are written `(TZ.byType[k] || {})` for that reason. The
+wider clean-up is filed as a separate task.
+
+Tests 2,778 (from 2,735). No app change.
