@@ -16348,3 +16348,45 @@ fails with a name.
 Tests 3,154 (from 3,120). Every new assertion mutation-proved by name.
 
 **Tests only** — no version bump, nothing to deploy.
+
+## A244 — run the version/schema lock, and teach the harness to wait
+
+`schemaCmp() === -1` is the one switch in this app that stops twelve people
+entering money. It keeps its answer in `localStorage` so it survives going
+offline — which means a **wrong** answer survives too, and there is no way to
+argue with it from a dead spot. Every assertion about it so far read `auth.js`
+as text. Loaded it in a `vm` and asked it instead.
+
+**Thirty-eight assertions, no defects.** The lock is right. In particular:
+
+- A phone that has **never heard from the server** — out of the box, or only
+  ever offline — reads schema unknown and locks nobody out. Same when
+  `localStorage` throws outright (Safari private mode), and same when the
+  stored value is junk. Three different kinds of ignorance, all failing the
+  same safe way.
+- `schema: 0` is a real contract number **and** a falsy one, and it survives
+  the round trip instead of being thrown away by a truthiness test.
+- The envelope is read **before** the `ok` check, so a phone that is behind
+  *and* getting errors still learns the first fact. The lock's only exit is the
+  server itself saying a contract this client can speak.
+- Versions compare as numbers, not text. My build is `4.83.0`; as strings
+  `"4.83.0" < "4.9.0"`, so a text compare would fly the red *update now* strip
+  on twelve phones that are **newer** than the server — for exactly one
+  release, and then never again, which is the kind of bug nobody reports. The
+  test hunts for a smaller-number-that-sorts-later pair at the current version
+  and **fails by name if none exists**, rather than quietly proving nothing the
+  day the numbers stop lining up.
+
+**The harness had a hole, and it is the reason this is worth writing down.**
+`tests/run.js` is straight-line and ends in `process.exit()`. Anything
+asynchronous would have run *after* the summary was printed and the process was
+gone — passing, failing and never-ran all look identical from outside, and the
+first async assertion anyone wrote would have been silently worthless. There is
+now a `pending` list the summary waits on, and a rejected block is counted as a
+failure with its own line. Both proved: a deliberate `throw` inside one reports
+`FAIL an async assertion block threw → boom`.
+
+Tests 3,192 (from 3,154). Every new assertion mutation-proved by name —
+including all six async ones.
+
+**Tests only** — no version bump, nothing to deploy.

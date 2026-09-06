@@ -10,6 +10,11 @@ const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, recon
         PARTY_KINDS, DAILY_KINDS, catOfPayment, catOfDaily, sectorOf } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
+// Assertions that can only be made after a promise settles. This file is
+// otherwise straight-line and ends in process.exit(), so anything asynchronous
+// that is not parked here runs AFTER the summary is printed and the process is
+// already gone — passing, failing and vacuous all look identical from outside.
+const pending = [];
 function eq(actual, expected, label) {
   if (JSON.stringify(actual) === JSON.stringify(expected)) { pass++; }
   else { fail++; console.error('FAIL', label, '→ got', actual, 'expected', expected); }
@@ -3971,6 +3976,160 @@ try {
   // The worker has to be able to answer the question at all.
   eq(/q === 'version'[\s\S]{0,120}postMessage\(VERSION\)/.test(sw), true,
      'A31: sw.js answers a version query, so the app can compare running vs held');
+}
+
+// ---- A244: RUN the version/schema lock ---------------------------------------
+// Everything above reads auth.js as text. `schemaCmp() === -1` is the one switch
+// in this app that stops twelve people entering money, and it keeps its answer
+// in localStorage so it SURVIVES going offline — which means a wrong answer
+// does too. Load auth.js in a vm and ask it.
+{
+  const vm = require('vm');
+  const authSrc = require('fs').readFileSync(__dirname + '/../js/auth.js', 'utf8');
+  const myVer = (authSrc.match(/APP_VERSION = '(chanda-v[\d.]+)'/) || [])[1];
+  eq(/^chanda-v\d+\.\d+\.\d+$/.test(myVer || ''), true, 'A244: APP_VERSION was read from auth.js');
+  const load = function (o) {
+    o = o || {};
+    const store = Object.assign({}, o.store || {});
+    const box = {
+      localStorage: o.throws
+        ? { getItem: function () { throw new Error('blocked'); },
+            setItem: function () { throw new Error('blocked'); },
+            removeItem: function () { throw new Error('blocked'); } }
+        : { getItem: function (k) { return (k in store) ? store[k] : null; },
+            setItem: function (k, v) { store[k] = String(v); },
+            removeItem: function (k) { delete store[k]; } },
+      navigator: { onLine: true },
+      Settings: { get: function () { return ''; } },
+      CONFIG: { SCRIPT_URL: o.noUrl ? '' : 'https://example.invalid/exec' },
+      fetch: function () { return Promise.resolve({ json: function () { return Promise.resolve(box.__reply || { ok: true }); } }); },
+      AbortController: function () { this.signal = {}; this.abort = function () {}; },
+      setTimeout: setTimeout, clearTimeout: clearTimeout,
+      CustomEvent: function (n, d) { this.type = n; this.detail = d; },
+      JSON: JSON, Math: Math, Number: Number, String: String, Date: Date,
+      Array: Array, Object: Object, Promise: Promise,
+    };
+    box.window = box;
+    box.window.dispatchEvent = function () {};
+    vm.createContext(box);
+    // auth.js is `const Auth = (function(){…})()`, and a top-level const does
+    // not land on a vm context's global — hand it out explicitly.
+    vm.runInContext(authSrc + '\n;globalThis.__A = Auth;', box);
+    return { A: box.__A, store: store, box: box };
+  };
+
+  // THE property. A phone out of the box, or one that has only ever been
+  // offline, has no ck_srv_schema. Deciding it is behind would lock a collector
+  // out on evidence the phone does not have.
+  {
+    const L = load().A;
+    eq(L.serverSchema(), -1, 'A244: a phone that never heard from the server knows no schema');
+    eq(L.schemaCmp(), null, 'A244: …so it says nothing');
+    eq(L.schemaCmp() === -1, false, 'A244: …and above all it locks NOBODY out');
+    eq(L.versionCmp(), null, 'A244: …and claims nothing about versions either');
+    eq(L.serverVersion(), '', 'A244: …the unknown version is "", never undefined');
+  }
+  // Safari private mode: localStorage throws on every access.
+  {
+    const L = load({ throws: true }).A;
+    eq(L.serverSchema(), -1, 'A244: a phone that cannot read storage knows no schema');
+    eq(L.schemaCmp() === -1, false, 'A244: …and still locks nobody out');
+    eq(L.serverVersion(), '', 'A244: …and does not throw on the way');
+  }
+  // A junk value in storage must not lock either.
+  {
+    const L = load({ store: { ck_srv_schema: 'অনেক', ck_srv_version: 'কিছু' } }).A;
+    eq(L.schemaCmp() === -1, false, 'A244: a corrupt schema value locks nobody out');
+    eq(L.versionCmp(), null, 'A244: …and a corrupt version claims nothing');
+  }
+  // The three directions.
+  eq(load({ store: { ck_srv_schema: '9' } }).A.schemaCmp(), -1, 'A244: server on a newer contract → this phone is behind');
+  eq(load({ store: { ck_srv_schema: '5' } }).A.schemaCmp(), 0, 'A244: same contract → level');
+  eq(load({ store: { ck_srv_schema: '1' } }).A.schemaCmp(), 1, 'A244: server behind → 1, which only the admin is shown');
+  eq(load({ store: { ck_srv_schema: '1' } }).A.schemaCmp() === -1, false,
+     'A244: …and a stale SERVER never locks a collector out');
+  eq(load({ store: { ck_srv_version: 'chanda-v9.9.9' } }).A.schemaCmp(), null,
+     'A244: knowing the version but not the contract is still not a reason to lock');
+
+  // Versions compare as NUMBERS. As strings "4.83.0" < "4.9.0", so a string
+  // compare would fly the red "you are behind, update now" strip on twelve
+  // phones that are in fact NEWER than the server — for exactly one release,
+  // and then never again, which is the kind of bug nobody ever reports.
+  {
+    const mine = (myVer.match(/(\d+)\.(\d+)\.(\d+)/) || []).slice(1).map(Number);
+    const at = function (i, v) { const n = mine.slice(); n[i] = v; return 'chanda-v' + n.join('.'); };
+    const cmp = function (v) { return load({ store: { ck_srv_version: v } }).A.versionCmp(); };
+    eq(cmp(myVer), 0, 'A244: the same version compares level');
+    [0, 1, 2].forEach(function (i) {
+      const slot = ['major', 'minor', 'patch'][i];
+      eq(cmp(at(i, mine[i] + 1)), -1, 'A244: a higher ' + slot + ' means this phone is behind');
+      if (mine[i] > 0) eq(cmp(at(i, mine[i] - 1)), 1, 'A244: a lower ' + slot + ' means the server is behind');
+    });
+    // Find a slot where a SMALLER number sorts LATER as text — that pair is the
+    // whole point of the check. If a future version bump leaves no such pair
+    // (say 4.95.x), this fails by name and whoever bumped it picks a new
+    // anchor; better a loud failure than a test that quietly proves nothing.
+    let trap = null;
+    [0, 1, 2].forEach(function (i) {
+      for (let v = 0; v < mine[i] && trap === null; v++) {
+        if (String(v) > String(mine[i])) trap = { i: i, v: v };
+      }
+    });
+    eq(trap !== null, true, 'A244: a string-vs-number trap still exists to test at ' + myVer);
+    if (trap) {
+      eq(cmp(at(trap.i, trap.v)), 1,
+         'A244: ' + at(trap.i, trap.v) + ' is BEHIND ' + myVer + ' — numbers, not text');
+    }
+    eq(cmp('chanda-v'), null, 'A244: a version with no numbers claims nothing');
+    eq(cmp(''), null, 'A244: …nor does an empty one');
+  }
+
+  // The lock only learns through call(), which also pins the two field names it
+  // reads off the envelope: rename `codeVersion` or `schema` on either side and
+  // the lock silently stops learning, with no error anywhere.
+  const talk = function (reply, o) {
+    const l = load(o);
+    l.box.__reply = reply;
+    return l.A.call('pull', {}).then(function () { return l; }, function () { return l; });
+  };
+  const V = myVer;
+  pending.push(Promise.all([
+    talk({ ok: true, codeVersion: V, schema: 0 }).then(function (l) {
+      // 0 is a real contract number and a falsy one. The classic bug here is a
+      // truthiness test that throws it away.
+      eq(l.store.ck_srv_schema, '0', 'A244: schema 0 is stored, not discarded for being falsy');
+      eq(l.A.serverSchema(), 0, 'A244: …and reads back as 0, not as unknown');
+      eq(l.A.schemaCmp(), 1, 'A244: …so it means "server behind", not "no idea"');
+    }),
+    talk({ ok: true, codeVersion: V }, { store: { ck_srv_schema: '5' } }).then(function (l) {
+      eq(l.store.ck_srv_schema, '5', 'A244: a reply carrying no schema does not erase the known one');
+      eq(l.store.ck_srv_version, V, 'A244: …while the version in it is still recorded');
+    }),
+    // read the envelope BEFORE the ok check, or a phone that is behind AND
+    // getting errors would never learn the first fact
+    talk({ ok: false, error: 'bad-token', codeVersion: V, schema: 9 }).then(function (l) {
+      eq(l.store.ck_srv_schema, '9', 'A244: an ERROR envelope still teaches the lock');
+      eq(l.A.schemaCmp(), -1, 'A244: …so a phone that is behind and erroring still finds out');
+    }),
+    talk({ ok: true, codeVersion: V, schema: 7 }, { throws: true }).then(function () {
+      eq(true, true, 'A244: reading a reply survives storage being unwritable');
+    }),
+    // and the only way out of the lock
+    (function () {
+      const l = load({ store: { ck_srv_schema: '9' } });
+      eq(l.A.schemaCmp(), -1, 'A244: locked, because the server said a newer contract');
+      l.box.__reply = { ok: true, codeVersion: V, schema: 5 };
+      return l.A.call('pull', {}).then(function () {
+        eq(l.A.schemaCmp(), 0, 'A244: the server saying 5 is what unlocks it…');
+        eq(l.store.ck_srv_schema, '5', 'A244: …and it is stored, so the phone stays unlocked offline');
+      });
+    })(),
+    load({ noUrl: true }).A.call('pull', {}).then(function () { return 'resolved'; },
+                                                 function (e) { return e.message; })
+      .then(function (m) {
+        eq(m, 'not-configured', 'A244: with no server URL the call refuses before any fetch');
+      }),
+  ]));
 }
 
 
@@ -8002,5 +8161,12 @@ try {
   console.log('      (everything after that point did not run — fix this first)');
 }
 
-console.log(pass + ' passed, ' + fail + ' failed');
-process.exit(fail ? 1 : 0);
+Promise.all(pending.map(function (p) {
+  return p.catch(function (e) {
+    fail++;
+    console.log('FAIL an async assertion block threw → ' + ((e && e.message) || e));
+  });
+})).then(function () {
+  console.log(pass + ' passed, ' + fail + ' failed');
+  process.exit(fail ? 1 : 0);
+});
