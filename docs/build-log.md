@@ -15534,3 +15534,41 @@ and adding a grantable key with no words — which now fails rather than
 drawing a chip that reads `auditview`.
 
 **Client-only** — reaches phones with ⚙️ → 🔄.
+
+## A223 — the book can never be left with nobody who can run it (2026-09-06)
+
+**Swept all 54 server actions for the mirror-pair class**, the one my own
+skills file names: *every permission rule has a mirror — give/take,
+promote/demote, block/unblock — and the unguarded mirror is where the
+exploit lives.* Every action carries an identity check except `register`,
+`login` and `logout`, which establish identity; and every give/take pair is
+one action handling both directions, so there is no half to forget.
+
+**One thing had no test: the oldest guard of all.** A78 pins
+`cant-exit-self` and `cant-block-self` — and its own comment says *"setRole
+has refused self-demotion since the beginning"*. That refusal,
+`cant-demote-self`, is the guard the other two were modelled on, and
+nothing tested it. Removing it would have left the suite green while one
+tap locked the committee out of its own book, with no way back but editing
+the Users sheet by hand.
+
+Verified all four routes to a self-lockout, live: demote, block, stand
+down, and clearing one's own grants. The first three refuse; the fourth is
+allowed and correctly leaves `role` alone — **an admin's powers come from
+the role, not from the permission lists**.
+
+**Mutation corrected me about the design.** I had written that no
+"last admin" counter is needed, since nobody can remove themselves. Wrong:
+take away `cant-demote-self` and a second refusal answers underneath it —
+`last-admin`, from `countAdmins_()` — and taking away `cant-exit-self`
+surfaces `demote-first`. It is **defence in depth**, deliberately. So the
+new assertions name the exact error each door gives rather than merely that
+it refused: a guard quietly demoted to its backstop is a guard that has
+stopped being tested, and the backstop was never meant to carry the case
+alone.
+
+Tests 2,880 (from 2,867). Mutation-proved: removing any one of the three
+self-guards fails by name, and the failure text shows which backstop caught
+it instead.
+
+No app change.

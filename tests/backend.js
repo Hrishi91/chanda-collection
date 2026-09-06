@@ -3070,6 +3070,69 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A223: the book can never be left with nobody who can run it --------
+    // A78 pins cant-exit-self and cant-block-self. The guard those two were
+    // modelled on — cant-demote-self, "refused since the beginning" — has no
+    // test at all, so removing it would leave the suite green while one tap
+    // locked the committee out of its own book with no way back but editing
+    // the Sheet by hand.
+    //
+    // The invariant is what is actually pinned here: there is no sequence of
+    // admin actions that ends with zero live admins. Mutation showed the
+    // mechanism is DEEPER than the three self-guards — take one away and a
+    // second refusal answers underneath it (`last-admin` from countAdmins_,
+    // `demote-first` on the exit door). So the assertions below name the exact
+    // error each door gives, not merely that it refused: a guard silently
+    // demoted to its backstop is a guard that has stopped being tested, and
+    // the backstop was never meant to carry the case alone.
+    {
+      const ba = loadBackend(); ba.api.setup();
+      ['adminone', 'admintwo'].forEach(function (u, i) {
+        ba.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '97700000' + i });
+      });
+      const ta1 = ba.call('login', { username: 'adminone', password: 'secret0', year: 2026 }).token;
+      const aid = function (u) { return ba.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+      const arow = function (u) { return ba.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+      ba.call('setStatus', { token: ta1, userId: aid('admintwo'), status: 'approved' });
+      const oopsA = function (fn) {
+        try { const r = fn(); return (r && r.error) || ''; } catch (e) { return String(e.message || e); }
+      };
+      const liveAdmins = function () {
+        return ba.rows('Users').filter(function (x) {
+          return String(x.role) === 'admin' && String(x.status) === 'approved' && String(x.access || '') !== 'exiting';
+        }).length;
+      };
+      eq(liveAdmins(), 1, 'backend A223: one admin to start with');
+
+      eq(oopsA(function () { return ba.call('setRole', { token: ta1, userId: aid('adminone'), role: 'user' }); }),
+         'cant-demote-self',
+         'backend A223: an admin cannot demote themselves — the oldest of the three guards, and the one with no test until now');
+      eq(oopsA(function () { return ba.call('setStatus', { token: ta1, userId: aid('adminone'), status: 'blocked' }); }),
+         'cant-block-self', 'backend A223: …nor block themselves, which would clear their token too');
+      eq(oopsA(function () { return ba.call('setAccess', { token: ta1, userId: aid('adminone'), access: 'exiting' }); }),
+         'cant-exit-self', 'backend A223: …nor stand themselves down');
+      eq(liveAdmins(), 1, 'backend A223: …so after all three attempts the book still has somebody who can run it');
+
+      // clearing one's own grants is allowed, and must not touch the ROLE:
+      // an admin's powers come from the role, not from the permission lists
+      eq(oopsA(function () { return ba.call('clearUserGrants', { token: ta1, userId: aid('adminone'), confirm: 'CLEAR' }); }),
+         '', 'backend A223: an admin may clear their own grants');
+      eq(String(arow('adminone').role), 'admin',
+         'backend A223: …and is still an admin afterwards — the role is not a grant');
+      eq(liveAdmins(), 1, 'backend A223: …the book is still administrable');
+
+      // a second admin does not open a back door: each can remove the other,
+      // neither can remove themselves, so the floor of one holds
+      ba.call('setRole', { token: ta1, userId: aid('admintwo'), role: 'admin' });
+      eq(liveAdmins(), 2, 'backend A223: a second admin can be appointed');
+      eq(oopsA(function () { return ba.call('setRole', { token: ta1, userId: aid('admintwo'), role: 'user' }); }), '',
+         'backend A223: …and demoted by the other one');
+      eq(liveAdmins(), 1, 'backend A223: …leaving exactly one, which is the floor');
+      eq(oopsA(function () { return ba.call('setRole', { token: ta1, userId: aid('adminone'), role: 'user' }); }),
+         'cant-demote-self', 'backend A223: …and that one still cannot remove themselves');
+      eq(liveAdmins(), 1, 'backend A223: zero admins is not reachable');
+    }
+
     // --- A217: the promise the collector's own screen makes -----------------
     // mySummary is well covered at rest in run.js (37 assertions, afterApprove
     // among them). What is not covered is that the number it PROMISES —
