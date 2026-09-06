@@ -2557,6 +2557,39 @@ eq(chatLoad({}, nowIso).count, 0, 'chat load: no messages key at all is ok');
 const shortB = chatLoad({ messages: [{ id: 'a', text: 'ok', createdAt: nowIso }] }, nowIso).bytes;
 const longB = chatLoad({ messages: [{ id: 'a', text: new Array(200).join('x'), createdAt: nowIso }] }, nowIso).bytes;
 eq(longB > shortB, true, 'chat load: a long message costs more than a short one');
+// A241: the QUIET side of the rate signal. Everything above pins when the
+// warning fires; nothing pinned that it stays silent just below the line, and
+// a threshold nudged the wrong way turns a normal busy day into a scare that
+// teaches twelve people to ignore the banner. `chatOf(n, 1)` puts every row
+// inside the 24h window, so this is the rate limb on its own.
+eq(chatLoad(chatOf(399, 1), nowIso).level, 'ok', 'chat load: 399 in a day is still quiet');
+eq(chatLoad(chatOf(401, 1), nowIso).level, 'watch', 'chat load: 401 in a day crosses');
+eq(chatLoad(chatOf(799, 1), nowIso).level, 'watch', 'chat load: 799 in a day is not yet high');
+// …and the window really is a window: an old book is not a fast one.
+const oldChat = { messages: chatOf(500, 1).messages.map(function (m) {
+  return { id: m.id, text: m.text, createdAt: new Date(Date.now() - 3 * 86400000).toISOString() }; }) };
+eq(chatLoad(oldChat, nowIso).perDay, 0, 'chat load: messages older than a day are not "today\'s rate"');
+eq(chatLoad(oldChat, nowIso).level, 'ok', '…so 500 old messages raise nothing');
+
+// ---- 🎭 the programme tab's own chips ---------------------------------------
+// A241: the tab draws its chips from one list and dispatches on `sec`, with the
+// LAST chip served by the `else`. That is fine for one chip and silently wrong
+// for two: a chip added without a branch renders the report screen under its
+// own label, and looks like it works. Pin the shape, not the names.
+{
+  const appProg = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const prog = appProg.slice(appProg.indexOf('function renderProgram()'),
+    appProg.indexOf('function progEntryHTML'));
+  const chips = (prog.match(/chip\('([a-z]+)'/g) || []).map(function (m) { return m.slice(6, -1); });
+  const branches = (prog.match(/sec === '([a-z]+)'/g) || []).map(function (m) { return m.slice(9, -1); });
+  eq(chips.length >= 3, true, 'programme tab: the chip strip is still drawn');
+  const noBranch = chips.filter(function (k) { return branches.indexOf(k) < 0; });
+  eq(noBranch.length <= 1, true,
+     'programme tab: at most one chip may fall through to the else — got ' + noBranch.join(', '));
+  eq(/\n\s*else \{/.test(prog), true, 'programme tab: …and that else branch exists to catch it');
+  eq(branches.filter(function (k) { return chips.indexOf(k) < 0; }).length, 0,
+     'programme tab: every section can be reached by a chip');
+}
 
 // ---- the handover book -------------------------------------------------------
 // Everything one person handed over and everything handed to them, in one

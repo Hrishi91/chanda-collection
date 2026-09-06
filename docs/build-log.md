@@ -16196,3 +16196,38 @@ test: **894 keys, none defined twice.**
 v4.82.0. Tests 3,100 (from 3,096). Mutation-proved both ways.
 
 **Client-only** — reaches phones with ⚙️ → 🔄.
+
+## A241 — the last two unwalked surfaces: 💬 storage and the 🎭 tab's chips
+
+Both came back clean. Every flag my probe raised was my own wrong assumption,
+and the two that survived reading were worth pinning anyway.
+
+**💬 storage budget.** `chatLoad` already had five assertions, all on the
+firing side — 1,600 → watch, 3,200 → high, 900-in-a-day → high. Nothing pinned
+the QUIET side. A threshold nudged the wrong way does not break any of those
+tests; it just starts calling a normal busy day a problem, and twelve people
+learn to swipe the banner away. Now pinned: 399-in-a-day is silent, 401
+crosses, 799 is still only `watch`. And the rate really is a 24-hour window —
+500 messages three days old score `perDay: 0` and raise nothing, which is the
+whole point of having a rate signal separate from a size one.
+
+**🎭 the programme tab.** Three chips — এন্ট্রি / তালিকা / রিপোর্ট — dispatch
+through `if (sec === 'entry') … else if (sec === 'list') … else { report }`.
+That `else` is correct for one chip and silently wrong for two: a fourth chip
+added without a branch renders the report screen under its own label and looks
+like it works. There is no fourth chip today; the test is there so there
+cannot be one tomorrow. Pinned as a shape, not as names: at most one chip may
+fall through, the else must exist to catch it, and no section may exist that
+no chip reaches.
+
+My probe accused the tab twice and was wrong twice — it searched for
+`progSection === '…'` (the code binds `const sec = progSection` first) and it
+cut its slice at `renderProgram`'s closing brace, which put the ticket tile's
+`canEntry('ticket')` check outside the text it was searching. A probe that
+cannot see the code cannot clear it either.
+
+v4.82.0. Tests 3,109 (from 3,100). All eight new assertions mutation-proved by
+name: three thresholds moved, the 24h window removed, a fourth chip added, a
+section orphaned, and the else renamed.
+
+**Tests only** — nothing to deploy, nothing for phones to fetch.
