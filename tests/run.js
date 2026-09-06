@@ -3559,6 +3559,116 @@ eq((a27Pos.match(/\{ id:/g) || []).length, 4, 'A27: four committee posts seeded'
      /const posts = Lists\.get\('position'\)/.test(mfForm), true,
      'A27: the post is a DROPDOWN off the master list, on every member');
 }
+// ---- A243: RUN js/lists.js, don't just read it ------------------------------
+// Every assertion above this line reads lists.js as TEXT. The module had never
+// been executed by a test, and it is what the screens ask "how many may hold
+// this post", "what does this post grant", "who outranks whom" — every answer
+// a permission answer. Load it in a vm with the three globals it touches.
+{
+  const vm = require('vm');
+  const store = {};
+  const box = {
+    localStorage: { getItem: function (k) { return (k in store) ? store[k] : null; },
+                    setItem: function (k, v) { store[k] = String(v); },
+                    removeItem: function (k) { delete store[k]; } },
+    navigator: { onLine: false },
+    Settings: { get: function (k) { return k === 'lang' ? box.__lang : null; } },
+    __lang: 'bn',
+    Auth: { loggedIn: function () { return false; }, token: function () { return ''; } },
+    Sync: { configured: function () { return false; } },
+    JSON: JSON, Math: Math, Number: Number, String: String, Array: Array, Object: Object,
+    Date: Date, Promise: Promise,
+  };
+  box.window = box;
+  vm.createContext(box);
+  vm.runInContext(a25Lists, box);
+  const L = box.Lists;
+
+  // An id this phone has never heard of is the ordinary case, not the exotic
+  // one: the admin created a post while this phone was in a dead spot. Every
+  // answer has to be the cautious one, because a screen is drawn from it.
+  eq(L.permsOf('nonesuch').length, 0, 'A243: an unknown post grants nothing');
+  eq(L.levelOf('nonesuch'), 0, 'A243: …outranks nobody, so it hands out no posts');
+  eq(L.itemOf('position', 'nonesuch'), null, 'A243: …and its row is null, not undefined');
+  // isFull is the one that fails OPEN — an unknown post is uncapped, so the
+  // screen offers the action and the server refuses it. That is the right way
+  // round (the server is the lock, the screen only says no early), but it is a
+  // deliberate asymmetry and it should not drift into silence by accident.
+  eq(L.isFull('nonesuch', 999), false, 'A243: …and is never "full" — the server does the refusing');
+  eq(L.isFull('president', 0), false, 'A243: a one-person post with nobody in it is open');
+  eq(L.isFull('president', 1), true, 'A243: …and closed once somebody holds it');
+  eq(L.isFull('president', 2), true, 'A243: …still closed if the books already broke the rule');
+  eq(L.isFull('member', 9999), false, 'A243: an uncapped post is never full');
+
+  // The seeds. Two copies of the same four posts and the same four areas, one
+  // per side, and NOTHING was comparing them. A phone that has not refreshed
+  // answers from its seed while the server answers from its own; if they ever
+  // drift, the screen caps what the server allows, or offers what it refuses.
+  const gsSeed = a25Gs;
+  const posRe = /\['([a-z]+)', '([^']*)', '([^']*)', (\d+)\]/g;
+  const srvPos = ((gsSeed.match(/var POSITION_SEED = \[([\s\S]*?)\];/) || [])[1] || '')
+    .match(posRe) || [];
+  const cliPos = L.get('position');
+  eq(srvPos.length, cliPos.length, 'A243: server and phone seed the same NUMBER of posts');
+  eq(srvPos.length >= 4, true, 'A243: …and POSITION_SEED was actually read');
+  srvPos.forEach(function (m, i) {
+    const p = m.match(/\['([a-z]+)', '([^']*)', '([^']*)', (\d+)\]/);
+    const c = cliPos[i] || {};
+    eq([c.id, c.nameBn, c.nameEn, c.maxCount].join('|'),
+       [p[1], p[2], p[3], Number(p[4])].join('|'),
+       'A243: post ' + p[1] + ' — id, both names and cap all match the server');
+  });
+  eq(cliPos.every(function (p) { return String(p.perms || '') === ''; }), true,
+     'A243: no seeded post grants any power until an admin ticks a box');
+  eq(cliPos.every(function (p) { return !p.level; }), true,
+     'A243: …and none is seeded a rank, so nobody appoints anybody but the admin');
+
+  const areaRe = /\['([a-z_]+)', '([^']*)', '([^']*)'\]/g;
+  const srvAreas = ((gsSeed.match(/var AREA_SEED = \[([\s\S]*?)\];/) || [])[1] || '').match(areaRe) || [];
+  const cliAreas = L.get('area');
+  eq(srvAreas.length, cliAreas.length, 'A243: server and phone seed the same NUMBER of areas');
+  eq(srvAreas.length >= 4, true, 'A243: …and AREA_SEED was actually read');
+  srvAreas.forEach(function (m, i) {
+    const a = m.match(/\['([a-z_]+)', '([^']*)', '([^']*)'\]/);
+    const c = cliAreas[i] || {};
+    eq([c.id, c.nameBn, c.nameEn].join('|'), [a[1], a[2], a[3]].join('|'),
+       'A243: area ' + a[1] + ' — id and both names match the server');
+  });
+
+  // The cache, and what happens when it is wrong.
+  store.ck_lists = JSON.stringify({ area: [{ id: 'new_rd', nameBn: 'নতুন রোড', nameEn: 'New Rd' }] });
+  eq(L.get('area').length === 1 && L.get('area')[0].id === 'new_rd', true,
+     'A243: the server\'s list beats the seed');
+  eq(L.get('position').length, cliPos.length,
+     'A243: …but a kind the server did not send keeps its seed, rather than emptying');
+  eq(L.labelOf('area', 'new_rd'), 'নতুন রোড', 'A243: labels follow the language…');
+  box.__lang = 'en';
+  eq(L.labelOf('area', 'new_rd'), 'New Rd', 'A243: …both ways');
+  box.__lang = 'bn';
+  eq(L.labelOf('area', 'gone_rd'), 'gone_rd',
+     'A243: a row pointing at a DELETED area shows the id, not a blank where a place should be');
+  eq(L.labelOf('area', undefined), '',
+     'A243: …and a row with no area at all is blank, never the word "undefined"');
+  store.ck_lists = JSON.stringify({ area: [{ id: 'x2', nameBn: 'দুই', nameEn: 'Two' }] });
+  eq(L.get('area')[0].id, 'x2', 'A243: the memo follows a rewrite of the same key');
+  // A corrupt cache must fall back, not throw. Asserted as "did it throw?"
+  // rather than by comparing the answer: without the try/catch the JSON.parse
+  // takes the whole suite down, and a suite that dies is not a suite that
+  // reports a failure by name.
+  store.ck_lists = 'not json at all';
+  let listsThrew = false, corruptLen = -1;
+  try { corruptLen = L.get('area').length; } catch (e) { listsThrew = true; }
+  eq(listsThrew, false, 'A243: a corrupt cache does not throw');
+  eq(corruptLen, cliAreas.length, 'A243: …it falls back to the seed');
+  delete store.ck_lists;
+
+  // maxMap feeds the anomaly desk. An uncapped post in it would make 🩺 shout
+  // "more than 0 people hold সদস্য" at a book that is perfectly fine.
+  const mm = L.maxMap();
+  eq(Object.keys(mm).length > 0, true, 'A243: maxMap carries the capped posts');
+  eq(Object.keys(mm).every(function (k) { return mm[k] > 0; }), true, 'A243: …every one of them capped');
+  eq('member' in mm, false, 'A243: …and the uncapped post is absent, so 🩺 never invents a breach');
+}
 // The membership-type list was never wanted — it must be gone everywhere.
 // A81: comments stripped first. The word now has to appear in a comment,
 // because the COLUMN is still on the live sheet (ensureCols_ appends, it never

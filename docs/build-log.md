@@ -16301,3 +16301,50 @@ v4.83.0. Tests 3,120 (from 3,109).
 `sw.js`, `APP_VERSION` and `CODE_VERSION` all move together. Nothing on any
 phone behaves differently — the two lists were identical — so the ⚙️ → 🔄 and
 the server redeploy can wait for whenever the next real change is ready.
+
+## A243 — run js/lists.js, don't just read it
+
+`lists.js` is 114 lines and had never been **executed** by a test. Nine
+assertions mentioned it; every one read it as source text. It is the module the
+screens ask *how many people may hold this post*, *what does this post grant*,
+*who outranks whom* — three questions that are all permission questions.
+
+Loaded it in a `vm` with the four globals it touches (`localStorage`,
+`navigator`, `Settings`, `Auth`/`Sync`) and drove it. **Thirty-four assertions,
+no defects.** The module is right. What was missing was anything holding it
+that way.
+
+**The gap worth closing: the two seeds were never compared.** The four
+committee posts and the four road areas are written out twice — `SEED` in
+`js/lists.js` and `POSITION_SEED` / `AREA_SEED` in `Code.gs` — and nothing
+checked that they agree. A phone that has not refreshed answers from its copy
+while the server answers from its own. Drift either way is a live wrong
+answer: the screen caps what the server would allow, or offers what the server
+will refuse. Now pinned field by field — id, order, both language names, and
+the cap — plus the two facts that make the seed safe: no seeded post grants any
+permission, and none is seeded a rank, so until the committee types the numbers
+in, the admin makes every appointment.
+
+Also pinned, all of it already true: an **unknown post id** — the ordinary case
+of an admin creating a post while this phone is in a dead spot — grants
+nothing, outranks nobody, and returns `null` rather than `undefined`; `isFull`
+alone fails OPEN on it, which is the right way round (the server is the lock,
+the screen only says no early) and is now written down as deliberate rather
+than left to look like an oversight; `isFull`'s boundary in both directions,
+including a book that already broke the cap; a row pointing at a **deleted**
+area shows the id instead of a blank where a place should be; and `maxMap`
+excludes the uncapped post, without which 🩺 would announce that more than
+zero people hold সদস্য.
+
+One assertion started out unprovable and one started out as a crash. The
+"no area at all" case was written against `''`, which takes the same branch as
+the id-not-found path — no mutation could break one without the other — so it
+now tests `undefined`, which the guard really is there for. And the corrupt-
+cache case compared answers, which meant that removing the `try/catch` killed
+the whole suite instead of failing: **a suite that dies is not a suite that
+reports a failure by name.** It now asserts *did it throw*, and the removal
+fails with a name.
+
+Tests 3,154 (from 3,120). Every new assertion mutation-proved by name.
+
+**Tests only** — no version bump, nothing to deploy.
