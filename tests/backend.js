@@ -3070,6 +3070,67 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A225: exactly one verdict per record ------------------------------
+    // js/sync.js clears a row from the queue only when the server NAMES it, so
+    // a record that lands in none of saved / rejected / held is re-pushed for
+    // ever: the phone's ⏳ never reaches zero and nobody is told why. Individual
+    // verdicts are covered all over this file; the INVARIANT — every record,
+    // one answer, no record in two — was not.
+    {
+      const bc2 = loadBackend(); bc2.api.setup();
+      ['cladm', 'clratan'].forEach(function (u, i) {
+        bc2.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '98800000' + i });
+      });
+      const tc2 = bc2.call('login', { username: 'cladm', password: 'secret0', year: 2026 }).token;
+      const cid = bc2.rows('Users').filter(function (x) { return x.username === 'clratan'; })[0].id;
+      bc2.call('setStatus', { token: tc2, userId: cid, status: 'approved' });
+      bc2.call('approveYear', { token: tc2, userId: cid, year: 2026 });
+      bc2.call('setEntries', { token: tc2, userId: cid, entries: ['shop', 'road'] });
+      const tcr = bc2.call('login', { username: 'clratan', password: 'secret1', year: 2026 }).token;
+      const s25 = new Date().toISOString();
+      const R25 = function (store, row) { return rec(store, Object.assign({ year: 2026, createdAt: s25 }, row)); };
+      // one batch, every awkward shape at once
+      const recs25 = [
+        R25('parties',  { id: 'ok1', type: 'shop', name: 'দোকান', pledged: 5000, sector: 'puja' }),
+        R25('payments', { id: 'ok2', partyId: 'ok1', partyName: 'দোকান', amount: 500, cashAmount: 500, upiAmount: 0, date: '2026-09-06' }),
+        R25('parties',  { id: 'no1', type: 'sponsor', name: 'Bose', pledged: 9000, sector: 'puja' }),   // ungranted kind
+        R25('daily',    { id: 'no2', type: 'toto', amount: 100, cashAmount: 100, upiAmount: 0, date: '2026-09-06', sector: 'puja' }),
+        R25('parties',  { id: 'yr1', year: 2025, type: 'shop', name: 'গত বছর', pledged: 100, sector: 'puja' }), // year not approved
+        { store: 'spaceship', row: { id: 'bad1', year: 2026, createdAt: s25 } },                         // unknown store
+        { store: 'parties', row: { year: 2026, createdAt: s25, type: 'shop', name: 'no id' } },          // no row.id
+        { store: 'parties', row: null },                                                                 // no row at all
+        { id: 'bad5' },                                                                                  // no store, no row
+      ];
+      const out25 = bc2.call('push', { token: tcr, records: recs25 });
+      const S = (out25.savedIds || []).map(String), J = (out25.rejectedIds || []).map(String),
+            H = (out25.heldIds || []).map(String);
+
+      // The phone matches on row.id. A record without one is not stuck — the
+      // client has nothing keyed by it — and Code.gs says so in as many words.
+      const keyed = recs25.filter(function (x) { return x.row && x.row.id; })
+        .map(function (x) { return String(x.row.id); });
+      eq(keyed.length, 6, 'backend A225: six of the nine records carry a row id — the other three cannot be queued on a phone at all');
+      const verdicts = keyed.map(function (id) {
+        return [S, J, H].filter(function (L) { return L.indexOf(id) >= 0; }).length;
+      });
+      eq(verdicts.filter(function (n) { return n === 0; }).length, 0,
+         'backend A225: no record is left without an answer — one would be re-pushed for ever');
+      eq(verdicts.filter(function (n) { return n > 1; }).length, 0,
+         'backend A225: …and none gets two answers');
+      const all25 = S.concat(J, H);
+      eq(all25.length, keyed.length,
+         'backend A225: the three lists together name exactly the records that carry an id, no more');
+
+      // the shapes, so a future branch cannot re-classify one silently
+      eq(S.indexOf('ok1') >= 0 && S.indexOf('ok2') >= 0, true, 'backend A225: the good rows are saved…');
+      eq(J.indexOf('no1') >= 0 && J.indexOf('no2') >= 0, true, 'backend A225: …an ungranted kind is refused…');
+      eq(J.indexOf('bad1') >= 0, true, 'backend A225: …an unknown store is refused EXPLICITLY, not ignored…');
+      eq(H.indexOf('yr1') >= 0, true, 'backend A225: …and a season this person is not part of waits');
+      // and one rotten record must not take the round down with it
+      eq(S.indexOf('ok1') >= 0, true,
+         'backend A225: a malformed record in the batch does not stop the good ones landing');
+    }
+
     // --- A224: what push stamps, every sheet must have a column for ---------
     // Code.gs's own A81 comment: "a value written into an unlabelled column is
     // written and then never read — it vanishes with no error anywhere."

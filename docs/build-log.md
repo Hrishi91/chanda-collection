@@ -15611,3 +15611,33 @@ which now fails naming all eight stores.
 
 **Not urgent to deploy.** Nothing reads the field for those two stores
 today; it goes with the next server release, alongside A208.
+
+## A225 — exactly one verdict per pushed record (2026-09-06)
+
+**Checked, nothing wrong, now pinned as an invariant.** `js/sync.js` clears
+a row from the queue only when the server **names** it, so a record landing
+in none of saved / rejected / held is re-pushed for ever: the phone's ⏳
+never reaches zero and nobody is told why. Individual verdicts are covered
+all over `tests/backend.js`; the invariant itself was not.
+
+One batch carrying every awkward shape at once — a good donor and payment,
+an ungranted kind, a season the person is not part of, an unknown store, a
+row with no id, a null row, and a record with no store at all. Every record
+that carries a `row.id` got **exactly one** answer, none got two, and one
+malformed record did not stop the good rows landing.
+
+**My probe was wrong before the app was.** I first counted the *record's*
+own `id`, and reported three rows as unanswered. The phone matches on
+`row.id` — a record without one is not stuck, because the client has
+nothing keyed by it — and Code.gs already says exactly that, in a comment
+written for this precise failure: *"such a row was re-pushed on every sync
+for ever. It takes a client bug to produce one; it must not take a server
+change to drain one."* Confirmed on the client side too: `DB.newRow` mints
+a uuid for every row, so an id-less row cannot be queued in the first
+place.
+
+Tests 2,894 (from 2,885). Mutation-proved in both directions: ignoring an
+unknown store instead of refusing it leaves a record with no answer, and
+reporting a held row as saved as well gives one record two.
+
+No app change.
