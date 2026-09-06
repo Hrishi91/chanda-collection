@@ -16390,3 +16390,52 @@ Tests 3,192 (from 3,154). Every new assertion mutation-proved by name —
 including all six async ones.
 
 **Tests only** — no version bump, nothing to deploy.
+
+## A245 — run js/db.js, the offline queue
+
+`db.js` holds every row between the moment a collector taps সেভ and the moment
+the sheet accepts it. Never executed by a test — only read as text. Added
+`tests/idb-shim.js`, the smallest IndexedDB db.js cannot tell from the real
+one (sibling of `gas-shim.js`, and deliberately implementing only the handful
+of calls db.js makes), and drove it. **Thirty-one assertions, no defects.**
+
+Two things in this file lose money quietly, and both are now pinned:
+
+**The snapshot cache.** db.js says it plainly — *"correctness rests entirely on
+bumping in EVERY write path"*. Four paths: `put`, `del`, `bulkPut`, `clearAll`.
+Miss one and a collector saves money onto a screen that goes on showing the
+world before the save. Each is now driven and each is checked three ways
+(version bumped, snapshot dropped, new snapshot showing the write), with a
+final assertion that all four were actually exercised so the loop cannot
+quietly skip one.
+
+**⏳ versus ✅.** A54's bug from the storage side: a refused row is not
+pending — retrying only gets it refused again — but it must not fall out of
+*both* counts, or the header flips to "সব sync হয়ে গেছে" while a donor walks
+away with a numbered receipt for money that is in nobody's book. Pinned from
+both ends, including the book that holds nothing but a refusal.
+
+**And the store list, which is the expensive one.** `DB.STORES` on the phone
+and `SHEETS` in `Code.gs` are two copies of the same list, and Code.gs rejects
+any push whose store it does not recognise — *a rejected row leaves the phone's
+queue for good*. So a store name on the phone that the server has never heard
+of is not a sync delay. It is money deleted, silently, on every push. Nothing
+was comparing them. Now they are compared, and every store is opened to catch a
+name added to `STORES` without the version bump that creates it.
+
+Also pinned: `newRow` stamps the year as a number, the display name, the stable
+identity and the role that void permissions rest on; a phone part-way through
+logging in writes `'?'` rather than a blank collector, and the **least**
+powerful role rather than the most.
+
+**One honest note on the cache.** Two mutations survived and neither is a bug:
+`touch()` nulls the snapshot *and* `allData()` re-checks `cachedAt === version`.
+Either alone is sufficient, so no single mutation can expose the other. Removing
+both together fails by name, so the behaviour is genuinely pinned — the
+implementation simply guarantees it twice, which is worth knowing rather than
+"fixing".
+
+Tests 3,223 (from 3,192). Every new assertion mutation-proved by name, save the
+doubled cache guard, which is proved as a pair.
+
+**Tests only** — no version bump, nothing to deploy.

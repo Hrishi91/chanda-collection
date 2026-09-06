@@ -8161,6 +8161,111 @@ try {
   console.log('      (everything after that point did not run — fix this first)');
 }
 
+// ---- A245: RUN js/db.js — the offline queue ---------------------------------
+// Rows live in here between the moment a collector taps সেভ and the moment the
+// sheet accepts them. Two things in it lose money quietly: a snapshot cache
+// that goes stale after a write (the screen shows the world before the save),
+// and the pending/rejected counters that decide whether the header says ⏳ or ✅.
+// Never executed by a test before — driven now through tests/idb-shim.js.
+pending.push((async function () {
+  const { loadDB } = require('./idb-shim.js');
+
+  // db.js says it plainly: "correctness rests entirely on bumping in EVERY
+  // write path". Four paths; miss one and a collector saves money onto a screen
+  // that keeps showing the world before it.
+  {
+    const D = loadDB().DB;
+    const snap0 = D.allData();
+    eq(D.allData() === snap0, true, 'A245: two reads in one paint share ONE traversal');
+    await snap0;
+    const seen = {};
+    const bumps = async function (name, fn, check) {
+      const before = D.dataVersion();
+      const stale = D.allData();
+      await fn();
+      eq(D.dataVersion() > before, true, 'A245: ' + name + ' bumps the data version');
+      eq(D.allData() !== stale, true, 'A245: …so ' + name + ' drops the cached snapshot');
+      const d = await D.allData();
+      eq(check(d), true, 'A245: …and the fresh snapshot shows what ' + name + ' did');
+      seen[name] = true;
+    };
+    await bumps('put', function () { return D.put('parties', { id: 'p1', name: 'এক', synced: 0 }); },
+                function (d) { return d.parties.length === 1; });
+    await bumps('bulkPut', function () { return D.bulkPut('payments', [{ id: 'y1', synced: 0 }, { id: 'y2', synced: 1 }]); },
+                function (d) { return d.payments.length === 2; });
+    await bumps('del', function () { return D.del('parties', 'p1'); },
+                function (d) { return d.parties.length === 0; });
+    await bumps('clearAll', function () { return D.clearAll(); },
+                function (d) { return D.STORES.every(function (s) { return d[s].length === 0; }); });
+    eq(Object.keys(seen).sort().join(','), 'bulkPut,clearAll,del,put',
+       'A245: all four write paths were actually exercised');
+  }
+
+  // A54's bug, from the storage side. A refused row is NOT pending — retrying
+  // would only be refused again — but if it also drops out of the rejected
+  // count, the header flips to "সব sync হয়ে গেছে" while a donor is walking away
+  // with a numbered receipt for money that is in nobody's book.
+  {
+    const D = loadDB().DB;
+    await D.bulkPut('payments', [
+      { id: 'a', synced: 0 },
+      { id: 'b', synced: 1 },
+      { id: 'c', synced: 0, rejected: 1 },
+    ]);
+    eq(await D.unsyncedCount(), 1, 'A245: only the row that is really waiting counts as pending');
+    eq(await D.rejectedCount(), 1, 'A245: …the refused one counts separately');
+    const only = loadDB().DB;
+    await only.put('payments', { id: 'c', synced: 0, rejected: 1 });
+    eq(await only.unsyncedCount(), 0, 'A245: a book holding ONLY a refused row shows nothing pending…');
+    eq(await only.rejectedCount(), 1, 'A245: …but does show the refusal, so the header cannot say "all done"');
+  }
+
+  // newRow stamps who, when and which year onto every row ever written.
+  {
+    const D = loadDB({ ck_year: '2026', ck_collectorName: 'রতন',
+                       ck_collectorUsername: 'ratan', ck_collectorRole: 'cashier' }).DB;
+    const r = D.newRow({ amount: 500 });
+    eq(r.year, 2026, 'A245: newRow stamps the year as a NUMBER');
+    eq([r.collector, r.collectorId, r.collectorRole].join('|'), 'রতন|ratan|cashier',
+       'A245: …the display name, the stable identity, and the role void permissions rest on');
+    eq(r.synced, 0, 'A245: …a new row is always unsent');
+    eq(!!r.id && !!r.createdAt, true, 'A245: …with an id and a time');
+    eq(r.amount, 500, 'A245: …and whatever the caller passed survives');
+    eq(D.newRow({}).id !== D.newRow({}).id, true, 'A245: two rows never share an id');
+    eq(D.newRow({ synced: 1 }).synced, 1, 'A245: …and the caller may override a stamped field');
+  }
+  {
+    // a phone part-way through logging in still has to be able to write
+    const D = loadDB().DB;
+    const r = D.newRow({});
+    eq(r.collector, '?', 'A245: an unknown collector is "?", not blank — the row stays identifiable');
+    eq(r.collectorRole, 'collector', 'A245: …and an unknown role is the least powerful one');
+    eq(typeof r.year, 'number', 'A245: …and the year is still a number');
+  }
+
+  // The store list is written twice, once per side. Code.gs rejects a push
+  // whose store is not in SHEETS — and a rejected row leaves the phone's queue
+  // FOR GOOD. A store on the phone that the server has never heard of is
+  // therefore not a sync delay; it is money deleted, quietly, on every push.
+  {
+    const D = loadDB().DB;
+    const gsSrc = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+    const blk = gsSrc.slice(gsSrc.indexOf('var SHEETS = {'));
+    const keys = (blk.slice(0, blk.indexOf('\n};')).match(/^ {2}(\w+):/gm) || [])
+      .map(function (m) { return m.trim().replace(':', ''); });
+    eq(keys.length > 0, true, 'A245: the server SHEETS list was actually read');
+    eq(D.STORES.filter(function (s) { return keys.indexOf(s) < 0; }).join(','), '',
+       'A245: every store the phone can push is one the server knows');
+    // and every store really opens — a name added to STORES without the
+    // version bump that creates it reads as a missing object store
+    const missed = [];
+    for (const s of D.STORES) {
+      try { await D.getAll(s); } catch (e) { missed.push(s); }
+    }
+    eq(missed.join(','), '', 'A245: every store in STORES is actually created on open');
+  }
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;
