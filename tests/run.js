@@ -210,6 +210,51 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A222: every grantable permission has words — a chip echoing its own key is one nobody can act on');
 }
 
+// A232: normPhone — two mentions in the whole suite, and it is the guard
+// against the failure this project keeps naming: one shop entered twice
+// because the collector could not tell it was already in the book.
+{
+  const A32 = require('../js/aggregate.js');
+  // every shape a phone is written in, and they must all be ONE key
+  [['9876543210', 'plain'], ['+919876543210', '+91'], ['919876543210', '91'],
+   ['09876543210', 'leading 0'], ['98765 43210', 'a space'], ['98765-43210', 'a dash'],
+   ['(098) 76543210', 'brackets'], ['+91 98765-43210', 'all of it at once'],
+   ['9876543210 ', 'trailing space']].forEach(function (p) {
+    eq(A32.normPhone(p[0]), '9876543210', 'A232: ' + p[1] + ' normalises to the same ten digits');
+  });
+  eq(A32.normPhone(null), '', 'A232: nothing in, nothing out — never the string "null"');
+  eq(A32.normPhone(''), '', 'A232: …and an empty field stays empty rather than matching everything');
+
+  // The one input it does NOT normalise is Bengali digits — and that is fine
+  // only because the entry step refuses them. If that validation ever loosens,
+  // two collectors typing the same shop's number in different scripts would
+  // each create a donor row, which is the duplicate this function exists to
+  // prevent. So the two halves are asserted together.
+  eq(A32.normPhone('৯৮৭৬৫৪৩২১০'), '৯৮৭৬৫৪৩২১০',
+     'A232: Bengali digits pass through unchanged — normPhone alone would not catch that duplicate');
+  const app32 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const grab32 = function (n) {
+    return (app32.match(new RegExp('  function ' + n + '\\([^)]*\\)[\\s\\S]*?\\n  \\}')) || [''])[0];
+  };
+  const phoneErr = new Function('Aggregate',
+    grab32('cleanPhoneIN') + '\n' + grab32('phoneErrIN') + '\nreturn phoneErrIN;')({ normPhone: A32.normPhone });
+  eq(phoneErr('৯৮৭৬৫৪৩২১০'), 'err_phone_in',
+     'A232: …which is why entry refuses them, and that refusal is the other half of this guard');
+  eq(phoneErr('+91 98765-43210'), null, 'A232: …while every ordinary way of writing it is accepted');
+  eq(phoneErr('12345'), 'err_phone_in', 'A232: …and a short number is not a phone');
+
+  // the duplicate check compares NORMALISED on both sides, or it compares
+  // nothing: "+91 98765 43210" typed today against "9876543210" stored last week
+  // Anchored on the whole `byPhone` line, not on `=== ph` — that pattern is a
+  // prefix of the MEMBER check's `=== phone` thirty lines down, so a loose
+  // version of this assertion passed while the donor check was mutated away.
+  // Found by mutating; A24 caught the change, this one had not.
+  eq(/const byPhone = ph \? alive\.filter\(function \(p\) \{ return cleanPhoneIN\(p\.phone \|\| ''\) === ph; \}\)/.test(app32), true,
+     'A232: the duplicate-DONOR check normalises the stored number as well as the typed one');
+  eq(/\(phone && cleanPhoneIN\(p\.phone \|\| ''\) === phone\)/.test(app32), true,
+     'A232: …and so does the duplicate-MEMBER check, which is a different call site');
+}
+
 // A230: the receipt's branding — the only thing this app produces that leaves
 // the committee. An admin sets it and TWELVE phones render it, so the shape
 // that matters is not "does it look nice" but "can an admin-set string reach

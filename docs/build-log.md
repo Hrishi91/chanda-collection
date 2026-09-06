@@ -15876,3 +15876,33 @@ Tests 2,965 (from 2,950). Mutation-proved: a negative liability, and the
 lost link.
 
 No app change.
+
+## A232 — normPhone, the guard against entering one shop twice (2026-09-06)
+
+**Checked, nothing wrong.** `normPhone` had **two** mentions in the whole
+suite and it decides "is this donor already in the book?" — the failure
+this project keeps naming, because a missed match means one shop becomes
+two donor rows with the money split across both.
+
+Every way a phone gets written normalises to the same ten digits: `+91`,
+a bare `91`, a leading `0`, spaces, dashes, brackets, all of them at once,
+a trailing space. Nothing in gives nothing out — never the string `"null"`,
+and an empty field stays empty rather than matching everybody.
+
+**The one input it does not normalise is Bengali digits**, and that is
+safe only because the entry step refuses them (`err_phone_in`). Two
+collectors typing the same number in different scripts would otherwise each
+create a donor. The two halves are now asserted **together**, so loosening
+the validation fails here rather than showing up as duplicate donors in the
+field.
+
+**Mutation caught a weakness in my own assertion.** I anchored the
+duplicate-donor check on `=== ph`, which is a **prefix** of the member
+check's `=== phone` thirty lines down — so the assertion passed while the
+donor check was mutated away. (A24 caught the change; mine had not.) Both
+call sites are now anchored on their own full line and each fails
+separately.
+
+Tests 2,982 (from 2,965). Mutation-proved four ways.
+
+No app change.
