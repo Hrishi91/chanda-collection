@@ -3070,6 +3070,124 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A234: one evening, end to end -------------------------------------
+    // Every surface in this file is checked alone. This runs them TOGETHER, in
+    // the order a real night happens — five people, every donor kind, a confirm
+    // AND a refusal, a spend, a void, the programme's ticket money, and both
+    // confidential kinds — and then asks whether every screen tells the same
+    // story about the same rupees. Interaction is where the per-area tests
+    // cannot look.
+    {
+      const be = loadBackend(); be.api.setup();
+      const cast = ['evadm', 'evkali', 'evratan', 'evtapan', 'evsubrata'];
+      cast.forEach(function (u, i) {
+        be.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '90000000' + i });
+      });
+      let te0 = be.call('login', { username: 'evadm', password: 'secret0', year: 2026 }).token;
+      const eid = function (u) { return be.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+      cast.slice(1).forEach(function (u) {
+        be.call('setStatus', { token: te0, userId: eid(u), status: 'approved' });
+        be.call('approveYear', { token: te0, userId: eid(u), year: 2026 });
+      });
+      be.call('setEntries', { token: te0, userId: eid('evkali'), entries: ['shop', 'person', 'road', 'toto', 'sponsor', 'gupt', 'review', 'sponsorview', 'guptview'] });
+      be.call('setEntries', { token: te0, userId: eid('evratan'), entries: ['shop', 'person', 'road'] });
+      be.call('setEntries', { token: te0, userId: eid('evtapan'), entries: ['shop', 'toto'] });
+      be.call('setEntries', { token: te0, userId: eid('evsubrata'), entries: ['progteam', 'progdonor', 'progmoney', 'ticket'] });
+      be.call('setCashier', { token: te0, userId: eid('evkali'), cashier: 1 });
+      be.call('addItem', { token: te0, kind: 'area', nameBn: 'মেন রোড', nameEn: 'Main Rd' });
+      const evArea = (be.rows('Lists') || []).filter(function (x) { return x.kind === 'area' && x.nameBn === 'মেন রোড'; })[0].id;
+      const te = {};
+      cast.forEach(function (u, i) { te[u] = be.call('login', { username: u, password: 'secret' + i, year: 2026 }).token; });
+      const D = '2026-09-06', se = D + 'T06:00:00.000Z';
+      const pe = function (u, store, row) {
+        const r = be.call('push', { token: te[u], records: [rec(store, Object.assign({ year: 2026, createdAt: se }, row))] });
+        eq((r.savedIds || []).length, 1, 'backend A234: ' + store + '/' + row.id + ' is accepted');
+        return r;
+      };
+      const A34 = require('../js/aggregate.js');
+      const bk = function (u) { return (be.call('pull', { token: te[u || 'evadm'], year: 2026, since: 0 }) || {}).data || {}; };
+      const hd = function (u) {
+        const r = (A34.inHandRows(bk()) || []).filter(function (x) { return String(x.collector).indexOf(u) >= 0; })[0];
+        return r ? r.inHand : 0;
+      };
+      // 6pm: two collectors work the road
+      pe('evratan', 'parties',  { id: 'sh1', type: 'shop', name: 'আদর্শ স্টোর', owner: 'সুবীর', pledged: 5000, side: evArea, sector: 'puja' });
+      pe('evratan', 'payments', { id: 'py1', partyId: 'sh1', partyName: 'আদর্শ স্টোর', amount: 2000, cashAmount: 1500, upiAmount: 500, date: D });
+      pe('evratan', 'parties',  { id: 'pe1', type: 'person', name: 'রঞ্জিত', pledged: 1000, side: evArea, sector: 'puja' });
+      pe('evratan', 'payments', { id: 'py2', partyId: 'pe1', partyName: 'রঞ্জিত', amount: 1000, cashAmount: 1000, upiAmount: 0, date: D });
+      pe('evratan', 'daily',    { id: 'rd1', type: 'road', amount: 900, cashAmount: 900, upiAmount: 0, date: D, sector: 'puja' });
+      pe('evtapan', 'daily',    { id: 'tt1', type: 'toto', amount: 600, cashAmount: 600, upiAmount: 0, date: D, sector: 'puja' });
+      pe('evtapan', 'parties',  { id: 'sh2', type: 'shop', name: 'নিউ স্টোর', pledged: 3000, side: evArea, sector: 'puja' });
+      pe('evtapan', 'payments', { id: 'py3', partyId: 'sh2', partyName: 'নিউ স্টোর', amount: 800, cashAmount: 800, upiAmount: 0, date: D });
+      eq([hd('evratan'), hd('evtapan')], [3900, 1400], 'backend A234: 6pm — each collector holds what they took');
+      // 7pm: the cashier takes a sponsor and a গুপ্ত donation
+      pe('evkali', 'parties',  { id: 'sp1', type: 'sponsor', name: 'Bose & Co', pledged: 50000, side: evArea, sector: 'puja' });
+      pe('evkali', 'payments', { id: 'py4', partyId: 'sp1', partyName: 'Bose & Co', amount: 25000, cashAmount: 0, upiAmount: 25000, date: D });
+      pe('evkali', 'parties',  { id: 'gu1', type: 'gupt', name: 'শুভাকাঙ্ক্ষী', pledged: 0, sector: 'puja' });
+      pe('evkali', 'payments', { id: 'py5', partyId: 'gu1', partyName: 'শুভাকাঙ্ক্ষী', amount: 5000, cashAmount: 5000, upiAmount: 0, date: D });
+      // 8pm: the programme sells tickets
+      pe('evsubrata', 'daily', { id: 'tk1', type: 'ticket', amount: 3000, cashAmount: 3000, upiAmount: 0, date: D, sector: 'program' });
+      // 9pm: both hand in — one confirmed, one refused
+      pe('evratan', 'handovers', { id: 'h1', amount: 3900, cashAmount: 3400, upiAmount: 500, toId: 'evkali', date: D, status: 'pending',
+        breakdown: JSON.stringify({ shop: { cash: 1500, upi: 500 }, person: { cash: 1000, upi: 0 }, road: { cash: 900, upi: 0 } }) });
+      pe('evtapan', 'handovers', { id: 'h2', amount: 1400, cashAmount: 1400, upiAmount: 0, toId: 'evkali', date: D, status: 'pending',
+        breakdown: JSON.stringify({ toto: { cash: 600, upi: 0 }, shop: { cash: 800, upi: 0 } }) });
+      be.call('confirmHandover', { token: te.evkali, id: 'h1', year: 2026 });
+      be.call('rejectHandover', { token: te.evkali, id: 'h2', reason: 'ভুল গোনা', year: 2026 });
+      // …and one more that is still awaiting the cashier when everyone goes
+      // home. Real nights end this way, and it is the state that separates the
+      // three in-hand paths: a pending parcel has left nobody's hand yet.
+      pe('evsubrata', 'handovers', { id: 'h3', amount: 3000, cashAmount: 3000, upiAmount: 0, toId: 'evkali',
+        date: D, status: 'pending', breakdown: JSON.stringify({ ticket: { cash: 3000, upi: 0 } }) });
+      eq(hd('evratan'), 0, 'backend A234: 9pm — the confirmed parcel empties his hand');
+      eq(hd('evtapan'), 1400, 'backend A234: …the refused one leaves the money with him');
+      // 10pm: a spend, and a double entry cancelled
+      pe('evkali', 'expenses', { id: 'ex1', subject: 'আলো', amount: 1200, cashAmount: 1200, upiAmount: 0, date: D, srcCat: 'other', source: 'general', sector: 'puja' });
+      pe('evkali', 'voids', { id: 'v1', targetStore: 'payments', targetId: 'py3', reason: 'দু\'বার লেখা হয়েছিল', date: D });
+
+      // 11pm: does every screen tell the same story?
+      const de = bk('evadm'), TE = A34.computeTotals(de, {}), RE = A34.reconcile(de, {});
+      const sumHands = (A34.inHandRows(de) || []).reduce(function (a, r) { return a + r.inHand; }, 0);
+      eq(sumHands, TE.totalCollection - TE.totalExpense,
+         'backend A234: Σ what everyone holds === collected − spent, the book\'s one invariant');
+      eq(TE.inHand, sumHands, 'backend A234: …and the headline agrees with the per-person rows');
+      eq(RE.balanced, true, 'backend A234: reconcile says it balances');
+      eq((RE.anomalies || []).map(function (a) { return a.type; }).join(','), '',
+         'backend A234: …and on an ordinary evening the 🩺 desk is silent — a red banner here would teach people to ignore red');
+      eq(A34.cashierView(de, 'evkali').availableTotal, hd('evkali'),
+         'backend A234: the cashier screen and "who holds what" are one number');
+
+      // THREE code paths compute "what is in this person's hand" —
+      // personalSummary, inHandRows and cashierView — and each is read on a
+      // different screen. The older tests check each against fixture numbers;
+      // nothing checked they agree with EACH OTHER. Measured: making
+      // personalSummary count a still-pending parcel as received puts ₹1,400 in
+      // the cashier's season figure while inHandRows still says ₹0 — one person,
+      // two screens, two answers about the same notes.
+      const inHandOf = {};
+      (A34.inHandRows(de) || []).forEach(function (r) { inHandOf[String(r.id || r.collector)] = r.inHand; });
+      ['evkali', 'evratan', 'evtapan', 'evsubrata'].forEach(function (u) {
+        const viaRows = (A34.inHandRows(de) || [])
+          .filter(function (r) { return String(r.collector).indexOf(u) >= 0; })[0];
+        eq(A34.personalSummary(de, u).inHand, viaRows ? viaRows.inHand : 0,
+           'backend A234: personalSummary and inHandRows agree about ' + u + '\'s hand');
+      });
+      eq(A34.cashierView(de, 'evkali').availableTotal, A34.personalSummary(de, 'evkali').inHand,
+         'backend A234: …and so does the cashier screen — three paths, one number');
+      const mse = A34.mySummary(de, 'evratan', D);
+      eq([mse.today.collected, mse.hero.total], [3900, 0],
+         'backend A234: he collected ₹3,900 today and holds ₹0 — handing in is not un-collecting');
+      const duesE = A34.duesList(de.parties, de.payments, de.voids);
+      eq((duesE.filter(function (x) { return x.party.id === 'sh2'; })[0] || {}).due, 3000,
+         'backend A234: the cancelled ₹800 is owed again');
+      // and the same evening through eyes that may not see the confidential kinds
+      const dr = bk('evratan');
+      eq(A34.computeTotals(dr, {}).totalCollection, TE.totalCollection - 25000 - 5000,
+         'backend A234: a collector without the view grants is short exactly the sponsor and the গুপ্ত donation');
+      eq((A34.reconcile(dr, { partialBook: true }).anomalies || []).length, 0,
+         'backend A234: …and is not shown a single false accusation for the rows he cannot see');
+    }
+
     // --- A231: দায় — promised, part-paid, settled, overpaid, cancelled ------
     // A151 calls this the easiest place in the book to be wrong, and it goes
     // wrong exactly when a programme is being planned — i.e. while somebody is

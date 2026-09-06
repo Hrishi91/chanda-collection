@@ -15935,3 +15935,39 @@ only detector that has worked here is the one already in use: **break the
 code and check the test says so, by name.**
 
 No app change, no test change.
+
+## A234 — one evening, end to end (2026-09-06)
+
+**Every surface in this suite is checked alone; none of it was checked
+together.** So: one night, in the order it actually happens. Five people, an
+area, every donor kind including a sponsor and a গুপ্ত donation, the
+programme's ticket money, a confirmed handover **and** a refused one, a
+parcel still awaiting the cashier when everyone goes home, a spend, and a
+double entry cancelled.
+
+At 11pm every screen tells the same story: Σ what everyone holds equals
+collected − spent, the headline agrees with the per-person rows, reconcile
+balances, **the 🩺 desk is silent** (a red banner on an ordinary evening is
+how you teach twelve people to ignore red), "আজ তুলেছি" does not move when
+money is handed in, the cancelled ₹800 is owed again, and a collector
+without the view grants is short exactly the sponsor and the গুপ্ত donation
+with not one false accusation.
+
+**What this found that the per-area tests could not.** THREE code paths
+compute "what is in this person's hand" — `personalSummary`, `inHandRows`
+and `cashierView` — each read on a different screen. Every one is checked
+against fixture numbers; **nothing checked they agree with each other.**
+Break any one and you get ₹32,700 on one screen and ₹35,700 on another for
+the same person on the same night. Now asserted for every person in the
+book, and all three mutations fail by name.
+
+**Two false starts of mine, both worth recording.** First I reported that a
+mutation went uncaught by all 3,011 assertions — wrong: `hoConfirmed(h)`
+and `!hoRejected(h)` differ only for a **pending** parcel, and my fixture
+had a rejected one, so the mutation was a no-op. Second, once corrected, the
+suite did catch it — four older assertions did — so there was no blind spot,
+only a blind fixture. The evening then needed a parcel left **pending
+overnight** before the new cross-path assertion could bite, which is also
+what a real night looks like.
+
+Tests 3,017 (from 2,982). No app change.
