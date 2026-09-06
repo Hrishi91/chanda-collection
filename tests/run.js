@@ -138,6 +138,44 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A206: …in both languages, each carrying the count of what is standing on it');
 }
 
+// A216: who the receipt names, and the two stamps. Same loading trick as A214.
+{
+  const A16 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const pick = function (name) {
+    const m = A16.match(new RegExp('  function ' + name + '\\([^)]*\\)[\\s\\S]*?\\n  \\}'));
+    return m ? m[0] : '';
+  };
+  const line = new Function(pick('partyDonorLine') + '\nreturn partyDonorLine;')();
+  eq(line({ type: 'person', name: 'রঞ্জিত সাহা' }), 'শ্রী/শ্রীমতী রঞ্জিত সাহা',
+     'A216: a person is addressed as one');
+  eq(line({ type: 'member', name: 'কালী দাস' }), 'শ্রী/শ্রীমতী কালী দাস',
+     'A216: …and so is a committee member giving their own chanda');
+  eq(line({ type: 'gupt', name: 'শুভাকাঙ্ক্ষী' }), 'শ্রী/শ্রীমতী শুভাকাঙ্ক্ষী',
+     'A216: …and a গুপ্ত donor, whose receipt only they ever see');
+  eq(line({ type: 'shop', name: 'আদর্শ স্টোর', owner: 'সুবীর ঘোষ' }), 'শ্রী/শ্রীমতী সুবীর ঘোষ, আদর্শ স্টোর',
+     'A216: a shop names the owner first, then the shop');
+  eq(line({ type: 'shop', name: 'আদর্শ স্টোর', owner: '' }), 'আদর্শ স্টোর',
+     'A216: …and with no owner recorded it is just the shop — never a dangling "শ্রী/শ্রীমতী ,"');
+  // A216's own fix
+  eq(line({ type: 'sponsor', name: 'Bose & Co' }), 'Bose & Co',
+     'A216: a sponsor is printed as given — the flow asks for the name AS IT GOES ON THE BANNER, so a firm is not addressed as a person');
+  eq(line({ type: 'sponsor', name: 'শ্রী সুবীর ঘোষ' }), 'শ্রী সুবীর ঘোষ',
+     'A216: …and an individual sponsor who wrote their own honorific keeps exactly that, not two of them');
+
+  // the two stamps have to reach BOTH surfaces: over SMS there is no image
+  const canvas = pick('buildReceiptCanvas'), msg = pick('receiptMessage');
+  eq(/rcp_no_pending_stamp/.test(canvas) && /rcp_no_pending_stamp/.test(msg), true,
+     'A216: "the number will land when there is signal" is on the image AND in the words');
+  eq(/rcp_corrected_stamp/.test(canvas) && /rcp_msg_corrected/.test(msg), true,
+     'A216: …and so is the corrected-receipt stamp, which replaces an earlier one');
+  eq(/নমুনা · SAMPLE/.test(canvas), true,
+     'A216: a design-preview receipt is watermarked, so it can never be mistaken for a real one');
+  const i18n16 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  ['rcp_no_pending_stamp', 'rcp_corrected_stamp', 'rcp_msg_corrected'].forEach(function (k) {
+    eq(new RegExp('\\n  ' + k + ': \\{').test(i18n16), true, 'A216: ' + k + ' is a real sentence, not a bare key');
+  });
+}
+
 // A214: the amount in words, which had NO test and is printed on every receipt
 // a donor is handed. Loaded out of js/app.js the way the other source-level
 // blocks here do, and exercised for real rather than matched as text.

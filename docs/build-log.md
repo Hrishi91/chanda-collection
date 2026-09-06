@@ -15285,3 +15285,32 @@ until it is on somebody's receipt. Mutation-proved three ways: the old
 so every value after it shifts.
 
 **Client-only** — reaches phones with ⚙️ → 🔄.
+
+## A216 — a sponsor is not addressed as a person (2026-09-06)
+
+**Walked the rest of the receipt** — who it names, and its three stamps.
+Most of it was already right and is now pinned: a person, a committee
+member and a গুপ্ত donor all get শ্রী/শ্রীমতী; a shop names the owner first
+and, with no owner recorded, prints just the shop rather than a dangling
+"শ্রী/শ্রীমতী ,"; the "number will land when there is signal" line and the
+corrected-receipt stamp both reach the **image and the words**, because
+over SMS there is no image; and a design-preview receipt is watermarked
+নমুনা · SAMPLE so it can never pass as a real one.
+
+**The defect.** A sponsor fell through to the person branch, so a firm's
+receipt read **"শ্রী/শ্রীমতী Bose & Co"**. This is an internal
+inconsistency rather than a matter of taste: the flow asks *"স্পনসরের নাম
+কী? (ব্যানারে যেভাবে লেখা হবে)"* — the name is collected in its
+**presentation** form, the way it will be printed on the banner — and this
+line then prefixed a personal honorific to it. `owner` is never asked for a
+sponsor (`newParty`'s `showIf` limits that step to shops), so there was
+nothing else to put in front: the name as given IS the line.
+
+An individual sponsor loses nothing. If they write "শ্রী সুবীর ঘোষ" as
+their banner name, that is exactly what prints — where before it came out
+as **"শ্রী/শ্রীমতী শ্রী সুবীর ঘোষ"**, which the mutation test now shows.
+
+v4.75.0. Tests 2,820 (from 2,807). Mutation-proved three ways.
+
+**Client-only** — reaches phones with ⚙️ → 🔄. Say the word and the
+honorific goes back on sponsors; it is one line.

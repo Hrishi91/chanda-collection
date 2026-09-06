@@ -4442,13 +4442,23 @@
       ? '(' + tBn('cash') + ' ' + rcpMoney(r.cashAmount) + ' + UPI ' + rcpMoney(r.upiAmount) + ')' : '';
   };
   // Acknowledgement subject, by donor type:
-  //  person/member → শ্রী/শ্রীমতী <name>
-  //  shop          → শ্রী/শ্রীমতী <owner>, <shop name>  (owner optional)
-  //  bus (daily)   → <bus name> (নং <number>) — no honorific
+  //  person/member/gupt → শ্রী/শ্রীমতী <name>
+  //  shop               → শ্রী/শ্রীমতী <owner>, <shop name>  (owner optional)
+  //  sponsor            → <name>, as given — see below
+  //  bus (daily)        → <bus name> (নং <number>) — no honorific
+  //
+  // A216: a sponsor is not addressed as a person. The flow asks
+  // "স্পনসরের নাম কী? (ব্যানারে যেভাবে লেখা হবে)" — the name is collected in
+  // its PRESENTATION form, the way it will be printed on the banner — and
+  // this line then prefixed a personal honorific to it, so a firm's receipt
+  // read "শ্রী/শ্রীমতী Bose & Co". `owner` is never asked for a sponsor
+  // (newParty's showIf limits that step to shops), so there is nothing else to
+  // put in front of it: the name as given IS the line.
   function partyDonorLine(p) {
     if (p.type === 'shop') {
       return p.owner ? 'শ্রী/শ্রীমতী ' + p.owner + ', ' + p.name : p.name;
     }
+    if (p.type === 'sponsor') return p.name;
     return 'শ্রী/শ্রীমতী ' + p.name;
   }
   function rcFromPayment(p, pay, paidTotal, due) {
