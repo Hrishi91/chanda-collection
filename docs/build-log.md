@@ -16248,3 +16248,56 @@ comparison instead of a known-stale one.
 file, so this rebake needs no `sw.js` bump. Schema stays 5 — no phone is
 locked out, and a phone still on v4.81.0's client keeps working until its
 ⚙️ → 🔄.
+
+## A242 — the classifier helpers nobody tested, and the test that was watching the wrong thing
+
+Scanned the 58 things `aggregate.js` exports against every mention in
+`tests/`. Ten had fewer than four; those ten are the sorting helpers that
+decide **which pot a row's money lands in**, which is to say which LINE of a
+🤝 parcel it appears on. A drift there does not crash. It quietly puts money
+somewhere else and everything still adds up.
+
+**The find: `catOfPayment` carried a second copy of `PARTY_KINDS`** — the same
+five donor kinds typed out again, 116 lines below the canonical list. A235
+rewired the server's four hand-typed copies of exactly this list and left this
+one standing. Nothing is wrong today: the two agree to the letter. But a sixth
+donor kind would be accepted everywhere else and land in the general
+`'payment'` pot here — a different line on a parcel, with no error anywhere.
+
+**What makes this one worth writing down is why the existing test missed it.**
+A146 already asserted, in these words, *"the payment→pot list is written ONCE
+(A66's lesson, third time)"*. It counted matches of
+`['shop', …, 'gupt'].indexOf` — the literal **plus a use of it**. When A235
+introduced `const PARTY_KINDS = ['shop', …, 'gupt'];`, no `.indexOf` followed
+it, the count stayed 1, and a second copy of the list walked straight past the
+test written to stop precisely that. A guard anchored to a use-site shape is
+not guarding the thing; it is guarding one way of spelling the thing. It now
+counts the LIST.
+
+Nine more assertions, all **derived from the lists** so that a sixth kind is
+covered the day it is added rather than the day somebody notices the money:
+every donor kind and every daily kind owns a pot; unknown kinds fall to
+`payment` / `road`; every pot `catOf*` can produce is one `drain()` actually
+walks (a pot outside `AVAIL_CATS` is money that exists and can never be spent
+from); one view permission per restricted type, each named by `viewPermFor`
+and each a kind somebody can really write; a junk `sector` cell reads as the
+puja book rather than vanishing from both.
+
+Checked and already correct: `catOfDaily`, `sectorOf`, `isTransfer`,
+`isCommitment`, `viewPermFor`, `AVAIL_CATS`'s coverage, and
+`POSITION_PERM_KEYS` never carrying a confidential view.
+
+Two of my own mutations were bad and I nearly counted them: dropping the FIRST
+daily kind is a no-op because `road` is also the fallback, and renaming
+`AVAIL_CATS` crashed the suite — **a crash is not a named failure**. Redone
+from the other end, both assertions fail by name. One assertion I wrote,
+`sectorOf(undefined)`, is not independently provable — it takes the same
+fallback branch as the junk-sector case — so it is gone rather than sitting
+there looking like coverage.
+
+v4.83.0. Tests 3,120 (from 3,109).
+
+**Client + a version bump.** `js/aggregate.js` is an app-shell file, so
+`sw.js`, `APP_VERSION` and `CODE_VERSION` all move together. Nothing on any
+phone behaves differently — the two lists were identical — so the ⚙️ → 🔄 and
+the server redeploy can wait for whenever the next real change is ready.

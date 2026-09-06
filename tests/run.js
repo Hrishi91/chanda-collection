@@ -6,7 +6,8 @@ const { computeTotals, duesList, inHandRows, personalSummary, myAvailable, recon
         mentionsMe, messageFeed, activeData, chatLoad, homeTiles, dayOf, potDetail,
         REPORT_IDS, POSITION_PERM_KEYS, splitPositionPerms,
         RESTRICTED_TYPES, VIEW_PERM_KEYS, isRestrictedType, viewPermFor,
-        canSeeParty, visibleData, canWritePayment } = require('../js/aggregate.js');
+        canSeeParty, visibleData, canWritePayment,
+        PARTY_KINDS, DAILY_KINDS, catOfPayment, catOfDaily, sectorOf } = require('../js/aggregate.js');
 
 let pass = 0, fail = 0;
 function eq(actual, expected, label) {
@@ -6933,11 +6934,55 @@ try {
   // ONE payment→pot map. There were three hand-written copies; A144/A145 taught
   // two of them about the new kinds and missed the cashier's, which then filed a
   // ₹30,000 sponsor under "চাঁদা (পুরোনো)". Found by driving the cashier sheet.
+  //
+  // A242: this assertion used to count `[…].indexOf`, i.e. USES of the literal,
+  // and passed with 1 for two years. When A235 added `const PARTY_KINDS = […]`
+  // — the same five names, no `.indexOf` after them — the count stayed 1 and a
+  // second copy of the list walked straight past the test written to stop
+  // exactly that. Count the LIST, not the use.
   const agg = fs.readFileSync(__dirname + '/../js/aggregate.js', 'utf8');
-  eq((agg.match(/\['shop', 'person', 'member', 'sponsor', 'gupt'\]\.indexOf/g) || []).length, 1,
+  eq((agg.match(/\['shop', 'person', 'member', 'sponsor', 'gupt'\]/g) || []).length, 1,
      'A146: the payment→pot list is written ONCE (A66\'s lesson, third time)');
+  eq(/return PARTY_KINDS\.indexOf\(String\(partyType\)\) >= 0/.test(agg), true,
+     'A242: …and catOfPayment reads that one list rather than repeating it');
   eq((agg.match(/put\(catOfPayment\(ty\), splitOf\(r\)\)/g) || []).length, 1,
      'A146: …and the cashier\'s own screen reads that one');
+
+  // A242: derive the rest, so a SIXTH donor kind is covered the day it is added
+  // instead of the day somebody notices its money on the wrong line. Written
+  // against the lists themselves — no kind is named here.
+  eq(PARTY_KINDS.filter(function (k) { return catOfPayment(k) === k; }).length,
+     PARTY_KINDS.length, 'A242: every donor kind has its own pot');
+  eq(catOfPayment('institution'), 'payment', 'A242: …and an unknown kind falls to the general pot');
+  eq(DAILY_KINDS.filter(function (k) { return catOfDaily(k) === k; }).length,
+     DAILY_KINDS.length, 'A242: every daily kind has its own pot');
+  eq(catOfDaily('lottery'), 'road', 'A242: …and an unknown one reads as road, for old rows');
+  // drain() only walks AVAIL_CATS. A pot catOf* can produce that AVAIL_CATS does
+  // not list is money that exists and can never be spent from — a parcel that
+  // will not balance, with no error anywhere to say why.
+  {
+    const availSrc = (agg.match(/const AVAIL_CATS = \[([\s\S]*?)\];/) || [])[1] || '';
+    const avail = (availSrc.match(/'([a-z]+)'/g) || []).map(function (s) { return s.slice(1, -1); });
+    eq(avail.length >= 10, true, 'A242: AVAIL_CATS was read, not silently empty');
+    const orphan = PARTY_KINDS.concat(DAILY_KINDS).concat(['payment'])
+      .filter(function (p) { return avail.indexOf(p) < 0; });
+    eq(orphan.join(','), '', 'A242: every pot catOf* can produce is one drain() walks');
+  }
+  // and the confidential view-permission names are DERIVED from the types
+  eq(VIEW_PERM_KEYS.length, RESTRICTED_TYPES.length,
+     'A242: one view permission per restricted type, no more');
+  eq(RESTRICTED_TYPES.every(function (ty) {
+    return VIEW_PERM_KEYS.indexOf(viewPermFor(ty)) >= 0;
+  }), true, 'A242: …each named by viewPermFor, not typed out');
+  eq(RESTRICTED_TYPES.every(function (ty) { return PARTY_KINDS.indexOf(ty) >= 0; }),
+     true, 'A242: …and each is a real donor kind somebody can actually write');
+  // sectorOf must never answer with anything but a real book: a row whose
+  // sector cell is junk has to land in ONE of them, or ofSector drops it from
+  // both and the money is in no report at all.
+  // (`sectorOf(undefined)` takes this same fallback branch, so asserting it
+  // separately would be the same assertion written twice — no mutation can
+  // break one without the other. Left out deliberately.)
+  eq(sectorOf({ sector: 'nonsense' }), 'puja', 'A242: a junk sector reads as the puja book');
 
   // ONE banding, too. The handover sheet and the cashier's read-only position
   // each carried their own copy; a category in none of their rows was silently

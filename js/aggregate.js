@@ -557,7 +557,13 @@
     return out;
   }
   function catOfPayment(partyType) {
-    return ['shop', 'person', 'member', 'sponsor', 'gupt'].indexOf(String(partyType)) >= 0
+    // A242: PARTY_KINDS, not a second copy of it. A235 rewired the server's
+    // four hand-typed copies of this list and left this one standing 116 lines
+    // below the canonical one. Nothing is wrong today — the two agree — but a
+    // sixth donor kind would be accepted everywhere and land in the general
+    // 'payment' pot here, which is a different LINE on a 🤝 parcel. Money on
+    // the wrong line, no error anywhere.
+    return PARTY_KINDS.indexOf(String(partyType)) >= 0
       ? String(partyType) : 'payment';
   }
   function splitOf(r) {
