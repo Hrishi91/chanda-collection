@@ -15,7 +15,11 @@ function strip(src) {
     .replace(/(^|[^:])\/\/[^\n]*/g, '$1 ')
     .replace(/'(?:\\.|[^'\\])*'/g, "''")
     .replace(/"(?:\\.|[^"\\])*"/g, '""')
-    .replace(/`(?:\\.|[^`\\])*`/g, '``');
+    .replace(/`(?:\\.|[^`\\])*`/g, '``')
+    // A247: regex literals too. Their flags and escapes — /…/g, \d, \s, \n —
+    // are bare single letters to any identifier scan, and every one of the
+    // twelve phantoms the derived check below first reported came from one.
+    .replace(/(^|(?:return|typeof|case|in|of|do|else)\s+|[=(,:[!&|?{};+\n]\s*)\/(?![*\/])(?:\\.|\[(?:\\.|[^\]\\])*\]|[^\/\\\n])+\/[gimsuy]*/g, '$1RegExp');
 }
 
 // every name any file exposes at its own top level, plus browser globals
@@ -57,8 +61,10 @@ let m;
 while ((m = topFn.exec(src))) fns.push({ name: m[1], params: m[2], at: m.index });
 fns.forEach((f, i) => { f.body = src.slice(f.at, i + 1 < fns.length ? fns[i + 1].at : src.length); });
 
-const problems = [];
-fns.forEach(f => {
+// Every name that is local to SOME top-level function and to no module scope.
+// This is the RENDER_LOCALS list, discovered instead of typed out — see the
+// note at the bare-read check below.
+function seenOf(f) {
   const seen = new Set(globals);
   f.params.split(',').forEach(p => { const n = p.trim().split(/[\s=]/)[0]; if (n) seen.add(n); });
   let d;
@@ -76,6 +82,28 @@ fns.forEach(f => {
   while ((d = params.exec(f.body))) d[1].split(',').forEach(p => { const n = p.trim().split(/[\s=]/)[0]; if (n) seen.add(n); });
   const arrows = /(?:\(([^)]*)\)|([A-Za-z_$][A-Za-z0-9_$]*))\s*=>/g;
   while ((d = arrows.exec(f.body))) (d[1] || d[2] || '').split(',').forEach(p => { const n = p.trim(); if (n) seen.add(n); });
+
+  return seen;
+}
+
+// Names three characters or longer. This is the filter actually holding the
+// noise down — with regex literals stripped and no length rule the scan still
+// raises three phantoms (`c` in esc, `e2` in finishFlow, `n` in wireCashSheet),
+// all callback parameters in shapes the param regexes above do not reach. A
+// one- or two-letter local is a loop or callback variable that no regex can
+// tell from a stray fragment, and a check that cries wolf is a check people
+// switch off. Every historical subject — from, params, type, sector — is four
+// letters or more, so nothing real is given up.
+const RENDER_LOCALS = [];
+{
+  const acc = new Set();
+  fns.forEach(f => { seenOf(f).forEach(n => { if (!globals.has(n) && n.length >= 3) acc.add(n); }); });
+  acc.forEach(n => RENDER_LOCALS.push(n));
+}
+
+const problems = [];
+fns.forEach(f => {
+  const seen = seenOf(f);
 
   // A57: a LOOKBEHIND, not a consumed character.
   //
@@ -114,21 +142,23 @@ fns.forEach(f => {
   // "⚠️ সার্ভার বলছে: from is not defined" and reported the save as broken. It
   // had saved. Four weeks after A105 fixed the same mistake ten functions away.
   //
-  // The comment above is still right that a general bare-identifier check cries
-  // wolf — that is a linter's job, not this file's. So this is a NAMED list:
-  // the few short words that are local to a render function in js/app.js and
-  // have no business being read anywhere else. Both entries were paid for.
-  // A151: `type` is the third. A149's "a টিকিট is always programme money" clause
-  // was copied into expenseFlow, which has no `type` — so every general খরচ threw
-  // ReferenceError at save, and it SHIPPED in v4.40.0. Same shape as `from` and
-  // `params`: a short word that is a parameter of one flow builder and has no
-  // business being read in another. Object keys (`type:`) and property reads
-  // (`row.type`) are already excluded by the pattern, so it does not cry wolf.
-  // A158: `sector` is the FOURTH. A153 wrote `sector || 'puja'` inside
-  // savePartyAndFirstPayment — a top-level helper with no such name — and every
-  // new donor threw ReferenceError for three deployments. Same shape as the
-  // three before it: a flow's local, read from the helper it calls.
-  const RENDER_LOCALS = ['from', 'params', 'type', 'sector'];
+  // A151: `type` was the third — A149's "a টিকিট is always programme money"
+  // clause copied into expenseFlow, which has no `type`, so every general খরচ
+  // threw at save, and it SHIPPED in v4.40.0. A158: `sector` was the FOURTH,
+  // written into savePartyAndFirstPayment by A153, throwing on every new donor
+  // for three deployments.
+  //
+  // A247: four strikes, and the list was HAND-MAINTAINED — each name added
+  // after its own ReferenceError had already reached twelve phones. A guard
+  // that has to be told its subjects only ever guards the last bug. So the list
+  // is derived now: every name local to some top-level function of app.js and
+  // to no module scope, which is 536 names rather than four, and it needed no
+  // loosening of the check to get there. The old comment's fear — that a
+  // general bare-identifier scan cries wolf — turned out to be one fixable
+  // fact: `strip()` was not removing regex literals, so /…/g flags and \d \s \n
+  // escapes read as bare identifiers. With those stripped and one- and
+  // two-letter names left out, the derived list reports NOTHING on a clean
+  // tree, and catches a fifth name the hand list would have missed.
   RENDER_LOCALS.forEach(function (nm) {
     if (seen.has(nm)) return; // this function declares or receives it — fine
     const bare = new RegExp('(?<![A-Za-z0-9_$.\'"])' + nm + '(?![A-Za-z0-9_$:\'"])', 'g');
@@ -144,4 +174,5 @@ fns.forEach(f => {
 
 const unique = [...new Set(problems)];
 if (unique.length) { console.error('SCOPE PROBLEMS:\n  ' + unique.join('\n  ')); process.exit(1); }
-console.log('scope check: every call in js/app.js resolves');
+console.log('scope check: every call in js/app.js resolves ('
+  + RENDER_LOCALS.length + ' function-locals watched for bare reads)');

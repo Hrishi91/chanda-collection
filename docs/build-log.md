@@ -16482,3 +16482,55 @@ Tests 3,257 (from 3,223). Every assertion mutation-proved by name, in runs that
 demonstrably completed.
 
 **Tests only** — no version bump, nothing to deploy.
+
+## A247 — the scope checker stops being told its subjects and starts finding them
+
+`tests/scope-check.js` catches three shapes of "a name read from a scope that
+does not have it" — the class that only throws when somebody taps. The third
+shape, a **bare** read, was guarded by a hand-typed list:
+
+```js
+const RENDER_LOCALS = ['from', 'params', 'type', 'sector'];
+```
+
+Four names. Read the comments beside them and the pattern is plain: **each was
+added after its own ReferenceError had already reached twelve phones.** `from`
+(A115e) — every donor correction threw after the row was written, so the
+collector saw ✅ then ⚠️ and reported a save that had actually saved. `params`
+(A105) — every 👁 দেখো. `type` (A151) — every general খরচ, shipped in v4.40.0.
+`sector` (A158) — every new donor, for three deployments.
+
+A guard that has to be told its subjects only ever guards the last bug.
+
+The old comment explained why it was a list and not a rule: *"a general
+bare-identifier check cries wolf — that is a linter's job, not this file's"*.
+That turned out to rest on one fixable fact. `strip()` removed comments and
+strings but **not regex literals**, so `/…/g` flags and `\d \s \n` escapes read
+as bare identifiers — every one of the twelve phantoms the derived version first
+reported came from one. With regex literals stripped (including after `return`,
+`typeof`, `case`, which the first attempt missed) and one- and two-letter names
+left out, the derived list reports **nothing on a clean tree** — and it watches
+**536 names instead of four**.
+
+Verified by injecting a bare read of each historical name and of names the hand
+list never knew: `params`, `type`, `sector`, `picks`, `posts`, `wantConf` all
+caught. `from` correctly silent — `drawParty` now takes it as a parameter, which
+was A115e's fix; `progSection` correctly silent — it is module-level, so reading
+it anywhere is legal.
+
+Two honest notes. **The length filter is what holds the noise down**, not the
+regex stripping: with regex literals stripped and no length rule, three phantoms
+remain (`c` in `esc`, `e2` in `finishFlow`, `n` in `wireCashSheet`), all
+callback parameters in shapes the param regexes cannot reach. The regex strip
+stays because it makes `strip()` correct for the other two checks too, but it is
+defence in depth, not the load-bearing part. And **A158's own assertion was the
+same mistake one level up** — it pinned the exact four-name literal in
+scope-check.js, so it could never be better than the list it was guarding. It
+now asserts the property: the list is derived, and the checker reports how many
+names it is watching so that a derivation quietly producing zero cannot pass for
+a clean tree.
+
+Tests 3,259 (from 3,257). Mutation-proved: an empty derivation, a derivation
+never filled, and a fifth bare read no hand list would have named.
+
+**Tests only** — no version bump, nothing to deploy.

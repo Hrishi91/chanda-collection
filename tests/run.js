@@ -3900,8 +3900,15 @@ eq(a28App.indexOf('r.update()') >= 0, true, 'A28: and a button that forces an up
 // A ReferenceError in a click handler does not exist until somebody taps. Run
 // the scope checker as part of the suite so it cannot rot in a corner.
 try {
-  require('child_process').execFileSync(process.execPath, [__dirname + '/scope-check.js'], { stdio: 'pipe' });
+  const out = String(require('child_process')
+    .execFileSync(process.execPath, [__dirname + '/scope-check.js'], { stdio: 'pipe' }));
   pass++;
+  // A247: the checker's bare-read list is derived, not typed out. A derivation
+  // that quietly produced an empty list would report a clean tree just as
+  // loudly as a real pass — so it says how many names it is watching, and this
+  // refuses to accept a number that means "none of them".
+  const watched = Number((out.match(/\((\d+) function-locals watched/) || [])[1] || 0);
+  eq(watched > 100, true, 'A247: the scope check is watching a derived list of ' + watched + ' names, not an empty one');
 } catch (e) {
   fail++;
   console.error('FAIL scope check\n' + String(e.stdout || '') + String(e.stderr || ''));
@@ -8022,9 +8029,16 @@ try {
      'A158: the helper RECEIVES the fund…');
   eq(/return savePartyAndFirstPayment\(type, a, sector\);/.test(app), true,
      'A158: …and the flow passes its own');
+  // A247: this used to assert the exact four-name literal in scope-check.js —
+  // a guard anchored to a hand-typed list, which could only ever be as good as
+  // the last bug somebody remembered to add. The list is derived now, so assert
+  // the PROPERTY: it discovers its own subjects, and finds far more than four.
   const chk = require('fs').readFileSync(__dirname + '/../tests/scope-check.js', 'utf8');
-  eq(/const RENDER_LOCALS = \['from', 'params', 'type', 'sector'\];/.test(chk), true,
-     'A158: …and the checker knows the word, so a fourth one is caught before it ships');
+  eq(/const RENDER_LOCALS = \[\];/.test(chk) &&
+     /acc\.forEach\(n => RENDER_LOCALS\.push\(n\)\);/.test(chk), true,
+     'A158/A247: the checker DERIVES the names it watches instead of being told them');
+  eq(/if \(!globals\.has\(n\) && n\.length >= 3\) acc\.add\(n\);/.test(chk), true,
+     'A247: …every name local to a function and to no module scope, three letters up');
 }
 
 // ---- A159: every entry flow writes the fund it was STARTED in ---------------
