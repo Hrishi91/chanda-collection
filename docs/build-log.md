@@ -16231,3 +16231,20 @@ name: three thresholds moved, the 24h window removed, a fourth chip added, a
 section orphaned, and the else renamed.
 
 **Tests only** — nothing to deploy, nothing for phones to fetch.
+
+### Deploy — server to chanda-v4.82.0
+
+Probed three times from the Browser pane before rebaking: the GET envelope
+plus two POSTs of a deliberately bad token, all `chanda-v4.82.0` / schema 5.
+
+**Nothing in the server's behaviour changed.** The only difference between the
+deployed v4.81.0 and this build is `CODE_VERSION` itself — A240 was i18n and a
+test, A241 was tests only. What this deploy buys is the triple lining up again
+(`APP_VERSION` = `VERSION` = `CODE_VERSION`), so the "server is behind" strip
+leaves the admin screen and the next real server change starts from a clean
+comparison instead of a known-stale one.
+
+`config.js` is precached but served network-first, and it is not an app-shell
+file, so this rebake needs no `sw.js` bump. Schema stays 5 — no phone is
+locked out, and a phone still on v4.81.0's client keeps working until its
+⚙️ → 🔄.
