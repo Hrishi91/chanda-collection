@@ -15379,3 +15379,39 @@ against A103's original bug (one `indexOf` of the whole query) and against
 over-widening (any one word matching).
 
 No app change.
+
+## A219 — the dead-spot class, swept and found closed (2026-09-06)
+
+**Nothing found, and the sweep is the point.** This shape has bitten this
+codebase four times (an expense screen, a handover recipient list, an
+@mention picker, a restore button), so I went looking for the fifth
+systematically rather than waiting for it: every one of the **34**
+`Auth.call` sites in `js/app.js`, and whether a dead spot can leave a
+control silent.
+
+**All 34 are handled.** No change needed.
+
+**And my own framing was wrong, which is the useful part.** The lesson as
+written — *"it hangs, so neither `.then` nor `.catch` runs"* — is true of a
+raw `fetch`, and stopped being true here at A69, which put a 25-second
+`AbortController` inside `Auth.call` itself and converts the abort to
+`throw new Error('network')`. Nothing can hang for ever any more. So the
+remaining risk is narrower: a site with **no `.catch`**, where the
+rejection at 25s goes unhandled and the screen keeps saying "আনা হচ্ছে…".
+
+A precise scan — walking each `Auth.call` to the end of its statement
+rather than eyeballing a window — flagged two. Both are false positives:
+one stores the promise in a variable and chains `.then().catch()` on the
+next line, the other sits inside a `.reduce` chain whose outer `.catch`
+covers it. Read both; both handled.
+
+**Not pinned as a test, deliberately.** A per-site scanner needs an
+allowlist for exactly those two shapes, and a hand-maintained allowlist is
+the thing this codebase keeps getting bitten by. The durable guarantee is
+the centre, and A69 already pins it: `CALL_TIMEOUT_MS = 25000`, the
+`AbortController` signal, and the abort→`network` conversion.
+
+The sharpened lesson — *fix it once in the wrapper, then pin the centre,
+not the sites* — is recorded in `~/.claude/skills`.
+
+No app change, no test change.
