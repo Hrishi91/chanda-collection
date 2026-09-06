@@ -2816,7 +2816,13 @@
         else if (g === 'road' || g === 'toto' || g === 'bus' || g === 'ticket') startFlow(dailyFlow(g));
         else if (g === 'expense') startExpense();
         else if (g === 'handover') startHandover();
-        else navigate(g);
+        // A226: carry WHERE the tap came from. Hrishi's rule is that ← returns
+        // to its source, and 🩺 proved a screen can have two doors — the home
+        // tile and the red banner on 📊 — while its back bar named only one of
+        // them, so opening it from home landed you on a screen you had never
+        // been on. A screen that does not read `from` is unaffected; the ones
+        // that do (renderHelp, drawParty) already work exactly this way.
+        else navigate(g, { from: current.view });
       };
     });
   }
@@ -6094,9 +6100,13 @@
       : '';
     return !!(k && stampedAnswers[k]);
   }
-  function renderAnomalies() {
-    if (!Auth.isCashier()) { $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
-    $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('loading')) + '</div>';
+  function renderAnomalies(params) {
+    // A226: two doors — the 🏠 tile and the red banner on 📊 — so ← has to ask
+    // which one was used. 'report' stays the default: that is where the banner
+    // lives, and where a deep link or a restored history entry lands.
+    const anomBack = ((params || {}).from) || 'report';
+    if (!Auth.isCashier()) { $view().innerHTML = backBar(anomBack) + '<div class="empty">' + esc(t('not_cashier')) + '</div>'; return; }
+    $view().innerHTML = backBar(anomBack) + '<div class="empty">' + esc(t('loading')) + '</div>';
     viewData().then(function (data) {
       // Lists.maxMap() carries the post caps in — reconcile is pure logic and
       // cannot reach the master lists itself.
@@ -6256,7 +6266,7 @@
           return '<div class="row" style="cursor:default"><div><b>' + esc(h.id) + '</b></div>' +
             '<div class="row-right" style="color:var(--red)">' + esc(fmtMoney(h.inHand)) + '</div></div>';
         }).join('') + '</div>';
-      $view().innerHTML = backBar('report') + '<div class="flow-title">🩺 ' + esc(t('anom_title')) + '</div>' +
+      $view().innerHTML = backBar(anomBack) + '<div class="flow-title">🩺 ' + esc(t('anom_title')) + '</div>' +
         '<div class="hint" style="margin-bottom:10px">' + esc(t('anom_hint')) + guideDoor('anom') + '</div>' +
         heavyCard + voidCard +
         (rows.length ? rows.join('') : (heavyCard || voidCard ? '' : '<div class="empty">' + esc(t('anom_none')) + '</div>'));
@@ -6343,7 +6353,7 @@
         b.onclick = function () { navigate('partyform', { id: b.dataset.pledgefix, from: 'anomalies' }); };
       });
     }).catch(function () {
-      $view().innerHTML = backBar('report') + '<div class="empty">' + esc(t('fetch_fail')) + '</div>';
+      $view().innerHTML = backBar(anomBack) + '<div class="empty">' + esc(t('fetch_fail')) + '</div>';
     });
   }
   function loadMySummary() {
@@ -8837,7 +8847,7 @@
     else if (current.view === 'hbook') renderHandoverBook();
     else if (current.view === 'messages') { chatOn() ? renderMessages() : renderHome(); }
     else if (current.view === 'entries') renderMyEntries();
-    else if (current.view === 'anomalies') renderAnomalies();
+    else if (current.view === 'anomalies') renderAnomalies(current.params);
     else if (current.view === 'memberpay') renderMemberPay();
     else if (current.view === 'memberadmin') renderMemberAdmin();
     else if (current.view === 'memberform') renderMemberForm(current.params);

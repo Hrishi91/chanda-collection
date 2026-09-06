@@ -15641,3 +15641,37 @@ unknown store instead of refusing it leaves a record with no answer, and
 reporting a held row as saved as well gives one record two.
 
 No app change.
+
+## A226 — ← returned to a screen the user had never been on (2026-09-06)
+
+**Hrishi's rule is that the back button goes to its source**, and my skills
+file records the classic failure: three mechanisms have to agree, and
+fixing one direction only is how it ships wrong. So I swept all 42
+`backBar()` calls and asked which screens have more than one door.
+
+**The 🩺 desk has two** — the tile on 🏠 and the red reconcile banner on
+📊 — and its back bar named only the second. Open it from home, tap ←, and
+you land on the report screen, which you had never been on.
+
+**Fixed at the choke point, not the instance.** The tile dispatcher now
+carries `{ from: current.view }` on every `data-go`, the router hands the
+params to the screen, and `renderAnomalies` reads them with `'report'` as
+the default — that is where the banner lives, and where a restored history
+entry lands. A screen that does not read `from` is unaffected; the two that
+already do (`renderHelp`, `drawParty`) work exactly this way.
+
+**Three of the four exits had to move, not one.** The desk calls
+`backBar()` in its loading state, its not-a-cashier state, its error state
+and its drawn state. Changing only the drawn one is the half-fix the rule
+warns about, and the test now forbids **any** hard-coded ← inside a screen
+that accepts a source.
+
+Two older pins moved with it: A111 matched the literal `backBar('report')`
+and A23 the literal `renderAnomalies()`. Both assert behaviour that is
+unchanged; their patterns now admit the new shape.
+
+v4.78.0. Tests 2,905 (from 2,894). Mutation-proved on each link of the
+chain — the tile dropping its source, the router dropping the params, and
+the error state alone reverting.
+
+**Client-only** — reaches phones with ⚙️ → 🔄.

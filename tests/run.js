@@ -210,6 +210,48 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A222: every grantable permission has words — a chip echoing its own key is one nobody can act on');
 }
 
+// A226: ← returns to its source, for a screen with more than one door.
+//
+// Hrishi's rule, and my own skills file records it as the classic half-fix:
+// three mechanisms must agree, and fixing one direction only is how it ships
+// wrong. The 🩺 desk has TWO doors — the 🏠 tile and the red reconcile banner
+// on 📊 — and its back bar named only the second, so opening it from home
+// landed the user on a screen they had never been on.
+{
+  const app26 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+
+  // the tile dispatcher carries the source for every data-go target
+  eq(/else navigate\(g, \{ from: current\.view \}\);/.test(app26), true,
+     'A226: a home tile says where it was tapped from');
+
+  // …the router hands those params on…
+  eq(/current\.view === 'anomalies'\) renderAnomalies\(current\.params\)/.test(app26), true,
+     'A226: …the router passes them to the screen…');
+
+  // …and the screen reads them, with the banner's door as the default
+  const anom = (app26.match(/function renderAnomalies\(params\)[\s\S]*?\n  \}\n/) || [''])[0];
+  eq(/const anomBack = \(\(params \|\| \{\}\)\.from\) \|\| 'report';/.test(anom), true,
+     'A226: …and ← asks which door was used, defaulting to the banner it lived under');
+  eq(/backBar\('report'\)/.test(anom), false,
+     'A226: …with no path left hard-coded to the other one');
+  eq((anom.match(/backBar\(anomBack\)/g) || []).length >= 3, true,
+     'A226: every exit from the desk uses it — the loading state and the error state too, not just the happy one');
+
+  // The shape, stated as: a screen that ACCEPTS a source must not then ignore
+  // it. Each of these three takes one — two through `params`, drawParty through
+  // a trailing `from` argument — and none of them may hard-code ← anywhere in
+  // its body, including its loading and error states, which is where the 🩺
+  // desk had kept two of them.
+  [['renderAnomalies', 'function renderAnomalies\\(params\\)'],
+   ['renderHelp', 'function renderHelp\\(params\\)'],
+   ['drawParty', 'function drawParty\\(p, pays, central, voidedOf, from\\)']].forEach(function (pair) {
+    const blk = (app26.match(new RegExp(pair[1] + '[\\s\\S]*?\\n  \\}\\n')) || [''])[0];
+    eq(blk !== '', true, 'A226: ' + pair[0] + ' still takes a source');
+    eq(/backBar\('[a-z]+'\)/.test(blk), false,
+       'A226: ' + pair[0] + ' accepts a source and therefore never hard-codes ←');
+  });
+}
+
 // A221: the guide's doors, as a SHAPE rather than one example. A122 pins that
 // the helper exists and that one door is wired; a drawn-but-unwired chip has
 // shipped twice in this codebase, and the ninth door is the one nobody will
@@ -1574,7 +1616,9 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     eq(/  no_review_grant: \{/.test(i18n111), true, 'A111: …and the third reason has words of its own');
     // the OTHER two uses of not_cashier are gated on isCashier alone, where the
     // sentence is true — they must not be swept up in the fix
-    eq((app111.match(/if \(!Auth\.isCashier\(\)\) \{ \$view\(\)\.innerHTML = backBar\('(home|report)'\) \+ '<div class="empty">' \+ esc\(t\('not_cashier'\)\)/g) || []).length, 2,
+    // A226 gave the 🩺 desk a variable back target (it has two doors), so the
+    // literal moved while the sentence did not: match either form.
+    eq((app111.match(/if \(!Auth\.isCashier\(\)\) \{ \$view\(\)\.innerHTML = backBar\((?:'(?:home|report)'|anomBack)\) \+ '<div class="empty">' \+ esc\(t\('not_cashier'\)\)/g) || []).length, 2,
        'A111: …while the two screens that really do mean "not a cashier" keep saying so');
   }
   // A110: the freeze on the CLIENT — the half the server cannot enforce, which
@@ -3172,7 +3216,8 @@ eq(deskSrc.indexOf("'dupOk'") >= 0, true,
 eq(deskSrc.indexOf("Auth.call('setAnomalyFlag'") >= 0, true,
    'A23: …through the server, because the row is almost never this device\'s');
 eq(deskSrc.indexOf('renderVoidReason') >= 0, true, 'A23: voiding reuses the existing audited path, not a new delete');
-eq(a22App.indexOf("current.view === 'anomalies') renderAnomalies()") >= 0, true, 'A23: routed');
+eq(/current\.view === 'anomalies'\) renderAnomalies\(current\.params\)/.test(a22App), true,
+   'A23: routed — and A226 hands it the params, so ← can ask which door was used');
 eq(/REFRESHABLE = \[[^\]]*'anomalies'/.test(a22App), true, 'A23: …and refreshes with the rest');
 eq(a22App.indexOf("data-go=\"anomalies\"") >= 0, true, 'A23: the reconcile banner opens it');
 // every anomaly reconcile can raise must have a human sentence — a desk that
