@@ -751,6 +751,13 @@ const I18N = {
                        en: 'This was not sent to you — only the intended recipient can confirm it' },
   err_already_confirmed: { bn: 'এটা আগেই "পেয়েছি" হয়ে গেছে', en: 'This was already confirmed' },
   err_already_rejected: { bn: 'এটা আগেই "পাইনি" বলা হয়েছে', en: 'This was already refused' },
+  // A240: the "already" family is what a user sees when they RETRY. Auth.call
+  // aborts at 25s and reports 'network'; the phone cannot tell "it never
+  // arrived" from "it arrived and the answer was lost", so the honest response
+  // to a second tap is to say what the state IS — not to show a raw code at the
+  // one moment somebody is unsure whether their tap worked.
+  err_already_resolved: { bn: 'এই নালিশের রায় আগেই দেওয়া হয়ে গেছে — তোমার আগের ট্যাপটা পৌঁছেছিল',
+                          en: 'This flag was already settled — your earlier tap did get through' },
   err_reason_required: { bn: 'কারণ লেখা দরকার — কেন পাওনি সেটা না জানলে ও কী করবে?',
                          en: 'A reason is required — without it they cannot act on it' },
   // --- "পাইনি": the other half of confirming (v4.5.0) ---

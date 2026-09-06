@@ -16164,3 +16164,35 @@ no-write rule **with its reason written in the test**, rather than silently.
 Tests 3,096 (from 3,093). Mutation-proved four ways.
 
 No app change.
+
+## A240 — what a RETRY says, and a duplicate I nearly shipped (2026-09-06)
+
+**The scenario is A69's own.** `Auth.call` aborts at 25 seconds and reports
+`network`. The phone **cannot tell** "it never arrived" from "it arrived and
+the answer was lost" — so the collector taps again. Every money-moving
+action therefore has to be safe to call twice, and the second call has to
+say something useful.
+
+**Safe: yes, all of them.** Re-pushing a row is an upsert (no doubled
+money, one sheet row); confirming twice moves the money once and refuses
+the second with `already-confirmed`; refusing twice likewise; resolving a
+correction twice leaves one settled row; and answering the 🩺 desk,
+approving a user, or approving a year twice all leave the state exactly
+once — `years` still reads `"2026"`, not `"2026,2026"`.
+
+**One gap: `already-resolved` had no words.** So a cashier who settles a
+correction, waits out a 25-second timeout and taps again saw a raw English
+code on a Bengali screen — at precisely the moment they cannot tell whether
+their tap worked. It now says so: *"এই নালিশের রায় আগেই দেওয়া হয়ে গেছে —
+তোমার আগের ট্যাপটা পৌঁছেছিল"*.
+
+**And I nearly shipped a duplicate key doing it.** My check grepped
+`"  err_already_live:"` with a fixed indent, missed the existing entry, and
+I added a second one — in a JS object literal the later definition silently
+wins, and the original sentence would have vanished. Caught by reading the
+grep output rather than by any test, which is exactly why there is now a
+test: **894 keys, none defined twice.**
+
+v4.82.0. Tests 3,100 (from 3,096). Mutation-proved both ways.
+
+**Client-only** — reaches phones with ⚙️ → 🔄.

@@ -255,6 +255,39 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A232: …and so does the duplicate-MEMBER check, which is a different call site');
 }
 
+// A240: two guards on the dictionary and on what a RETRY says.
+//
+// Auth.call aborts at 25s and reports 'network'. The phone cannot tell "it
+// never arrived" from "it arrived and the answer was lost", so the collector
+// taps again — and the honest response to that second tap is a sentence saying
+// what the state IS. Every refusal in the "already-…" family is exactly that
+// moment.
+{
+  const gs40 = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  const i40 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const already = Array.from(new Set((gs40.match(/throw new Error\('already-[a-z-]+'\)/g) || [])
+    .map(function (m) { return m.replace(/throw new Error\('|'\)/g, ''); })));
+  eq(already.length >= 3, true, 'A240: the server has an "already-…" refusal for each repeatable action');
+  const wordless = already.filter(function (e) {
+    return !new RegExp('\\n  err_' + e.replace(/-/g, '_') + ': \\{').test(i40);
+  });
+  eq(wordless.join(', '), '',
+     'A240: every one of them has words — a raw code is the worst thing to show somebody who is unsure their tap worked');
+
+  // …and no key is defined twice. A duplicate silently overrides the earlier
+  // sentence, and I nearly shipped one while writing this very block: a grep
+  // that missed the existing entry because its indentation differed.
+  const seen = {}, dups = [];
+  i40.split('\n').forEach(function (l, i) {
+    const m = l.match(/^\s{2,}([a-zA-Z][a-zA-Z0-9_]*):\s*\{/);
+    if (!m) return;
+    if (seen[m[1]]) dups.push(m[1] + ' (lines ' + seen[m[1]] + ' and ' + (i + 1) + ')');
+    else seen[m[1]] = i + 1;
+  });
+  eq(Object.keys(seen).length > 800, true, 'A240: the whole dictionary is scanned');
+  eq(dups.join(', '), '', 'A240: no i18n key is defined twice — the second would silently win');
+}
+
 // A230: the receipt's branding — the only thing this app produces that leaves
 // the committee. An admin sets it and TWELVE phones render it, so the shape
 // that matters is not "does it look nice" but "can an admin-set string reach
