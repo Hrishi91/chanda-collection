@@ -16030,3 +16030,41 @@ removes a divergence that would have surfaced the first time anything did.
 
 The client is now level with the server at v4.81.0, so the admin's
 "🛠️ server behind" strip is gone.
+
+## A236 — the curtain, written twice, compared (2026-09-06)
+
+**A235's method on the security boundary.** Confidentiality is enforced on
+both sides: `visible_` decides what the server **sends**, `visibleData`
+decides what the phone **shows**. The existing tests check each alone.
+Running both over one book, for five readers covering every combination of
+the two view grants, checks the thing that actually matters — that they
+agree.
+
+**They do.** For every reader, running the phone's filter over what the
+server already sent removes **nothing**, and the curtain is closed exactly
+per grant: no grant sees only the ordinary shop; `sponsorview` sees the
+sponsor but not the গুপ্ত donor; `guptview` the reverse; both, and the
+admin, see everything.
+
+**The mutation that shows why the comparison is worth having:** open the
+server's filter and the phone's still hides the rows — every *screen* looks
+right — but the confidential rows are now sitting **on the device**. Nothing
+that tests one side alone can see that.
+
+**A fixture of mine was refused, and the app was right.** I first sent a
+parcel carrying স্পনসর **and** গুপ্ত money together. A144/A145 forbid it:
+one confidential pot per parcel and nothing else in it, because `visible_`
+can only withhold a handover **whole** — trim a pot out of a mixed breakdown
+and the checksum stops summing to `amount`, and the recipient's 🩺 desk
+accuses them of a broken row they cannot see. That refusal is now pinned
+too, alongside the lawful গুপ্ত-only parcel, which reaches `guptview`
+holders and the admin and nobody else.
+
+**And it cost me several turns of hunting** because the probe's own
+assertion had been passing vacuously — the parcel never existed, so "nobody
+sees it" was trivially true. The fixture now fails loudly when a row does
+not land, which is how it should have been written.
+
+Tests 3,051 (from 3,033). Mutation-proved three ways.
+
+No app change.

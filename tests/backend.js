@@ -3070,6 +3070,86 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A236: the curtain, written twice, compared -----------------------
+    // Confidentiality is enforced on BOTH sides: `visible_` decides what the
+    // server SENDS, `visibleData` decides what the phone SHOWS. A235's lesson
+    // says compare the outputs, not the source. If the two disagree the phone
+    // either blanks a screen for no reason, or rows the reader may not see are
+    // already sitting on their device.
+    {
+      const bq2 = loadBackend(); bq2.api.setup();
+      const readers = ['cuadm', 'cuboth', 'cusponly', 'cuguptonly', 'cunone'];
+      readers.forEach(function (u, i) {
+        bq2.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '90600000' + i });
+      });
+      let tq0 = bq2.call('login', { username: 'cuadm', password: 'secret0', year: 2026 }).token;
+      const qid = function (u) { return bq2.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+      const GRANTS = {
+        cuboth:     ['shop', 'person', 'road', 'sponsor', 'gupt', 'sponsorview', 'guptview'],
+        cusponly:   ['shop', 'person', 'road', 'sponsor', 'sponsorview'],
+        cuguptonly: ['shop', 'person', 'road', 'gupt', 'guptview'],
+        cunone:     ['shop', 'person', 'road'],
+      };
+      readers.slice(1).forEach(function (u) {
+        bq2.call('setStatus', { token: tq0, userId: qid(u), status: 'approved' });
+        bq2.call('approveYear', { token: tq0, userId: qid(u), year: 2026 });
+        bq2.call('setEntries', { token: tq0, userId: qid(u), entries: GRANTS[u] });
+      });
+      bq2.call('setCashier', { token: tq0, userId: qid('cuadm'), cashier: 1 });
+      const tq = {};
+      readers.forEach(function (u, i) { tq[u] = bq2.call('login', { username: u, password: 'secret' + i, year: 2026 }).token; });
+      tq0 = tq.cuadm;
+      const Dq = '2026-09-06', sq = Dq + 'T06:00:00.000Z';
+      const pq = function (u, store, row) {
+        const r = bq2.call('push', { token: tq[u], records: [rec(store, Object.assign({ year: 2026, createdAt: sq }, row))] });
+        eq((r.savedIds || []).length, 1, 'backend A236: fixture ' + store + '/' + row.id + ' lands');
+      };
+      pq('cuboth', 'parties',  { id: 'q1', type: 'shop', name: 'সাধারণ দোকান', pledged: 5000, sector: 'puja' });
+      pq('cuboth', 'payments', { id: 'w1', partyId: 'q1', partyName: 'সাধারণ দোকান', amount: 2000, cashAmount: 2000, upiAmount: 0, date: Dq });
+      pq('cuboth', 'parties',  { id: 'q2', type: 'sponsor', name: 'Bose & Co', pledged: 50000, sector: 'puja' });
+      pq('cuboth', 'payments', { id: 'w2', partyId: 'q2', partyName: 'Bose & Co', amount: 20000, cashAmount: 20000, upiAmount: 0, date: Dq });
+      pq('cuboth', 'parties',  { id: 'q3', type: 'gupt', name: 'শুভাকাঙ্ক্ষী', pledged: 0, sector: 'puja' });
+      pq('cuboth', 'payments', { id: 'w3', partyId: 'q3', partyName: 'শুভাকাঙ্ক্ষী', amount: 8000, cashAmount: 8000, upiAmount: 0, date: Dq });
+      // A144/A145: ONE confidential pot per parcel and nothing else in it, because
+      // visible_ can only withhold a handover WHOLE — trimming a pot out of a
+      // mixed breakdown breaks the checksum and the recipient's 🩺 desk then
+      // accuses them of a row they cannot see.
+      pq('cuboth', 'handovers', { id: 'hh1', amount: 8000, cashAmount: 8000, upiAmount: 0, toId: 'cuadm',
+        date: Dq, status: 'pending', breakdown: JSON.stringify({ gupt: { cash: 8000, upi: 0 } }) });
+      const mixed = bq2.call('push', { token: tq.cuboth, records: [rec('handovers', { id: 'hh2', year: 2026,
+        createdAt: sq, amount: 100, cashAmount: 100, upiAmount: 0, toId: 'cuadm', date: Dq, status: 'pending',
+        breakdown: JSON.stringify({ shop: { cash: 50, upi: 0 }, gupt: { cash: 50, upi: 0 } }) })] });
+      eq((mixed.rejectedIds || []).join(','), 'hh2',
+         'backend A236: a parcel mixing confidential money with open money is refused — it could not be withheld whole');
+
+      const A36 = require('../js/aggregate.js');
+      const idsOf = function (d) {
+        return ['parties', 'payments', 'handovers'].map(function (k) {
+          return k + ':' + (d[k] || []).map(function (x) { return x.id; }).sort().join('|');
+        }).join(' ');
+      };
+      // 1. the two filters must agree: running the phone's over what the server
+      //    already sent must remove NOTHING
+      readers.forEach(function (u) {
+        const resp = bq2.call('pull', { token: tq[u], year: 2026, since: 0 }) || {};
+        const sent = resp.data || {}, me = resp.me || {};
+        eq(idsOf(A36.visibleData(sent, me)), idsOf(sent),
+           'backend A236: what the server sent ' + u + ' is exactly what the phone shows — the two curtains agree');
+      });
+      // 2. and the curtain is actually closed, per grant
+      const seen = function (u) { return idsOf(((bq2.call('pull', { token: tq[u], year: 2026, since: 0 }) || {}).data) || {}); };
+      eq(seen('cunone'),     'parties:q1 payments:w1 handovers:',
+         'backend A236: no view grant — the ordinary shop only, and not the গুপ্ত parcel');
+      eq(seen('cusponly'),   'parties:q1|q2 payments:w1|w2 handovers:',
+         'backend A236: sponsorview sees the sponsor, not the গুপ্ত donor, and not a গুপ্ত parcel');
+      eq(seen('cuguptonly'), 'parties:q1|q3 payments:w1|w3 handovers:hh1',
+         'backend A236: guptview sees the গুপ্ত donor and the parcel carrying that money');
+      eq(seen('cuboth'),     'parties:q1|q2|q3 payments:w1|w2|w3 handovers:hh1',
+         'backend A236: both grants see everything');
+      eq(seen('cuadm'),      'parties:q1|q2|q3 payments:w1|w2|w3 handovers:hh1',
+         'backend A236: and the admin does too');
+    }
+
     // --- A235: two implementations of one arithmetic, compared ------------
     // Code.gs builds seven reports of its own and js/aggregate.js builds them
     // again for the phone. The existing "mirror" tests count SOURCE PATTERNS in
