@@ -138,6 +138,78 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A206: …in both languages, each carrying the count of what is standing on it');
 }
 
+// A222: no screen hands out permissions from a list of its own.
+//
+// Seven times this codebase has shipped the same list written twice and
+// drifting (A66, A146-A149, A160, A203, A208, A210). Two more were found by
+// sweeping for it: js/app.js kept a THIRD REPORT_IDS with seven ids instead of
+// eight, so the 🎭 report had no chip in the per-person screen and "সব দাও"
+// handed out seven of eight; and the POST screen typed out nine entry keys
+// while setPositionRules accepts twenty-four, so sponsor, gupt, ticket and all
+// three 🎭 keys could never be attached to a post.
+{
+  const app22 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const A22 = require('../js/aggregate.js');
+
+  // the file must not hold a list of report ids of its own
+  eq(/const REPORT_IDS = \['/.test(app22), false,
+     'A222: js/app.js does not keep its own REPORT_IDS literal');
+  eq(/const REPORT_IDS = Aggregate\.REPORT_IDS;/.test(app22), true,
+     'A222: …it reads the one aggregate.js exports, which is the one the server has');
+
+  // the per-person report chips cover every report
+  const rc = (app22.match(/function reportChips\(u\)[\s\S]*?\n      \}/) || [''])[0];
+  eq(/REPORT_IDS\.map\(/.test(rc), true, 'A222: the per-person report chips are derived, not typed');
+
+  // the POST screen covers every permission the server will accept for a post
+  const pg = (app22.match(/const posEntryKeys = [\s\S]*?\n        \];/) || [''])[0];
+  eq(/Aggregate\.POSITION_PERM_KEYS\.filter\(/.test(pg), true,
+     'A222: the post screen derives its entry chips from POSITION_PERM_KEYS');
+  eq(/Aggregate\.REPORT_IDS\.map\(/.test(pg), true, 'A222: …and its report chips from REPORT_IDS');
+  // …and the coverage is checked by RUNNING the screen's own filter, not by
+  // rebuilding it here. Rebuilding it made the assertion tautological — the
+  // "covered" set was derived from POSITION_PERM_KEYS, so nothing could ever be
+  // missing from it, and a mutation that dropped a key sailed through.
+  const filterSrc = (pg.match(/Aggregate\.POSITION_PERM_KEYS\.filter\((function[\s\S]*?)\);/) || [])[1];
+  eq(!!filterSrc, true, 'A222: the post screen\'s filter can be read out of the source');
+  const posEntry = A22.POSITION_PERM_KEYS.filter(
+    new Function('Aggregate', 'return (' + filterSrc + ');')(A22));
+  const covered = posEntry.concat(A22.REPORT_IDS).concat(['cashier']);
+  eq(A22.POSITION_PERM_KEYS.filter(function (k) { return covered.indexOf(k) < 0; }).join(', '), '',
+     'A222: every permission a post may hold has a chip — narrowing that filter drops one silently');
+  eq(posEntry.filter(function (k) { return A22.REPORT_IDS.indexOf(k) >= 0 || k === 'cashier'; }).join(', '), '',
+     'A222: …and no key is drawn in two groups at once');
+
+  // one label map, read by both screens
+  eq((app22.match(/const PERM_ONLY_LABELS = \{/g) || []).length, 1,
+     'A222: there is exactly one permission-label map');
+  eq((app22.match(/permLabel\(k\)/g) || []).length >= 2, true,
+     'A222: …and both permission screens read it');
+
+  // Deriving the chips means a new grantable key gets one for free — and then
+  // the only way it can still go wrong is having no WORDS, because permLabel
+  // falls back to echoing the key. A chip reading "auditview" is not a chip a
+  // committee member can act on.
+  const mapKeys = function (name) {
+    const blk = (app22.match(new RegExp('const ' + name + ' = \\{[\\s\\S]*?\\n  \\};')) ||
+                 app22.match(new RegExp('const ' + name + ' = \\{[\\s\\S]*?\\};'))  || [''])[0];
+    const out = {};
+    blk.replace(/([a-zA-Z0-9_]+):\s*'/g, function (m, k) { out[k] = 1; return m; });
+    return out;
+  };
+  const labelled = Object.assign({}, mapKeys('PERM_ONLY_LABELS'), mapKeys('CAT_LABEL_KEYS'));
+  const i18n22 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const grantable = A22.PERM_KEYS.concat(A22.POSITION_PERM_KEYS)
+    .filter(function (k, i, a) { return a.indexOf(k) === i; });
+  const wordless = grantable.filter(function (k) {
+    if (A22.REPORT_IDS.indexOf(k) >= 0) return !new RegExp('\\n  report_' + k + ': \\{').test(i18n22);
+    if (k === 'cashier') return !/\n  cashier: \{/.test(i18n22);
+    return !labelled[k];
+  });
+  eq(wordless.join(', '), '',
+     'A222: every grantable permission has words — a chip echoing its own key is one nobody can act on');
+}
+
 // A221: the guide's doors, as a SHAPE rather than one example. A122 pins that
 // the helper exists and that one door is wired; a drawn-but-unwired chip has
 // shipped twice in this codebase, and the ninth door is the one nobody will

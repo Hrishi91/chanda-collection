@@ -15485,3 +15485,52 @@ it (**the failure that shipped twice**), a section renamed in the guide
 without its doors, and the door dropping the source that makes ← work.
 
 No app change.
+
+## A222 — two more copies of the same list, found by sweeping for the class (2026-09-06)
+
+**This codebase's most repeated bug is one list written twice** — A66,
+A146–A149, A160, A203, A208, A210: seven times, every one a screen or a
+gate that quietly stopped counting a new kind. So I swept for the class
+rather than waiting for the eighth: every string-array constant in the six
+source files, grouped by contents and by name.
+
+**Two real gaps, both in screens that hand out permissions.**
+
+**1. `js/app.js` kept a THIRD `REPORT_IDS`** — seven ids, while
+`aggregate.js` and `Code.gs` both carry eight. It draws the admin's
+**per-person report chips** and drives their "সব দাও". So the 🎭 program
+report — added to the other two lists by A153 — had **no chip**, and "give
+them everything" handed out seven of the eight. A person could never be
+granted it directly; only a **post** could, because the post screen reads
+`Aggregate.REPORT_IDS`.
+
+**2. The post-rules screen typed out nine entry keys** while
+`setPositionRules` filters against `POSITION_PERM_KEYS` and accepts
+**twenty-four**. So **sponsor, gupt, ticket, progteam, progdonor,
+progmoney** could never be attached to a post at all — six permissions the
+server would have taken.
+
+Both fixed the way A160 fixed its own: delete the hand-written list, derive
+from the exported constant. The permission-label map is hoisted so both
+screens read **one** map, since building two was the cause.
+
+**The cross-file copies are not the same problem and were left alone.**
+`MENTION_GROUPS`, `REPORT_IDS`, `ENTRY_KINDS` and `PROGRAM_KEYS` each exist
+in both `aggregate.js` and `Code.gs`: the client and the Apps Script server
+are separate deployments and cannot import from one another. Those are one
+decision in two files, changed together, and already pinned where it
+matters (A203, A208).
+
+**A vacuous assertion of my own, caught by mutation.** My first coverage
+check rebuilt the screen's filter inside the test — so the "covered" set was
+derived from `POSITION_PERM_KEYS` itself and nothing could ever be missing.
+It now **reads the screen's own filter out of the source and runs it**, so
+narrowing that filter fails by name. (Third vacuous assertion this session;
+each was found only by mutating, never by reading.)
+
+v4.76.0. Tests 2,867 (from 2,856). Mutation-proved five ways, including the
+two shapes that matter most going forward: narrowing the screen's filter,
+and adding a grantable key with no words — which now fails rather than
+drawing a chip that reads `auditview`.
+
+**Client-only** — reaches phones with ⚙️ → 🔄.

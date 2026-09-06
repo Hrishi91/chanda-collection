@@ -7,7 +7,11 @@
   // call passes through and it loads first, so there is no load-order question
   // about who owns the constant.
   const APP_VERSION = Auth.APP_VERSION;
-  const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'];
+  // A222: NOT a list of its own. This file held a third copy — seven ids, while
+  // aggregate.js and Code.gs both carry eight — so the 🎭 program report had no
+  // chip in the admin's per-person report screen and "সব দাও" handed out seven
+  // of the eight. The same shape as A160, in the screen next door.
+  const REPORT_IDS = Aggregate.REPORT_IDS;
   let flowState = null;
   // set when the user taps 🔄 আপডেট খুঁজি — a reload they asked for is never
   // capped, only the ones that happen behind their back (A31)
@@ -5275,6 +5279,20 @@
   // order = how every report lists the pots; bus grouped with the new-entry
   // types to match the home screen and the handover sheet
   const OWN_SRC = Aggregate.OWN_SRC;
+  // A160/A222: the words for a permission key. Entry kinds already have their
+  // labels in CAT_LABEL_KEYS; only the keys that are NOT an entry kind need a
+  // line here. TWO screens hand out permissions — one to a person, one to a
+  // post — and before A222 each built its own list, so the post screen could
+  // not grant sponsor, gupt, ticket or any of the three 🎭 keys, all of which
+  // the server accepts for a post. One map, one derivation, both screens.
+  const PERM_ONLY_LABELS = {
+    review: 'review_title', otherdonor: 'perm_otherdonor',
+    memberadmin: 'perm_memberadmin',
+    sponsorview: 'perm_sponsorview', guptview: 'perm_guptview',
+    progteam: 'perm_progteam', progdonor: 'perm_progdonor',
+    progmoney: 'perm_progmoney',
+  };
+  function permLabel(k) { return t(PERM_ONLY_LABELS[k] || CAT_LABEL_KEYS[k] || k); }
   const CAT_LABEL_KEYS = { shop: 'new_shop', person: 'new_person', member: 'new_member',
                            sponsor: 'new_sponsor', gupt: 'new_gupt',
                            payment: 'cat_payment', bus: 'daily_bus',
@@ -7925,16 +7943,7 @@
         // copied, because A66 pinned that map as the single definition after
         // exactly this duplication went wrong once before. Only the keys that
         // are NOT an entry kind need their own line.
-        const PERM_ONLY_LABELS = {
-          review: 'review_title', otherdonor: 'perm_otherdonor',
-          memberadmin: 'perm_memberadmin',
-          sponsorview: 'perm_sponsorview', guptview: 'perm_guptview',
-          progteam: 'perm_progteam', progdonor: 'perm_progdonor',
-          progmoney: 'perm_progmoney',
-        };
-        const kinds = Aggregate.PERM_KEYS.map(function (k) {
-          return [k, t(PERM_ONLY_LABELS[k] || CAT_LABEL_KEYS[k] || k)];
-        });
+        const kinds = Aggregate.PERM_KEYS.map(function (k) { return [k, permLabel(k)]; });
         let nPost = 0;
         const chips = kinds.map(function (k) {
           const fromPost = post.indexOf(k[0]) >= 0;
@@ -8247,11 +8256,15 @@
           level: Number(it.level) || 0,
           perms: String(it.perms || '').split(',').filter(Boolean),
         };
+        // A222: derived from what the SERVER accepts for a post, not typed out.
+        // The hand-written nine left sponsor, gupt, ticket and all three 🎭 keys
+        // with no chip, while setPositionRules filters against
+        // POSITION_PERM_KEYS and would have taken every one of them.
+        const posEntryKeys = Aggregate.POSITION_PERM_KEYS.filter(function (k) {
+          return Aggregate.REPORT_IDS.indexOf(k) < 0 && k !== 'cashier';
+        });
         const groups = [
-          ['entry_perms', [['shop', t('new_shop')], ['person', t('new_person')], ['member', t('new_member')],
-                           ['bus', t('daily_bus')], ['road', t('daily_road')], ['toto', t('daily_toto')],
-                           ['review', t('review_title')], ['otherdonor', t('perm_otherdonor')],
-                           ['memberadmin', t('perm_memberadmin')]]],
+          ['entry_perms', posEntryKeys.map(function (k) { return [k, permLabel(k)]; })],
           ['report_perms', Aggregate.REPORT_IDS.map(function (r) { return [r, t('report_' + r)]; })],
           // Money power, kept visible but marked: a wrong tick here lets somebody
           // confirm money they never received.
