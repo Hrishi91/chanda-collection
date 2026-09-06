@@ -170,12 +170,22 @@ member contribution would raise an anomaly and drown the 🩺 desk.
 
 ## When something IS wrong: the anomaly desk (A23)
 
-`reconcile` raises **thirteen** anomaly types. Do not hand-count them: the suite
+`reconcile` raises **fourteen** anomaly types. Do not hand-count them: the suite
 reads the list out of `js/aggregate.js` and demands a title and a message for
 each, and this sentence drifted twice before anyone noticed (it said eight when
 the code raised nine, and again when A61 added `possible_duplicate_daily`).
 
-The newest is `party_no_area` (A143), and it is worth reading as an example of
+The newest is `bad_amount` (A229), and it is the desk's purest case: an amount
+cell the Sheet hands back as TEXT — "২০০০" in Bengali digits, which Sheets
+cannot parse and therefore stores as a string — reads as ₹0 in every total, in
+that person's in-hand and in the donor's dues, all at once. Nothing looks
+wrong, because ₹0 is a perfectly consistent number and the invariant still
+balances. It is reachable only by editing the Sheet by hand, which is exactly
+what the owner does. The desk points at the cell and quotes it; it does NOT
+guess the number, because two code paths disagreeing about what a cell says is
+worse than one of them admitting it cannot read it.
+
+`party_no_area` (A143) is worth reading as another example of
 what belongs here: a SHOP with no এলাকা makes 📍 এলাকা-ভিত্তিক under-count a
 road, so it is reported — but the entry itself stays skippable, because a
 collector standing in front of a donor must not be blocked by a master list

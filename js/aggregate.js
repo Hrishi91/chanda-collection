@@ -1356,6 +1356,38 @@
     };
     splitCheck(payments, 'payments'); splitCheck(daily, 'daily');
     splitCheck(expenses, 'expenses'); splitCheck(data.handovers, 'handovers');
+    // A229: an amount cell the Sheet gives back as TEXT.
+    //
+    // Every total reads `Number(r.amount) || 0`, so "২০০০" — Bengali digits,
+    // which Sheets stores as text because it cannot parse them — becomes ₹0 in
+    // the ledger, in the totals, in that person's in-hand and in the donor's
+    // dues, all at once, with nothing anywhere looking wrong. ₹0 is a perfectly
+    // consistent number, so reconcile's own invariant balances and stays quiet.
+    // Same for "₹2000" and for a comma typed into a text-formatted cell.
+    //
+    // Reachable only by editing the Sheet by hand, which is exactly what the
+    // owner does — the recovery paths in this file tell him to.
+    //
+    // NOT repaired here, deliberately. js/numparse.js could read "২০০০", but
+    // guessing a number for a money row means two code paths could disagree
+    // about what a cell says. The desk's job is to point at it and let a person
+    // decide.
+    const amountCheck = function (rows, store) {
+      (rows || []).forEach(function (r) {
+        if (!r || r.amount === undefined || r.amount === null) return;
+        if (typeof r.amount === 'number') return;          // the normal case
+        const raw = String(r.amount).trim();
+        // Number('') is 0, so a blank cell passes here too — plenty of rows
+        // legitimately carry no amount and must not be shouted about. Written
+        // as one test rather than two: a separate `raw === ''` guard above
+        // this line is unreachable, and unreachable code that claims a purpose
+        // is worse than none (mutation found it; reading did not).
+        if (Number.isFinite(Number(raw))) return;          // "2000" and "" both read fine
+        anomalies.push({ type: 'bad_amount', store: store, id: r.id, raw: raw });
+      });
+    };
+    amountCheck(payments, 'payments'); amountCheck(daily, 'daily');
+    amountCheck(expenses, 'expenses'); amountCheck(data.handovers, 'handovers');
     (data.handovers || []).forEach(function (h) {
       if (!h.breakdown) return;
       let bd = null; try { bd = JSON.parse(h.breakdown); } catch (e) { return; }

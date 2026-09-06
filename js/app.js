@@ -6223,6 +6223,7 @@
           : a.type === 'position_over_max' ? t('anom_position_over_max').replace('{pos}', Lists.labelOf('position', a.position)).replace('{n}', a.count).replace('{max}', a.max).replace('{names}', (a.who || []).join(', '))
           : a.type === 'member_no_account' ? t('anom_member_no_account').replace('{who}', a.party || '?')
           : a.type === 'party_no_area' ? t('anom_party_no_area').replace('{who}', a.party || '?')
+          : a.type === 'bad_amount' ? t('anom_bad_amount').replace('{store}', a.store || '').replace('{raw}', a.raw || '')
           : a.type;
         return '<div class="card"><div class="card-title">⚠️ ' + esc(t('anom_' + a.type + '_t') || a.type) + '</div>' +
           '<div class="row-sub">' + esc(line) + '</div>' +

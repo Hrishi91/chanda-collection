@@ -210,6 +210,51 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A222: every grantable permission has words — a chip echoing its own key is one nobody can act on');
 }
 
+// A229: an amount the Sheet hands back as TEXT.
+//
+// Every total reads Number(r.amount) || 0, so a cell holding "২০০০" — Bengali
+// digits, which Sheets cannot parse and therefore stores as a string — becomes
+// ₹0 in the ledger, the totals, that person's in-hand and the donor's dues, all
+// at once. Nothing looks wrong: ₹0 is a consistent number and reconcile's own
+// invariant still balances, so the desk needs a check of its own. Reachable by
+// editing the Sheet by hand, which is what the owner does.
+{
+  const A29 = require('../js/aggregate.js');
+  const book29 = function (amt) {
+    return { parties: [{ id: 'p1', type: 'shop', name: 'দোকান', pledged: 5000, year: 2026, side: 'x' }],
+      payments: [{ id: 'y1', partyId: 'p1', amount: amt, cashAmount: amt, upiAmount: 0, year: 2026, collectorId: 'r' }],
+      daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [] };
+  };
+  const flagged = function (amt) {
+    return ((A29.reconcile(book29(amt), {}) || {}).anomalies || [])
+      .filter(function (a) { return a.type === 'bad_amount'; });
+  };
+  // the shapes a hand-typed cell really takes
+  eq(flagged('২০০০').length, 1, 'A229: Bengali digits in an amount cell are reported');
+  eq(flagged('২০০০')[0].raw, '২০০০', 'A229: …quoting the cell, so the owner can find it');
+  eq(flagged('2,000').length, 1, 'A229: …a comma in a text-formatted cell too');
+  eq(flagged('₹2000').length, 1, 'A229: …and a ₹ sign');
+  eq(flagged('abc').length, 1, 'A229: …and anything else that is not a number');
+  // and the shapes that are NOT a typo, so the desk does not cry wolf
+  eq(flagged(2000).length, 0, 'A229: an ordinary number is silent');
+  eq(flagged('2000').length, 0, 'A229: …and so is a numeric string, which the Sheet also returns');
+  eq(flagged('').length, 0, 'A229: a blank cell is not a typo — plenty of rows have no amount');
+  eq(flagged(null).length, 0, 'A229: …nor a missing one');
+  // the consequence, stated: the money really is being counted as zero
+  eq(A29.computeTotals(book29('২০০০')).totalCollection, 0,
+     'A229: …and this is why it matters — the total really does read ₹0');
+  eq(A29.reconcile(book29('২০০০'), {}).balanced, true,
+     'A229: …while the book still BALANCES, which is why the invariant cannot catch it');
+  // it must not guess the number
+  const app29 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const agg29 = require('fs').readFileSync(__dirname + '/../js/aggregate.js', 'utf8');
+  const chk = (agg29.match(/const amountCheck = function[\s\S]*?\n    \};/) || [''])[0];
+  eq(/parseAmount/.test(chk), false,
+     'A229: the desk points at the cell, it does not parse it — two paths disagreeing about one cell is worse');
+  eq(/anom_bad_amount'\)\.replace\('\{store\}'/.test(app29), true,
+     'A229: …and the desk draws a line for it, naming the store and quoting the cell');
+}
+
 // A226: ← returns to its source, for a screen with more than one door.
 //
 // Hrishi's rule, and my own skills file records it as the classic half-fix:

@@ -15737,3 +15737,47 @@ this project keeps naming.
 v4.79.0. Tests 2,917 (from 2,911). Mutation-proved both ways.
 
 **Client-only** — reaches phones with ⚙️ → 🔄.
+
+## A229 — an amount cell the Sheet hands back as text (2026-09-06)
+
+**Measured.** Every total reads `Number(r.amount) || 0`. Put these in an
+amount cell and each becomes **₹0**, everywhere, at once:
+
+| cell | total | donor's dues |
+|---|---|---|
+| `2000` | ₹2,000 | ₹3,000 |
+| `"২০০০"` | **₹0** | ₹5,000 |
+| `"2,000"` | **₹0** | ₹5,000 |
+| `"₹2000"` | **₹0** | ₹5,000 |
+
+`"২০০০"` is the realistic one: Sheets cannot parse Bengali digits, so it
+stores them as **text**, and the owner is exactly the person who edits that
+Sheet by hand — the recovery paths in this codebase tell him to.
+
+**Nothing looked wrong.** ₹0 is a perfectly consistent number: the ledger,
+the totals, that person's in-hand and the donor's dues all agree, and
+`reconcile`'s invariant still **balances**. This is the desk's purest case,
+and the reason A112 built it — "the two things the book was balanced about
+and silent on".
+
+**It points, it does not guess.** `js/numparse.js` could read "২০০০" —
+A169 pinned exactly that — but parsing a money cell here would mean two
+code paths could disagree about what one cell says. The desk quotes the
+cell and tells the owner to retype it in plain digits.
+
+**Two existing pins caught the addition immediately, and both were right:**
+every anomaly type must have a title and a message in both languages, and
+`docs/money-model.md` must state the real count. Thirteen → fourteen, with
+the new one named there as the example.
+
+**Mutation found unreachable code of mine.** I had written a `raw === ''`
+guard above the numeric test; `Number('')` is 0, so a blank cell passes the
+numeric test anyway and the guard could never run — while its comment
+claimed a purpose. Removed, with the reason recorded in one line. Reading
+had not found it.
+
+v4.80.0. Tests 2,931 (from 2,917). Mutation-proved three ways: removing the
+check restores the silent ₹0, and removing the numeric test makes it shout
+at ordinary numeric strings and at every blank cell.
+
+**Client-only** — reaches phones with ⚙️ → 🔄.
