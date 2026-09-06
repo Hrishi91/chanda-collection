@@ -3070,6 +3070,64 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A217: the promise the collector's own screen makes -----------------
+    // mySummary is well covered at rest in run.js (37 assertions, afterApprove
+    // among them). What is not covered is that the number it PROMISES —
+    // "সব পার্সেল মঞ্জুর হলে হাতে থাকবে ₹X" — is the number they actually get.
+    // A collector reads that before handing the notes over; if the two differ
+    // they were told something untrue about their own money.
+    {
+      const bs = loadBackend(); bs.api.setup();
+      ['msadm', 'mskali', 'msratan'].forEach(function (u, i) {
+        bs.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '966000000' + i });
+      });
+      const ts0 = bs.call('login', { username: 'msadm', password: 'secret0', year: 2026 }).token;
+      const sid = function (u) { return bs.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+      ['mskali', 'msratan'].forEach(function (u) {
+        bs.call('setStatus', { token: ts0, userId: sid(u), status: 'approved' });
+        bs.call('approveYear', { token: ts0, userId: sid(u), year: 2026 });
+        bs.call('setEntries', { token: ts0, userId: sid(u), entries: ['shop', 'road'] });
+      });
+      bs.call('setCashier', { token: ts0, userId: sid('mskali'), cashier: 1 });
+      const ts = { adm: bs.call('login', { username: 'msadm', password: 'secret0', year: 2026 }).token,
+                   kali: bs.call('login', { username: 'mskali', password: 'secret1', year: 2026 }).token,
+                   ratan: bs.call('login', { username: 'msratan', password: 'secret2', year: 2026 }).token };
+      const TODAY = '2026-09-06';
+      const shoves = function (who, store, row) {
+        bs.call('push', { token: ts[who], records: [rec(store, Object.assign(
+          { year: 2026, createdAt: TODAY + 'T06:00:00.000Z' }, row))] });
+      };
+      shoves('ratan', 'parties',  { id: 'ms1', type: 'shop', name: 'দোকান', pledged: 9000, sector: 'puja' });
+      shoves('ratan', 'payments', { id: 'msy1', partyId: 'ms1', partyName: 'দোকান', amount: 2000, cashAmount: 1500, upiAmount: 500, date: TODAY });
+      shoves('ratan', 'daily',    { id: 'msd1', type: 'road', amount: 800, cashAmount: 800, upiAmount: 0, date: TODAY, sector: 'puja' });
+      shoves('ratan', 'expenses', { id: 'mse1', subject: 'চা', amount: 300, cashAmount: 300, upiAmount: 0,
+        date: TODAY, source: 'collection', collectionType: 'road', srcCat: 'road', sector: 'puja' });
+      shoves('ratan', 'handovers', { id: 'msh1', amount: 1000, cashAmount: 1000, upiAmount: 0, toId: 'mskali',
+        date: TODAY, status: 'pending', breakdown: JSON.stringify({ shop: { cash: 1000, upi: 0 } }) });
+      const A17 = require('../js/aggregate.js');
+      const books = function () { return (bs.call('pull', { token: ts.adm, year: 2026, since: 0 }) || {}).data || {}; };
+      const before = A17.mySummary(books(), 'msratan', TODAY);
+      eq(before.hero.total, 2500, 'backend A217: in hand right now — collected less what was spent');
+      eq(before.today.collected, 2800, 'backend A217: …while "আজ তুলেছি" counts the collecting, not the spending');
+      eq(before.out.pending.total, 1000, 'backend A217: …and one parcel is waiting on the cashier');
+      eq(before.afterApprove, 1500, 'backend A217: the screen promises ₹1,500 once it is confirmed');
+      bs.call('confirmHandover', { token: ts.kali, id: 'msh1', year: 2026 });
+      const after = A17.mySummary(books(), 'msratan', TODAY);
+      eq(after.hero.total, before.afterApprove,
+         'backend A217: …and after the confirm that is exactly what they have — the promise is kept');
+      eq(after.today.collected, before.today.collected,
+         'backend A217: handing money in is not un-collecting it — today\'s figure does not move');
+      eq(after.tillNow.handedOver, 1000, 'backend A217: …it moves the season\'s "জমা দিয়েছি" instead');
+      // nothing is waiting any more, so the promise and the reality coincide.
+      // If a settled parcel were still being deducted, this is where the same
+      // ₹1,000 would come off twice and the screen would promise ₹500.
+      eq(after.out.pending.total, 0, 'backend A217: nothing is waiting on the cashier now');
+      eq(after.afterApprove, after.hero.total,
+         'backend A217: …so the promise equals what is in hand — a settled parcel is not deducted a second time');
+      eq(A17.mySummary(books(), 'msratan').today, null,
+         'backend A217: with no date passed there is no "today" block — the clock is a parameter, never read in here');
+    }
+
     // --- A212: one book, every kind of row, the three headline numbers ----
     // মোট আদায় / মোট খরচ / হাতে আছে are the most-read figures in the app. Each
     // is covered in isolation; what was not covered is all of it AT ONCE —

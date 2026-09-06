@@ -15314,3 +15314,34 @@ v4.75.0. Tests 2,820 (from 2,807). Mutation-proved three ways.
 
 **Client-only** — reaches phones with ⚙️ → 🔄. Say the word and the
 honorific goes back on sponsors; it is one line.
+
+## A217 — the promise the collector's own screen makes (2026-09-06)
+
+**Checked, not changed.** Fifteen properties of `mySummary` — the screen a
+collector opens more than any other — walked end to end on a real server
+book. Three clocks live on it and the whole point is that they stay apart:
+
+- **hero** — what is in hand right now
+- **আজ** — what was collected and spent *today*, which does not move when
+  yesterday's money is handed in
+- **মরসুম** — the season's collected / handed over / spent
+
+All fifteen already right, including the ones most likely to be conflated:
+handing money in does not reduce "আজ তুলেছি"; a cashier's received parcels
+never count as their own collecting; cash and UPI stay separate; and with
+no date passed there is **no "today" block at all**, because the clock is a
+parameter and never read inside the function.
+
+run.js covers `mySummary` thoroughly at rest (37 assertions). What had no
+test is the **promise**: the screen tells the collector *"সব পার্সেল মঞ্জুর
+হলে হাতে থাকবে ₹১,৫০০"* before they hand the notes over. Pinned across a
+real confirm — after it, that is exactly what they have.
+
+**A weak assertion caught by mutation, and fixed.** Deducting *confirmed*
+parcels as well as pending ones changed nothing at the moment I was
+measuring, because nothing had been confirmed yet. The state that exposes
+it is the one **after** the confirm: with nothing pending, the promise must
+equal what is in hand. With the mutation it promises ₹500 — the same ₹1,000
+taken off twice.
+
+Tests 2,830 (from 2,820). No app change.
