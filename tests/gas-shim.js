@@ -229,6 +229,11 @@ function loadBackend(opts) {
     // blocked account before either is reached — and a guard no test can
     // exercise is a guard that will silently rot.
     '\n g.canAssignPosition_ = canAssignPosition_; g.positionLevel_ = positionLevel_;' +
+    // A237: the permission decision itself, and the effective-permission union
+    // behind it. js/aggregate.js permAllowed is a second implementation of the
+    // same question, and the only way to check the two agree is to ask both —
+    // a mirror you cannot call is a mirror nobody checks.
+    '\n g.entryAllowed_ = entryAllowed_; g.effPerms_ = effPerms_;' +
     // reset the per-request caches the real runtime gets for free by starting a
     // fresh execution context each time — forgetting this is how a shim starts
     // reporting things the server would never do

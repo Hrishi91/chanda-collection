@@ -16068,3 +16068,34 @@ not land, which is how it should have been written.
 Tests 3,051 (from 3,033). Mutation-proved three ways.
 
 No app change.
+
+## A237 — the permission decision, written twice (2026-09-06)
+
+**Checked, nothing wrong.** `entryAllowed_` on the server and `permAllowed`
+on the phone answer the same question from different sources. Compared over
+**20 keys × 5 users** — personal grants only, a post's grants only, both,
+neither, and the admin — plus the post lifecycle: a post-granted key
+reaches the phone, nothing the post does not carry comes with it, personal
+and post arrive as one union, and taking the post off removes it **on both
+sides**, because a permission is derived and never copied onto a person.
+
+Every verdict matches.
+
+**Two honest corrections to my own reading.**
+
+- `voidAllowed_` vs `js/app.js canVoid` is **not** comparable and is
+  deliberately asymmetric (A167): the server must permit a self-void because
+  the 5-second Undo travels that path, while the ✖️ button refuses one on an
+  old row. Two doors, two rules, both right. Asserting they match would
+  re-break what A167's tests already caught me breaking once.
+- I expected a post's permissions to live only in `effPerms_`, so that
+  reading `row.entries` instead would diverge. It does not: `setUserPosition`
+  materialises them into the column too, which is why that mutation is a
+  no-op. Said plainly rather than left as a mutation I could not explain.
+
+`tests/gas-shim.js` now exposes `entryAllowed_` and `effPerms_` — a mirror
+you cannot call is a mirror nobody checks — and an existing
+`mirror: entryAllowed` block already covered the admin shortcut, which one
+of the mutations confirmed.
+
+Tests 3,063 (from 3,051). No app change.

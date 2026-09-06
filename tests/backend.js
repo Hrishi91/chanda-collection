@@ -3070,6 +3070,74 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A237: the permission decision, written twice ---------------------
+    // `entryAllowed_` here reads effPerms_ (personal grants UNIONED with the
+    // post's); `permAllowed` on the phone reads the `entries` string the pull
+    // sends. Two implementations of one question. Disagree and the UI offers
+    // what the server refuses — a dead button — or hides what it allows.
+    //
+    // NOT compared: voidAllowed_ vs js/app.js canVoid. Those two differ ON
+    // PURPOSE (A167) — the server must permit a self-void because the 5-second
+    // Undo travels that path, while the ✖️ button refuses one on an old row.
+    // Two doors, two rules, both right; asserting they match would be wrong.
+    {
+      const bp = loadBackend(); bp.api.setup();
+      const who = ['peadm', 'pepersonal', 'pepost', 'peboth', 'penone'];
+      who.forEach(function (u, i) {
+        bp.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '90400000' + i });
+      });
+      const tp0 = bp.call('login', { username: 'peadm', password: 'secret0', year: 2026 }).token;
+      const pid = function (u) { return bp.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+      who.slice(1).forEach(function (u) {
+        bp.call('setStatus', { token: tp0, userId: pid(u), status: 'approved' });
+        bp.call('approveYear', { token: tp0, userId: pid(u), year: 2026 });
+      });
+      // two DIFFERENT posts: the seeded ones are capped at one holder each
+      const posns = (bp.rows('Lists') || []).filter(function (x) { return String(x.kind) === 'position'; });
+      [posns[0], posns[1]].forEach(function (p) {
+        bp.call('setPositionRules', { token: tp0, id: p.id, perms: ['sponsor', 'dues'] });
+      });
+      bp.call('setEntries', { token: tp0, userId: pid('pepersonal'), entries: ['shop', 'road'] });
+      bp.call('setUserPosition', { token: tp0, userId: pid('pepost'), position: posns[0].id });
+      bp.call('setEntries', { token: tp0, userId: pid('peboth'), entries: ['shop', 'road'] });
+      bp.call('setUserPosition', { token: tp0, userId: pid('peboth'), position: posns[1].id });
+      const tp = {};
+      who.forEach(function (u, i) { tp[u] = bp.call('login', { username: u, password: 'secret' + i, year: 2026 }).token; });
+
+      const A37 = require('../js/aggregate.js');
+      const KEYS = A37.PERM_KEYS.concat([null, '', 'nonsense']);
+      eq(KEYS.length >= 20, true, 'backend A237: every permission key is in the matrix, plus the empty and unknown cases');
+      who.forEach(function (u) {
+        const me = (bp.call('pull', { token: tp[u], year: 2026, since: 0 }) || {}).me || {};
+        const row = bp.rows('Users').filter(function (x) { return x.username === u; })[0];
+        const wrong = KEYS.filter(function (k) {
+          return A37.permAllowed(me, k) !== bp.api.entryAllowed_({ row: row }, k);
+        });
+        eq(wrong.join(', '), '',
+           'backend A237: server and phone give the same verdict for ' + u + ' on every key');
+      });
+
+      // the case the two could most easily diverge on: a permission that comes
+      // ONLY from a post, since the server unions it and the phone is simply
+      // handed the union
+      const mePost = (bp.call('pull', { token: tp.pepost, year: 2026, since: 0 }) || {}).me || {};
+      eq(A37.permAllowed(mePost, 'sponsor'), true, 'backend A237: a post-granted key reaches the phone');
+      eq(A37.permAllowed(mePost, 'shop'), false, 'backend A237: …and nothing the post does not carry');
+      const meBoth = (bp.call('pull', { token: tp.peboth, year: 2026, since: 0 }) || {}).me || {};
+      eq(A37.permAllowed(meBoth, 'shop') && A37.permAllowed(meBoth, 'sponsor'), true,
+         'backend A237: personal and post grants arrive as one union');
+      // and removing the post removes it on BOTH sides — derived, never copied
+      // tp0 died when the token map re-logged peadm in — one account, one
+      // active device, and a fixture that forgets it reads as bad-token.
+      bp.call('setUserPosition', { token: tp.peadm, userId: pid('peboth'), position: '' });
+      const after = (bp.call('pull', { token: tp.peboth, year: 2026, since: 0 }) || {}).me || {};
+      const rowAfter = bp.rows('Users').filter(function (x) { return x.username === 'peboth'; })[0];
+      eq(A37.permAllowed(after, 'sponsor'), false, 'backend A237: taking the post off removes it on the phone…');
+      eq(bp.api.entryAllowed_({ row: rowAfter }, 'sponsor'), false, 'backend A237: …and on the server');
+      eq(A37.permAllowed(after, 'shop') && bp.api.entryAllowed_({ row: rowAfter }, 'shop'), true,
+         'backend A237: …while the personal grant survives, on both');
+    }
+
     // --- A236: the curtain, written twice, compared -----------------------
     // Confidentiality is enforced on BOTH sides: `visible_` decides what the
     // server SENDS, `visibleData` decides what the phone SHOWS. A235's lesson
