@@ -3070,6 +3070,59 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A227: a dead phone's book lands on ITS owner, not on the admin -----
+    // A9 pins that identity comes from the token, and A73/V2 that an admin may
+    // reassign a row. What neither reaches is the figure a cashier actually
+    // reads: the whole point of the import screen asking "whose book is this?"
+    // is that ₹3,700 off a drowned phone must not appear as the ADMIN's cash in
+    // hand — money the admin has never touched, on the screen used to decide
+    // who owes what.
+    {
+      const bi = loadBackend(); bi.api.setup();
+      ['imadm', 'imratan'].forEach(function (u, i) {
+        bi.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '99900000' + i });
+      });
+      let ti = bi.call('login', { username: 'imadm', password: 'secret0', year: 2026 }).token;
+      const iid = bi.rows('Users').filter(function (x) { return x.username === 'imratan'; })[0].id;
+      bi.call('setStatus', { token: ti, userId: iid, status: 'approved' });
+      bi.call('approveYear', { token: ti, userId: iid, year: 2026 });
+      bi.call('setEntries', { token: ti, userId: iid, entries: ['shop', 'road'] });
+      const A27 = require('../js/aggregate.js');
+      const si = new Date().toISOString();
+      const hand = function (u) {
+        const d = (bi.call('pull', { token: ti, year: 2026, since: 0 }) || {}).data || {};
+        const r = (A27.inHandRows(d) || []).filter(function (x) { return String(x.collector).indexOf(u) >= 0; })[0];
+        return r ? r.inHand : 0;
+      };
+      // exactly the shape renderImportOwner builds: the dead phone's rows,
+      // stamped with ITS owner, synced:0, pushed by the admin
+      const owned = function (id, extra) {
+        return Object.assign({ id: id, year: 2026, createdAt: si,
+          collector: 'নাম-imratan', collectorId: 'imratan', synced: 0 }, extra);
+      };
+      const ri = bi.call('push', { token: ti, records: [
+        rec('parties',  owned('ip1', { type: 'shop', name: 'দোকান', pledged: 9000, sector: 'puja' })),
+        rec('payments', owned('iy1', { partyId: 'ip1', partyName: 'দোকান', amount: 3000, cashAmount: 3000, upiAmount: 0, date: '2026-09-06' })),
+        rec('daily',    owned('id1', { type: 'road', amount: 700, cashAmount: 700, upiAmount: 0, date: '2026-09-06', sector: 'puja' })),
+      ] });
+      eq((ri.savedIds || []).length, 3, 'backend A227: the imported book lands');
+      eq(hand('imratan'), 3700,
+         'backend A227: …in the hand of the collector whose phone it came off');
+      eq(hand('imadm'), 0,
+         'backend A227: …and NOT in the admin\'s, which is what the "whose book is this?" screen exists to prevent');
+      eq(String((ri.reassigned || {}).imratan || ''), '3',
+         'backend A227: the reassignment is counted for the audit line');
+      const payRow = bi.rows('Payments').filter(function (p) { return p.id === 'iy1'; })[0];
+      eq(String(payRow.collectorRole), 'collector',
+         'backend A227: the row carries HIS role, not the admin\'s — void and correction rules measure the right person');
+
+      // "keep as written" — no owner claimed — is the honest opposite
+      bi.call('push', { token: ti, records: [rec('daily', { id: 'id2', year: 2026, createdAt: si,
+        type: 'road', amount: 500, cashAmount: 500, upiAmount: 0, date: '2026-09-06', sector: 'puja', synced: 0 })] });
+      eq(hand('imadm'), 500,
+         'backend A227: with nobody claimed the money is the pusher\'s, which is the truthful answer');
+    }
+
     // --- A225: exactly one verdict per record ------------------------------
     // js/sync.js clears a row from the queue only when the server NAMES it, so
     // a record that lands in none of saved / rejected / held is re-pushed for

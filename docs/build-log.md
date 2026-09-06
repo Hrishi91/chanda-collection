@@ -15675,3 +15675,33 @@ chain — the tile dropping its source, the router dropping the params, and
 the error state alone reverting.
 
 **Client-only** — reaches phones with ⚙️ → 🔄.
+
+## A227 — a dead phone's book lands on its owner, not on the admin (2026-09-06)
+
+**Checked, nothing wrong.** The import path is the one that ingests data
+from outside the system, so it was worth walking whole. It is careful:
+`JSON.parse` guarded, only known stores kept, rows without an id dropped,
+`synced: 0` forced in **both** branches (a file carries `synced: 1` from
+the phone it was exported on, and a row marked synced never pushes), the
+owner asked **before** anything is written, a typed confirmation, and
+A183's dead-spot timeout on the user list.
+
+The chain that matters runs from the screen to the Sheet: the import stamps
+each row with its owner, the admin pushes it, and `push` — which takes
+identity from the **token**, never the payload — has an `admin && claimed`
+branch that honours the claim. Walked end to end: ₹3,700 off a drowned
+phone lands in **রতন's** hand, the admin's stays ₹0, the row carries
+**his** role rather than the admin's, and the reassignment is counted for
+the audit line. "Keep as written" is the honest opposite: with nobody
+claimed the money is the pusher's.
+
+A9 already pins the security half — a non-admin claiming another's name is
+filed under the token holder — and A73/V2 pins the reassignment itself.
+What neither reaches is **the figure a cashier reads**, which is the whole
+reason the screen asks the question, so that is what was added.
+
+Tests 2,911 (from 2,905). Mutation-proved: removing the reassign branch
+puts ₹3,700 in the admin's hand, keeping the name but not the role gives
+the row `admin`, and opening the branch to non-admins fails A9 by name.
+
+No app change.
