@@ -138,6 +138,48 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A206: …in both languages, each carrying the count of what is standing on it');
 }
 
+// A220: placeholders. A sentence that says {n} while the code fills {count}
+// prints a literal "{n}" on somebody's phone — invisible in review, found by
+// the user. Two invariants, both derived, neither hand-maintained.
+{
+  const i18nSrc20 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+  const I20 = (new Function(i18nSrc20 + '; return I18N;'))();
+  const app20 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const phOf = function (str) {
+    const set = {};
+    String(str || '').replace(/\{[a-zA-Z0-9_]+\}/g, function (m) { set[m] = 1; return m; });
+    return Object.keys(set).sort();
+  };
+
+  // 1. the two languages must agree, or one of them shows a raw brace
+  const drift = Object.keys(I20).filter(function (k) {
+    const e = I20[k];
+    if (!e || typeof e !== 'object') return false;
+    return phOf(e.bn).join(',') !== phOf(e.en).join(',');
+  });
+  eq(drift.join(', '), '', 'A220: bn and en carry the same placeholders in every key');
+  eq(Object.keys(I20).length > 800, true, 'A220: …across the whole dictionary, not a sample');
+
+  // 2. every substitution the code performs must name a placeholder the
+  //    sentence actually has. BOTH idioms count: .replace('{x}', v) fills the
+  //    first occurrence, .split('{x}').join(v) fills every one — looking for
+  //    only the first is how a correct call (block_holds_money) reads as a bug.
+  const re20 = /\bt(?:Bn)?\('([a-zA-Z0-9_]+)'\)((?:\s*\.(?:replace|split)\('\{[a-zA-Z0-9_]+\}'[^\n]*)+)/g;
+  const wrong = []; let m20, checked20 = 0;
+  while ((m20 = re20.exec(app20)) !== null) {
+    const key = m20[1], have = I20[key] ? phOf(I20[key].bn) : null;
+    const fills = {};
+    m20[2].replace(/\.(?:replace|split)\('(\{[a-zA-Z0-9_]+\})'/g, function (x, ph) { fills[ph] = 1; return x; });
+    Object.keys(fills).forEach(function (ph) {
+      checked20++;
+      if (!have) wrong.push(key + ' (no such key)');
+      else if (have.indexOf(ph) < 0) wrong.push(key + ' fills ' + ph + ' but says ' + (have.join(',') || 'nothing'));
+    });
+  }
+  eq(checked20 > 100, true, 'A220: over a hundred substitutions are being checked');
+  eq(wrong.join(' · '), '', 'A220: every one of them names a placeholder its sentence has');
+}
+
 // A218: Bengali search across keyboards. matchWords is covered; the
 // `.normalize('NFC')` inside normText is not, and it is the half that makes
 // the search work at all when two collectors' keyboards emit the same word

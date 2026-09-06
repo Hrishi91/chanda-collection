@@ -15415,3 +15415,41 @@ The sharpened lesson — *fix it once in the wrapper, then pin the centre,
 not the sites* — is recorded in `~/.claude/skills`.
 
 No app change, no test change.
+
+## A220 — placeholders, across the whole UI (2026-09-06)
+
+**Checked, nothing wrong, now guarded.** A sentence that says `{n}` while
+the code fills `{count}` prints a literal **"{n}"** on somebody's phone.
+It is invisible in review — both halves look right on their own — and the
+person who finds it is the user.
+
+Two invariants, both **derived** rather than listed:
+
+- **891 keys**, and in every one the Bengali and the English carry exactly
+  the same placeholders. Drift here means one language shows a raw brace.
+- **118 substitutions** in `js/app.js`, and every one names a placeholder
+  its sentence actually has.
+
+Both were already clean.
+
+**A scanner that only knew one idiom lied to me first.** This codebase
+substitutes two ways — `.replace('{x}', v)` fills the first occurrence,
+`.split('{x}').join(v)` fills every one — and my first pass looked only for
+`.replace`. It reported `block_holds_money` as printing a raw `{amt}`,
+which is correct code using the second idiom. The test knows both.
+
+**Four dead keys, all legitimately dead**, chased down rather than assumed:
+`member_clash` was superseded by `err_member_stale` (which says the same
+thing), `anom_void_line` by A123 — which replaced its bare
+`{amt} · {who} · {when}` with `entrySummary`, so the 🩺 desk now says WHAT
+was cancelled and not only how much — and `adm_link_prompt` / `pos_max_prompt`
+by the screens that replaced those prompts. Left in place: deleting
+translated text to tidy a count is not worth the risk of a dynamic lookup a
+grep did not see, and they are not pinned either, because a list of
+known-dead keys is exactly the hand-maintained thing that rots.
+
+Tests 2,850 (from 2,846). Mutation-proved three ways: a placeholder dropped
+from one language, the code filling a name the sentence does not use, and a
+key renamed without its caller.
+
+No app change.
