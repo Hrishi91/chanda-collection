@@ -888,6 +888,12 @@ var RESTRICTED_TYPES = ['sponsor', 'gupt'];
 function viewPermFor_(type) { return String(type) + 'view'; }
 var VIEW_PERM_KEYS = RESTRICTED_TYPES.map(viewPermFor_);
 var ENTRY_KINDS = ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor', 'gupt', 'ticket'];
+// A235: which of those are DONORS and which are daily rounds. js/aggregate.js
+// splits ENTRY_KINDS exactly this way; these two lines exist so this file's own
+// reports stop hand-listing three kinds each and quietly missing the rest.
+// One decision, two files — change them together (same rule as MENTION_GROUPS).
+var PARTY_KINDS = ['shop', 'person', 'member', 'sponsor', 'gupt'];
+var DAILY_KINDS = ['road', 'toto', 'bus', 'ticket'];
 // 'review' is the cashier's correction desk; 'otherdonor' is reaching donors
 // somebody ELSE wrote down, to take a later instalment. Neither is an entry
 // kind, but both ride the same field so granting stays one screen.
@@ -1275,7 +1281,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.80.0';
+var CODE_VERSION = 'chanda-v4.81.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -3860,24 +3866,28 @@ function computeReport_(id, d) {
   d = activeData_(d);
   var money = d.payments.concat(d.daily);
   if (id === 'overview') {
-    var byType = { shop: { count: 0, pledged: 0, paid: 0 },
-                   person: { count: 0, pledged: 0, paid: 0 },
-                   member: { count: 0, pledged: 0, paid: 0 } };
+    // A235: built from PARTY_KINDS, not typed out. The hand-written three left
+    // স্পনসর and গুপ্ত out of this file's overview entirely, so its totalPledged
+    // was ₹50,000 short of the phone's on the same book — two implementations
+    // of one headline, disagreeing.
+    var byType = {};
+    PARTY_KINDS.forEach(function (k) { byType[k] = { count: 0, pledged: 0, paid: 0 }; });
     var paidBy = {};
     d.payments.forEach(function (p) { paidBy[p.partyId] = (paidBy[p.partyId] || 0) + num_(p.amount); });
     d.parties.forEach(function (p) {
       var b = byType[p.type]; if (!b) return;
       b.count++; b.pledged += num_(p.pledged); b.paid += paidBy[p.id] || 0;
     });
-    var dailyByType = { road: 0, toto: 0, bus: 0 };
+    var dailyByType = {};
+    DAILY_KINDS.forEach(function (k) { dailyByType[k] = 0; });   // A235: ticket was missing
     d.daily.forEach(function (r) { if (r.type in dailyByType) dailyByType[r.type] += num_(r.amount); });
     var cash = 0, upi = 0;
     money.forEach(function (r) {
       if (cashOnly_(r)) cash += num_(r.amount); // canonical legacy check, same as personalSummary_
       else { cash += num_(r.cashAmount); upi += num_(r.upiAmount); }
     });
-    var totalPledged = byType.shop.pledged + byType.person.pledged + byType.member.pledged;
-    var totalPaid = byType.shop.paid + byType.person.paid + byType.member.paid;
+    var totalPledged = PARTY_KINDS.reduce(function (a, k) { return a + byType[k].pledged; }, 0);
+    var totalPaid = PARTY_KINDS.reduce(function (a, k) { return a + byType[k].paid; }, 0);
     var totalColl = sumBy_(money, function (r) { return r.amount; });
     var totalExp = sumBy_(d.expenses, function (r) { return r.amount; });
     return { totalCollection: totalColl, totalExpense: totalExp, inHand: totalColl - totalExp,
@@ -3912,6 +3922,12 @@ function computeReport_(id, d) {
     d.payments.forEach(function (p) { paidA[p.partyId] = (paidA[p.partyId] || 0) + num_(p.amount); });
     var agg = {};
     d.parties.forEach(function (p) {
+      // A144, which this file never got: a স্পনসর belongs to no এলাকা — nobody
+      // walked a street for it. Left in, one sponsor lands in "—" and outweighs
+      // the zones the report exists to compare. js/aggregate.js has skipped
+      // them since A144; here they were still counted, so the two sides
+      // reported different areas for the same book.
+      if (RESTRICTED_TYPES.indexOf(String(p.type || '')) >= 0) return;
       var k = p.side || '—';
       if (!agg[k]) agg[k] = { area: k, count: 0, pledged: 0, paid: 0 };
       agg[k].count++; agg[k].pledged += num_(p.pledged); agg[k].paid += paidA[p.id] || 0;

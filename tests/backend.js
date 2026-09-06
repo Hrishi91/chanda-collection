@@ -3070,6 +3070,109 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A235: two implementations of one arithmetic, compared ------------
+    // Code.gs builds seven reports of its own and js/aggregate.js builds them
+    // again for the phone. The existing "mirror" tests count SOURCE PATTERNS in
+    // Code.gs; nothing had ever run both on one book and compared the numbers.
+    // Doing so found two real divergences (fixed in this change): this file's
+    // overview hand-listed shop/person/member, so স্পনসর and গুপ্ত were missing
+    // from totalPledged and totalPaid, and its areas report never got A144 —
+    // a sponsor belongs to no এলাকা, and left in, one negotiation outweighs
+    // every street anyone walked.
+    {
+      const bm2 = loadBackend(); bm2.api.setup();
+      ['mradm', 'mrkali', 'mrratan'].forEach(function (u, i) {
+        bm2.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '90700000' + i });
+      });
+      let tm0 = bm2.call('login', { username: 'mradm', password: 'secret0', year: 2026 }).token;
+      const mid = function (u) { return bm2.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+      ['mrkali', 'mrratan'].forEach(function (u) {
+        bm2.call('setStatus', { token: tm0, userId: mid(u), status: 'approved' });
+        bm2.call('approveYear', { token: tm0, userId: mid(u), year: 2026 });
+        bm2.call('setEntries', { token: tm0, userId: mid(u), entries: ['shop', 'person', 'road', 'toto', 'bus', 'sponsor', 'gupt', 'ticket', 'progteam', 'progdonor'] });
+      });
+      bm2.call('setCashier', { token: tm0, userId: mid('mrkali'), cashier: 1 });
+      bm2.call('addItem', { token: tm0, kind: 'area', nameBn: 'মেন রোড', nameEn: 'Main Rd' });
+      const mArea = (bm2.rows('Lists') || []).filter(function (x) { return x.kind === 'area'; })[0].id;
+      const tm = {};
+      ['mradm', 'mrkali', 'mrratan'].forEach(function (u, i) {
+        tm[u] = bm2.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+      });
+      tm0 = tm.mradm;
+      const Dm = '2026-09-06', sm = Dm + 'T06:00:00.000Z';
+      const pm = function (u, store, row) {
+        bm2.call('push', { token: tm[u], records: [rec(store, Object.assign({ year: 2026, createdAt: sm }, row))] });
+      };
+      // a book with every shape the two implementations could disagree about
+      pm('mrratan', 'parties',  { id: 'p1', type: 'shop', name: 'আদর্শ', owner: 'সুবীর', pledged: 5000, side: mArea, sector: 'puja' });
+      pm('mrratan', 'payments', { id: 'y1', partyId: 'p1', partyName: 'আদর্শ', amount: 2000, cashAmount: 1500, upiAmount: 500, date: Dm });
+      pm('mrratan', 'parties',  { id: 'p2', type: 'person', name: 'রঞ্জিত', pledged: 3000, side: mArea, sector: 'puja' });
+      pm('mrratan', 'payments', { id: 'y2', partyId: 'p2', partyName: 'রঞ্জিত', amount: 1200, cashAmount: 1200, upiAmount: 0, date: Dm });
+      pm('mrkali',  'parties',  { id: 'p3', type: 'sponsor', name: 'Bose', pledged: 50000, side: mArea, sector: 'puja' });
+      pm('mrkali',  'payments', { id: 'y3', partyId: 'p3', partyName: 'Bose', amount: 20000, cashAmount: 0, upiAmount: 20000, date: Dm });
+      pm('mrratan', 'daily',    { id: 'd1', type: 'road', amount: 900, cashAmount: 900, upiAmount: 0, date: Dm, sector: 'puja' });
+      pm('mrratan', 'daily',    { id: 'd2', type: 'toto', amount: 400, cashAmount: 400, upiAmount: 0, date: '2026-09-05', sector: 'puja' });
+      pm('mrkali',  'daily',    { id: 'd3', type: 'bus', busName: 'উত্তরবঙ্গ', busNumber: 'WB-1', amount: 700, cashAmount: 700, upiAmount: 0, date: Dm, sector: 'puja' });
+      // a ticket too: it is the newest daily kind, and this file's dailyByType
+      // hand-listed road/toto/bus, so ticket money never appeared in its
+      // breakdown at all
+      pm('mrkali',  'daily',    { id: 'd4', type: 'ticket', amount: 1500, cashAmount: 1500, upiAmount: 0, date: Dm, sector: 'program' });
+      pm('mrkali',  'expenses', { id: 'e1', subject: 'আলো', amount: 1200, cashAmount: 1200, upiAmount: 0, date: Dm, srcCat: 'other', source: 'general', sector: 'puja' });
+      pm('mrratan', 'handovers',{ id: 'h1', amount: 2000, cashAmount: 1500, upiAmount: 500, toId: 'mrkali', date: Dm, status: 'pending',
+        breakdown: JSON.stringify({ shop: { cash: 1500, upi: 500 } }) });
+      bm2.call('confirmHandover', { token: tm.mrkali, id: 'h1', year: 2026 });
+      pm('mrkali',  'voids',    { id: 'v1', targetStore: 'payments', targetId: 'y2', reason: 'ভুল', date: Dm });
+
+      const A35 = require('../js/aggregate.js');
+      const clientBook = (bm2.call('pull', { token: tm0, year: 2026, since: 0 }) || {}).data || {};
+      const rnd = function (x) {
+        return JSON.parse(JSON.stringify(x, function (k, v) { return typeof v === 'number' ? Math.round(v * 100) / 100 : v; }));
+      };
+      // The phone may show MORE (cash/UPI splits, byCat). What must never
+      // differ is a field the server ALSO returns: that is one number computed
+      // twice, read by two people on two screens.
+      const diffs = function (srv, cli, path) {
+        const out = [];
+        if (srv === null || typeof srv !== 'object') {
+          if (JSON.stringify(rnd(srv)) !== JSON.stringify(rnd(cli))) {
+            out.push(path + ': server ' + JSON.stringify(srv) + ' vs phone ' + JSON.stringify(cli));
+          }
+          return out;
+        }
+        if (Array.isArray(srv)) {
+          if (!Array.isArray(cli) || srv.length !== cli.length) {
+            out.push(path + ': ' + srv.length + ' rows vs ' + ((cli || []).length));
+            return out;
+          }
+          srv.forEach(function (x, i) { out.push.apply(out, diffs(x, cli[i], path + '[' + i + ']')); });
+          return out;
+        }
+        Object.keys(srv).forEach(function (k) {
+          out.push.apply(out, diffs(srv[k], (cli || {})[k], path ? path + '.' + k : k));
+        });
+        return out;
+      };
+      // `diffs` walks the SERVER's keys, so a kind the server DROPS is
+      // invisible to it — and silently dropping a kind is this codebase's own
+      // recurring bug (A146-A149). So the kind-maps are checked by key set,
+      // against the lists aggregate.js exports.
+      const ovSrv = (bm2.call('report', { token: tm0, id: 'overview', year: 2026 }) || {}).data || {};
+      eq(Object.keys(ovSrv.byType || {}).sort().join(','), A35.PARTY_KINDS.slice().sort().join(','),
+         'backend A235: the server\'s overview has a bucket for every donor kind — a missing one is money that stops being counted');
+      eq(Object.keys(ovSrv.dailyByType || {}).sort().join(','), A35.DAILY_KINDS.slice().sort().join(','),
+         'backend A235: …and for every daily kind, ticket included');
+
+      ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily'].forEach(function (id) {
+        let srv = null, err = '';
+        try { srv = (bm2.call('report', { token: tm0, id: id, year: 2026 }) || {}).data; }
+        catch (e) { err = String(e.message || e); }
+        eq(err, '', 'backend A235: the server builds "' + id + '"');
+        const cli = A35.computeReport(id, clientBook, {});
+        eq(diffs(srv, cli, '').join(' | '), '',
+           'backend A235: …and every field it returns for "' + id + '" matches the phone\'s, to the rupee');
+      });
+    }
+
     // --- A234: one evening, end to end -------------------------------------
     // Every surface in this file is checked alone. This runs them TOGETHER, in
     // the order a real night happens — five people, every donor kind, a confirm

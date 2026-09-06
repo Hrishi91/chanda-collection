@@ -15971,3 +15971,45 @@ overnight** before the new cross-path assertion could bite, which is also
 what a real night looks like.
 
 Tests 3,017 (from 2,982). No app change.
+
+## A235 — two implementations of one arithmetic, finally compared (2026-09-06)
+
+**A234's lesson, taken one step further.** That found three code paths
+computing one number with nothing checking they agree. The biggest instance
+of the same shape is bigger still: `Code.gs` builds **seven reports of its
+own** and `js/aggregate.js` builds them again for the phone. The existing
+"mirror" tests count **source patterns** in Code.gs; nothing had ever run
+both on one book and compared the numbers.
+
+**Doing so found two real divergences, both server-side and both stale:**
+
+- **overview** hand-listed `shop + person + member`, so a **স্পনসর's
+  ₹50,000 pledge and a গুপ্ত donor were missing entirely** from
+  `totalPledged` and `totalPaid`. On one book: server ₹8,000 pledged, phone
+  ₹58,000.
+- **areas** never got A144. The phone skips restricted kinds there —
+  *"a স্পনসর belongs to no এলাকা; nobody walked a street for it, and left in,
+  one negotiation outweighs every street anyone walked"* — and the server
+  still counted them. On the same book: server 3 donors / ₹22,000 paid,
+  phone 2 / ₹2,000.
+- and `dailyByType` hand-listed road/toto/bus, so **ticket money never
+  appeared** in this file's breakdown at all.
+
+All three were the same hand-written-list class, so all three are now
+derived: `PARTY_KINDS` and `DAILY_KINDS` exist server-side beside the other
+shared lists, with the "one decision, two files" note.
+
+**Latent, not live** — A208 established that nothing in `js/` calls the
+server's report action; the phone computes its own. Worth saying plainly
+rather than dressing it up.
+
+**My comparison was weak in a way the fix had to correct.** It walked the
+SERVER's fields and checked each against the phone's — so a kind the server
+**drops** was invisible to it, which is exactly the failure being hunted.
+The kind-maps are now checked by **key set** against the exported lists, and
+removing `ticket` or `gupt` fails by name.
+
+v4.81.0. Tests 3,033 (from 3,017). Mutation-proved four ways.
+
+**Needs the next Apps Script deploy** to reach the live book — though
+nothing reads these reports today.
