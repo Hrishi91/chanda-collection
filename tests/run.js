@@ -138,6 +138,55 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A206: …in both languages, each carrying the count of what is standing on it');
 }
 
+// A218: Bengali search across keyboards. matchWords is covered; the
+// `.normalize('NFC')` inside normText is not, and it is the half that makes
+// the search work at all when two collectors' keyboards emit the same word
+// differently. Drop it and every test here still passes while a collector
+// stares at a shop they entered yesterday and cannot find it — so they enter
+// it again, and one shop becomes two donor rows with the money split.
+{
+  const A18 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const take = function (name) {
+    const m = A18.match(new RegExp('  function ' + name + '\\([^)]*\\)[\\s\\S]*?\\n  \\}'));
+    return m ? m[0] : '';
+  };
+  const S = new Function(take('normText') + '\n' + take('matchWords') +
+    '\nreturn { norm: normText, match: matchWords };')();
+
+  // The three Bengali nukta letters (ড় ঢ় য়) are Unicode composition
+  // exclusions: one keyboard sends the single codepoint, another sends the
+  // base letter plus U+09BC, and the two are NOT equal as strings.
+  const oneCp = 'রা\u09DF';          // রায় with য় as U+09DF
+  const twoCp = 'রা\u09AF\u09BC';    // রায় as য + ়
+  eq(oneCp === twoCp, false, 'A218: the two keyboards really do produce different strings');
+  eq(S.norm(oneCp) === S.norm(twoCp), true, 'A218: …and normText makes them one word');
+  eq(S.match('রা\u09DF স্টোর', twoCp), true,
+     'A218: so a shop entered on one phone is found from another');
+  eq(S.match('রা\u09AF\u09BC স্টোর', oneCp), true, 'A218: …and the other way round');
+
+  // vowel signs decompose too — ো is ে+া, ৌ is ে+ৗ
+  ['মোড়', 'বৌবাজার'].forEach(function (w) {
+    eq(w === w.normalize('NFD'), false, 'A218: "' + w + '" has a decomposed form');
+    eq(S.match(w + ' মার্কেট', w.normalize('NFD')), true,
+       'A218: …and it is found when typed that way');
+  });
+
+  // the widening rule A103 states, and its edges
+  const hay = 'আদর্শ স্টোর — সুবীর ঘোষ · মেন রোড · 9876543210';
+  eq(S.match(hay, 'সুবীর আদর্শ'), true, 'A218: words in any order');
+  eq(S.match(hay, 'আদর্শ  স্টোর'), true, 'A218: …any amount of space between them');
+  eq(S.match(hay, '9876'), true, 'A218: …and a part of the phone number');
+  eq(S.match(hay, 'আদর্শ নেই'), false, 'A218: but EVERY word has to be there, not just one');
+  eq(S.match(hay, ''), true, 'A218: an empty box hides nothing');
+  eq(S.match('Bose & Co', 'bose'), true, 'A218: English is case-insensitive');
+
+  // and the rule really is shared, which is what A103 was about
+  eq((A18.match(/matchWords\(/g) || []).length >= 6, true,
+     'A218: every search box goes through the one matcher');
+  eq(/normalize\('NFC'\)/.test(take('normText')), true,
+     'A218: …and that matcher normalises, which is the assertion above written as a guarantee');
+}
+
 // A216: who the receipt names, and the two stamps. Same loading trick as A214.
 {
   const A16 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');

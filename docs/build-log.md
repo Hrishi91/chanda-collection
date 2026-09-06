@@ -15345,3 +15345,37 @@ equal what is in hand. With the mutation it promises ₹500 — the same ₹1,00
 taken off twice.
 
 Tests 2,830 (from 2,820). No app change.
+
+## A218 — Bengali search across two keyboards (2026-09-06)
+
+**Checked, not changed.** Search is the thing a collector uses most, and a
+miss is expensive in a specific way: they conclude the shop is not in the
+book, enter it again, and one shop becomes two donor rows with the money
+split across both. Everything walked was already right — words in any
+order, any spacing, part of a phone number, case-insensitive English, an
+empty box hiding nothing, and every word required rather than just one.
+
+**What had no test is the half that makes it work at all in Bengali.**
+`matchWords` is covered twelve times over; `normText`'s
+`.normalize('NFC')` is mentioned **nowhere**. Bengali's three nukta letters
+— **ড় ঢ় য়** — are Unicode *composition exclusions*: one keyboard sends the
+single codepoint (য় = U+09DF), another sends the base letter plus U+09BC,
+and the two are **not equal as strings**. The vowel signs decompose too (ো
+= ে+া, ৌ = ে+ৗ). So "রায় স্টোর" entered on one collector's phone and
+searched from another's is a plain miss without the normalisation.
+
+Verified live rather than assumed: the codepoints really do differ, and
+`normText` really does unify them, in both directions.
+
+Also confirmed, so the finding is not overstated: phone numbers cannot
+carry separators into the book — the entry step runs `clean: cleanPhoneIN`,
+so a stored phone is always ten bare digits and a query with spaces or
+dashes still matches.
+
+Tests 2,846 (from 2,830). Mutation-proved: removing `.normalize('NFC')`
+fails four assertions by name — and would otherwise have left the whole
+suite green while collectors quietly created duplicate donors. Also proved
+against A103's original bug (one `indexOf` of the whole query) and against
+over-widening (any one word matching).
+
+No app change.
