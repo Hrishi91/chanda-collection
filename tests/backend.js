@@ -3070,6 +3070,45 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A238: every declared mirror, compared -----------------------------
+    // Code.gs says "Mirrors js/aggregate.js …" in ten places. A235 compared the
+    // reports, A236 the confidentiality curtain, A237 the permission verdict.
+    // These are the rest: the shared LISTS (by content, not by existence) and
+    // the role vocabulary. Both files are parsed here — nothing is typed twice
+    // in the test either.
+    {
+      const gsA = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+      const agA = require('fs').readFileSync(__dirname + '/../js/aggregate.js', 'utf8');
+      const listOf = function (src, name) {
+        const m = src.match(new RegExp('(?:var|const)\\s+' + name + '\\s*=\\s*\\[([^\\]]*)\\]'));
+        return m ? m[1].split(',').map(function (x) { return x.trim().replace(/'/g, ''); }).filter(Boolean) : null;
+      };
+      const SHARED = ['ENTRY_KINDS', 'SECTORS', 'PROGRAM_KEYS', 'RESTRICTED_TYPES',
+                      'MENTION_GROUPS', 'PARTY_KINDS', 'DAILY_KINDS', 'REPORT_IDS'];
+      SHARED.forEach(function (n) {
+        const srv = listOf(gsA, n), cli = listOf(agA, n);
+        eq(!!srv && !!cli, true, 'backend A238: ' + n + ' is a literal list in BOTH files');
+        eq((srv || []).join(','), (cli || []).join(','),
+           'backend A238: …and says the same thing in the same order — one decision, two files');
+      });
+
+      // the role vocabulary: entry rows speak admin|cashier|collector, the Users
+      // sheet says admin|user plus a cashier flag, and the translation is
+      // written twice. Getting it wrong once meant a cashier could neither void
+      // a row nor resolve its correction flag.
+      const bv = loadBackend();
+      const A38 = require('../js/aggregate.js');
+      [['admin', 1], ['admin', 0], ['user', 1], ['user', 0], ['', 0], ['', ''],
+       ['user', '1'], ['collector', 0]].forEach(function (c) {
+        eq(bv.api.roleOf_(c[0], c[1]), A38.roleOf(c[0], c[1]),
+           'backend A238: roleOf(' + JSON.stringify(c[0]) + ', ' + JSON.stringify(c[1]) + ') agrees on both sides');
+      });
+      ['admin', 'cashier', 'collector', 'user', '', 'nonsense'].forEach(function (v) {
+        eq(bv.api.rowRole_(v), A38.rowRole(v),
+           'backend A238: rowRole(' + JSON.stringify(v) + ') agrees on both sides');
+      });
+    }
+
     // --- A237: the permission decision, written twice ---------------------
     // `entryAllowed_` here reads effPerms_ (personal grants UNIONED with the
     // post's); `permAllowed` on the phone reads the `entries` string the pull

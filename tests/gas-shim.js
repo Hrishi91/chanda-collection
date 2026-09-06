@@ -234,6 +234,12 @@ function loadBackend(opts) {
     // same question, and the only way to check the two agree is to ask both —
     // a mirror you cannot call is a mirror nobody checks.
     '\n g.entryAllowed_ = entryAllowed_; g.effPerms_ = effPerms_;' +
+    // A238: the role vocabulary, for the same reason. Two one-liners are easy
+    // to eyeball and just as easy to let drift — entry rows speak
+    // admin|cashier|collector while the Users sheet says admin|user plus a
+    // cashier flag, and getting that translation wrong once already meant a
+    // cashier could neither void a row nor resolve its correction flag.
+    '\n g.roleOf_ = roleOf_; g.rowRole_ = rowRole_;' +
     // reset the per-request caches the real runtime gets for free by starting a
     // fresh execution context each time — forgetting this is how a shim starts
     // reporting things the server would never do

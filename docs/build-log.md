@@ -16099,3 +16099,33 @@ you cannot call is a mirror nobody checks — and an existing
 of the mutations confirmed.
 
 Tests 3,063 (from 3,051). No app change.
+
+## A238 — the mirror sweep, finished (2026-09-06)
+
+`Code.gs` says *"Mirrors js/aggregate.js …"* in **ten** places. Over four
+changes they have now all been compared by OUTPUT rather than by reading:
+
+| mirror | how |
+|---|---|
+| the seven reports | A235 — ran both on one book, found three stale lists |
+| `canSeeParty` / `confidentialMix` | A236 — ran both curtains over five readers |
+| `permAllowed` | A237 — 20 keys × 5 users |
+| the shared **lists** | **A238**, here |
+| `roleOf` / `rowRole` | **A238**, here |
+| `canVoid` | **deliberately NOT compared** — A167: the two differ on purpose |
+
+**Nothing wrong in this last pair.** All eight shared lists say the same
+thing in the same **order** — which matters, because order carries meaning
+in some of them — and the role translation agrees on every input including
+the awkward ones (`'1'` as a string, an empty role, an unknown word).
+
+Both files are parsed by the test, so nothing is typed out a third time in
+the test itself; and `roleOf_` / `rowRole_` are now exposed by the shim for
+the reason A237 stated — a mirror you cannot call is a mirror nobody checks.
+Getting that one-line translation wrong once already meant a cashier could
+neither void a row nor resolve its correction flag.
+
+Tests 3,093 (from 3,063). Mutation-proved three ways, including a list that
+agrees in content but not in **order**.
+
+No app change.
