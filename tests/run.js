@@ -8266,6 +8266,161 @@ pending.push((async function () {
   }
 })());
 
+// ---- A246: RUN js/sync.js — the push loop -----------------------------------
+// What leaves the phone, what comes back marked saved / refused / held, and
+// which of those a row keeps afterwards. A row that ends in the wrong bucket is
+// either money pushed twice or money that never arrives.
+pending.push((async function () {
+  const { bootSync } = require('./idb-shim.js');
+
+  // Only rows that are really waiting go up — and a row the server has already
+  // refused never goes again, because it would only be refused again.
+  {
+    const t = bootSync({ reply: { ok: true, savedIds: ['a'], rejectedIds: [] } });
+    await t.DB.bulkPut('payments', [
+      { id: 'a', amount: 5, synced: 0 },
+      { id: 'b', amount: 6, synced: 1 },
+      { id: 'c', amount: 7, synced: 0, rejected: 1 },
+    ]);
+    await t.Sync.syncNow();
+    const sent = t.box.__sent[0].payload.records.map(function (x) { return x.row.id; });
+    eq(sent.join(','), 'a', 'A246: only the rows really waiting are pushed');
+    eq(t.box.__sent[0].payload.epoch, 'e1',
+       'A246: …and the batch carries its epoch, so pre-go-live money cannot pour into the live book');
+    eq(t.box.__sent[0].payload.token, 'tok', 'A246: …with identity from the token');
+    const A = await t.DB.get('payments', 'a');
+    eq(A.synced, 1, 'A246: a saved row is marked sent');
+    eq(!!A.syncedAt, true, 'A246: …and when');
+  }
+
+  // The three buckets. Every pushed row must land in exactly one of them; a row
+  // in none is re-pushed for ever, and a row wrongly in `rejected` is money
+  // dropped from the queue for good.
+  {
+    const t = bootSync({ reply: { ok: true, savedIds: ['a'], rejectedIds: ['b'], heldIds: ['c'] } });
+    await t.DB.bulkPut('payments', [{ id: 'a', synced: 0 }, { id: 'b', synced: 0 }, { id: 'c', synced: 0 }]);
+    const r = await t.Sync.syncNow();
+    const A = await t.DB.get('payments', 'a'), B = await t.DB.get('payments', 'b'), C = await t.DB.get('payments', 'c');
+    eq(A.synced === 1 && !A.rejected, true, 'A246: saved → sent, not refused');
+    eq(B.rejected === 1 && B.synced !== 1, true, 'A246: refused → refused, not sent');
+    eq(!C.synced && !C.rejected, true, 'A246: held → neither, so it stays in the queue and goes when the reason lifts');
+    eq(await t.DB.unsyncedCount(), 1, 'A246: …and the badge still reads ⏳, exactly like being offline');
+    eq(r.held, 1, 'A246: the held COUNT comes back, so the app can say which of the two it is');
+    eq(r.sent, 1, 'A246: …alongside how many really landed');
+  }
+
+  // A54, and the half of it that took two goes: the event must fire AFTER the
+  // writes, or the listener reads rejectedCount() === 0 and swallows its own
+  // toast — the one moment the collector could still have done something.
+  {
+    const t = bootSync({ reply: { ok: true, savedIds: [], rejectedIds: ['b'] } });
+    await t.DB.put('payments', { id: 'b', synced: 0 });
+    let atFire = null;
+    t.box.window.dispatchEvent = function (e) { if (e.type === 'ck-rejected') atFire = t.DB.rejectedCount(); };
+    await t.Sync.syncNow();
+    eq(atFire !== null, true, 'A246: a refusal fires ck-rejected');
+    eq(await atFire, 1, 'A246: …after the write lands, so the listener counts 1 rather than 0');
+  }
+  {
+    const t = bootSync({ reply: { ok: true, savedIds: ['a'], rejectedIds: [] } });
+    await t.DB.put('payments', { id: 'a', synced: 0 });
+    let fired = 0;
+    t.box.window.dispatchEvent = function (e) { if (e.type === 'ck-rejected') fired++; };
+    await t.Sync.syncNow();
+    eq(fired, 0, 'A246: …and nothing refused means no false alarm');
+  }
+
+  // Undo while the push is in flight. The snapshot the loop is walking is
+  // already stale; writing from it would resurrect a row the collector deleted,
+  // and the money would be in the book twice.
+  //
+  // `hold` parks the server's reply so the Undo lands at a KNOWN point inside
+  // the round trip. Written first without it, this assertion passed even with
+  // the guard removed — it was racing the loop rather than testing it, which is
+  // a test that reports "fine" for whichever way the race happened to go.
+  {
+    const t = bootSync({ hold: true, reply: { ok: true, savedIds: ['a'], rejectedIds: [] } });
+    await t.DB.put('payments', { id: 'a', amount: 5, synced: 0 });
+    const p = t.Sync.syncNow();
+    // bounded: an unbounded spin on a condition a mutation can make permanently
+    // false hangs the whole suite instead of failing it
+    for (let i = 0; i < 500 && !t.box.__release; i++) await null;
+    eq(!!t.box.__release, true, 'A246: the push really went out before the Undo');
+    eq(t.Sync.busy(), true, 'A246: while a push is out, busy() is true — Undo writes a void, not a delete');
+    await t.DB.del('payments', 'a');           // …and the collector undoes it anyway
+    if (t.box.__release) t.box.__release();
+    await p;
+    eq(await t.DB.get('payments', 'a'), undefined,
+       'A246: a row undone mid-push is NOT resurrected from the stale snapshot');
+  }
+  // Two syncs at once must send ONE batch, or every row goes up twice.
+  {
+    const t = bootSync({ hold: true, reply: { ok: true, savedIds: ['a'], rejectedIds: [] } });
+    await t.DB.put('payments', { id: 'a', synced: 0 });
+    const first = t.Sync.syncNow();
+    for (let i = 0; i < 500 && !t.box.__release; i++) await null;
+    eq(!!t.box.__release, true, 'A246: the first push really went out before the second call');
+    // NOT awaited: without the busy guard the second call joins the queue and
+    // never settles, and an await here would hang the suite instead of failing
+    // it — the same trap as the unbounded spin above.
+    let second = null;
+    t.Sync.syncNow().then(function (r) { second = r; });
+    for (let i = 0; i < 500 && second === null; i++) await null;
+    eq(second && second.reason, 'busy', 'A246: a second sync while one is out answers busy…');
+    eq((t.box.__sent || []).length, 1, 'A246: …and exactly one batch left the phone');
+    if (t.box.__release) t.box.__release();
+    let done = null;
+    first.then(function (r) { done = r; });
+    for (let i = 0; i < 500 && done === null; i++) await null;
+    eq(done && done.ok, true, 'A246: …and the one that did go through still finishes');
+  }
+
+  // Serial numbers belong to the two stores that issue receipts, and nowhere else.
+  {
+    const t = bootSync({ reply: { ok: true, savedIds: ['y1', 'd1', 'p1'], rejectedIds: [],
+                                  receipts: { y1: 'R-7', d1: 'R-8', p1: 'R-9' } } });
+    await t.DB.put('payments', { id: 'y1', synced: 0 });
+    await t.DB.put('daily', { id: 'd1', synced: 0 });
+    await t.DB.put('parties', { id: 'p1', synced: 0 });
+    await t.Sync.syncNow();
+    eq((await t.DB.get('payments', 'y1')).receiptNo, 'R-7', 'A246: a payment adopts the server serial');
+    eq((await t.DB.get('daily', 'd1')).receiptNo, 'R-8', 'A246: …so does a daily collection');
+    eq((await t.DB.get('parties', 'p1')).receiptNo, undefined,
+       'A246: …but a donor row gets none, because a donor is not a receipt');
+  }
+
+  // inFlight is a one-way door if any path forgets to close it: sync stops for
+  // the rest of the session, and busy() makes every Undo write a void instead
+  // of deleting. Every exit must clear it.
+  {
+    const t = bootSync({ callFails: 'network' });
+    await t.DB.put('payments', { id: 'a', synced: 0 });
+    const r = await t.Sync.syncNow();
+    eq(r.ok, false, 'A246: a dead link answers ok:false');
+    eq(t.Sync.busy(), false, 'A246: …and STILL releases inFlight, or nothing syncs again this session');
+    eq((await t.DB.get('payments', 'a')).synced !== 1, true, 'A246: …with the row left in the queue');
+  }
+  {
+    const t = bootSync({ reply: { ok: true, savedIds: [], rejectedIds: [] } });
+    const r = await t.Sync.syncNow();
+    eq(r.ok === true && r.sent === 0, true, 'A246: nothing to send is a success, not an error');
+    eq(t.Sync.busy(), false, 'A246: …and that path releases inFlight too');
+    eq((t.box.__sent || []).length, 0, 'A246: …without spending a call on an empty batch');
+  }
+  {
+    const t = bootSync({ loggedOut: true });
+    await t.DB.put('payments', { id: 'a', synced: 0 });
+    const r = await t.Sync.syncNow();
+    eq(r.reason, 'not-logged-in', 'A246: not logged in has its own reason');
+    eq(t.Sync.busy(), false, 'A246: …and never takes the door');
+  }
+  {
+    const t = bootSync({ noUrl: true });
+    eq((await t.Sync.syncNow()).reason, 'not-configured', 'A246: no server URL has its own reason');
+    eq(t.Sync.configured(), false, 'A246: …and configured() agrees');
+  }
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

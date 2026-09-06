@@ -16439,3 +16439,46 @@ Tests 3,223 (from 3,192). Every new assertion mutation-proved by name, save the
 doubled cache guard, which is proved as a pair.
 
 **Tests only** — no version bump, nothing to deploy.
+
+## A246 — run js/sync.js: the push loop, driven rather than read
+
+A93 already covers `sync.js` — but every one of its assertions is a **regex over
+the source**. Its own comment says so: *"exercised for real in a browser; these
+pin the properties that run proved"*. The run happened once, by hand, and what
+survives is the shape. This drives the module instead, so the behaviour is
+pinned and not just its spelling. **Thirty-two assertions, no defects.**
+
+Pinned: only rows really waiting go up, and a row the server has already refused
+never goes again; the batch carries its epoch; the three buckets —
+saved → `synced`, refused → `rejected`, **held → neither**, so it stays in the
+queue and goes the moment the reason lifts while the badge reads ⏳ exactly like
+being offline; `ck-rejected` fires after the writes land (A54's second half, the
+one that took two goes) and stays silent when nothing was refused; a serial is
+adopted by a payment and a daily collection and by nothing else; and every exit
+from `syncNow` releases `inFlight` — a dead link, an empty batch, not logged in,
+no URL — because that flag is a one-way door: leave it shut and nothing syncs
+again for the rest of the session and every Undo writes a void instead of
+deleting.
+
+**Three of my own tests were broken, in three different ways, and all three
+looked green.**
+
+1. *The Undo-mid-push test raced the loop.* It passed with the guard removed —
+   it was testing whichever way the race happened to fall. `bootSync` now takes
+   `hold`, which parks the server's reply so the Undo lands at a **known** point
+   inside the round trip.
+2. *Two waits were unbounded* — a `while` spin and a bare `await`. Under the
+   mutation they were meant to catch, the condition becomes permanently false
+   and the suite **hangs instead of failing**. Same lesson as A244's async
+   assertions and A243's corrupt-cache case: a suite that cannot finish cannot
+   report a name. Both are bounded now, with an assertion that the wait actually
+   succeeded so the bound cannot silently become the test.
+3. *Three mutation runs never ran at all.* I wrapped them in `timeout 60`, which
+   does not exist on macOS; the shell printed `command not found`, my `grep`
+   found no failures, and I read that as "nothing broke". **A tool that is not
+   installed reports the same thing as a test that passed.**
+
+Tests 3,257 (from 3,223). Every assertion mutation-proved by name, in runs that
+demonstrably completed.
+
+**Tests only** — no version bump, nothing to deploy.

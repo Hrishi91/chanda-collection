@@ -94,4 +94,59 @@ function loadDB(settings) {
   return { DB: box.__DB, Settings: box.Settings, store: store };
 }
 
-module.exports = { loadDB: loadDB };
+// db.js and sync.js have to live in ONE context — sync.js reads DB, Settings and
+// Auth as globals — so the push loop gets its own bootstrapper rather than
+// reusing loadDB's context. `opts`:
+//   reply       what the fake Auth.call resolves with
+//   callFails   message to reject Auth.call with instead
+//   loggedOut   Auth.loggedIn() answers false
+//   hold        park the reply until box.__release() — for testing what happens
+//               DURING a round trip rather than racing it
+//   noUrl       no CONFIG.SCRIPT_URL, so configured() answers false
+//   settings    extra ck_* localStorage keys
+// Returns { Sync, DB, box }: `box.__sent` is every Auth.call made, and
+// `box.window.dispatchEvent` can be replaced to watch events as they fire.
+function bootSync(opts) {
+  const o = opts || {};
+  const store = Object.assign({ ck_epoch: 'e1' }, o.settings || {});
+  const box = {
+    indexedDB: fakeIndexedDB(),
+    localStorage: {
+      getItem: function (k) { return (k in store) ? store[k] : null; },
+      setItem: function (k, v) { store[k] = String(v); },
+      removeItem: function (k) { delete store[k]; },
+    },
+    crypto: { randomUUID: function () { box.__n = (box.__n || 0) + 1; return 'uuid-' + box.__n; } },
+    CONFIG: { SCRIPT_URL: o.noUrl ? '' : 'https://example.invalid/exec' },
+    CustomEvent: function (n, d) { this.type = n; this.detail = d; },
+    JSON: JSON, Math: Math, Number: Number, String: String, Date: Date,
+    Array: Array, Object: Object, Promise: Promise,
+  };
+  box.window = box;
+  box.window.dispatchEvent = function () {};
+  vm.createContext(box);
+  const read = function (f) { return fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'); };
+  vm.runInContext(read('db.js'), box);
+  box.Auth = {
+    loggedIn: function () { return !o.loggedOut; },
+    token: function () { return 'tok'; },
+    call: function (action, payload) {
+      box.__sent = box.__sent || [];
+      box.__sent.push({ action: action, payload: payload });
+      if (o.callFails) return Promise.reject(new Error(o.callFails));
+      const answer = o.reply || { ok: true, savedIds: [], rejectedIds: [] };
+      // `hold: true` parks the reply until box.__release() is called, so a test
+      // can do something (an Undo, a second syncNow) at a KNOWN point inside the
+      // round trip instead of racing it.
+      if (!o.hold) return Promise.resolve(answer);
+      return new Promise(function (res) { box.__release = function () { res(answer); }; });
+    },
+  };
+  vm.runInContext(read('sync.js') + '\n;globalThis.__S = Sync; globalThis.__DB = DB;', box);
+  return { Sync: box.__S, DB: box.__DB, box: box, store: store };
+}
+
+// fakeIndexedDB is exported too: sync.js reads DB and Settings as globals, so a
+// test that drives the push loop has to run db.js and sync.js in ONE context of
+// its own rather than reusing loadDB's.
+module.exports = { loadDB: loadDB, bootSync: bootSync, fakeIndexedDB: fakeIndexedDB };
