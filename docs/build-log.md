@@ -16013,3 +16013,20 @@ v4.81.0. Tests 3,033 (from 3,017). Mutation-proved four ways.
 
 **Needs the next Apps Script deploy** to reach the live book — though
 nothing reads these reports today.
+
+## Deploy — v4.81.0 live (2026-09-06)
+
+New deployment, config.js rebaked. Probed three times from the Browser pane
+first — the GET envelope and two POST error envelopes all answer
+`chanda-v4.81.0`, `schema: 5`, so reads and writes are on the same
+deployment and no phone is locked out.
+
+Carries **A235**: the server's own overview, areas and daily reports now
+agree with the phone's to the rupee, having been three stale hand-written
+lists (স্পনসর and গুপ্ত missing from `totalPledged`/`totalPaid`, A144's
+sponsor rule absent from `areas`, and ticket missing from `dailyByType`).
+Nothing in `js/` reads those reports, so this changes no screen today — it
+removes a divergence that would have surfaced the first time anything did.
+
+The client is now level with the server at v4.81.0, so the admin's
+"🛠️ server behind" strip is gone.
