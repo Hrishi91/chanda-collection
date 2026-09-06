@@ -15781,3 +15781,21 @@ check restores the silent ₹0, and removing the numeric test makes it shout
 at ordinary numeric strings and at every blank cell.
 
 **Client-only** — reaches phones with ⚙️ → 🔄.
+
+## Deploy — v4.80.0 live (2026-09-06)
+
+New deployment, config.js rebaked. Probed three times from the Browser pane
+before pointing any phone at it — the GET envelope and two POST error
+envelopes all answer `chanda-v4.80.0`, `schema: 5`, so reads and writes are
+on the same deployment and `APP_SCHEMA` still matches: no phone is locked
+out.
+
+Closes the two server-side items that had been waiting: **A208**
+(`report-client-only` instead of a bare `unknown report`) and **A224** (the
+`collectorRole` column on voids and corrections — `ensureCols_` appends it
+on the next push).
+
+Everything else since v4.69.0 is client-side and reaches a phone only on
+⚙️ → 🔄: A209 (the corrected restore warning — until a phone updates it is
+still showing the FALSE one), A210, A214, A215, A216, A222, A226, A228,
+A229.
