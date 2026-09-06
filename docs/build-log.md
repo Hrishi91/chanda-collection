@@ -15257,3 +15257,31 @@ catch.
 "দুই শো". Idiomatic Bengali on a receipt is usually "একশো", "দুশো". That is
 a wording decision about his committee's own paper, so it is his call, not
 mine.
+
+## A215 — the hundreds, in written-out Bengali (2026-09-06)
+
+**Hrishi's call**, asked as a question under A214 and answered "change it".
+
+The receipt read "এক শো", "দুই শো" — the digit word plus a separate শো.
+Written-out Bengali is একশো, দুশো, and a receipt is the one place in this
+app whose wording is read by somebody outside the committee.
+
+The hundreds are now their own table, indexed 1–9, so a missing entry shows
+as an obvious `undefined` rather than a silently-wrong word:
+
+> একশো · দুশো · তিনশো · চারশো · পাঁচশো · **ছশো** · সাতশো · আটশো · **নশো**
+
+The two contractions are marked because they are the ones with a common
+alternative — ছয়শো and নয়শো are also written. Say the word and it changes.
+
+Carries through everywhere the hundreds appear: ₹25,900 reads "পঁচিশ হাজার
+নশো", ₹1,600 "এক হাজার ছশো", and A214's crore recursion now gives
+"একশো কোটি".
+
+v4.74.0. Tests 2,807 (from 2,804) — all nine hundreds asserted, because a
+table is exactly the shape where one entry goes wrong and nobody notices
+until it is on somebody's receipt. Mutation-proved three ways: the old
+`'<digit> শো'` shape returning, one entry changed, and the table one short
+so every value after it shifts.
+
+**Client-only** — reaches phones with ⚙️ → 🔄.

@@ -161,25 +161,35 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
   eq(R.words(0), 'শূন্য', 'A214: zero');
   eq(R.words(11), 'এগারো', 'A214: the teens are a table, not arithmetic');
   eq(R.words(99), 'নিরানব্বই', 'A214: …and so is the top of the table');
-  eq(R.words(1500), 'এক হাজার পাঁচ শো', 'A214: a common chanda figure');
+  eq(R.words(1500), 'এক হাজার পাঁচশো', 'A214: a common chanda figure');
   eq(R.words(100000), 'এক লক্ষ', 'A214: lakh, not "hundred thousand" — Indian grouping');
-  eq(R.words(12345678), 'এক কোটি তেইশ লক্ষ পঁয়তাল্লিশ হাজার ছয় শো আটাত্তর',
+  eq(R.words(12345678), 'এক কোটি তেইশ লক্ষ পঁয়তাল্লিশ হাজার ছশো আটাত্তর',
      'A214: every place carries, in the right order');
   // A214's own fix: past ₹100 crore the table ran out and printed "undefined"
   eq(/undefined/.test(R.words(1e9)), false, 'A214: ₹100 crore does not print "undefined কোটি"');
-  eq(R.words(1e9), 'এক শো কোটি', 'A214: …it recurses into the crore count instead');
+  eq(R.words(1e9), 'একশো কোটি', 'A214: …it recurses into the crore count instead');
 
   // the figure and the words are ONE rounding, so they cannot disagree
-  const pairs = [[500, '₹৫০০', 'পাঁচ শো টাকা মাত্র'],
-                 [100.5, '₹১০০.৫০', 'এক শো টাকা পঞ্চাশ পয়সা মাত্র'],
-                 [100.05, '₹১০০.০৫', 'এক শো টাকা পাঁচ পয়সা মাত্র'],
-                 [100.999, '₹১০১', 'এক শো এক টাকা মাত্র'],
+  const pairs = [[500, '₹৫০০', 'পাঁচশো টাকা মাত্র'],
+                 [100.5, '₹১০০.৫০', 'একশো টাকা পঞ্চাশ পয়সা মাত্র'],
+                 [100.05, '₹১০০.০৫', 'একশো টাকা পাঁচ পয়সা মাত্র'],
+                 [100.999, '₹১০১', 'একশো এক টাকা মাত্র'],
                  [99999.995, '₹১,০০,০০০', 'এক লক্ষ টাকা মাত্র']];
   pairs.forEach(function (p) {
     eq(R.money(p[0]), p[1], 'A214: ₹' + p[0] + ' prints as ' + p[1]);
     eq(R.amt(p[0]), p[2], 'A214: …and reads as "' + p[2] + '", the same amount');
   });
   eq(R.money(500), '₹৫০০', 'A214: whole rupees carry no decimals — ₹৫০০, never ₹৫০০.০০');
+
+  // A215 (Hrishi's call): the hundreds are words of their own. Every one of
+  // them is checked, because a table is exactly the shape where one entry goes
+  // wrong and nobody notices until it is on somebody's receipt.
+  eq([1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (h) { return R.words(h * 100); }),
+     ['একশো', 'দুশো', 'তিনশো', 'চারশো', 'পাঁচশো', 'ছশো', 'সাতশো', 'আটশো', 'নশো'],
+     'A215: written-out Bengali hundreds, not "<digit> শো"');
+  eq(/' শো'/.test(grab('banglaNumWords')), false,
+     'A215: …and the old " শো" suffix is gone, so no path can rebuild it');
+  eq(R.words(25900), 'পঁচিশ হাজার নশো', 'A215: …inside a larger figure too');
 
   // and both receipt surfaces compose it in ONE place, so the image and the
   // message that carries it cannot say different things
