@@ -3977,16 +3977,51 @@
     const lk = Math.floor(num / 100000); num %= 100000;
     const th = Math.floor(num / 1000); num %= 1000;
     const hu = Math.floor(num / 100); num %= 100;
-    if (cr) p.push(O[cr] + ' কোটি');
+    // A214: recurse, never index. O runs 0–99, so a figure at or past ₹100
+    // crore walked off the end and printed "undefined কোটি" — on a donor's
+    // receipt. No para puja will ever see it; a receipt that CAN say
+    // "undefined" is still a receipt that must not.
+    if (cr) p.push((cr < O.length ? O[cr] : banglaNumWords(cr)) + ' কোটি');
     if (lk) p.push(O[lk] + ' লক্ষ');
     if (th) p.push(O[th] + ' হাজার');
     if (hu) p.push(O[hu] + ' শো');
     if (num) p.push(O[num]);
     return p.join(' ');
   }
+  // A214: the parenthetical that goes beside the figure on a receipt — the
+  // ONE place it is composed, because it is printed twice (on the image and in
+  // the message that carries it) and those two must never disagree. Same rule
+  // receiptMessage already states for the caption and the SMS body.
+  //
+  // Paise: banglaNumWords floors, so ₹100.50 printed "₹১০০.৫" beside "একশো
+  // টাকা মাত্র" — two different amounts on one piece of paper in a donor's
+  // hand. Chanda is collected in whole rupees virtually always, but the amount
+  // field takes a decimal (numparse accepts "100.50"), so it is reachable.
+  // Rounded to paise ONCE, here, and both the figure and the words are built
+  // from this one answer. Rounding in two places is how ₹99,999.995 printed
+  // "₹১,০০,০০০" beside "নিরানব্বই হাজার নয় শো নিরানব্বই টাকা নিরানব্বই পয়সা":
+  // toLocaleString and Math.round disagree at the half, and a receipt cannot
+  // afford two opinions about one amount.
+  function splitPaise(n) {
+    const p = Math.round(Math.abs(Number(n) || 0) * 100);
+    return { rupees: Math.floor(p / 100), paise: p % 100 };
+  }
+  function amountInWords(n) {
+    const q = splitPaise(n);
+    return banglaNumWords(q.rupees) + ' টাকা' +
+      (q.paise ? ' ' + banglaNumWords(q.paise) + ' পয়সা' : '') + ' মাত্র';
+  }
   function toBengaliDigits(s) { return String(s).replace(/[0-9]/g, function (d) { return '০১২৩৪৫৬৭৮৯'[d]; }); }
   // receipt money: ₹ + Indian grouping in Bengali digits — "₹১,৫০০".
-  function rcpMoney(n) { return '₹' + toBengaliDigits(Number(n || 0).toLocaleString('en-IN')); }
+  // A214: at most two decimals, so the FIGURE and the WORDS beside it round
+  // the same way. Without this ₹100.999 printed "₹১০০.৯৯৯" next to "একশো এক
+  // টাকা মাত্র" — the two halves of one line disagreeing on a donor's receipt.
+  // Whole rupees are unaffected: 500 still prints ₹৫০০, not ₹৫০০.০০.
+  function rcpMoney(n) {
+    const q = splitPaise(n);
+    return '₹' + toBengaliDigits(q.rupees.toLocaleString('en-IN') +
+      (q.paise ? '.' + String(q.paise).padStart(2, '0') : ''));
+  }
   // Live vs training. The system starts in training; admin flips it via goLive.
   function isLive() { return (centralConfig || {}).live_mode === 'on'; }
   // The committee's puja name (admin-set) stands in for the app title everywhere
@@ -4344,7 +4379,7 @@
         g.fillText(amtTxt, lx, y);
         const amtW = g.measureText(amtTxt).width;
         g.fillStyle = ink; g.font = 'italic 21px sans-serif';
-        g.fillText('(' + banglaNumWords(rc.amount) + ' টাকা মাত্র)', lx + amtW + 24, y); y += 40;
+        g.fillText('(' + amountInWords(rc.amount) + ')', lx + amtW + 24, y); y += 40;
         g.fillStyle = ink; g.font = '22px sans-serif';
         g.fillText('সাদরে গৃহীত হইল।' + (rc.cashUpi ? '   ' + rc.cashUpi : ''), lx, y); y += 44;
         // totals strip (party payments only — a bus/one-off has no pledge)
@@ -4434,7 +4469,7 @@
       rc.corrected ? tBn('rcp_msg_corrected') : '',
       '',
       rc.donorLine,
-      tBn('receipt_amount') + ': ' + rcpMoney(rc.amount) + '/- (' + banglaNumWords(rc.amount) + ' টাকা মাত্র)',
+      tBn('receipt_amount') + ': ' + rcpMoney(rc.amount) + '/- (' + amountInWords(rc.amount) + ')',
       (rc.showTotals ? tBn('paid') + ': ' + rcpMoney(rc.paidTotal) + '/' + rcpMoney(rc.pledged) +
         '   ' + tBn('due') + ': ' + rcpMoney(rc.due) : ''),
       // A67: over SMS there IS no image, so the sentence has to be here too —

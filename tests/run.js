@@ -138,6 +138,57 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A206: …in both languages, each carrying the count of what is standing on it');
 }
 
+// A214: the amount in words, which had NO test and is printed on every receipt
+// a donor is handed. Loaded out of js/app.js the way the other source-level
+// blocks here do, and exercised for real rather than matched as text.
+{
+  const A14 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const grab = function (name) {
+    const m = A14.match(new RegExp('  function ' + name + '\\([^)]*\\)[\\s\\S]*?\\n  \\}'));
+    return m ? m[0] : '';
+  };
+  ['banglaNumWords', 'splitPaise', 'amountInWords', 'rcpMoney'].forEach(function (n) {
+    eq(grab(n) !== '', true, 'A214: ' + n + ' is where the receipt gets its amount from');
+  });
+  const code = ['banglaNumWords', 'splitPaise', 'amountInWords', 'rcpMoney'].map(grab).join('\n') +
+    '\n' + (A14.match(/  function toBengaliDigits\(s\)[^\n]*\n/) || [''])[0];
+  const R = new Function(code + '\nreturn { words: banglaNumWords, amt: amountInWords, money: rcpMoney };')();
+
+  // the table behind it must cover 0–99 exactly, or O[n] is undefined ON A RECEIPT
+  const tbl = (grab('banglaNumWords').match(/const O = \[([\s\S]*?)\];/) || [])[1] || '';
+  eq(tbl.split(',').length, 100, 'A214: the word table covers 0–99 with nothing missing');
+
+  eq(R.words(0), 'শূন্য', 'A214: zero');
+  eq(R.words(11), 'এগারো', 'A214: the teens are a table, not arithmetic');
+  eq(R.words(99), 'নিরানব্বই', 'A214: …and so is the top of the table');
+  eq(R.words(1500), 'এক হাজার পাঁচ শো', 'A214: a common chanda figure');
+  eq(R.words(100000), 'এক লক্ষ', 'A214: lakh, not "hundred thousand" — Indian grouping');
+  eq(R.words(12345678), 'এক কোটি তেইশ লক্ষ পঁয়তাল্লিশ হাজার ছয় শো আটাত্তর',
+     'A214: every place carries, in the right order');
+  // A214's own fix: past ₹100 crore the table ran out and printed "undefined"
+  eq(/undefined/.test(R.words(1e9)), false, 'A214: ₹100 crore does not print "undefined কোটি"');
+  eq(R.words(1e9), 'এক শো কোটি', 'A214: …it recurses into the crore count instead');
+
+  // the figure and the words are ONE rounding, so they cannot disagree
+  const pairs = [[500, '₹৫০০', 'পাঁচ শো টাকা মাত্র'],
+                 [100.5, '₹১০০.৫০', 'এক শো টাকা পঞ্চাশ পয়সা মাত্র'],
+                 [100.05, '₹১০০.০৫', 'এক শো টাকা পাঁচ পয়সা মাত্র'],
+                 [100.999, '₹১০১', 'এক শো এক টাকা মাত্র'],
+                 [99999.995, '₹১,০০,০০০', 'এক লক্ষ টাকা মাত্র']];
+  pairs.forEach(function (p) {
+    eq(R.money(p[0]), p[1], 'A214: ₹' + p[0] + ' prints as ' + p[1]);
+    eq(R.amt(p[0]), p[2], 'A214: …and reads as "' + p[2] + '", the same amount');
+  });
+  eq(R.money(500), '₹৫০০', 'A214: whole rupees carry no decimals — ₹৫০০, never ₹৫০০.০০');
+
+  // and both receipt surfaces compose it in ONE place, so the image and the
+  // message that carries it cannot say different things
+  eq((A14.match(/amountInWords\(rc\.amount\)/g) || []).length, 2,
+     'A214: the image and the message both use the one composer');
+  eq(/banglaNumWords\(rc\.amount\)/.test(A14), false,
+     'A214: …and neither appends its own " টাকা মাত্র" any more');
+}
+
 // A210: every store that can reach 🪦 must have a line of its own.
 //
 // A209 sent the admin — and through them twelve collectors — to the 🪦 list as

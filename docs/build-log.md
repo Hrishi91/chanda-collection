@@ -15214,3 +15214,46 @@ survived. Mine are written `(TZ.byType[k] || {})` for that reason. The
 wider clean-up is filed as a separate task.
 
 Tests 2,778 (from 2,735). No app change.
+
+## A214 — the amount in words, on every receipt, with no test at all (2026-09-06)
+
+**`banglaNumWords` had zero tests.** `grep -c` in tests/run.js: 0. It is
+printed on the receipt image and again in the message that carries it, in a
+donor's hand. Two real defects:
+
+**1. "undefined কোটি".** The word table runs 0–99 and the crore count
+indexed straight into it, so at or past ₹100 crore a receipt would print
+`undefined কোটি`. No para puja will ever raise ₹100 crore — but a receipt
+that *can* say "undefined" is still one that must not, and the fix is to
+recurse into the crore count rather than index.
+
+**2. The figure and the words disagreed about paise.** `banglaNumWords`
+floors, so ₹100.50 printed **₹১০০.৫** beside **"এক শো টাকা মাত্র"** — two
+different amounts on one line of one piece of paper. Chanda is collected in
+whole rupees virtually always, but `parseAmount` accepts `"100.50"` (A169
+pinned that), so it is reachable.
+
+Fixing the words alone was not enough: `toLocaleString` and `Math.round`
+round differently at the half, and ₹99,999.995 then printed **₹১,০০,০০০**
+beside **"নিরানব্বই হাজার নয় শো নিরানব্বই টাকা নিরানব্বই পয়সা"**. The amount
+is now rounded to paise **once**, in `splitPaise`, and both the figure and
+the words are built from that one answer. Whole rupees are unaffected —
+₹৫০০ stays ₹৫০০, never ₹৫০০.০০.
+
+**And the parenthetical is composed in one place.** Both surfaces used to
+append their own `' টাকা মাত্র'`; they now share `amountInWords`, so the
+image and the message cannot say different things — the rule
+`receiptMessage` already states for the WhatsApp caption and the SMS body.
+
+v4.73.0. Tests 2,804 (from 2,778). Mutation-proved four ways: removing the
+crore guard, dropping paise from the words, rounding the figure and the
+words separately, and deleting one word from the table — the last shifting
+every value after it, which both the count check and the value checks
+catch.
+
+**Client-only** — reaches phones with ⚙️ → 🔄.
+
+**Open question for Hrishi (not changed):** the hundreds read "এক শো",
+"দুই শো". Idiomatic Bengali on a receipt is usually "একশো", "দুশো". That is
+a wording decision about his committee's own paper, so it is his call, not
+mine.
