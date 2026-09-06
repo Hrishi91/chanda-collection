@@ -15572,3 +15572,42 @@ self-guards fails by name, and the failure text shows which backstop caught
 it instead.
 
 No app change.
+
+## A224 — what push stamps, every sheet must have a column for (2026-09-06)
+
+**Code.gs names this failure itself, in A81:** *"a value written into an
+unlabelled column is written and then never read — it vanishes with no
+error anywhere."* So I checked whether it was happening anywhere.
+
+**It was.** `push` stamps four fields onto **every** row it saves —
+`receivedAt`, `collector`, `collectorId`, `collectorRole` — and two of the
+eight stores, **voids and corrections**, had no `collectorRole` column. For
+every void and every correction flag the role was computed from the token,
+written, and thrown away.
+
+**Not a bug today, and worth saying so plainly.** Nothing reads it for
+those two: the separation-of-duties checks read the role of the row a void
+or a flag **points at** (`targetCollectorRole_`), not the role of the void
+or the flag itself. What was wrong is the disagreement — the code records
+it, the schema discards it, and the next check that wants it reads blank.
+The other six stores all carry the column; these two are now consistent
+with them. `ensureCols_` appends a missing column on the next push, so the
+migration is the one that already happens.
+
+**The pin is the durable part**, and both of its lists come out of Code.gs:
+the stamps are the `row.x =` assignments at the **top level** of push's
+per-row loop — the ones inside an `if (store === …)` are per-store on
+purpose and are excluded by brace depth — and the columns are `SHEETS`.
+
+My first attempt at that extraction took every `row.x =` in the loop and
+reported `from`, `status`, `confirmedBy`, `receiptNo` and `fromId` as
+missing everywhere; all five are deliberately per-store. Depth is what
+separates them, and the test now proves that too: pulling a per-store stamp
+up to the top level fails by name.
+
+v4.77.0. Tests 2,885 (from 2,880). Mutation-proved three ways, the one that
+matters most being a **new** unconditional stamp added with no column —
+which now fails naming all eight stores.
+
+**Not urgent to deploy.** Nothing reads the field for those two stores
+today; it goes with the next server release, alongside A208.

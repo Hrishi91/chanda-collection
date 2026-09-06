@@ -93,7 +93,15 @@ var SHEETS = {
               // every column after it in existing sheets.
               'rejectReason'],
   // audit-preserving corrections: a void points at another record's id
-  voids: ['id', 'year', 'targetStore', 'targetId', 'reason', 'collector', 'createdAt', 'receivedAt', 'collectorId'],
+  // A224: `collectorRole` is stamped onto EVERY pushed row (push does it
+  // unconditionally, from the token), and these two stores were the only ones
+  // with no column to put it in — so it was written into a header that does not
+  // exist and vanished, which is precisely the failure A81 names. Nothing reads
+  // it for these two today; the separation-of-duties checks read the role of
+  // the row a void or a flag POINTS AT, not the role of the void or flag
+  // itself. The disagreement is the bug: the code records it, the schema
+  // discards it, and the next check that wants it would read blank.
+  voids: ['id', 'year', 'targetStore', 'targetId', 'reason', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole'],
   // a collector's "this is wrong" flag → a cashier/admin approves(void)/rejects
   // Committee chat. Adding it to SHEETS is the whole implementation on the
   // server side: push, pull, the delta cursor and the void filter all work on
@@ -102,7 +110,7 @@ var SHEETS = {
   // or group words (all/cashiers/admin) — the client decides what to notify on.
   messages: ['id', 'year', 'text', 'mentions', 'collector', 'createdAt', 'receivedAt', 'collectorId', 'collectorRole'],
   corrections: ['id', 'year', 'targetStore', 'targetId', 'targetSummary', 'reason', 'status',
-                'resolvedBy', 'resolvedAt', 'collector', 'collectorId', 'createdAt', 'receivedAt'],
+                'resolvedBy', 'resolvedAt', 'collector', 'collectorId', 'createdAt', 'receivedAt', 'collectorRole'],
 };
 var SHEET_TITLES = { parties: 'Parties', payments: 'Payments', daily: 'DailyCollections',
                      expenses: 'Expenses', handovers: 'Handovers', voids: 'Voids', corrections: 'Corrections',
@@ -1267,7 +1275,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.76.0';
+var CODE_VERSION = 'chanda-v4.77.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually

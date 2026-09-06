@@ -3070,6 +3070,51 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A224: what push stamps, every sheet must have a column for ---------
+    // Code.gs's own A81 comment: "a value written into an unlabelled column is
+    // written and then never read — it vanishes with no error anywhere."
+    // `collectorRole` was stamped onto every pushed row and TWO of the eight
+    // stores had no column for it, so for voids and corrections it was
+    // computed, written, and thrown away every single time.
+    //
+    // Both lists are read out of Code.gs: the stamps are the `row.x =`
+    // assignments at the top level of push's per-row loop (the ones inside an
+    // `if (store === …)` are deliberately per-store and excluded by depth), and
+    // the columns are SHEETS. Nothing here is typed out twice.
+    {
+      const gsSrc = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+      const from = gsSrc.indexOf('byStore[store].forEach(function (row) {');
+      const to = gsSrc.indexOf('var values = rowForSheet_(head, row', from);
+      eq(from > 0 && to > from, true, 'backend A224: push\'s per-row loop can be read out of the source');
+      const body = gsSrc.slice(gsSrc.indexOf('{', from) + 1, to);
+      let depth = 0; const stamps = [];
+      body.split('\n').forEach(function (l) {
+        const m = l.match(/^\s*row\.([a-zA-Z]\w*) =/);
+        if (m && depth === 0 && stamps.indexOf(m[1]) < 0) stamps.push(m[1]);
+        for (let i = 0; i < l.length; i++) {
+          const c = l[i];
+          if (c === '{' || c === '(') depth++; else if (c === '}' || c === ')') depth--;
+        }
+      });
+      eq(stamps.length >= 4, true, 'backend A224: it stamps at least four fields on every row unconditionally');
+      eq(stamps.indexOf('collectorRole') >= 0, true,
+         'backend A224: …including collectorRole, which is the one that had nowhere to go');
+
+      const blk = gsSrc.slice(gsSrc.indexOf('var SHEETS = {'), gsSrc.indexOf('var SHEET_TITLES'));
+      const sheets = {}; const reS = /(\w+):\s*\[([\s\S]*?)\]/g; let mS;
+      while ((mS = reS.exec(blk)) !== null) {
+        sheets[mS[1]] = mS[2].split(',').map(function (x) { return x.trim().replace(/'/g, ''); })
+          .filter(function (x) { return /^[a-zA-Z]\w*$/.test(x); });
+      }
+      eq(Object.keys(sheets).length, 8, 'backend A224: all eight stores read out of SHEETS');
+      const holes = [];
+      Object.keys(sheets).forEach(function (st) {
+        stamps.forEach(function (f) { if (sheets[st].indexOf(f) < 0) holes.push(st + '.' + f); });
+      });
+      eq(holes.join(', '), '',
+         'backend A224: every store has a column for every field push stamps — anything missing is written and silently dropped');
+    }
+
     // --- A223: the book can never be left with nobody who can run it --------
     // A78 pins cant-exit-self and cant-block-self. The guard those two were
     // modelled on — cant-demote-self, "refused since the beginning" — has no
