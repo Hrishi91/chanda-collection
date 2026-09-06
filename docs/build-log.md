@@ -15137,3 +15137,39 @@ being the point: adding a ninth store to `js/db.js` fails by name, because
 the test reads `DB.STORES` from db.js rather than repeating it.
 
 **Client-only** — reaches phones with ⚙️ → 🔄, no redeploy needed.
+
+## A211 — 🍯 through the Sheet (2026-09-06)
+
+**Checked, not changed.** Eight properties of the pot screen walked end to
+end on a real server book: the equation *তুললাম + পেলাম − দিলাম − খরচ*
+reproduces the figure the screen shows for every pot; the pots sum to
+`myAvailable`; that same figure is what the cashier's own screen reports;
+a parcel with no breakdown lands visibly in **অজানা** rather than vanishing;
+and one collector's rows never appear in another's pot. All already right.
+
+`run.js` A140 covers this arithmetic thoroughly — against a hand-built
+fixture. What a fixture cannot see is the two fields the attribution hangs
+on surviving a round trip: `breakdown`, a JSON blob written into one Sheet
+cell, and `srcCat`, which says which pot an expense came out of. Lose
+either and every figure still adds up — into the **wrong pots**, which is
+worse than a number that is visibly missing.
+
+**A correction to my own first test.** My first `srcCat` assertion was
+misleading: the fixture carried both `srcCat` and `collectionType`, and
+`potDetail` falls back to the second, so dropping the column changed
+nothing and the assertion proved nothing about the field it named. The case
+where `srcCat` is the **only** answer is a খরচ from pooled money —
+`source: 'general'`, `collectionType: ''`, `srcCat: 'other'` — which the
+fallback cannot reach because it requires `source === 'collection'`. That
+row is now the test.
+
+Learned by mutation, and the mutation's output is the reason it matters:
+with `srcCat` unread the ₹500 does not move to another pot, it becomes
+**unattributed** — the collector is shown ₹500 of money that went missing
+instead of ₹500 they spent.
+
+Also proved: only cashiers receive parcels, so a collector-to-collector
+handover is not a thing — my first fixture assumed otherwise and the server
+refused it.
+
+Tests 2,735 (from 2,728). No app change.

@@ -3070,6 +3070,75 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A211: 🍯 through the Sheet ---------------------------------------
+    // A140 in run.js proves the pot equation closes, against a hand-built
+    // fixture. What it cannot see is that the two fields the attribution
+    // depends on survive a round trip: `breakdown` is a JSON blob written into
+    // one cell, and `srcCat` says which pot an expense came out of. Lose
+    // either and every figure still adds up — into the wrong pots, which is
+    // worse than a number that is visibly missing.
+    {
+      const bq = loadBackend(); bq.api.setup();
+      ['pqadm', 'pqkali', 'pqratan'].forEach(function (u, i) {
+        bq.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '922000000' + i });
+      });
+      const tq0 = bq.call('login', { username: 'pqadm', password: 'secret0', year: 2026 }).token;
+      const qid = function (u) { return bq.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+      ['pqkali', 'pqratan'].forEach(function (u) {
+        bq.call('setStatus', { token: tq0, userId: qid(u), status: 'approved' });
+        bq.call('approveYear', { token: tq0, userId: qid(u), year: 2026 });
+        bq.call('setEntries', { token: tq0, userId: qid(u), entries: ['shop', 'road'] });
+        bq.call('setCashier', { token: tq0, userId: qid(u), cashier: 1 });
+      });
+      const tq = { adm: bq.call('login', { username: 'pqadm', password: 'secret0', year: 2026 }).token,
+                   kali: bq.call('login', { username: 'pqkali', password: 'secret1', year: 2026 }).token,
+                   ratan: bq.call('login', { username: 'pqratan', password: 'secret2', year: 2026 }).token };
+      const A12 = require('../js/aggregate.js');
+      const sq = new Date().toISOString();
+      const put = function (who, store, row) {
+        return bq.call('push', { token: tq[who], records: [rec(store, Object.assign({ year: 2026, createdAt: sq }, row))] });
+      };
+      put('ratan', 'parties',  { id: 'qp1', type: 'shop', name: 'দোকান', pledged: 9000, sector: 'puja' });
+      put('ratan', 'payments', { id: 'qy1', partyId: 'qp1', partyName: 'দোকান', amount: 4000, cashAmount: 4000, upiAmount: 0, date: '2026-09-06' });
+      put('ratan', 'daily',    { id: 'qd1', type: 'road', amount: 2000, cashAmount: 1700, upiAmount: 300, date: '2026-09-06', sector: 'puja' });
+      put('ratan', 'expenses', { id: 'qe1', subject: 'চা', amount: 300, cashAmount: 300, upiAmount: 0,
+        date: '2026-09-06', source: 'collection', collectionType: 'road', srcCat: 'road', sector: 'puja' });
+      put('ratan', 'handovers', { id: 'qh1', amount: 900, cashAmount: 900, upiAmount: 0, toId: 'pqkali',
+        date: '2026-09-06', status: 'pending', breakdown: JSON.stringify({ road: { cash: 900, upi: 0 } }) });
+      bq.call('confirmHandover', { token: tq.kali, id: 'qh1', year: 2026 });
+      const bookq = function () { return (bq.call('pull', { token: tq.adm, year: 2026, since: 0 }) || {}).data || {}; };
+
+      const road = A12.potDetail(bookq(), 'pqratan', 'road');
+      eq([road.collected.total, road.handedOut.total, road.expenses.total],
+         [2000, 900, 300],
+         'backend A211: off the Sheet, the road pot still knows what was collected, handed on and spent from it');
+      eq(road.collected.total + road.receivedIn.total - road.handedOut.total - road.expenses.total,
+         road.total.total,
+         'backend A211: …and the working closes on the figure the screen shows');
+      eq(road.unattributed, 0,
+         'backend A211: …with nothing stranded — breakdown survived the cell it was written into');
+      const kaliRoad = A12.potDetail(bookq(), 'pqkali', 'road');
+      eq([kaliRoad.receivedIn.total, kaliRoad.total.total], [900, 900],
+         'backend A211: the receiver sees the same parcel land in the SAME pot, not in "received"');
+      const shop = A12.potDetail(bookq(), 'pqratan', 'shop');
+      eq([shop.collected.total, shop.expenses.total], [4000, 0],
+         'backend A211: the ₹300 came out of road, not shop — an expense lands in the pot it was spent from');
+
+      // And the case only `srcCat` can answer. A খরচ taken from POOLED money
+      // is written source:'general', collectionType:'', srcCat:'other' — the
+      // collectionType fallback in potDetail needs source === 'collection', so
+      // it cannot reach this row. Without srcCat the ₹500 lands in no pot at
+      // all while the money still leaves the hand, and it resurfaces as an
+      // unexplained remainder rather than as a spend.
+      put('ratan', 'expenses', { id: 'qe2', subject: 'ফুল', amount: 500, cashAmount: 500, upiAmount: 0,
+        date: '2026-09-06', source: 'general', collectionType: '', srcCat: 'other', sector: 'puja' });
+      const other = A12.potDetail(bookq(), 'pqratan', 'other');
+      eq(other.expenses.total, 500,
+         'backend A211: a general খরচ is placed by srcCat alone — nothing else on the row can say which pot it came from');
+      eq(other.unattributed, 0,
+         'backend A211: …so it reads as a spend, not as money that went missing');
+    }
+
     // --- A208: eight reports offered, seven built here --------------------
     // Found by asking the phone and the server the same question about each of
     // the eight and comparing. They agreed on seven; on 🎭 program the phone
