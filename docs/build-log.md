@@ -15906,3 +15906,32 @@ separately.
 Tests 2,982 (from 2,965). Mutation-proved four ways.
 
 No app change.
+
+## A233 — looking for assertions that cannot fail (2026-09-06)
+
+**Four of my own assertions this session were vacuous**, each found only by
+mutating the code they claimed to guard: A211's `srcCat` check (the fixture
+carried the fallback field too), A212's দায়-not-a-spend check (the row
+carries `amount: 0`, so counting it changes nothing) and its PARTY_KINDS
+check (`totalPledged` sums the parties directly), and A222's coverage check
+(it rebuilt the screen's filter inside the test, so nothing could be
+missing). Four in one session is a rate worth taking seriously, so the
+other 2,982 were scanned for the same thing.
+
+**Nothing found.** No assertion compares a value to itself, and none has
+both sides derived from the same object — the two shapes a scanner can see.
+The eleven `eq(x, true)` hits are ordinary boolean assertions, and the
+"short regex" hits were my scanner truncating each pattern at the first `/`
+inside it; read in full, all are long and specific, and three of them
+assert a bad shape is **absent**.
+
+**No guard added, deliberately.** The scanner catches *syntactic* vacuity,
+and all four of mine were *semantic* — every one looked like a real
+comparison and was one; it just could not come out any other way given the
+fixture. A test asserting "no assertion in this suite is vacuous" would
+therefore pass while the kind that actually happens walks straight past it,
+and a green light that cannot see the failure is worse than no light. The
+only detector that has worked here is the one already in use: **break the
+code and check the test says so, by name.**
+
+No app change, no test change.
