@@ -759,6 +759,38 @@ look: if any of the twelve accounts is literally `all`, `admin` or
 an account the group's mentions, so nothing is mis-delivered in the
 meantime — the name is just unusable as a mention until it changes.
 
+### Decide: an unreadable `year` cell hides a row from everybody
+
+Measured (A229's sweep, one step further). `readAll_` selects a book with
+`Number(obj.year) === year`, so a hand-edited year cell that does not parse
+takes the row out of **every** pull, for **everyone**, permanently:
+
+| `year` cell | row visible? |
+|---|---|
+| `2026` (number or string) | yes |
+| `2026 ` (trailing space) | yes |
+| `২০২৬` (Bengali digits) | **no — gone** |
+| blank | **no — gone** |
+
+Unlike A229's `bad_amount`, the 🩺 desk **cannot** report this: the row
+never reaches a client, so nothing client-side can see it to complain.
+
+**Not "fixed" by making the server match the client, and that was my first
+instinct.** `js/app.js:645` deliberately treats a yearless row as this
+book's — but that rule runs only over the phone's OWN unsynced rows, which
+are current by definition. Applying it in `readAll_` would resurrect a
+blank-year 2026 row into the 2027 book. The divergence is correct.
+
+So this needs a decision about **where a warning belongs**, which is
+Hrishi's call, not a code change I should make unasked:
+
+- a count on the admin's 🗂️ ডেটা screen ("N rows are not in any book"), or
+- a line in the audit log when a pull sees rows it had to skip, or
+- nothing at all, on the grounds that the owner is the only person who can
+  edit the Sheet and now knows to type plain digits.
+
+The third is defensible. Recording it so the choice is made on purpose.
+
 ## AFTER THE COLLECTION — Hrishi's own list
 
 - **ব্যাঙ্ক অ্যাকাউন্টের ব্যালান্স** (Hrishi, 2026-09-05: *"bank account
