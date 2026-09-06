@@ -138,6 +138,54 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A206: …in both languages, each carrying the count of what is standing on it');
 }
 
+// A221: the guide's doors, as a SHAPE rather than one example. A122 pins that
+// the helper exists and that one door is wired; a drawn-but-unwired chip has
+// shipped twice in this codebase, and the ninth door is the one nobody will
+// remember to add a test for. Both lists are derived from source.
+{
+  const app21 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const help21 = require('fs').readFileSync(__dirname + '/../js/help.js', 'utf8');
+  const lines21 = app21.split('\n');
+  const sections21 = [];
+  help21.replace(/\bid: '([a-z0-9_-]+)'/g, function (m, id) { sections21.push(id); return m; });
+  eq(sections21.length >= 8, true, 'A221: the guide has its sections, read from help.js');
+
+  // the enclosing render function of a given line
+  const fnAt = function (ln) {
+    for (let i = ln - 1; i >= 0; i--) {
+      const m = lines21[i].match(/^  (?:async )?function ([A-Za-z0-9_]+)\s*\(/);
+      if (m) return m[1];
+    }
+    return '(top)';
+  };
+  const linesOf = function (pattern) {
+    const out = []; const re = new RegExp(pattern, 'g'); let m;
+    while ((m = re.exec(app21)) !== null) out.push(app21.slice(0, m.index).split('\n').length);
+    return out;
+  };
+
+  // 1. every door leads somewhere that exists
+  const targets = [];
+  app21.replace(/guideDoor\('([a-z0-9_-]+)'\)/g, function (m, sec) { targets.push(sec); return m; });
+  eq(targets.length >= 8, true, 'A221: the doors are counted, not assumed');
+  eq(targets.filter(function (sec) { return sections21.indexOf(sec) < 0; }).join(', '), '',
+     'A221: every door names a section the guide actually has — one that does not is a chip that does nothing');
+
+  // 2. every screen that DRAWS a door also wires it
+  const drawn = {}, wired = {};
+  linesOf("guideDoor\\('").forEach(function (l) { drawn[fnAt(l)] = true; });
+  linesOf('wireGuideDoors\\(\\)').forEach(function (l) {
+    const f = fnAt(l); if (f !== 'wireGuideDoors') wired[f] = true;
+  });
+  eq(Object.keys(drawn).length >= 8, true, 'A221: eight or more screens draw one');
+  eq(Object.keys(drawn).filter(function (f) { return !wired[f]; }).join(', '), '',
+     'A221: …and every one of them calls wireGuideDoors — drawn-but-unwired is the failure that shipped twice');
+
+  // 3. and the door still carries where it came from, so ← returns there
+  eq(/navigate\('help', \{ sec: b\.dataset\.sec, from: current\.view \}\)/.test(app21), true,
+     'A221: a door carries its section AND its source screen');
+}
+
 // A220: placeholders. A sentence that says {n} while the code fills {count}
 // prints a literal "{n}" on somebody's phone — invisible in review, found by
 // the user. Two invariants, both derived, neither hand-maintained.

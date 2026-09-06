@@ -15453,3 +15453,35 @@ from one language, the code filling a name the sentence does not use, and a
 key renamed without its caller.
 
 No app change.
+
+## A221 — the guide's doors, pinned as a shape (2026-09-06)
+
+**Checked, nothing wrong, now guarded against the ninth.** My own skills
+file records that a **drawn-but-unwired chip has shipped twice** in this
+codebase, so I swept every guide door rather than waiting for the third.
+
+- **8 doors**, every one naming a section `js/help.js` actually defines
+- **8 screens draw one, and all 8 wire it** — a clean 1:1 with no orphan
+  `wireGuideDoors()` and no door left dead
+- and the door still carries `from: current.view`, so ← returns to the
+  screen it was tapped on
+
+All already right.
+
+**What was missing is the generalisation.** A122 pins that the helper
+exists and that *one* door is wired. The ninth door is exactly the one
+nobody will remember to write a test for — and my own skills file says it:
+*pin the SHAPE, not each instance.* Both lists are now derived from source
+(section ids out of `help.js`, door targets and their enclosing render
+functions out of `app.js`), so nothing here is hand-maintained.
+
+Three sections — maths, receipts, dup — have no shortcut door. That is not
+a gap: every section is reachable from the guide's own list, and a door is
+a shortcut from the screen where the question arises.
+
+Tests 2,856 (from 2,850). Mutation-proved four ways: a door pointing at a
+section that does not exist, a screen drawing a door and forgetting to wire
+it (**the failure that shipped twice**), a section renamed in the guide
+without its doors, and the door dropping the source that makes ← work.
+
+No app change.
