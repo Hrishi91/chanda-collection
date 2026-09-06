@@ -15840,3 +15840,39 @@ Tests 2,950 (from 2,931). Mutation-proved four ways, including removing a
 single `esc()`.
 
 No app change.
+
+## A231 — দায়, the whole life of a promise (2026-09-06)
+
+**Checked, nothing wrong.** `commitmentRows` was the least-covered money
+function in the app — four assertions — and A151's own comment calls it
+"the easiest place in the whole book to be wrong, and it goes wrong exactly
+when a programme is being planned", i.e. while somebody is deciding what
+can still be spent. So the whole life of a promise was walked through the
+server:
+
+- booked → **₹33,000 spoken for**, each fund carrying its own, while মোট
+  খরচ is still ₹0: promising is not paying
+- an advance → the liability drops **and** the advance is a real spend
+- the balance → settled, and the fund owes nothing
+- paying **more** than promised → owes ₹0, never a negative liability,
+  while every rupee that left is still counted
+- cancelling a **part-paid** booking → the promise goes, and the ₹4,000
+  that really left the committee stays a spend
+
+All correct.
+
+**The mutation that matters is A224's class, one store over.** The link
+between an instalment and its booking is a single column, `commitmentId`.
+Drop it and a fully-paid ₹25,000 booking reads as **fully owed** — the
+committee believes it still owes money it has already handed over, at
+exactly the moment it is deciding what else it can afford. Now pinned, and
+the failure names itself.
+
+Not duplicated here: "a promise is not in the expense list" is already held
+by A151 and A212, and a mutation confirms both still fire — so this block
+leaves that to them rather than asserting it a third time.
+
+Tests 2,965 (from 2,950). Mutation-proved: a negative liability, and the
+lost link.
+
+No app change.

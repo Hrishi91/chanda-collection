@@ -3070,6 +3070,83 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A231: দায় — promised, part-paid, settled, overpaid, cancelled ------
+    // A151 calls this the easiest place in the book to be wrong, and it goes
+    // wrong exactly when a programme is being planned — i.e. while somebody is
+    // deciding what can still be spent. commitmentRows had four assertions
+    // against it; this walks the whole life of a promise through the server.
+    {
+      const bt2 = loadBackend(); bt2.api.setup();
+      ['dtadm', 'dtkali'].forEach(function (u, i) {
+        bt2.post('register', { username: u, name: 'নাম-' + u, password: 'secret' + i, phone: '93300000' + i });
+      });
+      const td0 = bt2.call('login', { username: 'dtadm', password: 'secret0', year: 2026 }).token;
+      const dkid = bt2.rows('Users').filter(function (x) { return x.username === 'dtkali'; })[0].id;
+      bt2.call('setStatus', { token: td0, userId: dkid, status: 'approved' });
+      bt2.call('approveYear', { token: td0, userId: dkid, year: 2026 });
+      bt2.call('setEntries', { token: td0, userId: dkid, entries: ['shop', 'progteam', 'progdonor', 'progmoney'] });
+      bt2.call('setCashier', { token: td0, userId: dkid, cashier: 1 });
+      const tdk = bt2.call('login', { username: 'dtkali', password: 'secret1', year: 2026 }).token;
+      const tda = bt2.call('login', { username: 'dtadm', password: 'secret0', year: 2026 }).token;
+      const sd = new Date().toISOString();
+      const putd = function (row, store) {
+        return bt2.call('push', { token: tdk, records: [rec(store || 'expenses',
+          Object.assign({ year: 2026, createdAt: sd }, row))] });
+      };
+      const A31 = require('../js/aggregate.js');
+      const bookd = function () { return (bt2.call('pull', { token: tda, year: 2026, since: 0 }) || {}).data || {}; };
+      const one = function (id) {
+        return (A31.commitmentRows(bookd()) || []).filter(function (c) { return c.id === id; })[0] || {};
+      };
+
+      eq((putd({ id: 'c1', subject: 'শিল্পী', amount: 0, cashAmount: 0, upiAmount: 0, date: '2026-09-06',
+        source: 'commitment', sector: 'program', payee: 'শিল্পী দল', committed: 25000,
+        srcCat: '', collectionType: '' }).savedIds || []).length, 1, 'backend A231: the artist is booked');
+      putd({ id: 'c2', subject: 'সাউন্ড', amount: 0, cashAmount: 0, upiAmount: 0, date: '2026-09-06',
+        source: 'commitment', sector: 'puja', payee: 'সাউন্ড', committed: 8000, srcCat: '', collectionType: '' });
+      eq(A31.spokenFor(bookd()).total, 33000, 'backend A231: ₹33,000 is spoken for before a rupee moves');
+      eq([A31.spokenFor(bookd()).program, A31.spokenFor(bookd()).puja], [25000, 8000],
+         'backend A231: …and each fund carries its own');
+      eq(A31.computeTotals(bookd(), {}).totalExpense, 0,
+         'backend A231: …while মোট খরচ is still ₹0 — promising is not paying');
+
+      // the advance
+      putd({ id: 'e1', subject: 'শিল্পী', amount: 5000, cashAmount: 5000, upiAmount: 0, date: '2026-09-06',
+        source: 'general', sector: 'program', commitmentId: 'c1', srcCat: 'other', collectionType: '' });
+      eq([one('c1').paid, one('c1').owed], [5000, 20000], 'backend A231: an advance reduces what is owed');
+      eq(A31.computeTotals(bookd(), {}).totalExpense, 5000, 'backend A231: …and IS a spend, unlike the promise');
+      // the balance
+      putd({ id: 'e2', subject: 'শিল্পী', amount: 20000, cashAmount: 20000, upiAmount: 0, date: '2026-09-07',
+        source: 'general', sector: 'program', commitmentId: 'c1', srcCat: 'other', collectionType: '' });
+      eq([one('c1').owed, one('c1').settled], [0, true], 'backend A231: paid off, and marked settled');
+      eq(A31.spokenFor(bookd()).program, 0, 'backend A231: …so the programme owes nothing');
+      // overpaying
+      putd({ id: 'e3', subject: 'সাউন্ড', amount: 9000, cashAmount: 9000, upiAmount: 0, date: '2026-09-07',
+        source: 'general', sector: 'puja', commitmentId: 'c2', srcCat: 'other', collectionType: '' });
+      eq(one('c2').owed, 0, 'backend A231: paying more than promised owes nothing — never a negative liability');
+      eq(A31.computeTotals(bookd(), {}).totalExpense, 34000,
+         'backend A231: …while every rupee that left is still counted as spent');
+
+      // cancelling a booking that has already been part-paid: the promise goes,
+      // the money that really left does not
+      putd({ id: 'c3', subject: 'মঞ্চ', amount: 0, cashAmount: 0, upiAmount: 0, date: '2026-09-07',
+        source: 'commitment', sector: 'puja', payee: 'মঞ্চ', committed: 15000, srcCat: '', collectionType: '' });
+      putd({ id: 'e4', subject: 'মঞ্চ', amount: 4000, cashAmount: 4000, upiAmount: 0, date: '2026-09-07',
+        source: 'general', sector: 'puja', commitmentId: 'c3', srcCat: 'other', collectionType: '' });
+      eq(A31.spokenFor(bookd()).total, 11000, 'backend A231: a part-paid booking owes the remainder');
+      putd({ id: 'v1', targetStore: 'expenses', targetId: 'c3', reason: 'বুকিং বাতিল', date: '2026-09-07' }, 'voids');
+      eq(A31.spokenFor(bookd()).total, 0, 'backend A231: cancelling it clears the liability…');
+      eq((A31.commitmentRows(bookd()) || []).filter(function (c) { return c.id === 'c3'; }).length, 0,
+         'backend A231: …and takes it off the list');
+      eq(A31.computeTotals(bookd(), {}).totalExpense, 38000,
+         'backend A231: …but the ₹4,000 advance really left the committee, so it is still a spend');
+
+      // the link itself: A224's class. Lose the commitmentId column and every
+      // instalment stops counting, so a settled booking reads as fully owed.
+      eq(String(bt2.rows('Expenses').filter(function (x) { return x.id === 'e1'; })[0].commitmentId), 'c1',
+         'backend A231: the instalment keeps its link to the booking through the Sheet');
+    }
+
     // --- A230: the receipt-design config, server side ----------------------
     {
       const bd2 = loadBackend(); bd2.api.setup();
