@@ -16129,3 +16129,38 @@ Tests 3,093 (from 3,063). Mutation-proved three ways, including a list that
 agrees in content but not in **order**.
 
 No app change.
+
+## A239 — every action, given nothing and given nonsense (2026-09-06)
+
+**Checked, nothing to fix.** All **54** server actions were called with an
+empty body, with garbage of the wrong types, and with a body of the **right
+shape asking for the wrong things** — an unknown config key, an unknown
+list kind, an unknown store. Then: did anything write, and did anything
+throw a non-Error?
+
+- **No action throws a non-Error.** One that did would escape `doPost`'s
+  envelope and the phone would show a raw stack instead of a sentence.
+- **No action changes a single row or config value** on a junk body.
+
+**Two gaps in my own sweep, both fixed before it was pinned.**
+
+The first version watched only the row stores, so it could not see
+`setFreeze` touching `freeze_at` **at all** — Config was not in the
+snapshot. It is now.
+
+The second used `config: 7` and `records: 'না'` — bodies so malformed they
+never reach the whitelists they were meant to test. Adding a third,
+right-shaped body is what makes the sweep bite: widening `setConfig`'s allow
+list or dropping `addItem`'s kind check now fails by name.
+
+**One finding, understood and left alone.** `setFreeze` with no `on` reads
+as "off" and lifts an active freeze. That is A110's design — the emergency
+stop is *"meant to be used and undone, not feared"*, so unfreezing takes no
+typed confirmation — and the client always sends `on` explicitly, so an
+empty body needs a hand-crafted request. Anyone able to send that could send
+`on: '0'` just as easily; there is no gain in guarding it. Excluded from the
+no-write rule **with its reason written in the test**, rather than silently.
+
+Tests 3,096 (from 3,093). Mutation-proved four ways.
+
+No app change.

@@ -3070,6 +3070,66 @@ module.exports = function runBackendTests(eq) {
     eq(oops(function () { return bc.call('confirmHandover', { token: tc.kali, id: 'ch4', year: 2026 }); }) !== '', true,
        'backend A197: …while a cashier who is not the addressee cannot confirm it for them');
 
+    // --- A239: every action, given nothing and given nonsense --------------
+    // 54 actions. One that writes with undefined values corrupts the book
+    // silently; one that throws a non-Error escapes doPost's envelope and the
+    // phone shows a raw stack; one that answers "ok" to an empty body is a
+    // button that looks like it worked. Swept rather than sampled, so an action
+    // added later is covered without anyone remembering to add a case.
+    {
+      const bj = loadBackend(); bj.api.setup();
+      bj.post('register', { username: 'jkadm', name: 'admin', password: 'secret0', phone: '9010000001' });
+      bj.post('register', { username: 'jkcol', name: 'কালেক্টর', password: 'secret1', phone: '9010000002' });
+      const tj = bj.call('login', { username: 'jkadm', password: 'secret0', year: 2026 }).token;
+      const jcid = bj.rows('Users').filter(function (x) { return x.username === 'jkcol'; })[0].id;
+      bj.call('setStatus', { token: tj, userId: jcid, status: 'approved' });
+      bj.call('approveYear', { token: tj, userId: jcid, year: 2026 });
+
+      const STORES = ['Parties', 'Payments', 'DailyCollections', 'Expenses', 'Handovers',
+                      'Voids', 'Messages', 'Corrections', 'Users', 'Lists', 'ExpenseSubjects'];
+      // Config too: the first version of this sweep watched only the row stores
+      // and therefore could not see setFreeze changing freeze_at at all.
+      const snap = function () {
+        return STORES.map(function (s) { return s + ':' + bj.rows(s).length; }).join(' ') +
+               ' cfg:' + JSON.stringify(bj.api.readConfig_());
+      };
+      const actions = Object.keys(bj.api.ACTIONS).sort();
+      eq(actions.length >= 50, true, 'backend A239: the whole action list is swept, not a sample');
+      // login/register/logout are how identity is MADE — junk there is their own
+      // business and covered by A209's lifecycle block
+      const SKIP = ['login', 'register', 'logout',
+                    // setFreeze reads a missing `on` as "off" ON PURPOSE (A110:
+                    // the emergency stop is meant to be undone, not feared) and
+                    // the client always sends it explicitly. Excluded from the
+                    // no-write rule with its reason, not silently.
+                    'setFreeze'];
+      const JUNK = [{}, { id: '☠️', userId: '☠️', year: 'নয়', amount: {}, records: 'না',
+                          confirm: 1, config: 7, perms: 'x', entries: 5, status: [], value: null },
+                    // a body that is the RIGHT SHAPE but asks for the wrong
+                    // things — this is what actually exercises the whitelists;
+                    // a `config: 7` never reaches setConfig's key loop at all
+                    { config: { junkkey: 'x', live_mode: 'on', data_epoch: '1' },
+                      kind: 'spaceship', nameBn: 'ভুয়ো', nameEn: 'bogus',
+                      store: 'spaceship', field: 'anything', id: 'nope',
+                      records: [{ store: 'spaceship', row: { id: 'nope', year: 2026 } }] }];
+      const nonError = [], wrote = [];
+      JUNK.forEach(function (junk) {
+        actions.forEach(function (a) {
+          if (SKIP.indexOf(a) >= 0) return;
+          const before = snap();
+          try { bj.call(a, Object.assign({ token: tj }, junk)); }
+          catch (e) { if (!(e instanceof Error)) nonError.push(a + ' threw ' + String(e)); }
+          // backupNow legitimately writes a Drive file, not a sheet — snap()
+          // does not watch Drive, so it needs no exception here
+          if (snap() !== before) wrote.push(a);
+        });
+      });
+      eq(nonError.join(', '), '',
+         'backend A239: no action throws a non-Error — doPost\'s envelope would not catch it and the phone would show a stack');
+      eq(wrote.join(', '), '',
+         'backend A239: no action changes a single row or config value when its body is empty or nonsense');
+    }
+
     // --- A238: every declared mirror, compared -----------------------------
     // Code.gs says "Mirrors js/aggregate.js …" in ten places. A235 compared the
     // reports, A236 the confidentiality curtain, A237 the permission verdict.
