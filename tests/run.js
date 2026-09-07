@@ -223,6 +223,12 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
   const wordless = grantable.filter(function (k) {
     if (A22.REPORT_IDS.indexOf(k) >= 0) return !new RegExp('\\n  report_' + k + ': \\{').test(i18n22);
     if (k === 'cashier') return !/\n  cashier: \{/.test(i18n22);
+    // A251: a (fund, kind) key gets its words from its two parts — the kind's
+    // own label and the fund's own name — so BOTH have to exist. Stricter than
+    // the single lookup it replaces for these keys, not looser.
+    const p22 = A22.permParts(k);
+    if (p22) return !labelled[p22.kind] ||
+      !new RegExp('\\n  sector_' + p22.fund + ': \\{').test(i18n22);
     return !labelled[k];
   });
   eq(wordless.join(', '), '',
@@ -2046,8 +2052,18 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     eq(/Number\(u\.money\.pending\) \? ' <span class="row-sub">⏳<\/span>' : ''/.test(app100), true,
        'A100: …and money already sent but unconfirmed is flagged, because it is counted INSIDE this number');
     // the summary line: short names, or eight of twelve rows wrap
-    eq(/\.map\(function \(k\) \{ return t\('type_' \+ k\); \}\)\.join\(', '\)/.test(app100), true,
-       'A100: the list summary uses the short category names (রোড, not রোড কালেকশন)');
+    // A251: was pinned to the exact line `.map(k => t('type_' + k)).join(', ')`,
+    // which stopped being that line the day an entry key gained a fund. The
+    // PROPERTY is what matters: the summary reads the SHORT names (`type_road`
+    // = রোড) and never the long entry-screen ones (`daily_road` = রোড কালেকশন),
+    // because twelve long names wrap the row eight deep.
+    {
+      const sumFn = app100.slice(app100.indexOf('const entKinds ='), app100.indexOf('const reps ='));
+      eq(/t\('type_' \+ /.test(sumFn), true,
+         'A100: the list summary uses the short category names (রোড, not রোড কালেকশন)');
+      eq(/t\('(daily|new)_/.test(sumFn), false,
+         'A100: …and never the long entry-screen ones');
+    }
     // A160: anchored on the SUMMARY, not the whole file. Written file-wide it
     // matched as a substring the moment the permission chips — where A100 says
     // the long names belong — started reading the same map, so it failed on the
@@ -6796,9 +6812,15 @@ try {
     const CAT = { shop: 'new_shop', person: 'new_person', member: 'new_member', bus: 'daily_bus',
                   road: 'daily_road', toto: 'daily_toto', sponsor: 'new_sponsor', ticket: 'daily_ticket' };
     const missing = A.POSITION_PERM_KEYS.filter(function (k) {
+      // A251: same rule as A222 — a fund/kind pair is labelled by its parts.
+      const p72 = A.permParts(k);
+      if (p72) {
+        return !new RegExp('^  ' + (CAT[p72.kind] || ('perm_' + p72.kind)) + ':', 'm').test(i18n) ||
+               !new RegExp('^  sector_' + p72.fund + ':', 'm').test(i18n);
+      }
       const key = k === 'cashier' ? 'cashier'
         : A.REPORT_IDS.indexOf(k) >= 0 ? 'report_' + k
-        : (CAT[k] || ('perm_' + k));
+        : ('perm_' + k);
       return !new RegExp('^  ' + key + ':', 'm').test(i18n);
     });
     eq(missing, [], 'A72: every permission key has a label (' + missing.join(', ') + ')');
@@ -8283,23 +8305,92 @@ try {
     // a key is grantable if EITHER map labels it — the perm-only map or the
     // shared category map it deliberately reuses
     const have = names(m && m[1]).concat(names(cm && cm[1]));
+    // A251: a key is ALSO labelled if it is a (fund, kind) pair whose two parts
+    // are each labelled — that is how the nine programme keys got words without
+    // nine new dictionary entries, and how a third ভাঁড়ার will get them. The
+    // rule is stricter than the map lookup it joins, not looser: BOTH parts
+    // must resolve, so a fund with no name of its own still fails here.
+    const Aggregate251 = require('../js/aggregate.js');
+    const i18n160 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+    const pairLabelled = function (k) {
+      const p = Aggregate251.permParts(k);
+      if (!p) return false;
+      return have.indexOf(p.kind) >= 0 &&
+             new RegExp('^  sector_' + p.fund + ':', 'm').test(i18n160);
+    };
     PERM_KEYS.forEach(function (k) {
-      eq(have.indexOf(k) >= 0, true, 'A160: permission chip exists for ' + k);
+      eq(have.indexOf(k) >= 0 || pairLabelled(k), true, 'A160: permission chip exists for ' + k);
     });
     eq(/const kinds = Aggregate\.PERM_KEYS\.map/.test(app), true,
        'A160: …and the chips are DERIVED from PERM_KEYS, not hand-written');
     eq(/PERM_ONLY_LABELS\[k\] \|\| CAT_LABEL_KEYS\[k\]/.test(app), true,
        'A160: …reusing the category map rather than copying it (A66)');
 
+  // --- A251: permParts is what every screen trusts to say what a key MEANS ---
+  // It is the inverse of permKeyFor, and the two have to agree or a key can be
+  // built that cannot be read back. The negative cases matter more than the
+  // positive ones: permParts returning a shape for a key that is not an entry
+  // permission would put a fund and a kind on a screen that has neither.
+  {
+    const A251 = require('../js/aggregate.js');
+    eq(A251.permParts('person'), { fund: 'puja', kind: 'person' },
+       'A251: a bare kind is the PUJA fund — the default, as sectorOf already reads it');
+    eq(A251.permParts('program:person'), { fund: 'program', kind: 'person' },
+       'A251: …and a prefixed one names its fund');
+    eq(A251.permParts('review'), null, 'A251: a non-entry grant has no fund and no kind');
+    eq(A251.permParts('guptview'), null, 'A251: …nor does a view grant, which is fund-neutral');
+    eq(A251.permParts('program:nonsense'), null, 'A251: an unknown KIND is not a permission');
+    eq(A251.permParts('nonsense:person'), null, 'A251: an unknown FUND is not a permission');
+    eq(A251.permParts(''), null, 'A251: …and neither is nothing at all');
+    eq(A251.permParts('a:b:c'), null, 'A251: …or a key with more colons than the rule has parts');
+    // the round trip: everything PERM_KEYS calls an entry permission must
+    // rebuild itself exactly, or a screen and the server disagree on one key
+    const pairs = PERM_KEYS.filter(function (k) { return !!A251.permParts(k); });
+    eq(pairs.length, A251.SECTORS.length * ENTRY_KINDS.length,
+       'A251: every fund carries every kind — ' + pairs.length + ' entry permissions');
+    eq(pairs.filter(function (k) {
+      const p = A251.permParts(k);
+      return A251.permKeyFor(p.fund, p.kind) !== k;
+    }).join(', '), '', 'A251: …and each one rebuilds itself exactly from its two parts');
+    // THE assertion of this whole change. Every grant already written into the
+    // Users sheet is a BARE kind name. If puja keys ever gained a prefix, every
+    // one of those strings would stop matching and twelve people would lose
+    // every permission they hold, at once, with nothing in any log to say why —
+    // the suite would stay green, because both sides would have moved together.
+    // This is the guarantee that there is no migration to do, and it is the one
+    // thing here that cannot be allowed to drift.
+    ENTRY_KINDS.forEach(function (k) {
+      eq(A251.permKeyFor('puja', k), k,
+         'A251: the puja key for ' + k + ' is the BARE name — every grant already written stays valid');
+    });
+    eq(ENTRY_KINDS.filter(function (k) { return PERM_KEYS.indexOf(k) < 0; }).join(', '), '',
+       'A251: …and every bare kind is still grantable, so nothing already granted became unknown');
+  }
+
   // --- A161: the sensitive grants must be visible ON the user list ----------
   // The summary filters to ENTRY_KINDS, so guptview/sponsorview/prog* appeared
   // nowhere on it and "who can see গুপ্ত দান?" needed twelve screens opened
   // one at a time. Markers, so A100's width fix survives.
   {
-    const m = app.match(/const MARKS = \[([\s\S]*?)\];/);
-    eq(!!m, true, 'A161: the user list marks the non-entry grants');
-    ['sponsorview', 'guptview', 'progteam', 'progdonor', 'progmoney'].forEach(function (k) {
-      eq(m && m[1].indexOf("'" + k + "'") >= 0, true, 'A161: …including ' + k);
+    // A251: the five names used to be a literal here and a literal in app.js —
+    // two copies of the same list, which is the shape that has gone wrong nine
+    // times in this codebase. Both are derived now, so this asserts that each
+    // sensitive grant is REACHABLE by the derivation rather than that it is
+    // spelled somewhere: every view key must have a `grp_<type>` heading whose
+    // first character is its mark, and every non-puja fund a `sector_<fund>`.
+    const i18n161 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
+    const A161m = require('../js/aggregate.js');
+    const glyph = function (line) {
+      const mm = i18n161.match(new RegExp('^  ' + line + ": \\{ bn: '([^']*)'", 'm'));
+      return mm ? Array.from(mm[1])[0] : '';
+    };
+    A161m.RESTRICTED_TYPES.forEach(function (ty) {
+      eq(/\p{Extended_Pictographic}/u.test(glyph('grp_' + ty)), true,
+         'A161: …' + A161m.viewPermFor(ty) + ' has a mark to show (grp_' + ty + ')');
+    });
+    A161m.SECTORS.filter(function (sc) { return sc !== 'puja'; }).forEach(function (sc) {
+      eq(/\p{Extended_Pictographic}/u.test(glyph('sector_' + sc)), true,
+         'A161: …the ' + sc + ' fund has a mark to show (sector_' + sc + ')');
     });
     eq(/entTxt \+ \(marks \? ' ' \+ marks : ''\)/.test(app), true,
        'A161: …and the marks actually reach the rendered line');
@@ -8344,11 +8435,31 @@ try {
        'A165: …there being exactly one place that draws it');
     // every key the summary can hold is either an entry kind (spelled out) or
     // marked — nothing may be silently dropped again
+    // A251: the marks are derived now, so this can no longer read a literal
+    // list. Two halves, and both are needed — the second is what stops the
+    // first becoming a tautology.
+    //
+    // (i) Every grantable key falls in one of the five groups the summary
+    //     KNOWS HOW to show. A key belonging to none of them is the A161 bug
+    //     itself: silently dropped from the one screen that answers "who can
+    //     see গুপ্ত দান?".
+    const A161 = require('../js/aggregate.js');
     PERM_KEYS.forEach(function (k) {
-      const shown = ENTRY_KINDS.indexOf(k) >= 0 || (m && m[1].indexOf("'" + k + "'") >= 0) ||
-                    ['review', 'otherdonor', 'memberadmin'].indexOf(k) >= 0;
+      const p = A161.permParts(k);
+      const shown = !!p                                        // an entry pair: spelled out, or marked by its fund
+        || A161.VIEW_PERM_KEYS.indexOf(k) >= 0                 // marked by its own kind
+        || A161.PROGRAM_KEYS.indexOf(k) >= 0                   // marked by its fund
+        || ['review', 'otherdonor', 'memberadmin'].indexOf(k) >= 0;
       eq(shown, true, 'A161: the user list accounts for ' + k);
     });
+    // (ii) …and the screen really derives them from those lists rather than
+    //      naming keys again, which is how the list it used to read got stale.
+    {
+      const blk = app.slice(app.indexOf('const firstGlyph ='), app.indexOf('const reps ='));
+      eq(/Aggregate\.RESTRICTED_TYPES/.test(blk) && /Aggregate\.SECTORS/.test(blk) &&
+         /Aggregate\.PROGRAM_KEYS/.test(blk), true,
+         'A161: …and the marks are derived from the three lists, not typed out again');
+    }
   }
     // every label key the map names must actually resolve, or the chip is blank
     const i18nSrc = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');

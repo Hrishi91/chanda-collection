@@ -16695,3 +16695,72 @@ Tests unchanged at 3,284 — this adds a tool, not a rule.
 end of this session rather than depending on me remembering it next time: run
 the check before any release and put its answer in the handoff, and — the one
 that matters most on a nightly cadence — **pushing is not releasing.**
+
+## A251 — an entry permission is a (FUND, KIND) pair
+
+Hrishi, on the permission screen: *"the permissions of the program will be
+separated from the available permission… otherwise usage will conflict."* Then,
+sharper: *"there could be chance that in program one type entry is not needed
+but in normal flow it is needed."*
+
+He is right, and the code says so in a way worth writing down. Until now
+`person` meant "a person", full stop, and the programme's book was gated by ONE
+blanket key, `progdonor`, covering whichever kinds the 🎭 tab happened to
+offer — today ব্যক্তি and স্পনসর. That holds while the programme offers two
+kinds and breaks the day it offers a third: there is no way to say "programme
+donors yes, programme sponsors no", and adding a kind hands it to everybody who
+already holds the blanket.
+
+**So the key IS the pair.** `person` is a person in the puja's book;
+`program:person` is one in the programme's. Nine kinds × two funds = eighteen
+entry permissions, derived from `SECTORS × ENTRY_KINDS` and typed out nowhere.
+
+**Every kind exists in every fund — Hrishi's call, and his reason is the right
+one:** *"it is only setup; if the committee needs it they will add it, that is
+their need."* Deciding on the committee's behalf which kinds a fund may have is
+how a list becomes wrong a season later. It also removed the last hand-written
+list from the design: there is no per-fund kind table, only the two lists that
+already existed.
+
+**Puja keys stay bare, and that is the whole migration story.** `permKeyFor`
+returns the bare name for the default fund, exactly as `sectorOf` already reads
+a row with no `sector` as puja. Every grant already written into the Users sheet
+therefore still matches. This is pinned by its own assertion, and it is the one
+that matters most here: if puja keys ever gained a prefix, twelve people would
+lose every permission they hold, at once, with nothing in any log to say why —
+and the suite would have stayed green, because both sides would have moved
+together. Found by mutation; it was the one surviving mutation of the first
+five.
+
+**Nothing demands a compound key yet.** This step adds names and takes none
+away; `permForRow` still answers with the kind alone. The step that teaches it
+about funds is the one that can stop collection, and it goes on its own.
+
+### Four existing guards had to learn the new shape — none was loosened
+
+- **A160** ("every grantable permission has a chip") read the two label maps. A
+  pair is labelled by its PARTS instead — the kind's own label and the fund's
+  own name — so the nine new keys needed no new dictionary entries, and a third
+  ভাঁড়ার will need none. The rule is **stricter**: both parts must resolve.
+- **A222** and **A72** the same, for the same reason.
+- **A100** was pinned to the exact source line
+  `.map(k => t('type_' + k)).join(', ')`, which stopped being that line the day
+  a key gained a fund. Its PROPERTY — the summary reads the short names
+  (`type_road` = রোড) and never the long ones (`daily_road` = রোড কালেকশন),
+  because twelve long names wrap the row eight deep — is what it asserts now.
+- **A161** read a literal `MARKS` list in app.js. That list was the sixth
+  hand-written copy of "which keys are special", and it is gone: the marks are
+  derived from `RESTRICTED_TYPES` and `SECTORS`, each fund and each confidential
+  kind marked by the emoji its own name already starts with. The test now has
+  two halves, and the second is what stops the first becoming a tautology: every
+  grantable key must fall in one of the five groups the summary knows how to
+  show, **and** the screen must derive them from those lists rather than naming
+  keys again.
+
+Tests 3,357 (from 3,284). Mutation-proved: a key in no group, a fund with no
+name, `permKeyFor` forgetting the fund, marks stopping being derived,
+`permParts` accepting anything, a bare name read as an entry key, and puja keys
+gaining a prefix.
+
+**Not deployable on its own** — `PERM_KEYS` lives on both sides, so this rides
+the same release as the steps that follow.

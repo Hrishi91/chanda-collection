@@ -925,7 +925,21 @@ function hasProg_(u, key) {
   return effPerms_(u.row).entries.indexOf(key) >= 0;
 }
 function isProgramRow_(row) { return String((row && row.sector) || 'puja') === 'program'; }
-var PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin'])
+// A251: an entry permission is a (FUND, KIND) pair. Mirrors js/aggregate.js —
+// `person` is a person in the PUJA's book, `program:person` one in the
+// programme's. Puja is the default fund and keeps bare keys, exactly as a row
+// with no `sector` already reads as puja, so nothing granted has to be
+// rewritten. Every kind exists in every fund on purpose: deciding for the
+// committee which kinds a fund may have is how a list becomes wrong a season
+// later. A third ভাঁড়ার costs one word in SECTORS.
+function permKeyFor_(sector, kind) {
+  var s = SECTORS.indexOf(String(sector)) >= 0 ? String(sector) : 'puja';
+  return s === 'puja' ? String(kind) : s + ':' + String(kind);
+}
+var FUND_PERM_KEYS = SECTORS.reduce(function (acc, s) {
+  return acc.concat(ENTRY_KINDS.map(function (k) { return permKeyFor_(s, k); }));
+}, []);
+var PERM_KEYS = FUND_PERM_KEYS.concat(['review', 'otherdonor', 'memberadmin'])
   .concat(VIEW_PERM_KEYS).concat(PROGRAM_KEYS);
 
 // ---------- what a committee POST may carry ----------
@@ -1281,7 +1295,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.83.0';
+var CODE_VERSION = 'chanda-v4.84.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually

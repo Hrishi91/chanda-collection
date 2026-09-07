@@ -1685,7 +1685,52 @@
   //              not hand somebody the committee's
   // ('ticket' is an ENTRY_KIND and already grantable.)
   const PROGRAM_KEYS = ['progteam', 'progdonor', 'progmoney'];
-  const PERM_KEYS = ENTRY_KINDS.concat(['review', 'otherdonor', 'memberadmin'])
+  // A251: an entry permission is a (FUND, KIND) pair, not a kind on its own.
+  //
+  // Hrishi's point, and it is the right one: a kind wanted in one book is not
+  // automatically wanted in the other. Until now `person` meant "a person",
+  // full stop, and the programme's book was gated by ONE blanket key
+  // (`progdonor`) covering whichever kinds it happened to offer. That holds
+  // while the programme offers two kinds and breaks the day it offers a third:
+  // there is no way to say "programme donors yes, programme sponsors no", and
+  // adding a kind hands it to everyone who already had the blanket.
+  //
+  // So the key IS the pair. Every kind exists in every fund — Hrishi's call,
+  // and the reason is the good one: *"it is only setup; if the committee needs
+  // it they will add it, that is their need"*. Deciding on their behalf which
+  // kinds a fund may have is how a list becomes wrong a season later.
+  //
+  // Puja is the DEFAULT fund and its keys stay bare, exactly as sectorOf()
+  // already reads a row with no sector as puja. So nothing already granted has
+  // to be rewritten, and a third ভাঁড়ার costs ONE WORD in SECTORS instead of
+  // nine hand-made keys, nine i18n pairs and nine server checks — the cost A144
+  // avoided for confidential kinds by building machinery, which the programme
+  // never got.
+  function permKeyFor(sector, kind) {
+    const s = SECTORS.indexOf(String(sector)) >= 0 ? String(sector) : 'puja';
+    return s === 'puja' ? String(kind) : s + ':' + String(kind);
+  }
+  const FUND_PERM_KEYS = SECTORS.reduce(function (acc, s) {
+    return acc.concat(ENTRY_KINDS.map(function (k) { return permKeyFor(s, k); }));
+  }, []);
+  // The inverse. Every screen that has to say what a key MEANS comes here
+  // rather than splitting on ':' itself — one place decides, so a fund whose id
+  // ever contains something surprising cannot be read two ways in two files.
+  // Returns null for a key that is not an entry permission at all (review,
+  // guptview, progteam…), which is how a caller tells the two apart.
+  function permParts(key) {
+    const k = String(key || '');
+    const i = k.indexOf(':');
+    if (i < 0) return ENTRY_KINDS.indexOf(k) >= 0 ? { fund: 'puja', kind: k } : null;
+    const fund = k.slice(0, i), kind = k.slice(i + 1);
+    return (SECTORS.indexOf(fund) >= 0 && ENTRY_KINDS.indexOf(kind) >= 0)
+      ? { fund: fund, kind: kind } : null;
+  }
+  // Additive in this step: the bare kinds are already in FUND_PERM_KEYS (puja
+  // keys ARE the bare ones), so this grants the nine compound names and takes
+  // nothing away. Nothing DEMANDS a compound key until permForRow learns about
+  // funds, which is the next step and the one that can break collection.
+  const PERM_KEYS = FUND_PERM_KEYS.concat(['review', 'otherdonor', 'memberadmin'])
     .concat(VIEW_PERM_KEYS).concat(PROGRAM_KEYS);
   // What a committee POST may carry, so granting is one dropdown per person
   // instead of ~16 checkboxes each. Mirrors Code.gs POSITION_PERM_KEYS.
@@ -2064,6 +2109,7 @@
                 isTransfer: isTransfer,
                 isCommitment: isCommitment, commitmentRows: commitmentRows, spokenFor: spokenFor,
                 PARTY_KINDS: PARTY_KINDS, DAILY_KINDS: DAILY_KINDS, PROGRAM_KEYS: PROGRAM_KEYS,
+                FUND_PERM_KEYS: FUND_PERM_KEYS, permKeyFor: permKeyFor, permParts: permParts,
                 SUMMARY_GROUPS: SUMMARY_GROUPS,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,

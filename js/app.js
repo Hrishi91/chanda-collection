@@ -5307,7 +5307,20 @@
     progteam: 'perm_progteam', progdonor: 'perm_progdonor',
     progmoney: 'perm_progmoney',
   };
-  function permLabel(k) { return t(PERM_ONLY_LABELS[k] || CAT_LABEL_KEYS[k] || k); }
+  // A251: an entry key now carries its fund. The words come from the two parts
+  // — the fund's own name and the kind's own name — so the nine programme keys
+  // needed no new dictionary entries, and a third ভাঁড়ার will need none either.
+  // `full` is for a standalone place (the 👥 summary line, an error); inside a
+  // fund's own group the heading already says the fund, so the chip shows only
+  // the kind and stays short enough to read on a phone.
+  function permLabel(k, full) {
+    const p = Aggregate.permParts(k);
+    if (p) {
+      const kind = t(CAT_LABEL_KEYS[p.kind] || p.kind);
+      return (full && p.fund !== 'puja') ? t('sector_' + p.fund) + ' · ' + kind : kind;
+    }
+    return t(PERM_ONLY_LABELS[k] || CAT_LABEL_KEYS[k] || k);
+  }
   const CAT_LABEL_KEYS = { shop: 'new_shop', person: 'new_person', member: 'new_member',
                            sponsor: 'new_sponsor', gupt: 'new_gupt',
                            payment: 'cat_payment', bus: 'daily_bus',
@@ -7870,9 +7883,16 @@
         // have short names the app uses everywhere else: রোড · টোটো · বাস. The
         // permission CHIPS keep the long form, where there is room and the
         // wording has to be unambiguous.
+        // A251: the kinds are spelled out for the PUJA's book only. A key in
+        // another fund is shown by that fund's mark below, the way the
+        // confidential grants already are — spelling nine more names out here
+        // would wrap the line eight rows deep for twelve people, which is the
+        // very thing A100 shortened it to avoid.
+        const entKinds = ent.map(function (k) { return Aggregate.permParts(k); })
+          .filter(function (p) { return p && p.fund === 'puja'; })
+          .map(function (p) { return t('type_' + p.kind); });
         const entTxt = !ent.length ? '⚠️ ' + t('sum_none')
-          : ent.filter(function (k) { return Aggregate.ENTRY_KINDS.indexOf(k) >= 0; })
-               .map(function (k) { return t('type_' + k); }).join(', ') || '⚠️ ' + t('sum_none');
+          : entKinds.join(', ') || '⚠️ ' + t('sum_none');
         // A161: the grants that are NOT entry kinds were filtered out of this
         // line and appeared nowhere on it — so an admin scanning 👥 to answer
         // "who can see গুপ্ত দান?" saw nothing about it and had to open all
@@ -7880,11 +7900,24 @@
         // for, and the most sensitive grant in the app was the one it hid.
         // Markers, not words: A100 shortened this line because long names
         // wrapped eight rows of twelve, and three glyphs do not.
-        const MARKS = [['sponsorview', '🎪'], ['guptview', '🤫'],
-                       ['progteam', '🎭'], ['progdonor', '🎭'], ['progmoney', '🎭']];
-        const marks = MARKS.filter(function (m) { return ent.indexOf(m[0]) >= 0; })
-          .map(function (m) { return m[1]; })
-          .filter(function (g, i, a) { return a.indexOf(g) === i; }).join('');
+        // A251: derived, not a sixth hand-written list. The confidential marks
+        // come from RESTRICTED_TYPES, and a fund's mark is the emoji its own
+        // name already starts with (`sector_program` is '🎭 অনুষ্ঠান'), so a
+        // third ভাঁড়ার is marked the day it is added rather than the day
+        // somebody notices this line never mentioned it.
+        const firstGlyph = function (str) { return Array.from(String(str || ''))[0] || ''; };
+        const marks = []
+          .concat(Aggregate.RESTRICTED_TYPES
+            .filter(function (ty) { return ent.indexOf(Aggregate.viewPermFor(ty)) >= 0; })
+            .map(function (ty) { return firstGlyph(t('grp_' + ty)); }))
+          .concat(Aggregate.SECTORS.filter(function (sec) {
+            if (sec === 'puja') return false;
+            return ent.some(function (k) {
+              const p = Aggregate.permParts(k);
+              return (p && p.fund === sec) || Aggregate.PROGRAM_KEYS.indexOf(k) >= 0;
+            });
+          }).map(function (sec) { return firstGlyph(t('sector_' + sec)); }))
+          .filter(function (g, i, a) { return g && a.indexOf(g) === i; }).join('');
         const reps = String(u.reports || '').split(',').filter(Boolean).length + (u.cashier ? 1 : 0);
         const ars = String(u.areas || '').split(',').filter(Boolean).length;
         return [entTxt + (marks ? ' ' + marks : ''),
