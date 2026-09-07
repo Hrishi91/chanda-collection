@@ -4609,6 +4609,64 @@ module.exports = function runBackendTests(eq) {
        'backend A257: …with the whole-book answer still the sum of the two');
   }
 
+  // --- A265: two more first-element blind spots the survey named ------------
+  // Both survived every mutation for the same reason A248's did: a fixture that
+  // stands in the MIDDLE of a list never notices a rule that drops its head.
+  {
+    // (i) hasProg_ asks whether a granted key is in somebody's list. Every
+    // fixture in this file grants progteam FIRST and progmoney after it, so a
+    // rule that skipped index 0 still found progmoney. Grant it alone.
+    const b265 = loadBackend(); b265.api.setup();
+    ['adm265', 'sub265'].forEach(function (u, i) {
+      b265.post('register', { username: u, name: u, password: 'secret' + i, phone: '98220000' + i });
+    });
+    const t = b265.call('login', { username: 'adm265', password: 'secret0', year: 2026 }).token;
+    const uid = function (u) { return b265.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+    b265.call('setStatus', { token: t, userId: uid('sub265'), status: 'approved' });
+    b265.call('approveYear', { token: t, userId: uid('sub265'), year: 2026 });
+    b265.call('setConfig', { token: t, key: 'program_on', value: 'on' });
+    // progmoney is the ONLY key, so it is the first one
+    b265.call('setEntries', { token: t, userId: uid('sub265'), entries: ['progmoney'] });
+    const tk = b265.call('login', { username: 'sub265', password: 'secret1', year: 2026 }).token;
+    const spend = b265.call('push', { token: tk, records: [{ store: 'expenses', row: {
+      id: 'x265', year: 2026, subject: 'শিল্পী', amount: 300, cashAmount: 300, upiAmount: 0,
+      date: '2026-09-07', sector: 'program', source: 'general' } }] });
+    eq((spend.savedIds || []).indexOf('x265') >= 0, true,
+       'backend A265: progmoney works when it is the FIRST key in the list, not only when something precedes it');
+    // …and still does not reach the committee's own purse
+    const puja = b265.call('push', { token: tk, records: [{ store: 'expenses', row: {
+      id: 'x265b', year: 2026, subject: 'আলো', amount: 300, cashAmount: 300, upiAmount: 0,
+      date: '2026-09-07', sector: 'puja', source: 'general' } }] });
+    eq((puja.savedIds || []).indexOf('x265b') >= 0, false,
+       'backend A265: …and the puja fund is still shut to it');
+  }
+  {
+    // (ii) setup() appends any header column a sheet is missing. `have.indexOf(c)
+    // < 0` decides which; drop the head and the FIRST column of every sheet —
+    // always `id` — reads as missing and is appended again, silently, because
+    // the ghost check only looks for names that are NOT wanted.
+    //
+    // The property is idempotence: running setup twice must leave the headers
+    // exactly as they were. It is run by hand after a deploy, so "twice" is an
+    // ordinary Tuesday.
+    const b265b = loadBackend(); b265b.api.setup();
+    // read the RAW header row, not the row objects the shim builds from it: a
+    // duplicated column name collapses into one key in an object, so the very
+    // drift this is looking for would be invisible. (First version did exactly
+    // that and the mutation walked past it.)
+    const headers = function () {
+      return Object.keys(b265b.env._sheets).sort().map(function (n) {
+        const sh = b265b.env._sheets[n];
+        if (!sh || sh.getLastRow() < 1) return n + ':(empty)';
+        return n + ':' + sh.getDataRange().getValues()[0].join(',');
+      }).join(' | ');
+    };
+    const before = headers();
+    b265b.api.setup();
+    b265b.api.setup();
+    eq(headers(), before, 'backend A265: running setup again changes no header — no column is appended twice');
+  }
+
   // --- A264: the block door's half-paisa, from both sides -------------------
   // A78's rule — a person who cannot log in cannot hand money back, so blocking
   // refuses while they still hold some — rests on an epsilon, and the epsilon

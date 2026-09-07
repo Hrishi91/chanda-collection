@@ -17519,3 +17519,37 @@ Tests 3,527 (from 3,518). Four mutations, all named: rounding removed, the
 epsilon loosened, the epsilon tightened, and the raw figure back in the record.
 
 **SERVER night** — `paise_` and the three call sites are in `Code.gs`.
+
+## A265 — two more first-element blind spots, both named by the survey
+
+Same shape as A248, twice more: **a fixture that stands in the MIDDLE of a list
+never notices a rule that drops its head.**
+
+**`hasProg_`** asks whether a granted key is in somebody's list. Every fixture in
+`tests/backend.js` grants `progteam` first and `progmoney` after it, so a rule
+that skipped index 0 still found `progmoney` — and the mutation survived. Now
+driven with `progmoney` as the **only** key, therefore the first: the programme's
+purse opens, and the committee's stays shut.
+
+**`setup()`** appends whichever header column a sheet is missing, deciding with
+`have.indexOf(c) < 0`. Drop the head and the first column of every sheet —
+always `id` — reads as missing and is appended again. Silently: the ghost check
+only looks for names that are *not* wanted, and `id` is wanted, so nothing is
+logged. The property pinned is idempotence — running `setup()` again changes no
+header — and it is run by hand after a deploy, so "again" is an ordinary
+Tuesday.
+
+**That second test had to be written twice.** The first version compared the row
+OBJECTS the shim builds from the header, and a duplicated column name collapses
+into one key in an object — so the drift it was looking for was invisible and
+the mutation walked straight past. It reads the raw header row now.
+
+Tests 3,530 (from 3,527). Both mutation-proved.
+
+### Where the survey stands
+
+`apps-script/Code.gs`: 36 mutations tried, 20 survived, **three of them real**
+and all three now closed (A264's epsilon, and these two). The remaining
+seventeen are equivalent as far as I can tell — loop bounds that read one past
+the end, and `getLastRow() > 1` guards on sheets no fixture leaves empty. That
+is a judgement, not a proof, and it is written down as one.
