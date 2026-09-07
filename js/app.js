@@ -4790,28 +4790,18 @@
     const u = Auth.current();
     return !!u && String(u.access || '') === 'exiting';
   }
+  // A273: the DECISION lives in js/aggregate.js, where a test can run it; this
+  // reads the four facts off the screen's world and asks. 411 mutations of this
+  // file said why: 339 survived, and 66 of the 72 catches were a regex over the
+  // source text rather than anything that executed a line.
+  function myIdent(u) { return Settings.get('collectorUsername') || (u && u.username) || ''; }
   function canEditParty(p) {
     const u = Auth.current();
-    if (!u || !p) return false;
-    if (u.role === 'admin') return true;
-    if (amExiting()) return false; // push refuses `parties` for them
-    const myId = Settings.get('collectorUsername') || u.username;
-    return !!p.collectorId && p.collectorId === myId;
+    return Aggregate.canEditParty(u, p, { myId: myIdent(u), exiting: amExiting() });
   }
   function canVoid(entry) {
     const u = Auth.current();
-    if (!u) return false;
-    // A116i: voiding moves money out of the book — frozen means frozen. The
-    // admin exemption rides inside frozen() itself, same as everywhere else.
-    if (frozen()) return false;
-    if (u.role === 'admin') return true;
-    const myId = Settings.get('collectorUsername') || u.username;
-    if (entry.collectorId && entry.collectorId === myId) return false; // never one's own
-    // rowRole, not a raw compare: the server used to store the Users-sheet word
-    // ('user'), which never equalled 'collector' — so this silently returned
-    // false for every collector's entry and the cashier saw no Undo at all.
-    if (u.cashier === 1) return Aggregate.rowRole(entry.collectorRole) === 'collector';
-    return false;
+    return Aggregate.canVoid(u, entry, { myId: myIdent(u), frozen: frozen() });
   }
   // one-line description of any entry (for lists + a flag's stored summary)
   // A123 (trial: "we are not able to understand the entry type"): every

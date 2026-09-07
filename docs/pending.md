@@ -739,27 +739,33 @@ kind that can lose data.
 
 ## The measured hole: js/app.js is never RUN (A266/A267, 2026-09-07)
 
-- [ ] **Decide whether app.js gets a DOM harness.** The first mutation survey of
-  `js/app.js` — 9,188 lines, the largest file here — sampled forty changes and
-  **thirty-two survived**. The eight caught were caught by a regex over the
-  source text, so they pin a line's spelling, not what it does. Behavioural
-  coverage of app.js is **zero**, and that is now measured rather than assumed.
+- [ ] **Decide whether app.js gets a DOM harness.** MEASURED, not estimated:
+  **411 mutations, 339 survived (82%)**, and of the 72 caught, **66 were caught
+  by a regex over the source text**. Five were caught by an assertion that ran a
+  computation (A119, A218, A222). Behavioural coverage of `js/app.js` is
+  **1.2%**.
 
-  It is not nothing: those tripwires caught four of my own edits this session
-  and each one had to be repointed deliberately. But they cannot catch a bug on
-  a line nobody thought to pin, and the two real bugs the survey found (A266's
-  dues list and 📞 button, A267's dead হস্তান্তর button) were both on unpinned
-  lines.
+  The tripwires are worth keeping — they caught four edits in the A266–A273
+  session and each had to be repointed deliberately — but they are not coverage,
+  and the two real bugs the survey found (a second dues filter written inverted,
+  a handover gate that opened at ₹0) were both on lines nobody had pinned.
 
-  The cheap half is already being done: when a decision can move OUT of app.js
-  into `js/aggregate.js`, it becomes properly testable — `isDue` and `moreThan`
-  are that. The open question is whether the rest is worth a jsdom harness, or
-  whether "extract the decision, leave the drawing" is enough. **Not a puja-week
-  job either way.**
+  **The cheap half is proven and under way**: when a decision can move OUT of
+  app.js into `js/aggregate.js` it becomes properly testable. `isDue`,
+  `moreThan`, `keyOfFund`, `canEditParty` and `canVoid` are that — the last two
+  went from zero assertions to a 27-row truth table, all five of their guards
+  mutation-proved, in one commit and with the drawing untouched.
 
-  Also still unswept: `js/sync.js`, `js/db.js`, `js/auth.js`, `js/lists.js`.
-  Run `node tests/mutation-survey.js js/sync.js 40` on a quiet night and find out
-  rather than guess — twice this year guessing was wrong in the good direction.
+  **What is still open is the SIZE of the rest.** The remaining 332 survivors are
+  mostly `render` (165) and `list` (50) — the drawing, where extraction buys
+  little and a jsdom harness would buy a lot. Money (33) and permission (27) are
+  the ones worth extracting next, one rule at a time, each with its truth table.
+  **Not a puja-week job**, and there is no need to decide it in one go.
+
+  Also worth knowing: the module sweep is CLOSED. Every other file —
+  `sync`, `db`, `auth`, `lists`, `help`, `voice`, `i18n`, `numparse` — went from
+  23 survivors to 3, and each of the three is written up with the argument for
+  why it is equivalent (A269–A271).
 
 ## AFTER THE PUJA — the PRODUCT question (Hrishi, 2026-08-17)
 

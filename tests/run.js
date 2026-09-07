@@ -5539,7 +5539,7 @@ try {
       // other behind and the check stayed green. A slice that can satisfy an
       // assertion two ways only tests one of them.
       const sites = [
-        ['canEditParty', /if \(amExiting\(\)\) return false;/],
+        ['canEditParty', /exiting: amExiting\(\)/],
         ['the entry ✏️ chip', /mineNow && !amExiting\(\) &&/],
         ['the chat composer', /\(amExiting\(\)\s*\n?\s*\? '<div class="perm-note">/],
       ];
@@ -9535,6 +9535,81 @@ pending.push((async function () {
   const crumb = 300.30 - (100.10 + 100.10 + 100.10);
   eq(A72.isDue(crumb), false, 'A272: a settled donor is not due, whichever screen asks');
   eq(A72.moreThan(crumb, 0), false, 'A272: …and holds nothing, whichever screen asks that');
+}
+
+// A273 — the two ownership rules, run at last.
+//
+// 411 mutations of js/app.js: 339 survived, and 66 of the 72 catches were a
+// regex over its source text. Among the unheld were the rule for who may
+// rewrite a donor's row and the rule for who may cancel an entry. Both are pure
+// given their inputs, so nothing but their address kept them untested. The
+// decision now lives in aggregate.js and the screen only reads the four facts.
+{
+  const A73 = require('../js/aggregate.js');
+  const admin = { role: 'admin', username: 'boss', cashier: 0 };
+  const cash  = { role: 'collector', username: 'kali', cashier: 1 };
+  const coll  = { role: 'collector', username: 'ratan', cashier: 0 };
+
+  // ── who may rewrite a donor's row
+  const mine  = { collectorId: 'ratan' }, theirs = { collectorId: 'pori' };
+  eq(A73.canEditParty(coll, mine, { myId: 'ratan' }), true, 'A273: your own donor is yours to edit');
+  eq(A73.canEditParty(coll, theirs, { myId: 'ratan' }), false, 'A273: somebody else\'s is not');
+  eq(A73.canEditParty(admin, theirs, { myId: 'boss' }), true, 'A273: an admin edits any of them');
+  eq(A73.canEditParty(coll, { collectorId: '' }, { myId: '' }), false,
+     'A273: an ownerless row is nobody\'s — an empty id does not match an empty id');
+  eq(A73.canEditParty(coll, mine, { myId: 'ratan', exiting: true }), false,
+     'A273: somebody standing down cannot, because push refuses `parties` for them');
+  eq(A73.canEditParty(admin, theirs, { myId: 'boss', exiting: true }), true,
+     'A273: …but an admin standing down still can, same as everywhere else');
+  eq(A73.canEditParty(null, mine, { myId: 'ratan' }), false, 'A273: nobody edits nothing');
+  eq(A73.canEditParty(coll, null, { myId: 'ratan' }), false, 'A273: …and nothing is edited by nobody');
+  eq(A73.canEditParty(cash, theirs, { myId: 'kali' }), false,
+     'A273: the কোষাধ্যক্ষ is not an admin — a donor row is not money in hand');
+
+  // ── who may cancel an entry
+  const byColl = { collectorId: 'ratan', collectorRole: 'collector' };
+  const byCash = { collectorId: 'kali',  collectorRole: 'cashier' };
+  const byAdm  = { collectorId: 'boss',  collectorRole: 'admin' };
+  eq(A73.canVoid(coll, byColl, { myId: 'ratan' }), false,
+     'A273: never one\'s own — the path for an old row of yours is a ⚠️ correction');
+  eq(A73.canVoid(cash, byColl, { myId: 'kali' }), true, 'A273: the কোষাধ্যক্ষ cancels a collector\'s');
+  eq(A73.canVoid(cash, byCash, { myId: 'kali' }), false, 'A273: …but not their own');
+  eq(A73.canVoid(cash, { collectorId: 'x', collectorRole: 'cashier' }, { myId: 'kali' }), false,
+     'A273: …nor another কোষাধ্যক্ষ\'s — peers do not undo each other');
+  eq(A73.canVoid(cash, byAdm, { myId: 'kali' }), false, 'A273: …and certainly not an admin\'s');
+  eq(A73.canVoid(coll, byCash, { myId: 'ratan' }), false, 'A273: a plain collector cancels nothing');
+  eq(A73.canVoid(admin, byCash, { myId: 'boss' }), true, 'A273: an admin cancels anything');
+  eq(A73.canVoid(admin, byAdm, { myId: 'boss' }), true, 'A273: …including their own');
+
+  // A59: rows written before rowRole_ say 'user', and a raw compare against
+  // 'collector' silently returned false for EVERY collector's entry — the
+  // cashier saw no ✖️ at all. rowRole is what stops that coming back.
+  eq(A73.canVoid(cash, { collectorId: 'ratan', collectorRole: 'user' }, { myId: 'kali' }), true,
+     'A273: an old row saying "user" is still a collector\'s');
+  eq(A73.canVoid(cash, { collectorId: 'ratan', collectorRole: '' }, { myId: 'kali' }), true,
+     'A273: …and so is one saying nothing at all');
+
+  // frozen means frozen, and the admin exemption rides in the caller's frozen()
+  eq(A73.canVoid(cash, byColl, { myId: 'kali', frozen: true }), false,
+     'A273: a freeze stops cancelling too — it moves money out of the book');
+  eq(A73.canVoid(admin, byColl, { myId: 'boss', frozen: true }), false,
+     'A273: …and the caller decides who a freeze applies to, not this');
+  eq(A73.canVoid(null, byColl, {}), false, 'A273: nobody cancels anything');
+  eq(A73.canVoid(cash, null, { myId: 'kali' }), false, 'A273: …and nothing is cancelled by anybody');
+
+  // A269 pinned that `cashier` is the NUMBER 1; the same must hold here, or a
+  // string off a stale row hands somebody the ✖️ button.
+  eq(A73.canVoid({ role: 'collector', username: 'k', cashier: '1' }, byColl, { myId: 'k2' }), false,
+     'A273: a cashier flag arriving as text does not hand out the ✖️ button');
+
+  // and the screen must not keep a second copy of either rule
+  const app73 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/return Aggregate\.canEditParty\(u, p, \{ myId: myIdent\(u\), exiting: amExiting\(\) \}\);/.test(app73),
+     true, 'A273: the donor-edit screen asks aggregate, and hands it the two facts');
+  eq(/return Aggregate\.canVoid\(u, entry, \{ myId: myIdent\(u\), frozen: frozen\(\) \}\);/.test(app73),
+     true, 'A273: …and so does the ✖️ button');
+  eq(/never one's own/.test(app73), false,
+     'A273: …with no copy of the rule left behind in the drawing');
 }
 
 Promise.all(pending.map(function (p) {

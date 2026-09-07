@@ -17951,3 +17951,51 @@ app.js cannot be tested where it is, and the answer is to move decisions OUT of
 it, not to write 332 regexes.
 
 Tests 3,671 → 3,677. CLIENT night.
+
+## A273 — the two ownership rules, run at last
+
+The direct answer to what A272 measured. Among the 339 unheld mutations were the
+rule for **who may rewrite a donor's row** and the rule for **who may cancel an
+entry**. Both are pure given their inputs. Nothing but their address kept them
+untested.
+
+`Aggregate.canEditParty(user, party, {myId, exiting})` and
+`Aggregate.canVoid(user, entry, {myId, frozen})`. The screen keeps the reading of
+`Auth.current()`, `Settings`, `frozen()` and `amExiting()` — only the decision
+moved, and behaviour is preserved exactly, including the strict `===` on identity
+and the `=== 1` on cashier that A269 pinned for a reason.
+
+**A 27-row truth table**, both halves of every pair:
+
+- your own donor is yours; somebody else's is not; an admin edits any; **an
+  ownerless row is nobody's — an empty id does not match an empty id**; standing
+  down cannot, but an admin standing down still can; the কোষাধ্যক্ষ is *not* an
+  admin here, because a donor row is not money in hand
+- never one's own ✖️; the কোষাধ্যক্ষ cancels a collector's but not their own, not
+  another cashier's, not an admin's; a plain collector cancels nothing; an admin
+  cancels anything including their own
+- **A59's ghost**: a row written before `rowRole_` says `'user'`, and a raw
+  compare against `'collector'` returned false for EVERY collector's entry — the
+  cashier saw no ✖️ at all. Two rows now pin that `'user'` and `''` are still a
+  collector's.
+- a freeze stops cancelling, and the *caller* decides who a freeze applies to
+- a `cashier` flag arriving as the string `'1'` off a stale row hands out nothing
+
+All five guards mutation-proved, each failing by its own name: remove the
+self-void bar and *"the কোষাধ্যক্ষ cancels a collector's"* fails; drop `rowRole`
+and *"an old row saying 'user' is still a collector's"* fails; drop the exiting
+check, the ownership check or the freeze check and each names itself.
+
+And the screen is asserted to keep **no copy** of either rule — `never one's own`
+must not appear in `js/app.js` any more. The comment moved with the decision.
+
+### On the server's deliberate disagreement
+
+`Code.gs voidAllowed_` **permits** a self-void; this refuses one. That is not a
+drift and the server says so in as many words: the 5-second Undo toast writes a
+void on your own row, because a row already on its way to the Sheet cannot be
+retracted by a local delete — it would resurrect on the next pull. Two doors, two
+rules, both correct. The comment travelled into aggregate.js with the rule so the
+next person meets it before "fixing" it.
+
+Tests 3,677 → 3,704. CLIENT night.

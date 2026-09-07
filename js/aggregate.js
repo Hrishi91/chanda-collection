@@ -1821,6 +1821,43 @@
   // `progmoney` is marked as belonging to it too. The comment above that very
   // line says the third ভাঁড়ার should be marked the day it is added rather than
   // the day somebody notices this line never mentioned it.
+  // A273: the two ownership rules, moved OUT of js/app.js so a test can run
+  // them. The full survey of that file (411 mutations, 339 survived, 66 of the
+  // 72 catches by a regex over its source text) said what a rate cannot: these
+  // decide who may rewrite a donor's row and who may cancel an entry, and
+  // nothing executed either of them. They are pure given their inputs, so
+  // "browser code" was never the reason.
+  //
+  // Behaviour is preserved EXACTLY, including the strict `===` on identity and
+  // the `=== 1` on cashier — see A269, where a cashier flag arriving as the
+  // string '1' off a stale row deliberately does not promote anybody. The
+  // screen keeps the reading of Auth/Settings/frozen(); only the decision moved.
+  //
+  //   ctx: { myId, exiting }  ·  { myId, frozen }
+  function canEditParty(user, party, ctx) {
+    const c = ctx || {};
+    if (!user || !party) return false;
+    if (user.role === 'admin') return true;
+    if (c.exiting) return false;      // push refuses `parties` for them
+    return !!party.collectorId && party.collectorId === c.myId;
+  }
+  function canVoid(user, entry, ctx) {
+    const c = ctx || {};
+    if (!user || !entry) return false;
+    // A116i: voiding moves money out of the book — frozen means frozen. The
+    // admin exemption rides inside the caller's frozen(), same as everywhere.
+    if (c.frozen) return false;
+    if (user.role === 'admin') return true;
+    // never one's own: the right path for an OLD row of yours is to flag a
+    // correction and let the কোষাধ্যক্ষ decide. The 5-second Undo toast is a
+    // different door with a different rule, and the server allows that one
+    // deliberately (Code.gs voidAllowed_ says so in as many words).
+    if (entry.collectorId && entry.collectorId === c.myId) return false;
+    // rowRole, not a raw compare: the server used to store the Users-sheet word
+    // ('user'), which never equalled 'collector'.
+    if (user.cashier === 1) return rowRole(entry.collectorRole) === 'collector';
+    return false;
+  }
   function keyOfFund(key, sector) {
     const sec = String(sector || '');
     const p = permParts(key); if (p) return p.fund === sec;
@@ -2277,7 +2314,7 @@
     return granted.filter(function (r) { return REPORT_IDS.indexOf(r) >= 0; });
   }
 
-  const api = { isDue, moreThan, keyOfFund, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
+  const api = { isDue, moreThan, keyOfFund, canEditParty, canVoid, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
                 inHandRows: inHandRows, personalSummary: personalSummary,
                 myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,
