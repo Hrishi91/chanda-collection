@@ -9488,6 +9488,55 @@ pending.push((async function () {
   }
 })());
 
+// A272 — the sweep only ever finds the spellings you thought of.
+//
+// A266 swept for `due > 0` and A267 for a money name against a bare 0. The FULL
+// survey of js/app.js — all 411 spots, not a sample — found a second dues filter
+// written INVERTED:
+//
+//   if (findDueOnly && (p.pledged || 0) - (p.paid || 0) <= 0) return false;
+//
+// Same rule, same bug, opposite spelling, and both sweeps walked past it. So
+// this one is written at the LINE level, not the expression level: a money name
+// anywhere on the line plus a comparison against a bare 0 anywhere on the line,
+// in either direction. It cannot be dodged by rearranging the operator.
+{
+  const app72 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const lines72 = app72.split('\n');
+  const MONEY = /\b(pledged|paid|due|inHand|inHandNow|avail|balance|capCash|capUpi|pendingOut|debt|spent|left|pend)\b/;
+  const ZERO = /[<>]=?\s*0\b|\b0\s*[<>]=?/;
+  // Exempt by NAME, not by line number, and only for figures that cannot carry a
+  // crumb: `m.total` is the flow's own typed answer, `amt` a typed amount, and
+  // cashAmount/upiAmount are one stored record's fields. Nobody adds these up,
+  // so no reordering can shift them — and A267's rule is that dragging a count
+  // or a single stored figure through an epsilon only blurs what it means.
+  // A name not on this list is flagged, which is the right default for new code.
+  const TYPED = /\bm\.total\b|\bamt\b|\brow\.(cash|upi)Amount\b/;
+  const flags = [];
+  lines72.forEach(function (ln, i) {
+    if (ln.trim().indexOf('//') === 0) return;
+    const code = ln.split('//')[0];
+    if (!MONEY.test(code) || !ZERO.test(code)) return;
+    if (/Aggregate\./.test(code) || TYPED.test(code)) return;
+    flags.push('L' + (i + 1) + ' ' + ln.trim().slice(0, 70));
+  });
+  eq(flags.length, 0, 'A272: no money figure in js/app.js meets a bare 0 in ANY spelling → ' + flags.join(' ⏐ '));
+
+  // and the six the full survey turned up, pinned where they are load-bearing
+  eq(/if \(findDueOnly && !Aggregate\.isDue\(/.test(app72), true,
+     'A272: the SECOND dues filter asks the same question as the first');
+  eq(/if \(!Aggregate\.moreThan\(a\.avail\.total, 0\)\)/.test(app72), true,
+     'A272: "you have nothing to hand over" is not decided by a crumb');
+  eq((app72.match(/Aggregate\.moreThan\(/g) || []).length >= 17, true,
+     'A272: …and the category chips and cap notices go through it too');
+
+  // the property itself, so the pinned spellings are not the only thing holding it
+  const A72 = require('../js/aggregate.js');
+  const crumb = 300.30 - (100.10 + 100.10 + 100.10);
+  eq(A72.isDue(crumb), false, 'A272: a settled donor is not due, whichever screen asks');
+  eq(A72.moreThan(crumb, 0), false, 'A272: …and holds nothing, whichever screen asks that');
+}
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

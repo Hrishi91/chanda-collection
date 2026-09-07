@@ -1401,10 +1401,10 @@
       // for a pot that owes. Without this the cap looks like a bug.
       const cap = s.cap || {};
       const notices =
-        (cap.pendingOut && cap.pendingOut.total
+        (Aggregate.moreThan((cap.pendingOut || {}).total, 0)
           ? '<div class="strip">' + tMoney('sheet_cap_pending', cap.pendingOut.total) +
             '<span class="sub">' + esc(t('sheet_cap_pending_sub')) + '</span></div>' : '') +
-        (cap.debt && cap.debt.total
+        (Aggregate.moreThan((cap.debt || {}).total, 0)
           ? '<div class="strip bad">' + tMoney('sheet_cap_debt', cap.debt.total) +
             '<span class="sub">' + esc(t('sheet_cap_debt_sub')) + '</span></div>' : '');
       html += notices +
@@ -2213,9 +2213,9 @@
     // (sent, awaiting approval), say THAT, because "no money" would read as a
     // bug to someone who collected all morning.
     const begin = function (opts, a) {
-      if ((a.avail.total || 0) <= 0) {
+      if (!Aggregate.moreThan(a.avail.total, 0)) {
         const pend = (a.avail.pendingOut || {}).total || 0;
-        toast(pend > 0 ? t('ho_nothing_pending').replace('{n}', fmtMoney(pend)) : t('ho_nothing'));
+        toast(Aggregate.moreThan(pend, 0) ? t('ho_nothing_pending').replace('{n}', fmtMoney(pend)) : t('ho_nothing'));
         return;
       }
       startFlow(handoverFlow(opts, a.avail, a.view));
@@ -3906,7 +3906,7 @@
     const el = document.getElementById('fp-results'); if (!el) return;
     const rows = findParties.filter(function (p) {
       if (findFilter !== 'all' && p.type !== findFilter) return false;
-      if (findDueOnly && (p.pledged || 0) - (p.paid || 0) <= 0) return false;
+      if (findDueOnly && !Aggregate.isDue((p.pledged || 0) - (p.paid || 0))) return false;
       return matchParty(p, findQuery);
     }).sort(function (a, b) { return ((b.pledged - b.paid) || 0) - ((a.pledged - a.paid) || 0); });
     el.innerHTML = rows.length ? rows.map(function (p) {
@@ -5349,7 +5349,7 @@
   function byCatInline(byCat) {
     if (!byCat) return '';
     const parts = Object.keys(CAT_LABEL_KEYS).filter(function (k) {
-      return byCat[k] && (byCat[k].cash || byCat[k].upi);
+      return byCat[k] && Aggregate.moreThan(byCat[k].cash + byCat[k].upi, 0);
     }).map(function (k) {
       const c = byCat[k].cash, u = byCat[k].upi;
       return esc(t(CAT_LABEL_KEYS[k])) + ' ' + fmtMoney(c + u) +
@@ -5831,7 +5831,7 @@
       // "which pot is that money from", which is the first question at a count
       const cats = Object.keys(CAT_LABEL_KEYS);
       const used = cats.filter(function (k) {
-        return (d.rows || []).some(function (r) { const c = (r.byCat || {})[k]; return c && (c.cash || c.upi); });
+        return (d.rows || []).some(function (r) { const c = (r.byCat || {})[k]; return c && Aggregate.moreThan(c.cash + c.upi, 0); });
       });
       return '<h3>' + esc(t('report_inhand')) + '</h3>' +
         printTable([t('collector_col'), t('collected_col'), t('received_col'), t('handed_col'),

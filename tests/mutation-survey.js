@@ -2,6 +2,13 @@
 // run it by hand when you want to know what the tests actually hold.
 //
 //   node tests/mutation-survey.js js/aggregate.js 40
+//   node tests/mutation-survey.js js/app.js all out.jsonl
+//
+// A272: `all` means every candidate, not a spread sample — a sample tells you a
+// RATE, and a rate is not a list of what is unheld. The optional third argument
+// writes one JSON line per mutation including the NAME of the first assertion
+// that caught it, which is the only way to tell a test that ran the code from a
+// regex that pinned its spelling.
 //
 // It edits the target file in place and restores it after every run, so do not
 // run it with uncommitted work in that file. Three times this
@@ -17,7 +24,13 @@ const fs = require('fs'), cp = require('child_process');
 const ROOT = require('path').join(__dirname, '..');
 
 const TARGET = process.argv[2] || 'js/aggregate.js';
-const LIMIT = Number(process.argv[3] || 60);
+const ALL = String(process.argv[3] || '') === 'all';
+const LIMIT = ALL ? Infinity : Number(process.argv[3] || 60);
+// absolute or repo-relative, so the log can live outside the tree it is
+// measuring — writing it INSIDE the repo would put it under the next mutation.
+const JSONL = process.argv[4]
+  ? (process.argv[4].charAt(0) === '/' ? process.argv[4] : ROOT + '/' + process.argv[4])
+  : '';
 const path = ROOT + '/' + TARGET;
 const orig = fs.readFileSync(path, 'utf8');
 const lines = orig.split('\n');
@@ -43,8 +56,9 @@ lines.forEach(function (ln, i) {
 });
 
 // spread the sample across the file rather than taking the first N
-const step = Math.max(1, Math.floor(cands.length / LIMIT));
-const sample = cands.filter(function (_, i) { return i % step === 0; }).slice(0, LIMIT);
+const step = ALL ? 1 : Math.max(1, Math.floor(cands.length / LIMIT));
+const sample = ALL ? cands
+  : cands.filter(function (_, i) { return i % step === 0; }).slice(0, LIMIT);
 
 console.log(TARGET + ': ' + cands.length + ' mutable spots, testing ' + sample.length + '\n');
 
@@ -63,7 +77,23 @@ sample.forEach(function (c, n) {
   const m = out.match(/(\d+) passed, (\d+) failed/);
   const caught = m ? Number(m[2]) > 0 : false;
   const ran = !!m;
-  const tag = !ran ? '💥 no summary' : (caught ? '✅ caught' : '🚨 SURVIVED');
+  // which assertion noticed — 'FAIL <name> → got …'. A name is the difference
+  // between "a test exercised this line" and "a regex pinned how it is spelled".
+  const first = (out.match(/^FAIL ([^\n]*)/m) || [])[1] || '';
+  const by = first.split(' → ')[0].trim();
+  // Three outcomes, not two. A mutation that makes the suite THROW is "caught"
+  // only in the sense that something ran the line and it blew up — no assertion
+  // held its behaviour, and everything after the throw never ran. Recording that
+  // as an ordinary catch would flatter the coverage number badly.
+  const aborted = caught && (/SUITE ABORTED/.test(out) || !by);
+  const tag = !ran ? '💥 no summary'
+    : (caught ? (aborted ? '💥 threw' : '✅ caught') : '🚨 SURVIVED');
+  if (JSONL) {
+    fs.appendFileSync(JSONL, JSON.stringify({
+      line: c.line + 1, from: c.from, to: c.to, ran: ran, caught: caught,
+      aborted: aborted, by: by, text: lines[c.line].trim().slice(0, 200),
+    }) + '\n');
+  }
   if (!ran || !caught) survivors.push({ c: c, ran: ran, text: lines[c.line].trim().slice(0, 110) });
   process.stdout.write('  ' + String(n + 1).padStart(3) + '/' + sample.length + ' L' +
     String(c.line + 1).padEnd(5) + ' ' + JSON.stringify(c.from) + '→' + JSON.stringify(c.to) +

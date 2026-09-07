@@ -17861,3 +17861,93 @@ the only file here whose survivors were never triaged one by one, because there
 are 436 of them.
 
 Tests 3,639 → 3,671. CLIENT night (`js/db.js` comment only).
+
+## A272 — js/app.js surveyed properly: all 411, and what the number really is
+
+Not a sample. Every mutable spot in the largest file in the repo, one at a time,
+48 minutes. The tool gained three things first (A272 in `tests/mutation-survey.js`):
+`all` instead of a spread sample, a JSONL log, and — the one that changed the
+answer — **the NAME of the assertion that caught each mutation**.
+
+```
+411 mutations
+  339  🚨 survived                     82%
+   72  ✅ caught by a named assertion
+    0  💥 threw
+```
+
+Then the names were looked up in `tests/run.js`, and that is where the real
+number is: **66 of the 72 were caught by a regex over the source text.** Only
+**five** were caught by an assertion that ran a computation — A119 (the edit
+door skipping hidden steps), A218 (a shop entered on one phone found from
+another), A222 (no key drawn in two groups).
+
+**Behavioural coverage of js/app.js is five mutations in 411. One point two
+percent.** Everything else is either unheld or held by its spelling.
+
+That is not an argument for deleting the tripwires — they caught four of my own
+edits in this session and each had to be repointed deliberately. It is an
+argument for not calling them coverage.
+
+### By subject
+
+| bucket | spots | survived | caught |
+|---|---|---|---|
+| render | 199 | 165 | 34 |
+| list | 57 | 50 | 7 |
+| flow | 41 | 33 | 8 |
+| sync | 38 | 31 | 7 |
+| **money** | 37 | **33** | 4 |
+| **permission** | 39 | **27** | 12 |
+
+Permission is the best-held part of the file and money the worst — which is the
+wrong way round, and is exactly what A266/A267/A272 have been fixing.
+
+### The bug it found: the sweep only finds the spellings you thought of
+
+A266 swept for `due > 0`. A267 swept for a money name against a bare `0`. The
+full survey turned up a **second dues filter, written inverted**:
+
+```js
+if (findDueOnly && (p.pledged || 0) - (p.paid || 0) <= 0) return false;
+```
+
+Same rule, same bug, opposite operator — and **both sweeps walked past it.** A
+donor who has paid in full to a floating-point crumb stays in 🔎 খুঁজে দাও's
+"অনাদায়ী only" results.
+
+Five more of the same family, all found by the full run and none by either
+sweep: the 🤝 sheet's two cap notices (`cap.pendingOut && cap.pendingOut.total` —
+a total is TRUTHY at 5.7e-14), the "you have nothing to hand over" gate
+(`(a.avail.total || 0) <= 0`, which opened a flow at ₹0), which of the two
+"nothing pending" messages to show, and two category chips decided by
+`(c.cash || c.upi)`.
+
+**Seven sites.** All now through `Aggregate.isDue` / `Aggregate.moreThan`.
+
+### The sweep is written at the LINE level now
+
+A money name anywhere on the line plus a comparison against a bare 0 anywhere on
+the line, either direction. It cannot be dodged by rearranging the operator. The
+exemptions are by NAME, not by line number — `m.total`, `amt`,
+`row.cashAmount`/`row.upiAmount` — and each is a typed or single stored figure
+that nobody adds up, so no reordering can shift it. A money name not on that list
+is flagged, which is the right default for code nobody has written yet.
+
+Mutation-proved by putting the inverted spelling back: it fails by name, quoting
+the line.
+
+### What is NOT a bug
+
+Triaged by hand, not by rate. `permsOf(pid).indexOf('cashier') >= 0` in
+`posBlock`, `REPORT_IDS.indexOf(k) < 0`, the permission chip's
+`if (i >= 0) list.splice(i, 1); else list.push(k)` — all first-element-sensitive
+shapes, all **correct as written**, none held by anything. And the server's
+mirror, `canAssignPosition_`, tests `positionPerms_(want).cashier === 1` — a map
+lookup, immune to order. Both halves agree.
+
+The remaining 332 survivors are the open item in `docs/pending.md`, unchanged:
+app.js cannot be tested where it is, and the answer is to move decisions OUT of
+it, not to write 332 regexes.
+
+Tests 3,671 → 3,677. CLIENT night.
