@@ -3204,6 +3204,58 @@ eq(ho.debt.total, 100, 'handoverable: reports the overspent pot separately — a
 // pot-level: each pending parcel comes off ITS OWN pot, read from the breakdown
 eq(ho.byCat.person, { cash: 200, upi: 0 }, 'handoverable: person 500 − its own 300 pending');
 
+// ---- A256: one ভাঁড়ার's purse ------------------------------------------------
+// Hrishi's decision: the programme gets its own কোষাধ্যক্ষ, so a collector's
+// money has to be answerable per book. The cheap way — the one that asks the
+// collector nothing new — is that ofSector ALREADY separates donors, chanda,
+// daily and expenses, so the purse falls out of a filter rather than a new
+// question or a new pot format.
+//
+// The law: asked for a fund you get that fund, asked for nothing you get what
+// this function has always returned. Both halves must sum to the whole, or a
+// collector's own screen and their handover sheet stop agreeing about what is
+// in their pocket.
+{
+  const mk = function (handovers) {
+    return {
+      parties: [{ id: 'p1', type: 'shop', sector: 'puja' },
+                { id: 'g1', type: 'person', sector: 'program' }],
+      voids: [], corrections: [], expenses: [], handovers: handovers,
+      payments: [{ id: 'y1', collectorId: 'y', partyId: 'p1', amount: 1000, cashAmount: 700, upiAmount: 300 },
+                 { id: 'y2', collectorId: 'y', partyId: 'g1', amount: 400, cashAmount: 400, upiAmount: 0 }],
+      daily: [{ id: 'd1', collectorId: 'y', type: 'ticket', amount: 600, cashAmount: 600, upiAmount: 0, sector: 'program' }],
+    };
+  };
+  const tot = function (x) { return x.cash + x.upi; };
+  const clean = mk([]);
+  eq(tot(handoverable(clean, 'y')), 2000, 'A256: asked for no fund, the answer is every book together — unchanged');
+  eq(tot(handoverable(clean, 'y', 'puja')), 1000, 'A256: …the puja\'s book on its own');
+  eq(tot(handoverable(clean, 'y', 'program')), 1000, 'A256: …and the programme\'s');
+  eq(tot(handoverable(clean, 'y', 'puja')) + tot(handoverable(clean, 'y', 'program')),
+     tot(handoverable(clean, 'y')),
+     'A256: …and the two halves are exactly the whole — no rupee in both, none in neither');
+  // the split is per money TYPE too, not only per total
+  eq([handoverable(clean, 'y', 'puja').cash, handoverable(clean, 'y', 'puja').upi], [700, 300],
+     'A256: cash and UPI are split per fund as well, because the ceiling is per type');
+  // a parcel already on its way out comes off ITS OWN book
+  const inFlight = mk([{ id: 'h1', fromId: 'y', toId: 'k', amount: 300, cashAmount: 300, upiAmount: 0,
+                         status: 'pending', sector: 'program',
+                         breakdown: JSON.stringify({ ticket: { cash: 300, upi: 0 } }) }]);
+  eq(tot(handoverable(inFlight, 'y', 'program')), 700,
+     'A256: a parcel in flight is deducted from the book it names…');
+  eq(tot(handoverable(inFlight, 'y', 'puja')), 1000, 'A256: …and from no other');
+  eq(handoverable(inFlight, 'y', 'program').pendingOut.total, 300,
+     'A256: …and that book reports it as its own money on the way out');
+  eq(handoverable(inFlight, 'y', 'puja').pendingOut.total, 0, 'A256: …while the other reports none');
+  // a parcel written before funds existed names none, and is the puja's — the
+  // same default sectorOf has always used for a row with no sector
+  const legacy = mk([{ id: 'h0', fromId: 'y', toId: 'k', amount: 200, cashAmount: 200, upiAmount: 0,
+                       status: 'pending', breakdown: JSON.stringify({ shop: { cash: 200, upi: 0 } }) }]);
+  eq(tot(handoverable(legacy, 'y', 'puja')), 800, 'A256: a parcel naming no fund is the puja\'s…');
+  eq(tot(handoverable(legacy, 'y', 'program')), 1000, 'A256: …and does not touch the programme\'s');
+  eq(tot(handoverable(legacy, 'y', 'nonsense')), 800, 'A256: an unknown fund reads as the puja\'s');
+}
+
 // ---- A248: found by MEASURING, not by guessing --------------------------------
 // I twice decided a module was untested by grepping the test files for its
 // names and was twice wrong. So instead: mutate the money code mechanically

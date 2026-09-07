@@ -912,9 +912,33 @@
   //   Σ chips     = 💵600 + 📱800 = 1,400   ← what the sheet used to offer
   //   cash/upi    = 💵500 + 📱800 = 1,300   ← what is really there
   // The 100 gap is the road debt. Both clamps, or the books can go negative.
-  function handoverable(data, ident) {
-    const av = myAvailable(data, ident);
-    const pend = handoverSlots(data, ident).out.pending;
+  // A256: `sector` asks for ONE ভাঁড়ার's purse. Omitted, the answer is exactly
+  // what it has always been — every book together — so no caller changes and
+  // nothing on any screen moves until a caller asks for a fund by name.
+  //
+  // The split costs nothing new because ofSector already separates donors,
+  // chanda, daily and expenses. What it cannot separate is a parcel: handovers
+  // carry no fund yet, so a parcel is attributed to the book it names, and one
+  // that names none is the puja's — the same default sectorOf has always used
+  // for a row written before funds existed.
+  function handoverable(data, ident, sector) {
+    const want = sector === undefined ? null
+      : (SECTORS.indexOf(String(sector)) >= 0 ? String(sector) : 'puja');
+    const av = myAvailable(want ? ofSector(data, want) : data, ident);
+    const allPend = handoverSlots(data, ident).out.pending;
+    let pend = allPend;
+    if (want !== null) {
+      const rows = allPend.rows.filter(function (h) { return sectorOf(h) === want; });
+      // rebuilt with every figure the whole-book version carries, not only the
+      // ones this function happens to read today — a partial copy of a shape is
+      // a NaN waiting for the next reader.
+      pend = { rows: rows, total: 0, cash: 0, upi: 0 };
+      rows.forEach(function (h) {
+        pend.total += Number(h.amount) || 0;
+        const sp = splitOf(h);
+        pend.cash += sp.cash; pend.upi += sp.upi;
+      });
+    }
     const free = {};
     Object.keys(av.byCat).forEach(function (k) {
       free[k] = { cash: av.byCat[k].cash, upi: av.byCat[k].upi };

@@ -17008,3 +17008,36 @@ the server gate that nothing calls yet.
 **Still to come:** step 2 gives a parcel its fund and splits "আমার হাতে কত";
 step 3 makes `confirmHandover` demand the cashier of that book. Those touch the
 money path; this one does not.
+
+## A256 — one ভাঁড়ার's purse (step 2a: the arithmetic, and nothing else)
+
+`handoverable(data, ident, sector)` now answers for one book. Asked for nothing
+it returns exactly what it always did, so no caller changes and nothing on any
+screen moves yet — this step is arithmetic only.
+
+**The split cost nothing new.** `ofSector` already separates donors, chanda,
+daily and expenses, so one fund's purse is a filter rather than a second pot
+format, a migration, or a question put to the collector. That was the whole
+reason for checking before designing.
+
+The law it is pinned by: **the two halves are exactly the whole** — no rupee in
+both books, none in neither — and per money TYPE as well as per total, because
+the handover ceiling is per type. A collector's own screen and their handover
+sheet reading different numbers for the same pocket is the failure this
+prevents.
+
+A parcel already on its way out comes off **its own** book and no other. One
+written before funds existed names none and is the puja's — the same default
+`sectorOf` has always used for a row with no `sector`.
+
+**One thing worth writing down.** The first version rebuilt the pending object
+with only the two fields this function happens to read today, and the ceiling
+came back `NaN` — `pend.cash`/`pend.upi` were computed thirty lines below. A
+partial copy of a shape is a NaN waiting for its next reader; it is rebuilt with
+every figure the whole-book version carries.
+
+Tests 3,442 (from 3,430). Four mutations, all named.
+
+**Still inert:** nothing calls it with a fund yet. Step 2b gives a parcel its
+fund and splits what the screens show; step 3 makes `confirmHandover` demand the
+cashier of that book.
