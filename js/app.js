@@ -7306,7 +7306,16 @@
     // A127: the admin's own taps (block, reset, role, cashier…) had NO visible
     // response at all — not even a disable — for the full 1–3 s round trip.
     const undo = busyBtn(btn);
-    Auth.call(action, Object.assign({ token: Auth.token() }, payload))
+    // A263: every admin write on a person goes through this one door, so the
+    // version the screen was built on is attached here rather than at eight
+    // call sites. The server refuses a save built on a stale read instead of
+    // silently overwriting whatever the other admin just did.
+    const body = Object.assign({ token: Auth.token() }, payload);
+    if (body.userId && admCache) {
+      const known = (admCache.users || []).filter(function (u) { return u.id === body.userId; })[0];
+      if (known && known.updatedAt) body.seenAt = known.updatedAt;
+    }
+    Auth.call(action, body)
       .then(function (resp) {
         undo();
         after && after(resp);
@@ -7317,7 +7326,19 @@
       // long enough to notice, nowhere near long enough to read, remember and
       // report. The person using this screen is the person who reports bugs, so
       // the message names the action too: one line is then a whole bug report.
-      .catch(function (e) { undo(); alert('⚠️ ' + action + '\n\n' + errMsg(e)); });
+      .catch(function (e) {
+        undo();
+        // A263: this one is not a failure to explain, it is a fact to act on —
+        // somebody else changed this person while the screen was open. Say so
+        // in words and reload, so the next tap is built on what is actually
+        // there rather than on what was there a minute ago.
+        if (String(e && e.message) === 'changed-elsewhere') {
+          alert('⚠️ ' + t('err_changed_elsewhere'));
+          renderAdmin(true);
+          return;
+        }
+        alert('⚠️ ' + action + '\n\n' + errMsg(e));
+      });
   }
   // A78 ── the committee's access door ─────────────────────────────────────
   // Standing a member down takes their post AND both permission lists in one

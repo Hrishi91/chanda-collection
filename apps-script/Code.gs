@@ -572,6 +572,21 @@ function findUser_(col, val) {
   }
   return null;
 }
+// A263: refuse a write built on a stale read.
+//
+// Two admins, one person: A opens the permission screen, B grants বাস, A saves
+// the screen they opened before that — and বাস is gone, silently, with nobody
+// told. Found by driving the interleaving, and it matters here more than
+// anywhere because this screen decides who may touch money.
+//
+// `seenAt` is OPTIONAL on purpose: a phone running an older build sends none
+// and behaves exactly as it always did. A guard that broke every un-refreshed
+// phone would be a worse bug than the one it fixes.
+function requireUnchanged_(u, seenAt) {
+  var seen = String(seenAt || '');
+  if (!seen) return;
+  if (seen !== String(u.row.updatedAt || '')) throw new Error('changed-elsewhere');
+}
 function saveUser_(u) {
   u.row.updatedAt = new Date().toISOString();
   usersSheet_().getRange(u.rowIndex, 1, 1, USER_COLS.length)
@@ -596,6 +611,11 @@ function publicUser_(row) {
   var eff = effPerms_(row);
   return { id: row.id, username: row.username, name: row.name, phone: row.phone,
            email: String(row.email || ''),
+           // A263: the row's own version. saveUser_ already stamps it on every
+           // write, so it costs nothing to carry — and it is what lets an admin
+           // screen say "somebody changed this while you had it open" instead
+           // of silently overwriting them.
+           updatedAt: String(row.updatedAt || ''),
            role: row.role, cashier: eff.cashier,
            reports: eff.reports.join(','), status: row.status,
            years: String(row.years || ''), mustChange: Number(row.mustChange) || 0,
@@ -1347,7 +1367,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.92.0';
+var CODE_VERSION = 'chanda-v4.93.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -2913,6 +2933,7 @@ var ACTIONS = {
     var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
+    requireUnchanged_(u, b.seenAt);   // A263
     if (['approved', 'blocked', 'pending'].indexOf(b.status) < 0) throw new Error('bad-input');
     var note = '';
     if (b.status === 'blocked') {
@@ -2952,6 +2973,7 @@ var ACTIONS = {
     try { ensureCols_(usersSheet_(), USER_COLS); } finally { lock.releaseLock(); }
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
+    requireUnchanged_(u, b.seenAt);   // A263
     var want = String(b.access || '');
     if (['', 'exiting'].indexOf(want) < 0) throw new Error('bad-input');
     if (want === 'exiting') {
@@ -3141,6 +3163,7 @@ var ACTIONS = {
     var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
+    requireUnchanged_(u, b.seenAt);   // A263
     // A78: not while they are standing down. The access-block empties the
     // permission lists, and every gate in push honours it — but confirmHandover
     // is not a push, it asks isCashier_ directly. So handing the cashier flag
@@ -3158,6 +3181,7 @@ var ACTIONS = {
     var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
+    requireUnchanged_(u, b.seenAt);   // A263
     u.row.reports = (b.reports || []).filter(function (r) {
       return REPORT_IDS.indexOf(r) >= 0;
     }).join(',');
@@ -3173,6 +3197,7 @@ var ACTIONS = {
     var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
+    requireUnchanged_(u, b.seenAt);   // A263
     if (['admin', 'user'].indexOf(b.role) < 0) throw new Error('bad-input');
     // A78: an admin bypasses every gate in this file, so promoting a
     // stood-down member would hand back more than they ever had — silently,
@@ -3194,6 +3219,7 @@ var ACTIONS = {
     var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
+    requireUnchanged_(u, b.seenAt);   // A263
     u.row.entries = (b.entries || []).filter(function (e) { return PERM_KEYS.indexOf(e) >= 0; }).join(',');
     saveUser_(u);
     logAudit_(me.row, 'entries', '@' + u.row.username + ' → [' + u.row.entries + ']');
@@ -3211,6 +3237,7 @@ var ACTIONS = {
     try { ensureCols_(usersSheet_(), USER_COLS); } finally { lock.releaseLock(); }
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
+    requireUnchanged_(u, b.seenAt);   // A263
     var want = String(b.position || '');
     // A115: the admin panel and the member register are two doors to this one
     // field, so both come through canAssignPosition_. For an admin it answers
@@ -3413,6 +3440,7 @@ var ACTIONS = {
     var me = requireAdmin_(b.token);
     var u = findUser_('id', b.userId);
     if (!u) throw new Error('user not found');
+    requireUnchanged_(u, b.seenAt);   // A263
     u.row.areas = (b.areas || []).map(String).filter(Boolean).join(',');
     saveUser_(u);
     logAudit_(me.row, 'areas', '@' + u.row.username + ' → [' + u.row.areas + ']');

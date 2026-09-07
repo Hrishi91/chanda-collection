@@ -4609,6 +4609,88 @@ module.exports = function runBackendTests(eq) {
        'backend A257: …with the whole-book answer still the sum of the two');
   }
 
+  // --- A263: two admins, one person, and the change that vanished -----------
+  // Driven as an interleaving, which is the only shape that finds it: adm1
+  // opens the permission screen, adm2 grants বাস, adm1 saves the screen they
+  // opened before that. বাস used to disappear — silently, with nobody told, on
+  // the one screen that decides who may touch money. And Hrishi's own list has
+  // "make a SECOND admin before go-live" still open, so this is not theoretical.
+  {
+    const b263 = loadBackend(); b263.api.setup();
+    ['adm263a', 'adm263b', 'ratan263'].forEach(function (u, i) {
+      b263.post('register', { username: u, name: u, password: 'secret' + i, phone: '98130000' + i });
+    });
+    const t0 = b263.call('login', { username: 'adm263a', password: 'secret0', year: 2026 }).token;
+    const uid = function (u) { return b263.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+    ['adm263b', 'ratan263'].forEach(function (u) {
+      b263.call('setStatus', { token: t0, userId: uid(u), status: 'approved' });
+      b263.call('approveYear', { token: t0, userId: uid(u), year: 2026 });
+    });
+    b263.call('setRole', { token: t0, userId: uid('adm263b'), role: 'admin' });
+    b263.call('setEntries', { token: t0, userId: uid('ratan263'), entries: ['shop', 'person', 'road'] });
+    const tkA = b263.call('login', { username: 'adm263a', password: 'secret0', year: 2026 }).token;
+    const tkB = b263.call('login', { username: 'adm263b', password: 'secret1', year: 2026 }).token;
+    const rowOf = function () { return b263.rows('Users').filter(function (x) { return x.username === 'ratan263'; })[0]; };
+
+    const seen = String(rowOf().entries || ''), stamp = String(rowOf().updatedAt || '');
+    eq(!!stamp, true, 'backend A263: the user row carries a version to compare against');
+    // …and it REACHES the screen. Without this the client has nothing to send
+    // back, the guard never fires, and every assertion below would still pass
+    // while the fix did nothing at all.
+    const shown = (b263.call('listUsers', { token: tkA }).users || [])
+      .filter(function (u) { return u.username === 'ratan263'; })[0];
+    eq(String((shown || {}).updatedAt || ''), stamp,
+       'backend A263: …and the admin screen is given that version to send back');
+    // the shim's clock is frozen; let time pass between the two admins the way
+    // it does between two round trips, or both writes share one stamp
+    b263.env._setNow(b263.env._now() + 1000);
+    b263.call('setEntries', { token: tkB, userId: uid('ratan263'), entries: seen.split(',').concat(['bus']) });
+    b263.env._setNow(b263.env._now() + 1000);
+    let stale = 'ok';
+    try {
+      b263.call('setEntries', { token: tkA, userId: uid('ratan263'),
+        entries: seen.split(',').concat(['toto']), seenAt: stamp });
+    } catch (e) { stale = String((e && e.message) || e); }
+    eq(stale, 'changed-elsewhere', 'backend A263: a save built on a stale read is refused BY NAME');
+    eq(String(rowOf().entries || '').indexOf('bus') >= 0, true,
+       'backend A263: …the other admin\'s change is intact');
+    eq(String(rowOf().entries || '').indexOf('toto') < 0, true,
+       'backend A263: …and nothing was written half-way');
+    // …and the same admin, having reloaded, saves fine
+    let after = 'no';
+    try {
+      b263.call('setEntries', { token: tkA, userId: uid('ratan263'),
+        entries: ['shop', 'person', 'road', 'bus', 'toto'], seenAt: String(rowOf().updatedAt || '') });
+      after = 'ok';
+    } catch (e) { after = String((e && e.message) || e); }
+    eq(after, 'ok', 'backend A263: …and the reloaded screen saves');
+    // an OLDER phone sends no version at all, and MUST keep working — a guard
+    // that broke every un-refreshed phone would be worse than the bug it fixes
+    let old = 'no';
+    try { b263.call('setEntries', { token: tkA, userId: uid('ratan263'), entries: ['shop'] }); old = 'ok'; }
+    catch (e) { old = String((e && e.message) || e); }
+    eq(old, 'ok', 'backend A263: a build that sends no version behaves exactly as it always did');
+    // the same for the empty string, which is what a row written before the
+    // column existed hands back
+    let blank = 'no';
+    try {
+      b263.call('setEntries', { token: tkA, userId: uid('ratan263'), entries: ['shop'], seenAt: '' });
+      blank = 'ok';
+    } catch (e) { blank = String((e && e.message) || e); }
+    eq(blank, 'ok', 'backend A263: …and so does an empty version');
+
+    // and the guard is on every admin write to a person, not just this one —
+    // the half-a-pair mistake this file keeps finding
+    const gs263 = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+    ['setStatus', 'setAccess', 'setCashier', 'setReports', 'setRole', 'setEntries',
+     'setUserPosition', 'setAreas'].forEach(function (fn) {
+      const i = gs263.indexOf('  ' + fn + ': function (b) {');
+      const blk = gs263.slice(i, gs263.indexOf('\n  },', i));
+      eq(/requireUnchanged_\(u, b\.seenAt\)/.test(blk), true,
+         'backend A263: ' + fn + ' checks the version it was built on');
+    });
+  }
+
   // --- A260: the ROSTER is the path the handover screen actually takes -------
   // A258 taught the `cashiers` action about funds and tested it there. But A176
   // made the handover flow open from the committee roster that rides every

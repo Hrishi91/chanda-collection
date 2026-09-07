@@ -1011,6 +1011,8 @@ const I18N = {
   // heading and the always-open note live here.
   perm_fund_cashier: { bn: '💰 এই ভাঁড়ারের কোষাধ্যক্ষ — জমা নিতে পারবে',
                        en: '💰 Cashier of this fund — may receive handovers' },
+  err_changed_elsewhere: { bn: 'এই লোকের তথ্য অন্য কেউ এইমাত্র বদলেছে — তাই তোমার পর্দাটা পুরনো হয়ে গেছে।\n\nকিছু সেভ হয়নি। পর্দাটা নতুন করে দেখাচ্ছি — দেখে নিয়ে আবার করো।',
+                           en: 'Somebody else just changed this person, so your screen was out of date.\n\nNothing was saved. Reloading it — check and try again.' },
   perm_grp_view: { bn: '🤫 অন্যের গোপন সারি দেখা', en: "🤫 Seeing others' confidential rows" },
   perm_grp_other: { bn: '🛠️ আরও কিছু কাজ', en: '🛠️ Other duties' },
   perm_no_progteam: { bn: '⚠️ 🎭 অনুষ্ঠানের দলে — এটা না দিলে ট্যাবটাই খোলে না, তাই নিচের কাজগুলোতে পৌঁছনো যাবে না।',

@@ -17391,3 +17391,64 @@ Tests 3,502 (from 3,499). Both guards mutation-proved.
 
 **This is a real fix for a live phone**, not a test-only change: it needs a
 deploy and a ⚙️ → 🔄.
+
+## A263 — two admins, one person, and the grant that vanished
+
+Concurrency, driven as **interleavings** rather than threads: the shim is
+single-threaded, so what it can show is the shape that actually loses things —
+A reads, B writes, A writes.
+
+Five scenarios. Four were already right:
+
+- **confirm vs reject on one parcel** — whichever answer lands first stands, and
+  the other is refused by name (`already-confirmed` / `already-rejected`),
+  including a second confirm. A59's lock and A71's both-states guard, holding.
+- **two phones pushing the same row id** — one row on the sheet, and ownership
+  stays with whoever wrote it first.
+- **a collector voiding a parcel while the cashier is confirming it** — the
+  server lets the confirm through, but the void wins everywhere it counts: the
+  parcel is in neither the cashier's book nor the collector's. Worth knowing
+  that the *path* is sloppier than the *answer*; the money is right.
+- **one account, two phones** — the second login kills the first, as designed.
+
+**The fifth lost a permission.** adm1 opens the permission screen, adm2 grants
+বাস, adm1 saves the screen they opened before that — and বাস is gone. Silently,
+with nobody told, on the one screen that decides who may touch money. And
+*"make a SECOND admin before go-live"* is still open on Hrishi's own list, so
+this was waiting to happen rather than hypothetical.
+
+`saveUser_` has always stamped `updatedAt` on every write, so the version token
+was already there for free. It now travels to the screen in `publicUser_`, comes
+back as `seenAt`, and `requireUnchanged_` refuses a write built on a stale read —
+**on all eight admin writes to a person**, not just the one that was caught,
+because a rule written for one door and not its twin is the mistake this file
+keeps recording.
+
+The client needed one line, not eight: every one of those goes through
+`adminAction`, so the version is attached at that single door. A refusal says so
+in words and reloads the screen, rather than leaving the admin to guess.
+
+**`seenAt` is optional on purpose.** A phone running an older build sends none
+and behaves exactly as it always did — a guard that broke every un-refreshed
+phone would be a worse bug than the one it fixes. That property is proved by the
+whole suite rather than by one assertion: sixty-odd fixtures in
+`tests/backend.js` call these actions without a version, so making it mandatory
+takes the entire file down.
+
+### Two traps of my own, both already written down somewhere
+
+The first run of the fixed guard **still lost বাস**. The shim's clock is frozen,
+so both admins' writes carried the same `updatedAt` and the stale stamp matched.
+That is my own skill note — *"a shim whose clock is frozen can never exercise a
+watermark path"* — walked into again. Letting a second pass between the two
+admins, the way a round trip does, shows it correctly.
+
+And I nearly shipped the guard with the client-facing half untested: removing
+`updatedAt` from `publicUser_` broke **nothing**, because my assertions read the
+sheet directly. Without that field the screen has nothing to send, the guard
+never fires, and every other assertion would still have passed while the fix did
+nothing at all. It is pinned now.
+
+Tests 3,518 (from 3,502).
+
+**SERVER night** — the guard and the version field are both in `Code.gs`.
