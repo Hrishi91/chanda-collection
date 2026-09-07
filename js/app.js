@@ -4238,9 +4238,20 @@
   // An ordinary parcel narrows nothing, so twelve people's everyday handover is
   // exactly the screen it was yesterday.
   function recipientsFor(opts, answers) {
+    // A258: the parcel's own ভাঁড়ার narrows the list first. Two books have two
+    // কোষাধ্যক্ষ, so offering the committee's treasurer for the programme's
+    // money would build a parcel the server settles for nobody — the collector
+    // would hand over cash and it would sit unconfirmed.
+    //
+    // `funds` is missing from an OLDER server's answer, and a list without it
+    // must not empty the picker: absent means "the books this server knows
+    // nothing about", i.e. the puja's, which is what every parcel was until
+    // now.
+    const parcel = Aggregate.parcelFromSheet((answers || {}).sheet);
+    const list = Aggregate.cashiersForFund(opts, parcel.sector);
     const cats = confidentialMix(sheetBreakdown(answers)).cats;
-    if (!cats.length) return opts;
-    return (opts || []).filter(function (c) {
+    if (!cats.length) return list;
+    return list.filter(function (c) {
       const sees = String((c && c.sees) || '').split(',');
       return cats.every(function (ty) { return sees.indexOf(ty) >= 0; });
     });

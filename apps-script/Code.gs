@@ -426,6 +426,12 @@ function isCashier_(row) {
 }
 // A255: …and OF WHICH BOOK. The puja reads the flag it always did; any other
 // ভাঁড়ার reads its own granted key. Mirrors js/aggregate.js isCashierOf.
+// A258: is this person a কোষাধ্যক্ষ of ANY book? The cheap check before the
+// lock; the precise one is per parcel, once the row has been read and its
+// ভাঁড়ার is known.
+function isAnyCashier_(row) {
+  return SECTORS.some(function (sec) { return isCashierOf_(row, sec); });
+}
 function isCashierOf_(row, sector) {
   if (!row) return false;
   if (row.role === 'admin') return true;
@@ -1333,7 +1339,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.89.0';
+var CODE_VERSION = 'chanda-v4.90.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -2511,7 +2517,7 @@ var ACTIONS = {
       sh.getDataRange().getValues().slice(1).forEach(function (v) {
         var row = {};
         USER_COLS.forEach(function (c, j) { row[c] = v[j]; });
-        if (row.status === 'approved' && isCashier_(row)) {
+        if (row.status === 'approved' && isAnyCashier_(row)) {
           // role: the no-permission card needs to find the admin in this list.
           // phone: Hrishi's call — the admin's number is exactly what a locked-
           // out collector needs, and only admins' numbers are exposed.
@@ -2520,7 +2526,11 @@ var ACTIONS = {
           // screen may reach this list instead of the roster (a phone that has
           // never pulled), and a list without it would offer every cashier as a
           // valid recipient for স্পনসর / গুপ্ত money.
+          // A258: …and WHICH BOOKS they may receive. The handover screen offers
+          // only the cashiers of the parcel's own ভাঁড়ার, the same way `sees`
+          // narrows it to those who may read its confidential pots.
           names.push({ username: row.username, name: row.name, role: row.role,
+                       funds: SECTORS.filter(function (sec) { return isCashierOf_(row, sec); }).join(','),
                        sees: RESTRICTED_TYPES.filter(function (ty) {
                          return String(row.role) === 'admin' ||
                            effPerms_(row).entries.indexOf(viewPermFor_(ty)) >= 0;
@@ -2536,7 +2546,11 @@ var ACTIONS = {
   confirmHandover: function (b) {
     var u = requireUser_(b.token);
     requireUnfrozen_(u);
-    if (!isCashier_(u.row)) throw new Error('not-cashier');
+    // A258: cashier of ANY book to get this far; cashier of THIS parcel's book
+    // to settle it. The precise check is below, where the row has been read
+    // under the lock and its ভাঁড়ার is known — asking here would mean trusting
+    // the caller to say which book their own parcel is in.
+    if (!isAnyCashier_(u.row)) throw new Error('not-cashier');
     var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.handovers);
     var cols = SHEETS.handovers;
     if (sh.getLastRow() < 2) throw new Error('not-found');
@@ -2571,6 +2585,11 @@ var ACTIONS = {
         // direct-call path.
         var mine = isRecipient_(rowObj, u);
         if (!mine && u.row.role !== 'admin') throw new Error('not-recipient');
+        // A258: …and the কোষাধ্যক্ষ OF THIS BOOK. Two books have two cashiers
+        // now, so being the committee's is no longer an answer to "may I settle
+        // the programme's money". Read from the row under the lock, never from
+        // anything the caller sent.
+        if (!isCashierOf_(u.row, sectorOf_(rowObj))) throw new Error('not-cashier-of-fund');
         // Already settled: re-confirming would restamp confirmedBy/confirmedAt
         // and hide who really acknowledged it.
         //
@@ -2628,7 +2647,7 @@ var ACTIONS = {
   rejectHandover: function (b) {
     var u = requireUser_(b.token);
     requireUnfrozen_(u);
-    if (!isCashier_(u.row)) throw new Error('not-cashier');
+    if (!isAnyCashier_(u.row)) throw new Error('not-cashier');
     var reason = String(b.reason || '').trim().slice(0, 200);
     if (!reason) throw new Error('reason-required');
     var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.handovers);
@@ -2654,6 +2673,11 @@ var ACTIONS = {
       // both books too, so only the person it was sent to may do it.
       var mine = isRecipient_(rowObj, u);
       if (!mine && u.row.role !== 'admin') throw new Error('not-recipient');
+      // A258: the other half of the pair. Refusing money moves both books just
+      // as confirming does, so the same কোষাধ্যক্ষ-of-this-book rule applies —
+      // a membrane guarded on one side only is the bug this file has found
+      // four times.
+      if (!isCashierOf_(u.row, sectorOf_(rowObj))) throw new Error('not-cashier-of-fund');
       if (String(rowObj.status) === 'confirmed') throw new Error('already-confirmed');
       if (String(rowObj.status) === 'rejected') throw new Error('already-rejected');
       var nowIso = new Date().toISOString();

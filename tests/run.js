@@ -7520,8 +7520,40 @@ try {
   eq(/u\.status === 'approved' && \(u\.role === 'admin' \|\| Number\(u\.cashier\) === 1\)/.test(app), true,
      'A146: the base rule is untouched — still approved, and admin or কোষাধ্যক্ষ');
   // an ORDINARY parcel narrows nothing: twelve people's daily screen is unchanged
-  eq(/if \(!cats\.length\) return opts;/.test(app), true,
+  // A258: an ordinary parcel still narrows nothing on the CONFIDENTIAL rule —
+  // that is what this has always guarded. It is now `list`, not `opts`, because
+  // the parcel's own ভাঁড়ার narrows first: two books have two কোষাধ্যক্ষ, and
+  // offering the wrong one builds a parcel nobody can settle. The property is
+  // unchanged and is driven below rather than read: a puja parcel sees every
+  // puja cashier.
+  eq(/if \(!cats\.length\) return list;/.test(app), true,
      'A146: …a parcel with no confidential pot offers exactly the list it always did');
+  eq(/const parcel = Aggregate\.parcelFromSheet\(\(answers \|\| \{\}\)\.sheet\);/.test(app) &&
+     /Aggregate\.cashiersForFund\(opts, parcel\.sector\)/.test(app), true,
+     'A258: …and the ভাঁড়ার the parcel names is what narrows it first');
+  // driven, not read — two mutations of this filter survived the whole suite
+  // while it lived inside the flow's closure
+  {
+    const A258 = require('../js/aggregate.js');
+    const OPTS = [{ username: 'kali', funds: 'puja' },
+                  { username: 'pro', funds: 'program' },
+                  { username: 'adm', funds: 'puja,program' }];
+    const who = function (sec) {
+      return A258.cashiersForFund(OPTS, sec).map(function (c) { return c.username; }).join(',');
+    };
+    eq(who('puja'), 'kali,adm', 'A258: a puja parcel offers the cashiers of the puja\'s book');
+    eq(who('program'), 'pro,adm', 'A258: …and a programme parcel the programme\'s');
+    eq(who('nonsense'), 'kali,adm', 'A258: …an unknown book reads as the puja\'s');
+    // an older server sends no `funds` at all: the picker must not empty
+    const OLD = [{ username: 'kali' }, { username: 'adm' }];
+    eq(A258.cashiersForFund(OLD, 'program').length, 2,
+       'A258: a server that sends no funds at all narrows nothing — the picker never empties');
+    // …but one that sends it for SOME is answering, and a blank means the puja
+    eq(A258.cashiersForFund([{ username: 'a', funds: 'program' }, { username: 'b', funds: '' }], 'program')
+        .map(function (c) { return c.username; }).join(','), 'a',
+       'A258: …while a blank beside a real answer means the puja\'s book only');
+    eq(A258.cashiersForFund(null, 'puja').length, 0, 'A258: no list at all does not throw');
+  }
   // `sees` has to survive both paths into the flow, or every cashier looks eligible
   eq(/\{ username: u\.username, name: u\.name, sees: String\(u\.sees \|\| ''\) \}/.test(app), true,
      'A146: `sees` travels with the roster name…');

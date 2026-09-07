@@ -1846,6 +1846,23 @@
     out.total = out.cash + out.upi;
     return out;
   }
+  // A258: which cashiers may receive a parcel of THIS book. Pure, and here for
+  // the same reason parcelFromSheet is: a filter that only a tap can reach is a
+  // filter nobody tests — two mutations of this one survived the whole suite
+  // while it lived inside the handover flow.
+  //
+  // `funds` is absent from an OLDER server's answer, and a missing field must
+  // never empty the picker: absent means the books that server knows nothing
+  // about, which is the puja's — what every parcel was until now.
+  function cashiersForFund(list, sector) {
+    const want = SECTORS.indexOf(String(sector)) >= 0 ? String(sector) : 'puja';
+    const all = list || [];
+    if (!all.some(function (c) { return c && c.funds; })) return all;
+    return all.filter(function (c) {
+      const funds = String((c && c.funds) || '').split(',').filter(Boolean);
+      return funds.length ? funds.indexOf(want) >= 0 : want === 'puja';
+    });
+  }
   // A253: what "সব দাও" / "সব নাও" does to a draft. Pure, and here rather than
   // in the click handler, because the whole point of the change is that a bulk
   // button reaches ONLY its own group — the old one assigned PERM_KEYS wholesale,
@@ -2246,7 +2263,7 @@
                 FUND_PERM_KEYS: FUND_PERM_KEYS, permKeyFor: permKeyFor, permParts: permParts,
                 permGroups: permGroups, applyBulk: applyBulk,
                 fundRoleKeys: fundRoleKeys, fundRoleParts: fundRoleParts, isCashierOf: isCashierOf,
-                parcelFromSheet: parcelFromSheet,
+                parcelFromSheet: parcelFromSheet, cashiersForFund: cashiersForFund,
                 SUMMARY_GROUPS: SUMMARY_GROUPS,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,

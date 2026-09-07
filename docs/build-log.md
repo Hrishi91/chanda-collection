@@ -17090,3 +17090,46 @@ Tests 3,461 (from 3,442). Mutation-proved on both sides.
 
 **Still to come:** step 3 — `confirmHandover` demands the cashier of the book
 the parcel names, and the recipient list is built the same way.
+
+## A258 — only the কোষাধ্যক্ষ of the parcel's own book may settle it
+
+The last step of Hrishi's decision. Being the committee's treasurer stopped
+being an answer to *"may I take the programme's money"*.
+
+**Both halves of the pair.** Confirming and refusing each move money in two
+people's books, so both are gated the same way — a membrane guarded on one side
+only is the bug this file has found four times. The check reads the parcel's
+ভাঁড়ার **from the row, under the lock**, never from anything the caller sent;
+the cheap `isAnyCashier_` test before the lock only decides whether it is worth
+reading at all.
+
+**And the mistake is prevented before it is refused.** The `cashiers` list now
+carries which books each may receive, and the handover screen offers only the
+cashiers of the parcel's own fund — the same shape `sees` already uses to hide
+cashiers who may not read a confidential pot. Without it a collector would hand
+over cash, pick the wrong treasurer, and the parcel would sit unconfirmed with
+nobody able to settle it.
+
+A parcel written before funds existed names none and is still the puja
+cashier's, so nothing in flight changes. An **older server** sends no `funds` at
+all, and that must not empty the picker: absent means the books that server
+knows nothing about, which is the puja's — pinned, because a phone that reaches
+a stale deployment would otherwise be shown nobody to hand money to.
+
+### The same lesson twice in one day
+
+Two mutations of the recipient filter — ignoring the fund entirely, and showing
+everyone when the field is missing — survived all 3,471 assertions, exactly as
+three mutations of the parcel arithmetic had survived that morning. Both lived
+inside the handover flow's closure, where only a tap can reach them.
+
+It is `Aggregate.cashiersForFund` now, pure and driven. That is the third piece
+of money logic this week to move out of a click handler for the same reason
+(`applyBulk`, `parcelFromSheet`, and now this), and the rule is worth stating
+plainly: **logic a test cannot call is logic nobody tests, however many
+assertions surround it.**
+
+Tests 3,477 (from 3,461). Eight mutations, all named.
+
+**The three steps are done.** The programme has its own কোষাধ্যক্ষ, its own
+purse, and parcels that belong to one book. Schema stays 5 throughout.

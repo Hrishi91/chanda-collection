@@ -4609,6 +4609,89 @@ module.exports = function runBackendTests(eq) {
        'backend A257: …with the whole-book answer still the sum of the two');
   }
 
+  // --- A258: only the কোষাধ্যক্ষ of the parcel's own book may settle it ------
+  // Two books have two cashiers, so being the committee's treasurer stopped
+  // being an answer to "may I take the programme's money". Both halves of the
+  // pair — confirming AND refusing — because refusing moves both books just as
+  // confirming does, and a membrane guarded on one side only is the bug this
+  // file has found four times.
+  {
+    const mk258 = function () {
+      const b = loadBackend(); b.api.setup();
+      ['adm258', 'sub258', 'kali258', 'pro258'].forEach(function (u, i) {
+        b.post('register', { username: u, name: u, password: 'secret' + i, phone: '98300000' + i });
+      });
+      const t = b.call('login', { username: 'adm258', password: 'secret0', year: 2026 }).token;
+      const uid = function (u) { return b.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+      ['sub258', 'kali258', 'pro258'].forEach(function (u) {
+        b.call('setStatus', { token: t, userId: uid(u), status: 'approved' });
+        b.call('approveYear', { token: t, userId: uid(u), year: 2026 });
+      });
+      b.call('setEntries', { token: t, userId: uid('sub258'), entries: ['shop', 'program:ticket'] });
+      b.call('setCashier', { token: t, userId: uid('kali258'), cashier: 1 });          // puja only
+      b.call('setEntries', { token: t, userId: uid('pro258'), entries: ['program:cashier'] }); // programme only
+      const tk = {};
+      ['sub258', 'kali258', 'pro258'].forEach(function (u, i) {
+        tk[u] = b.call('login', { username: u, password: 'secret' + (i + 1), year: 2026 }).token;
+      });
+      b.call('push', { token: tk.sub258, records: [
+        { store: 'daily', row: { id: 'dp', year: 2026, type: 'ticket', amount: 600, cashAmount: 600,
+                                 upiAmount: 0, date: '2026-09-07', sector: 'program' } },
+      ] });
+      return { b: b, tk: tk, adm: t };
+    };
+    const parcel258 = function (to, sector) {
+      return { id: 'hp-' + to + '-' + sector, year: 2026, toId: to, to: to, amount: 600,
+               cashAmount: 600, upiAmount: 0, date: '2026-09-07', status: 'pending',
+               sector: sector, breakdown: JSON.stringify({ ticket: { cash: 600, upi: 0 } }) };
+    };
+    const settle = function (action, to, sector, who) {
+      const f = mk258();
+      const row = parcel258(to, sector);
+      f.b.call('push', { token: f.tk.sub258, records: [{ store: 'handovers', row: row }] });
+      try {
+        f.b.call(action, Object.assign({ token: f.tk[who], id: row.id, year: 2026 },
+                                       action === 'rejectHandover' ? { reason: 'ভুল' } : {}));
+        return 'ok';
+      } catch (e) { return String((e && e.message) || e); }
+    };
+    eq(settle('confirmHandover', 'kali258', 'puja', 'kali258'), 'ok',
+       'backend A258: the puja cashier settles a puja parcel, exactly as before');
+    eq(settle('confirmHandover', 'kali258', 'program', 'kali258'), 'not-cashier-of-fund',
+       'backend A258: …but NOT a programme parcel, even addressed to them');
+    eq(settle('confirmHandover', 'pro258', 'program', 'pro258'), 'ok',
+       'backend A258: the programme cashier settles the programme\'s');
+    eq(settle('confirmHandover', 'pro258', 'puja', 'pro258'), 'not-cashier-of-fund',
+       'backend A258: …and not the committee\'s — both halves of the pair');
+    eq(settle('rejectHandover', 'kali258', 'program', 'kali258'), 'not-cashier-of-fund',
+       'backend A258: refusing is gated the same way as confirming…');
+    eq(settle('rejectHandover', 'pro258', 'program', 'pro258'), 'ok',
+       'backend A258: …and the right cashier may still refuse');
+    // a parcel naming no fund is the puja's, so nothing already in flight changes
+    {
+      const f = mk258();
+      const row = parcel258('kali258', '');
+      delete row.sector;
+      f.b.call('push', { token: f.tk.sub258, records: [{ store: 'handovers', row: row }] });
+      let out = 'ok';
+      try { f.b.call('confirmHandover', { token: f.tk.kali258, id: row.id, year: 2026 }); }
+      catch (e) { out = String((e && e.message) || e); }
+      eq(out, 'ok', 'backend A258: a parcel written before funds existed is still the puja cashier\'s');
+    }
+    // and the recipient list says which books each cashier may take
+    {
+      const f = mk258();
+      const list = f.b.call('cashiers', { token: f.tk.sub258 }).cashiers ||
+                   f.b.call('cashiers', { token: f.tk.sub258 }).names || [];
+      const by = {};
+      list.forEach(function (c) { by[c.username] = String(c.funds || ''); });
+      eq((by.kali258 || '').indexOf('program') < 0, true,
+         'backend A258: the list marks the puja cashier as taking the puja\'s book only');
+      eq((by.pro258 || '').indexOf('program') >= 0, true,
+         'backend A258: …and the programme\'s cashier as taking the programme\'s');
+    }
+  }
+
   // --- A255: the per-fund cashier gate, on the side that is the lock --------
   // Nothing calls it yet — it is wired up when parcels learn their fund. An
   // untested decider that is only reached later is one nobody goes back to
