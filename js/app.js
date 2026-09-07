@@ -2421,7 +2421,6 @@
     return !frozen() && Auth.schemaCmp() !== -1 &&
       (Auth.isAdmin() || Aggregate.permAllowed(Auth.current(), 'progmoney'));
   }
-  const EPS_UI = 0.005;
   // A151: record a দায় — money promised, not yet paid. Cashier/admin only.
   //
   // It writes an `expenses` row with source 'commitment', which activeData
@@ -3012,13 +3011,13 @@
       return a + Math.max(0, (Number(p.pledged) || 0) - (paid[p.id] || 0));
     }, 0);
     let shown = all;
-    if (progDueOnly) shown = shown.filter(function (p) { return (Number(p.pledged) || 0) - (paid[p.id] || 0) > EPS_UI; });
+    if (progDueOnly) shown = shown.filter(function (p) { return Aggregate.isDue((Number(p.pledged) || 0) - (paid[p.id] || 0)); });
     if (progQuery) shown = shown.filter(function (p) { return matchWords(p.name || '', progQuery); });
     const head =
       '<div class="row" style="cursor:default"><div><b>' + esc(t('total')) + '</b>' +
         '<div class="row-sub">' + all.length + ' ' + esc(t('prog_donor')) + '</div></div>' +
         '<div class="row-right"><b>' + fmtMoney(totalPaid) + '</b>' +
-        (totalDue > EPS_UI ? '<div class="row-sub red">' + esc(t('due')) + ' ' + fmtMoney(totalDue) + '</div>' : '') +
+        (Aggregate.isDue(totalDue) ? '<div class="row-sub red">' + esc(t('due')) + ' ' + fmtMoney(totalDue) + '</div>' : '') +
         '</div></div>' +
       (all.length >= 8 ? '<input id="prog-search" class="search" enterkeyhint="search" placeholder="' +
         esc(t('search_party_ph')) + '" value="' + esc(progQuery) + '">' : '') +
@@ -3030,7 +3029,7 @@
         '<div class="row-sub">' + esc(t('type_' + p.type)) + '</div></div>' +
         '<div class="row-right">' + fmtMoney(pd) +
         (Number(p.pledged) ? '/' + fmtMoney(p.pledged) : '') +
-        (due > EPS_UI ? '<div class="row-sub red">' + esc(t('due')) + ' ' + fmtMoney(due) + '</div>'
+        (Aggregate.isDue(due) ? '<div class="row-sub red">' + esc(t('due')) + ' ' + fmtMoney(due) + '</div>'
                       : '<div class="row-sub green">✅</div>') + '</div></div>';
     }).join('') + '<div class="hint" style="margin-top:10px">' + esc(t('prog_list_hint')) + '</div>';
   }
@@ -3189,7 +3188,7 @@
         });
         if (listFilter !== 'all' && !busRows) rows = rows.filter(function (p) { return p.type === listFilter; });
         if (listArea && !busRows) rows = rows.filter(function (p) { return p.side === listArea; });
-        if (listDueOnly) rows = rows.filter(function (p) { return (Number(p.pledged) || 0) - (paidBy[p.id] || 0) > 0; });
+        if (listDueOnly) rows = rows.filter(function (p) { return Aggregate.isDue((Number(p.pledged) || 0) - (paidBy[p.id] || 0)); });
         if (listQuery) rows = rows.filter(function (p) { return matchParty(p, listQuery); });
         if (busRows) return drawBusList(data);
         // A130: a bus number typed on সবাই used to find NOTHING unless you
@@ -3214,7 +3213,7 @@
             (p.location ? ' • ' + esc(Lists.labelOf('location', p.location)) : '') +
             (p.owner ? ' • ' + esc(p.owner) : '') + '</div></div>' +
             '<div class="row-right">' + fmtMoney(paid) + '/' + fmtMoney(p.pledged) +
-            (due > 0 ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
+            (Aggregate.isDue(due) ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
                      : '<span class="ok-chip">✅</span>') + '</div></div>';
         }).join('') + busExtra;
       };
@@ -3325,7 +3324,7 @@
         return '<div class="row" data-mpay="' + esc(m.id) + '"><div><b>' + esc(m.name) + '</b>' +
           '<div class="row-sub">' + esc(bits.join(' · ')) + '</div></div>' +
           '<div class="row-right">' + fmtMoney(paid) + (pledged ? '/' + fmtMoney(pledged) : '') +
-          (pledged ? (due > 0 ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
+          (pledged ? (Aggregate.isDue(due) ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
                              : '<span class="ok-chip">✅</span>') : '') + '</div></div>';
       }).join('') : '<div class="empty">' + esc(t('member_none')) + '</div>';
       el.querySelectorAll('[data-mpay]').forEach(function (row) {
@@ -3916,7 +3915,7 @@
         esc(t('type_' + p.type)) + (p.side ? ' • ' + esc(Lists.labelOf('area', p.side)) : '') +
         (p.collector ? ' • ' + esc(p.collector) : '') + '</div></div>' +
         '<div class="row-right">' + fmtMoney(p.paid) + '/' + fmtMoney(p.pledged) +
-        (due > 0 ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
+        (Aggregate.isDue(due) ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
                  : '<span class="ok-chip">✅</span>') + '</div></div>';
     }).join('') : '<div class="empty">' + esc(t('fp_none')) + '</div>';
     el.querySelectorAll('[data-fp]').forEach(function (r) {
@@ -4021,12 +4020,12 @@
       (Number(p.pledged) || 0 ? '<div class="stat3">' +
         '<div><span>' + esc(t('pledged')) + '</span><b>' + fmtMoney(p.pledged) + '</b></div>' +
         '<div><span>' + esc(t('paid')) + '</span><b>' + fmtMoney(paid) + '</b></div>' +
-        '<div class="' + (due > 0 ? 'red' : 'green') + '"><span>' + esc(t('due')) + '</span><b>' +
+        '<div class="' + (Aggregate.isDue(due) ? 'red' : 'green') + '"><span>' + esc(t('due')) + '</span><b>' +
           fmtMoney(due) + '</b></div>' +
       '</div>'
       : '<div class="stat3"><div><span>' + esc(t('paid')) + '</span><b>' + fmtMoney(paid) + '</b></div></div>') +
       '<button id="pay-btn" class="primary big block">💰 ' + esc(t('add_payment')) + '</button>' +
-      (due > 0 && p.phone ? '<button id="remind-btn" class="ghost big block">📞 ' + esc(t('remind_btn')) + '</button>' : '') +
+      (Aggregate.isDue(due) && p.phone ? '<button id="remind-btn" class="ghost big block">📞 ' + esc(t('remind_btn')) + '</button>' : '') +
       // A60 (audit 2.1): shown only to the person who wrote this row down, or
       // an admin — see canEditParty for why that is the opposite rule to canVoid.
       (central && canEditParty(p) ? '<button id="edit-party-btn" class="ghost block">' + esc(t('party_edit')) + '</button>' : '') +
@@ -5776,7 +5775,7 @@
         return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 60%"><b>' +
           (medal[i] || '') + ' ' + esc(label) + '</b>' +
           '<div class="row-sub">' + r.count + ' ' + esc(t('parties_n')) +
-          (r.due > 0 ? ' • ' + esc(t('due')) + ' ' + fmtMoney(r.due) : ' • ✅') + '</div></div>' +
+          (Aggregate.isDue(r.due) ? ' • ' + esc(t('due')) + ' ' + fmtMoney(r.due) : ' • ✅') + '</div></div>' +
           '<div class="row-right"><b>' + fmtMoney(r.paid) + '</b>' +
           '<div class="row-sub">/ ' + fmtMoney(r.pledged) + '</div></div></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';

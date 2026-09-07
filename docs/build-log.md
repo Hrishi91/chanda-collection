@@ -17562,3 +17562,52 @@ deliberately bad token answered `bad-token` carrying the same version — the
 error envelope, which reads the deployment without touching a single row.
 
 `js/config.js` rebaked. Phones need ⚙️ → 🔄: `js/auth.js` and `sw.js` moved.
+
+## A266 — the epsilon existed, and the screen could not reach it
+
+**The first mutation survey of `js/app.js`.** 9,188 lines, the largest file in
+the repo, 436 mutable spots; forty sampled, **thirty-two survived**. The eight
+that were caught were all caught by a REGEX over the source text — `eq(/if
+\(!r\.synced && !r\.rejected\)…/.test(app), true)` — so they are tripwires on a
+line's spelling, not tests of what it does. Behaviourally this suite holds
+nothing in app.js, and now that is measured instead of assumed.
+
+That is the finding. This is what it turned up.
+
+### `due > 0`, in the file that draws the reminder button
+
+`js/aggregate.js` carries a comment above `EPS = 0.005` that names three bugs
+floating point caused, the third verbatim:
+
+> `due > 0` → a donor who has paid in full sits in the dues list and gets a
+> WhatsApp reminder for four femto-rupees
+
+That fix went into aggregate.js and stopped there. `js/app.js` — which owns the
+📞 button the comment is *about* — kept asking `due > 0` in **seven** places: the
+সবাই list's অনাদায়ী filter, four বাকি chips, the red/green on a donor's own
+page, and the remind button. Three newer places on the programme's screen used a
+module-scope `EPS_UI` instead, so the newest screen was right and the oldest,
+most-walked ones were wrong.
+
+Not a contrived number. ₹300.30 pledged, three installments of ₹100.10, every
+rupee handed over: the arithmetic leaves **+5.7e-14**. The donor stays in the
+dues list under a red **বাকি ₹0.00**, with 📞 beside it. A collector rings
+somebody who has already paid.
+
+The number was never wrong. **It was reachable from one file only** — so ten
+call sites each made their own guess. `Aggregate.isDue(amount)` is exported now
+and all ten go through it; `EPS_UI` is gone, having nothing left to decide.
+
+### What holds it
+
+Behavioural tests on `isDue` (the ₹300.30 case computed, not written down; 0,
+0.004, 0.006, negative, null, a string), plus a sweep asserting app.js decides
+this nowhere on its own. Both mutation-proved: dropping the epsilon fails with
+*"a donor who paid in full owes nothing"*, and putting one screen back on its own
+rule fails with *"js/app.js decides 'is money due' nowhere on its own → due > 0"*.
+
+The sweep strips line comments first. Prose is allowed to say `due > EPS` while
+explaining it, and a sweep that cannot tell code from commentary is one that gets
+weakened the first time it cries wolf.
+
+Tests 3,530 → 3,544. CLIENT night.

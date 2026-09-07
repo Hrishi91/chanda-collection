@@ -6527,7 +6527,7 @@ try {
        'A134: the member picker computes the ledger row\'s three figures');
     eq(/fmtMoney\(paid\) \+ \(pledged \? '\/' \+ fmtMoney\(pledged\) : ''\)/.test(mp), true,
        'A134: …paid/pledged shown together, and no fake /₹0 without a pledge');
-    eq(/due > 0 \? '<span class="due-chip">' \+ esc\(t\('due'\)\)/.test(mp) && /ok-chip/.test(mp), true,
+    eq(/Aggregate\.isDue\(due\) \? '<span class="due-chip">' \+ esc\(t\('due'\)\)/.test(mp) && /ok-chip/.test(mp), true,
        'A134: …with the same বাকি chip and ✅ the ledger row uses');
     eq(mp.indexOf('cat-tot') < 0, true,
        'A134: the old bare-number style is gone from the picker');
@@ -9059,6 +9059,49 @@ pending.push((async function () {
     eq(t.Sync.configured(), false, 'A246: …and configured() agrees');
   }
 })());
+
+// A266 — the epsilon existed and the screen could not reach it.
+//
+// js/aggregate.js's EPS comment names this exact bug ("a donor who has paid in
+// full sits in the dues list and gets a WhatsApp reminder") — and then the fix
+// went only into that file. js/app.js, which owns the 📞 button that comment is
+// about, went on asking `due > 0` in seven places. The number was never wrong;
+// it was reachable from one file only.
+{
+  const A66 = require('../js/aggregate.js');
+  eq(typeof A66.isDue, 'function', 'A266: aggregate exports the one due test');
+
+  // the real arithmetic, not a chosen constant: ₹300.30 pledged, three
+  // installments of ₹100.10, every rupee paid.
+  const pledged = 300.30, paid = 100.10 + 100.10 + 100.10, crumb = pledged - paid;
+  eq(crumb > 0, true, 'A266: three ordinary paise installments leave a POSITIVE crumb');
+  eq(crumb < 0.005, true, 'A266: …smaller than half a paisa');
+  eq((pledged - paid).toFixed(2), '0.00', 'A266: …which the screen would print as ₹0.00');
+  eq(A66.isDue(crumb), false, 'A266: a donor who paid in full owes nothing');
+
+  eq(A66.isDue(0), false, 'A266: exactly settled owes nothing');
+  eq(A66.isDue(0.004), false, 'A266: under half a paisa owes nothing');
+  eq(A66.isDue(0.006), true, 'A266: over half a paisa is a real debt');
+  eq(A66.isDue(-5), false, 'A266: an OVERPAID donor is not in the dues list either');
+  eq(A66.isDue(null), false, 'A266: a missing figure is not a debt');
+  eq(A66.isDue('7'), true, 'A266: a figure that arrived as text still counts');
+
+  // and the screen must not keep its own rule. A survey of js/app.js (40
+  // mutations, 32 survived) said what grep cannot: nothing here is executed by
+  // this suite, so a second epsilon would live for a season unnoticed.
+  const app66 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  // strip line comments first — prose is allowed to SAY `due > EPS` while
+  // explaining it, and a sweep that cannot tell the two apart is a sweep that
+  // gets weakened the first time it cries wolf.
+  const code66 = app66.split('\n').map(function (l) {
+    return l.trim().indexOf('//') === 0 ? '' : l.split('//')[0];
+  }).join('\n');
+  const own = (code66.match(/\bdue\s*[<>]=?\s*(0|EPS)/g) || []);
+  eq(own.length, 0, 'A266: js/app.js decides "is money due" nowhere on its own → ' + own.join(' '));
+  eq(/EPS_UI/.test(app66), false, 'A266: …and keeps no epsilon of its own to drift');
+  eq((app66.match(/Aggregate\.isDue\(/g) || []).length >= 7, true,
+     'A266: every place that used to ask goes through the one that knows');
+}
 
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {

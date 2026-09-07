@@ -19,6 +19,17 @@
   //
   // Half a paisa. Below that, two amounts are the same amount.
   const EPS = 0.005;
+
+  // A266: and the SCREEN must ask the same question. The list above was written
+  // for this file's own comparisons and stopped there — js/app.js went on asking
+  // `due > 0` in seven places, including the one that draws the 📞 button this
+  // very comment names. ₹300.30 pledged, three installments of ₹100.10, all paid:
+  // the arithmetic leaves +5.7e-14, and the donor sits in the dues list under a
+  // red "বাকি ₹0.00" with a reminder button beside it.
+  //
+  // Exported so no screen has to keep its own epsilon — the mistake was not the
+  // number, it was that the number was reachable from only one file.
+  function isDue(amount) { return (Number(amount) || 0) > EPS; }
   function voidedIds(data) {
     const s = {};
     (data.voids || []).forEach(function (v) { if (v && v.targetId) s[v.targetId] = 1; });
@@ -2244,7 +2255,7 @@
     return granted.filter(function (r) { return REPORT_IDS.indexOf(r) >= 0; });
   }
 
-  const api = { computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
+  const api = { isDue, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
                 inHandRows: inHandRows, personalSummary: personalSummary,
                 myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,
