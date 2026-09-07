@@ -664,38 +664,47 @@ program spents, guests, artists and all". Discussed first, then split by cost.
       kind costs almost nothing.
 - [x] ~~**গুপ্ত দান** — A145, v4.36.0~~ (2026-09-04). Second tenant of that
       machinery; needed no new mechanism, which was the point.
-- [ ] **অনুষ্ঠান (cultural programme) — NOT STARTED.** Split in the discussion
-      into two halves of very different cost:
+- [x] ~~**অনুষ্ঠান (cultural programme)** — A148–A156, v4.39.0 → v4.46.0~~
+      (2026-09-04/05). Built, both halves, and it outgrew the plan it was
+      written down as. The plan is kept here alongside what actually happened,
+      because in this project the *cost* is the record — and this one was
+      estimated wrong in the direction that stops work.
 
-  **(ক) The spending — needs NO code, and Hrishi can do it today.** Programme
-  costs (sound, stage, guests' food, transport, artists' fees already paid) are
-  ordinary puja expenses. Added as admin-defined expense subjects sharing one
-  prefix — "🎭 অনুষ্ঠান · শিল্পী", "🎭 অনুষ্ঠান · সাউন্ড", "🎭 অনুষ্ঠান · অতিথি"
-  — they sort together in the by-subject report and give a programme total for
-  free. **This is a hand-list item, not a build item.**
+  **(ক) The spending — planned as "no code, a hand-list item".** It became
+  code, and better code. Not a naming convention on flat expense subjects but a
+  real field: A148 gave every money row a `sector` (🙏 পুজো / 🎭 অনুষ্ঠান), so a
+  programme spend is a *fact about the row*, not a prefix somebody has to
+  remember to type. A152 then gave expense subjects their own fund, because a
+  cashier recording an artist's fee was scrolling past প্যান্ডেল and লাইট. A149
+  added 🎟️ টিকিট as the programme's own income, A150 the transfer between the
+  two funds, A153 the 🎭 tab itself — which removed the question "কোন ভাঁড়ার?"
+  from twelve collectors entirely, because **where you are standing IS the
+  answer**.
 
-  **(খ) দায় — money PROMISED but not yet paid. This the app genuinely cannot
-  express, and it is the real gap.** An artist booked at ₹25,000 with ₹5,000
-  advance leaves the committee ₹20,000 short, but `expenses` means "already
-  paid", so the in-hand figure reads healthy while that money is spoken for.
-  Easiest place in the whole book to be wrong about, right when the programme
-  is being planned.
+  **(খ) দায় — money promised but not yet paid. Built in A151.**
 
-  Shape, worked out but NOT built: the mirror image of a party — a donor
-  *promised to give and pays in instalments*; a vendor *is promised and is paid
-  in instalments*. It CANNOT reuse `parties`: the advance would be counted as
-  collection in every total. So it needs its own store, and that means
-  **APP_SCHEMA 5 → 6**, which BLOCKS entries on any phone that has not updated.
+  **And I was wrong twice about what it would cost, in the direction that
+  matters.** I told Hrishi — in this file, and to his face — that দায় needed
+  its own store and therefore `APP_SCHEMA 5 → 6`, which BLOCKS entries on every
+  phone that has not updated, and that timing it was "the whole decision". It
+  needed neither. A promise is not a movement of money, so it rides in
+  `expenses` with `source: 'commitment'` and `activeData` splits it off — the
+  same trick A150 had already paid for, one release earlier. **Schema stayed 5.
+  Nobody was locked out. The timing question I built a paragraph around did not
+  exist.**
 
-  **Timing is the whole decision.** Deliberately deferred out of the trial week
-  for that reason. It should land when (i) the twelve phones are known to be on
-  one version, and (ii) the programme is being planned but its bookings have not
-  yet started — before the first artist is booked, or the gap it exists to show
-  is already invisible.
+  The advance is an ordinary expense row carrying the commitment's id, so it
+  counts in every total exactly as it should, and only the unpaid remainder is
+  the thing nobody could see before. A settled or overpaid commitment owes
+  zero, never a negative, because "−₹500 owed" reads on a screen as money
+  coming back.
 
-  Open question for Hrishi, unanswered: **when is the অনুষ্ঠান, and have any
-  bookings/advances happened yet?** That answer decides whether দায় is worth
-  building this season at all, or whether it belongs with next year's work.
+  Hrishi's answer to the open question — *"booking not started yet"* — is what
+  made it worth building then rather than next season.
+
+  **Lesson kept:** the estimate that stops work is the one to re-derive. "It
+  needs a new store" was an assumption about the domain (a promise is a kind of
+  money), not a fact about the code, and it nearly deferred a feature by a year.
 
 ## AFTER THE PUJA — the PRODUCT question (Hrishi, 2026-08-17)
 

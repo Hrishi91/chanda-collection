@@ -16601,3 +16601,44 @@ produce, and I am recording that rather than forcing one.
 Tests 3,284 (from 3,259).
 
 **Tests only** — no version bump, nothing to deploy.
+
+## A249 — pending.md still said the অনুষ্ঠান was NOT STARTED
+
+Hrishi asked how I was going to handle the programme. The honest answer is that
+it was handled five days ago — **A148 through A156, v4.39.0 → v4.46.0** — and
+`pending.md` never learned. Its entry still read *"অনুষ্ঠান (cultural
+programme) — NOT STARTED"*, nine build-log entries after it shipped.
+
+CLAUDE.md says these three files are the ONLY source of truth for decisions and
+their cost. A stale **NOT STARTED** is the worst shape that can take: it does
+not merely go quiet, it actively invites somebody to build the thing again. It
+survived because the build log is append-only and gets an entry per change,
+while pending.md has to be *edited* — and an entry that is finished is exactly
+the one nobody re-reads.
+
+Corrected in the file's own style, with the plan kept beside what happened,
+because the gap between them is the useful part:
+
+- **(ক) the spending** was written down as *"needs NO code, a hand-list item"* —
+  programme costs as expense subjects sharing a "🎭 অনুষ্ঠান · " name prefix. It
+  became code, and better: A148 made the fund a **field on every money row**, so
+  a programme spend is a fact about the row rather than a prefix somebody has to
+  remember to type; A152 gave expense subjects their own fund; A149 added 🎟️
+  টিকিট; A150 the transfer between funds; A153 the 🎭 tab, which deleted the
+  question "কোন ভাঁড়ার?" from twelve collectors because standing somewhere IS
+  the answer.
+- **(খ) দায়** — and here is the part worth keeping. I told Hrishi twice, and
+  wrote in this roadmap, that money-promised-but-unpaid needed its own store and
+  therefore **APP_SCHEMA 5 → 6**, which blocks entries on every phone that has
+  not updated — and I built a whole paragraph of timing strategy on that. It
+  needed neither. A promise is not a movement of money, so it rides in
+  `expenses` with `source: 'commitment'` and `activeData` splits it off, the
+  same trick A150 had paid for one release earlier. **Schema stayed 5. Nobody
+  was locked out. The decision I said was "the whole decision" did not exist.**
+
+**The lesson recorded in pending.md:** the estimate that STOPS work is the one
+to re-derive. "It needs a new store" was an assumption about the domain — that a
+promise is a kind of money — not a fact about the code, and it came within one
+conversation of deferring a working feature by a year.
+
+Docs only. Nothing in js/ or apps-script/ changed; tests stay at 3,284.
