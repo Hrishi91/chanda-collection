@@ -17659,3 +17659,36 @@ A134, A137). That is the honest cost of a suite that reads source instead of
 running it — and it is written up as an open question in `docs/pending.md`.
 
 Tests 3,544 → 3,560. CLIENT night.
+
+## A268 — "which ভাঁড়ার is this key" asked once, instead of rebuilt on a screen
+
+The third thing the app.js survey pointed at, and the only one that is not a bug
+**yet**. The 👥 roster draws a ভাঁড়ার mark per non-puja fund. It was taking the
+key lists apart itself:
+
+```js
+return (p && p.fund === sec) || (r && r.fund === sec) ||
+       Aggregate.PROGRAM_KEYS.indexOf(k) >= 0;
+```
+
+The first two clauses ask about `sec`. **The third never looks at it.** One
+non-puja fund exists, so it is accidentally right today; the day a second is
+added, everybody holding `progmoney` is marked as belonging to that one too.
+
+The comment three lines above says the third ভাঁড়ার should be marked "the day it
+is added rather than the day somebody notices this line never mentioned it" —
+and the line under it is precisely how that goes wrong. `FUND_EXTRA_KEYS` already
+maps fund → its extra keys, in aggregate, derived. The screen just wasn't asking
+it.
+
+`Aggregate.keyOfFund(key, sector)` answers the whole question; the screen's five
+lines become one. The load-bearing test names a fund that does not exist:
+`keyOfFund('progmoney', 'mandap')` is false, and beside it an assertion spelling
+out that the clause it replaced would have said yes — so the bug cannot come
+back wearing the old clothes.
+
+A161 got **stricter**, not looser: the block must now contain no `PROGRAM_KEYS`,
+`permParts` or `fundRoleParts` at all. Taking a derived list apart on a screen is
+what caused this; asking one question is the cure.
+
+Tests 3,560 → 3,574. CLIENT night.

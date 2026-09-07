@@ -1813,6 +1813,20 @@
   // its id, so they are attached by name — the one association here that is not
   // computed, and it is written once instead of in every screen that needs it.
   const FUND_EXTRA_KEYS = { program: PROGRAM_KEYS };
+  // A268: "does this permission key belong to this ভাঁড়ার" — asked here, once,
+  // because the 👥 screen was answering it itself and got the last clause wrong.
+  // It read `PROGRAM_KEYS.indexOf(k) >= 0` INSIDE a per-sector filter, and that
+  // clause never looks at the sector: today there is one non-puja fund so it is
+  // accidentally right, and the day a second is added every holder of
+  // `progmoney` is marked as belonging to it too. The comment above that very
+  // line says the third ভাঁড়ার should be marked the day it is added rather than
+  // the day somebody notices this line never mentioned it.
+  function keyOfFund(key, sector) {
+    const sec = String(sector || '');
+    const p = permParts(key); if (p) return p.fund === sec;
+    const r = fundRoleParts(key); if (r) return r.fund === sec;
+    return (FUND_EXTRA_KEYS[sec] || []).indexOf(String(key)) >= 0;
+  }
   function permGroups() {
     const taken = {};
     const groups = SECTORS.map(function (sec) {
@@ -2263,7 +2277,7 @@
     return granted.filter(function (r) { return REPORT_IDS.indexOf(r) >= 0; });
   }
 
-  const api = { isDue, moreThan, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
+  const api = { isDue, moreThan, keyOfFund, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
                 inHandRows: inHandRows, personalSummary: personalSummary,
                 myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,

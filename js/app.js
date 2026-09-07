@@ -8045,11 +8045,7 @@
             .map(function (ty) { return firstGlyph(t('grp_' + ty)); }))
           .concat(Aggregate.SECTORS.filter(function (sec) {
             if (sec === 'puja') return false;
-            return ent.some(function (k) {
-              const p = Aggregate.permParts(k), r = Aggregate.fundRoleParts(k);
-              return (p && p.fund === sec) || (r && r.fund === sec) ||
-                     Aggregate.PROGRAM_KEYS.indexOf(k) >= 0;
-            });
+            return ent.some(function (k) { return Aggregate.keyOfFund(k, sec); });
           }).map(function (sec) { return firstGlyph(t('sector_' + sec)); }))
           .filter(function (g, i, a) { return g && a.indexOf(g) === i; }).join('');
         const reps = String(u.reports || '').split(',').filter(Boolean).length + (u.cashier ? 1 : 0);

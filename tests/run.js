@@ -8777,8 +8777,14 @@ try {
     {
       const blk = app.slice(app.indexOf('const firstGlyph ='), app.indexOf('const reps ='));
       eq(/Aggregate\.RESTRICTED_TYPES/.test(blk) && /Aggregate\.SECTORS/.test(blk) &&
-         /Aggregate\.PROGRAM_KEYS/.test(blk), true,
+         /Aggregate\.keyOfFund\(k, sec\)/.test(blk), true,
          'A161: …and the marks are derived from the three lists, not typed out again');
+      // A268 made this stricter rather than looser: the screen no longer takes
+      // the lists APART itself. It used to pull permParts, fundRoleParts and
+      // PROGRAM_KEYS and rebuild the answer — and got the last clause wrong,
+      // because that clause never looked at the sector it was inside.
+      eq(/PROGRAM_KEYS|permParts|fundRoleParts/.test(blk), false,
+         'A268: …by asking ONE question, not by re-deriving it from the parts');
     }
   }
     // every label key the map names must actually resolve, or the chip is blank
@@ -9151,6 +9157,38 @@ pending.push((async function () {
   eq(bare.length, 0, 'A267: no money SUM in js/app.js is compared to a bare 0 → ' + bare.join(' '));
   eq((app67.match(/Aggregate\.moreThan\(/g) || []).length >= 12, true,
      'A267: every site the survey named goes through it');
+}
+
+// A268 — "which ভাঁড়ার does this key belong to", asked once instead of rebuilt.
+//
+// The 👥 screen drew a ভাঁড়ার mark per non-puja fund by taking the key lists
+// apart itself, and its last clause — `PROGRAM_KEYS.indexOf(k) >= 0` — sat
+// INSIDE a per-sector filter without ever looking at the sector. One non-puja
+// fund exists, so it is accidentally right today. It is the second one that
+// breaks it, and by then nobody is looking at this line.
+{
+  const A68 = require('../js/aggregate.js');
+  eq(typeof A68.keyOfFund, 'function', 'A268: one function answers it');
+
+  eq(A68.keyOfFund('program:shop', 'program'), true, 'A268: a pair belongs to its own fund');
+  eq(A68.keyOfFund('program:shop', 'puja'), false, 'A268: …and to no other');
+  eq(A68.keyOfFund('shop', 'puja'), true, 'A268: a bare kind is a puja key');
+  eq(A68.keyOfFund('shop', 'program'), false, 'A268: …and the programme does not own it');
+  eq(A68.keyOfFund('program:cashier', 'program'), true, 'A268: a fund ROLE counts too');
+  eq(A68.keyOfFund('progmoney', 'program'), true, 'A268: and the programme\'s own extra keys');
+  eq(A68.keyOfFund('progmoney', 'puja'), false, 'A268: …which the committee does not hold');
+
+  // THE point. 'mandap' is not a fund yet; the day it is, this must still say no.
+  eq(A68.keyOfFund('progmoney', 'mandap'), false,
+     'A268: a fund added later does not inherit the programme\'s keys');
+  eq(A68.keyOfFund('progteam', 'mandap'), false, 'A268: …neither of them');
+  // and this is what the screen used to answer, spelled out so the bug cannot
+  // quietly come back wearing the old clothes
+  eq(A68.PROGRAM_KEYS.indexOf('progmoney') >= 0, true,
+     'A268: the clause it replaced would have said YES to every fund');
+
+  eq(A68.keyOfFund('', 'program'), false, 'A268: an empty key belongs nowhere');
+  eq(A68.keyOfFund('progmoney', ''), false, 'A268: …and no key belongs to no fund');
 }
 
 Promise.all(pending.map(function (p) {
