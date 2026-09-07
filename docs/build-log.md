@@ -17452,3 +17452,23 @@ nothing at all. It is pinned now.
 Tests 3,518 (from 3,502).
 
 **SERVER night** — the guard and the version field are both in `Code.gs`.
+
+### Deploy — server to chanda-v4.93.0 (the lost-update guard, and the slow-line fix)
+
+Probed three times from the Browser pane before rebaking: the GET envelope plus
+two POSTs of a deliberately bad token, all `chanda-v4.93.0` / schema 5.
+
+Two real fixes reach phones with this one, both found by pushing past "the tests
+are green":
+
+- **A262** (client): on a two-second connection, three impatient taps on
+  *পরের প্রশ্ন* produced a handover addressed to nobody — money out of a
+  collector's hand that no cashier could ever confirm. The guard `submitAnswer`
+  has carried since A45, on the one door that never had it.
+- **A263** (server): two admins editing one person silently lost each other's
+  changes. `updatedAt` now travels to the screen and back as `seenAt`, and all
+  eight admin writes to a person refuse a save built on a stale read.
+
+`seenAt` is optional, so a phone still on v4.92.0 or earlier behaves exactly as
+it did — it simply does not get the protection until it refreshes. Schema stays
+5; nobody is locked out.
