@@ -3204,6 +3204,30 @@ eq(ho.debt.total, 100, 'handoverable: reports the overspent pot separately — a
 // pot-level: each pending parcel comes off ITS OWN pot, read from the breakdown
 eq(ho.byCat.person, { cash: 200, upi: 0 }, 'handoverable: person 500 − its own 300 pending');
 
+// ---- A262: the sheet's submit is a one-way door -------------------------------
+// Found by turning CK_SLOW on: with the server taking two seconds, three
+// impatient taps on "পরের প্রশ্ন" produced a handover whose RECIPIENT was the
+// breakdown object itself and whose toId was empty — money out of a collector's
+// hand that no cashier could ever confirm, sitting pending for ever.
+//
+// The cause is the guard submitAnswer has carried since A45 ("after the LAST
+// answer the old step UI stays on screen while finishFlow saves async") on the
+// one door that never got it: the cash sheet has its own button, which survives
+// the re-render for a moment, and the second tap wrote the sheet's answer into
+// the NEXT step.
+{
+  const appS = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const fn = appS.slice(appS.indexOf('function submitSheet('), appS.indexOf('function renderAfter('));
+  eq(/if \(!step \|\| savingFlow\) return;/.test(fn), true,
+     'A262: the sheet\'s submit ignores a tap once the flow has moved on or is saving');
+  eq(/if \(step\.kind !== 'sheet' && step\.kind !== 'cashsheet'\) return;/.test(fn), true,
+     'A262: …and refuses to write a sheet answer into a step that is not a sheet');
+  // the same guard, on the door that already had it — so neither can be dropped
+  const fn2 = appS.slice(appS.indexOf('function submitAnswer('), appS.indexOf('function submitAnswer(') + 600);
+  eq(/if \(!step \|\| savingFlow\) return;/.test(fn2), true,
+     'A262: …and the guard submitAnswer has carried since A45 is still there');
+}
+
 // ---- A257: the cash sheet's answer becomes the parcel -------------------------
 // This arithmetic used to live inside the handover flow's closure, where only a
 // tap could reach it — and three mutations of it survived the entire suite.

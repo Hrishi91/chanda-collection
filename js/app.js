@@ -1703,7 +1703,21 @@
   // is being handed over. No mode question afterwards — each row already
   // said cash and UPI separately.
   function submitSheet(per) {
-    const step = flowState.def.steps[flowState.idx];
+    // A262: the SAME guard submitAnswer has carried since A45, on the door it
+    // never covered. The sheet's own button survives the re-render for a
+    // moment, so a second tap — an ordinary thing on a connection that takes
+    // two seconds to answer — used to write the SHEET's answer into the NEXT
+    // step. On the handover flow that step is "কাকে?", so three impatient taps
+    // produced a parcel whose recipient was the breakdown object itself, with
+    // no toId: money out of the collector's hand, and no cashier who could
+    // ever confirm it.
+    //
+    // Found by turning CK_SLOW on — the switch A117 added for exactly this,
+    // with exactly this reasoning: a harness that answers in 2 ms cannot show
+    // a race that lives in a two-second window.
+    const step = flowState && flowState.def.steps[flowState.idx];
+    if (!step || savingFlow) return;
+    if (step.kind !== 'sheet' && step.kind !== 'cashsheet') return;
     flowState.answers[step.key] = per;
     flowState.idx++; skipHidden();
     if (flowState.idx >= flowState.def.steps.length) finishFlow(); else renderEntry();

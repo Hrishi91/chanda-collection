@@ -13,12 +13,12 @@
     },
     {
       "name": "admin-harness",
-      "runtimeExecutable": "node",
+      "runtimeExecutable": "/bin/sh",
       "runtimeArgs": [
-        "scripts/admin-harness.js",
-        "9257"
+        "-c",
+        "CK_SLOW=2000 node scripts/admin-harness.js 9284"
       ],
-      "port": 9257
+      "port": 9284
     }
   ]
 }

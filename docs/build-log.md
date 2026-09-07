@@ -17339,3 +17339,55 @@ drive from both directions server-side — and the 📄 PDF button, which is
 present and wired but opens a print dialog that would hang the pane.
 
 Docs only. Tests unchanged at 3,499.
+
+## A262 — three impatient taps on a slow line made a parcel nobody could receive
+
+Hrishi kept pushing: *"cant you test"*. My list of untestable things was lazy,
+and this is what was hiding in it.
+
+`CK_SLOW=2000` — the switch **A117 added for exactly this**, with exactly this
+reasoning: *"a harness that answers in 2 ms cannot reproduce a race that lives
+in a 1–3 s window, and cannot verify its fix either."* I had been calling real
+latency untestable while the tool for it sat in this repo.
+
+With the server taking two seconds, three taps on **পরের প্রশ্ন** — an ordinary
+thing to do on a village 3G — produced this:
+
+```
+to:    { __sector: 'program', ticket: { cash: 500, upi: 0 } }
+toId:  ''
+status: pending      synced: 1
+```
+
+**A handover whose recipient is the breakdown object, addressed to nobody, and
+already on the server.** The money leaves the collector's in-hand and no cashier
+can ever confirm it: it sits pending for ever, and the collector's own screen
+says it is gone.
+
+### The guard existed. It was on the other door.
+
+`submitAnswer` has carried this since A45 — *"after the LAST answer the old step
+UI stays on screen while finishFlow saves async; ignore taps once past the end
+or mid-save"*. The cash sheet has its **own** button and its own submit, and
+`submitSheet` never got it. The sheet's button survives the re-render for a
+moment, so the second tap wrote the sheet's answer into whatever step came
+next — which on the handover flow is *কাকে?*.
+
+Same shape as every other pair this file records: a rule written for one door
+and not its twin.
+
+`submitSheet` now refuses a tap once the flow has moved on or is saving, **and**
+refuses to write a sheet answer into a step that is not a sheet. Re-walked with
+the same three taps: no parcel written, the screen sitting on *কাকে দিলে?*
+offering হৃষিকেশ and রতন.
+
+**And one more of my own.** The first mutation run reported "nothing broke" and
+I nearly recorded a vacuous assertion — the mutation and the restore had raced
+in my own script. Applied by hand, it fails by name. *A mutation run that did
+not actually run says exactly what a passing one says* — the third time this
+week that shape has cost me something.
+
+Tests 3,502 (from 3,499). Both guards mutation-proved.
+
+**This is a real fix for a live phone**, not a test-only change: it needs a
+deploy and a ⚙️ → 🔄.
