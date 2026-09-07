@@ -202,7 +202,24 @@ function loadAuth(opts) {
   return { Auth: box.__A, store: store, events: events, sent: sent, box: box };
 }
 
+// A270 — js/i18n.js, run rather than read. It has no export block at all (it is
+// written for a <script> tag), so every test until now compared its SOURCE TEXT.
+// `fmtMoney` is on nearly every screen in the app and had never once been called.
+//   lang   what Settings.get('lang') answers; omit for no Settings at all
+// Returns { t, tBn, fmtMoney, I18N }.
+function loadI18n(opts) {
+  const o = opts || {};
+  const box = { JSON: JSON, Math: Math, Number: Number, String: String, Object: Object, Array: Array };
+  box.window = box;
+  if (o.lang !== undefined) box.Settings = { get: function (k) { return k === 'lang' ? o.lang : ''; } };
+  vm.createContext(box);
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'i18n.js'), 'utf8');
+  vm.runInContext(src + '\n;globalThis.__t = t; globalThis.__tBn = tBn;' +
+                        'globalThis.__f = fmtMoney; globalThis.__I = I18N;', box);
+  return { t: box.__t, tBn: box.__tBn, fmtMoney: box.__f, I18N: box.__I };
+}
+
 // fakeIndexedDB is exported too: sync.js reads DB and Settings as globals, so a
 // test that drives the push loop has to run db.js and sync.js in ONE context of
 // its own rather than reusing loadDB's.
-module.exports = { loadDB: loadDB, bootSync: bootSync, fakeIndexedDB: fakeIndexedDB, loadAuth: loadAuth };
+module.exports = { loadDB: loadDB, bootSync: bootSync, fakeIndexedDB: fakeIndexedDB, loadAuth: loadAuth, loadI18n: loadI18n };

@@ -17753,3 +17753,52 @@ Tests 3,574 → 3,618. No shell file changed: **nothing to release for this one.
 `voice.js` at 5/5 looks alarming and is not: thirty-two lines, every survivor an
 optional callback. `numparse.js` is worth a night — `result > 0` → `>= 0` turns
 "no number at all" into ₹0 instead of a refusal, and that one feeds voice entry.
+
+## A270 — i18n run for the first time, and a guard no path could reach
+
+`js/i18n.js` has **no export block at all** — it is written for a `<script>` tag
+— so every test in five months compared its source text. `fmtMoney` is the app's
+only money printer: every chip, every total, the receipt. It had never once been
+called by a test. `loadI18n()` in the shim calls it.
+
+**Two things it found.**
+
+`toLocaleString('en-IN')` defaults to **three** fraction digits. Money has two.
+`₹0.006` printed as `₹0.006` — and half a paisa is exactly where A266's epsilon
+stops hiding figures, so **the first amount the screen is willing to show is the
+first one it printed wrong.** Capped at two, rounding rather than truncating.
+
+And the survivor the sweep flagged: `n < 0 ? '−' : ''` → `<=` prints **`−₹0`**,
+which on a settled donor's row is the app accusing itself of over-draining the
+books. Pinned, along with negative zero.
+
+### A correction to A266 and A267
+
+Those entries say the crumb showed as **"বাকি ₹0.00"**. It shows as **"বাকি ₹0"**
+— `fmtMoney` prints no trailing zeros. The bug, the cause and the fix are exactly
+as written; only the rendering in the prose was wrong, and it is now a test:
+`fmtMoney(300.30 - (100.10 + 100.10 + 100.10))` is `'₹0'`. That is precisely why
+A266 stayed invisible for a season — nothing on the screen looked broken.
+
+### The dead condition in numparse
+
+```js
+if (!sawNumber) return NaN;
+const result = total + cur;
+return result > 0 || sawNumber ? result : NaN;   // ← survived every mutation
+```
+
+The line above **guarantees** `sawNumber`, so the condition is always true and
+the ternary always takes the first branch. Not an untested guard — **a guard no
+path can reach.** Dead conditions are worse than no condition: they read like
+protection, so the next person trusts one that was never there. Now
+`return total + cur;`, with the two behaviours that matter pinned — no number at
+all is refused, a spoken শূন্য is a real answer of 0.
+
+Sweep after: **i18n 2/2 → 0/2 survived, numparse 3/4 → 0/3.**
+
+The removal note necessarily quotes the line it removed, so the sweep that
+checks it strips comments first — the same lesson A266 learned, met again three
+hours later on the very comment documenting the fix.
+
+Tests 3,618 → 3,639. CLIENT night (`js/i18n.js`, `js/numparse.js`).

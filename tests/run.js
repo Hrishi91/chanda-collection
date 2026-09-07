@@ -9317,6 +9317,61 @@ pending.push((async function () {
      'A269: …and says so once, so the strip can repaint');
 })());
 
+// A270 — js/i18n.js, run rather than read, and a guard no path could reach.
+//
+// i18n.js has no export block at all; it is written for a <script> tag, so every
+// test until now compared its SOURCE TEXT. fmtMoney is on nearly every screen in
+// this app — every chip, every total, the receipt — and had never once been
+// called by a test. Two mutable spots, two survivors, and running it explains
+// why neither could have been caught.
+{
+  const { loadI18n } = require('./idb-shim.js');
+  const bn = loadI18n({}), en = loadI18n({ lang: 'en' });
+
+  // zero is not negative. `n < 0` → `n <= 0` prints "−₹0", which on a settled
+  // donor's row is the app accusing itself of over-draining the books.
+  eq(bn.fmtMoney(0), '₹0', 'A270: zero carries no minus sign');
+  eq(bn.fmtMoney(-0), '₹0', 'A270: …and neither does negative zero');
+  eq(bn.fmtMoney(-80), '−₹80', 'A270: a real negative gets the sign BEFORE the ₹');
+  eq(bn.fmtMoney(80), '₹80', 'A270: …and a positive gets none');
+
+  // money has two decimal places. This is the app's only money printer.
+  eq(bn.fmtMoney(0.006), '₹0.01', 'A270: money rounds to the paisa, not to three places');
+  eq(bn.fmtMoney(1.005), '₹1.01', 'A270: …and it rounds rather than truncating');
+  eq(bn.fmtMoney(1234567.891), '₹12,34,567.89', 'A270: …at any size');
+  // and the crumb that started A266 prints as plain ₹0 — which is exactly why a
+  // donor who had paid in full could sit in the dues list without it looking
+  // like a bug to anybody reading the screen.
+  eq(bn.fmtMoney(300.30 - (100.10 + 100.10 + 100.10)), '₹0',
+     'A270: a floating-point crumb prints as ₹0, which is how A266 stayed invisible');
+
+  eq(bn.fmtMoney(100000), '₹1,00,000', 'A270: grouped the Indian way, not the western one');
+  eq(bn.fmtMoney(null), '₹0', 'A270: a missing figure is ₹0, not ₹NaN');
+  eq(bn.fmtMoney(undefined), '₹0', 'A270: …and so is no figure at all');
+
+  // t() and its fallbacks
+  eq(bn.t('due'), 'বাকি', 'A270: Bengali by default');
+  eq(en.t('due'), 'Due', 'A270: …English when the collector picked it');
+  eq(loadI18n({ lang: 'fr' }).t('due'), 'বাকি', 'A270: an unknown language falls back to Bengali');
+  eq(bn.t('no_such_key_xyz'), 'no_such_key_xyz', 'A270: a missing key shows the key, not blank');
+  eq(en.tBn('due'), 'বাকি', 'A270: tBn stays Bengali — the receipt is the DONOR\'s document');
+  eq(bn.tBn('no_such_key_xyz'), 'no_such_key_xyz', 'A270: …with the same honest miss');
+
+  // the numparse guard that was never reachable
+  eq(Number.isNaN(parseAmount('রাম স্টোর্স')), true, 'A270: no number at all is refused');
+  eq(parseAmount('শূন্য'), 0, 'A270: …but a spoken ZERO is a real answer, not a refusal');
+  eq(parseAmount('০'), 0, 'A270: …typed the same way');
+  // comments stripped, same as A266's sweep: the note explaining what was
+  // removed necessarily QUOTES it, and a sweep that cannot tell code from
+  // commentary fails on the very comment that documents the fix.
+  const np = require('fs').readFileSync(__dirname + '/../js/numparse.js', 'utf8')
+    .split('\n').map(function (l) {
+      return l.trim().indexOf('//') === 0 ? '' : l.split('//')[0];
+    }).join('\n');
+  eq(/result > 0 \|\| sawNumber/.test(np), false,
+     'A270: and the condition that could not be false is gone, not left reading like a guard');
+}
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

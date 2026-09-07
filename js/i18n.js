@@ -1223,6 +1223,13 @@ function tBn(key) {
 }
 function fmtMoney(n) {
   n = Number(n || 0);
+  // A270: money has two decimal places. toLocaleString's default is THREE, and
+  // this is the app's only money printer — every chip, every total, every
+  // receipt. ₹0.006 came out as "₹0.006", and half a paisa is exactly where the
+  // epsilon stops hiding figures, so the first amount the screen is willing to
+  // show is the first one it printed wrong.
+  //
   // "−₹80", not "₹-80" — negatives only appear when the books over-drain
-  return (n < 0 ? '−' : '') + '₹' + Math.abs(n).toLocaleString('en-IN');
+  return (n < 0 ? '−' : '') + '₹' +
+    Math.abs(n).toLocaleString('en-IN', { maximumFractionDigits: 2 });
 }

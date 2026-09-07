@@ -107,8 +107,13 @@
     }
     if (half) return NaN; // dangling সাড়ে with nothing after
     if (!sawNumber) return NaN;
-    const result = total + cur;
-    return result > 0 || sawNumber ? result : NaN;
+    // A270: this used to read `return result > 0 || sawNumber ? result : NaN;`
+    // and the module survey walked straight through a mutation of it, because
+    // the line above already guarantees sawNumber — so the condition was always
+    // true and the ternary always took the first branch. Dead conditions are
+    // worse than no condition: they read like a guard, so the next person
+    // trusts one that was never there. "শূন্য" is a real answer and returns 0.
+    return total + cur;
   }
 
   const api = { parseAmount: parseAmount };
