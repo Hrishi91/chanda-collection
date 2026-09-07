@@ -16534,3 +16534,70 @@ Tests 3,259 (from 3,257). Mutation-proved: an empty derivation, a derivation
 never filled, and a fifth bare read no hand list would have named.
 
 **Tests only** — no version bump, nothing to deploy.
+
+## A248 — stop guessing what is untested and measure it
+
+Three times this session I decided a module was uncovered by grepping the test
+files for its exported names, and **twice I was wrong** — `sync.js` had A93,
+`i18n.js` had A97, both written in shapes my grep did not match. Grepping tests
+measures how a test is *spelled*. The only thing that measures what the tests
+*hold* is breaking the code and watching.
+
+So: `tests/mutation-survey.js`, a small harness that applies mechanical
+mutations — boundary flips (`>=`→`>`, `<`→`<=`) and `&&`→`||` — one at a time
+across a file, runs the whole suite for each, and reports which ones **nothing
+noticed**. Not part of the suite; run by hand when you want a number.
+
+**`js/aggregate.js`, 40 mutations: 22 survived.** After this commit, **8**.
+
+The fourteen closed share one shape, and it is worth naming, because it is not
+about any of these functions in particular:
+
+> **Fixtures gravitate to the middle of a list. The first element and the empty
+> case are where they are not.**
+
+- `AVAIL_CATS.indexOf(k) >= 0` decides which pot a pending parcel's money comes
+  out of. Every fixture in the suite named `person`, `toto`, `bus` — never
+  `shop`, which is **index 0**. Turn that `>=` into `>` and shop money comes off
+  `received`: the collector's shop pot still looks free while a pot they never
+  touched goes negative. Nothing failed.
+- The same expression again for expenses — **written twice**, once in
+  `myAvailable` and once in `potDetail`, and the survey found *both copies*
+  untested in the same three ways. Not tested copy-by-copy but by the law they
+  both have to obey: an expense naming a real pot is attributed to exactly one,
+  one naming no pot appears on no pot screen, and every rupee comes off what is
+  in hand either way. Eight mutations across those four lines now fail by name.
+- `g.total > 0` hides an empty band. No fixture had an empty band, so `>` and
+  `>=` were the same rule in three places.
+- Five `if (row && row.id)` guards survived because **no fixture has ever
+  contained a null row** — which is exactly what a pull landing mid-write, or a
+  corrupted local store, produces. One null in each store now goes through six
+  money screens.
+- `chatLoad`'s thresholds are `>=`, so the named number is already over. Every
+  test sat one to four hundred away from it. Exactly 400, exactly 800 and
+  exactly 1500 are pinned now — the last with empty texts and spread dates, so
+  the count limb is on trial alone rather than tripping the byte and rate limbs
+  at the same time.
+
+**And a harness fix the survey forced.** Two mutations produced *no summary
+line at all*: they made production code throw, the throw killed this
+straight-line file, and everything after it — including
+`console.log(pass + ' passed, …')` — never ran. From outside, a suite that
+aborted and a suite that passed are the same silence. There is now a
+`process.on('exit')` hook that prints the count unconditionally and marks it
+`SUITE ABORTED`. Proved: a deliberate throw prints
+`724 passed, 1 failed (SUITE ABORTED …)` instead of nothing.
+
+**The eight that remain, and why none is a bug.** Five are *equivalent
+mutations* — subtracting zero (`u < 0` vs `<= 0`), draining a pot that holds
+nothing, looping while an amount is zero, a float-epsilon boundary, and
+`catOfDaily`'s `road`, which is also its fallback so index 0 answers the same
+either way. Two are *unreachable guards*: `sectorSplit` and `myAvailable` both
+do `data = activeData(data)` first, and `activeData` already drops null rows, so
+their own `if (p && p.id)` can never fire. One — `handoverReport`'s
+breakdown-parse guard — I could not reach with a fixture the app could really
+produce, and I am recording that rather than forcing one.
+
+Tests 3,284 (from 3,259).
+
+**Tests only** — no version bump, nothing to deploy.

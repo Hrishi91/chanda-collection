@@ -15,6 +15,19 @@ let pass = 0, fail = 0;
 // that is not parked here runs AFTER the summary is printed and the process is
 // already gone — passing, failing and vacuous all look identical from outside.
 const pending = [];
+// A248: this file is one long straight line, so a throw anywhere in it — from a
+// fixture, or from production code a mutation has broken — kills every
+// assertion after it AND the summary. Nothing then prints "N passed, M failed",
+// and a caller that greps for failures sees silence, which is exactly what a
+// clean pass looks like. Found by a mutation survey: two mutations produced no
+// summary at all, and only the survey's own "did it print?" check told them
+// apart from survivors. An exit hook makes the summary unconditional.
+let summarised = false;
+process.on('exit', function () {
+  if (summarised) return;
+  console.log(pass + ' passed, ' + (fail + 1) + ' failed  (SUITE ABORTED — the throw above stopped ' +
+              'everything after it; the count is what had run by then)');
+});
 function eq(actual, expected, label) {
   if (JSON.stringify(actual) === JSON.stringify(expected)) { pass++; }
   else { fail++; console.error('FAIL', label, '→ got', actual, 'expected', expected); }
@@ -2569,6 +2582,25 @@ eq(longB > shortB, true, 'chat load: a long message costs more than a short one'
 // teaches twelve people to ignore the banner. `chatOf(n, 1)` puts every row
 // inside the 24h window, so this is the rate limb on its own.
 eq(chatLoad(chatOf(399, 1), nowIso).level, 'ok', 'chat load: 399 in a day is still quiet');
+// A248: the thresholds are `>=`, so the named number itself is already over.
+// Every test here sat one to four hundred away from it, which made `>=` and `>`
+// the same rule — found by mutating the comparison and watching nothing fail.
+eq(chatLoad(chatOf(400, 1), nowIso).level, 'watch', 'chat load: exactly 400 in a day is already watching');
+eq(chatLoad(chatOf(800, 1), nowIso).level, 'high', 'chat load: exactly 800 in a day is already high');
+{
+  // short texts on purpose: chatOf's usual sentence puts 1,500 messages over the
+  // 300 KB limb too, and a fixture that trips two limbs at once cannot tell you
+  // which one is being tested.
+  const tiny = { messages: [] };
+  const monthAgo = Date.now() - 30 * 86400000;
+  for (let i = 0; i < 1500; i++) {
+    tiny.messages.push({ id: 'm' + i, text: '',
+      createdAt: new Date(monthAgo + i * 60000).toISOString() });   // spread, so the rate limb is quiet too
+  }
+  eq(chatLoad(tiny, nowIso).bytes < 300 * 1024, true, 'chat load: …with the byte limb well clear');
+  eq(chatLoad(tiny, nowIso).perDay, 0, 'chat load: …and the rate limb quiet, so only the count is on trial');
+  eq(chatLoad(tiny, nowIso).level, 'watch', 'chat load: exactly 1500 messages is already watching');
+}
 eq(chatLoad(chatOf(401, 1), nowIso).level, 'watch', 'chat load: 401 in a day crosses');
 eq(chatLoad(chatOf(799, 1), nowIso).level, 'watch', 'chat load: 799 in a day is not yet high');
 // …and the window really is a window: an old book is not a fast one.
@@ -3144,6 +3176,168 @@ eq(ho.pendingOut.total, 700, 'handoverable: reports the pending it set aside, fo
 eq(ho.debt.total, 100, 'handoverable: reports the overspent pot separately — a different reason, different colour');
 // pot-level: each pending parcel comes off ITS OWN pot, read from the breakdown
 eq(ho.byCat.person, { cash: 200, upi: 0 }, 'handoverable: person 500 − its own 300 pending');
+
+// ---- A248: found by MEASURING, not by guessing --------------------------------
+// I twice decided a module was untested by grepping the test files for its
+// names and was twice wrong. So instead: mutate the money code mechanically
+// (boundary flips, && → ||) and see what nothing catches. 22 of 40 mutations in
+// aggregate.js survived; most were equivalent — subtracting zero, or a null-row
+// guard no fixture ever exercises — but four were real, and they share a shape.
+// Fixtures gravitate to the MIDDLE of a list. The first element and the empty
+// case are where they are not.
+
+// 1. THE FIRST CATEGORY. A pending parcel's breakdown is subtracted from the pot
+// it names, via `AVAIL_CATS.indexOf(k) >= 0 ? k : 'received'`. Every fixture in
+// this file names person, toto, bus — never `shop`, which is index 0. Turn that
+// `>= 0` into `> 0` and shop money comes off `received` instead: the collector's
+// shop pot still looks free while a pot they never touched goes negative.
+{
+  const firstCat = handoverable(Object.assign({}, msData, {
+    handovers: [{ id: 'hs', fromId: 'y', toId: 'j', to: 'Jadav', amount: 300, cashAmount: 300, upiAmount: 0,
+                  status: 'pending', breakdown: JSON.stringify({ shop: { cash: 300, upi: 0 } }) }],
+  }), 'y');
+  eq(firstCat.byCat.shop, { cash: 900, upi: 800 },
+     'A248: a pending parcel naming the FIRST category comes off THAT pot — 1200 cash − 300');
+  eq((firstCat.byCat.received || { cash: 0 }).cash, 0,
+     'A248: …and nothing lands in `received`, which is where an off-by-one would put it');
+}
+
+// 2. AN UNKNOWN POT NAME. `srcCat` says which pot an expense drained. The guard
+// is `e.srcCat && AVAIL_CATS.indexOf(e.srcCat) >= 0` — both halves needed. Every
+// fixture spends from a real pot, so the second half was never doing any work.
+{
+  const junk = myAvailable(Object.assign({}, msData, {
+    expenses: [{ id: 'x', collectorId: 'y', amount: 400, cashAmount: 400, upiAmount: 0,
+                 source: 'collection', srcCat: 'nonesuch', desc: 'চা-জল', date: '2026-07-24' }],
+  }), 'y');
+  eq(junk.byCat.nonesuch, undefined,
+     'A248: an expense naming a pot that does not exist never invents one');
+  eq(junk.cash + junk.upi, 2000, 'A248: …the money still comes off the total, so nothing is lost');
+  // …and the SAME first-category blind spot again, one screen over: an expense
+  // paid out of `shop` (index 0) must come off the shop pot in both the summary
+  // and the pot's own detail screen, not vanish into the unattributed fallback.
+  const fromShop = Object.assign({}, msData, {
+    expenses: [{ id: 'x', collectorId: 'y', amount: 400, cashAmount: 400, upiAmount: 0,
+                 source: 'collection', srcCat: 'shop', desc: 'চা-জল', date: '2026-07-24' }],
+  });
+  // stated as a DIFFERENCE, not a constant: msData's shop pot already has a
+  // confirmed parcel against it, and hand-computing the absolute figure is how
+  // a test ends up asserting my arithmetic instead of the code's behaviour.
+  const noExp = Object.assign({}, msData, { expenses: [] });
+  eq(myAvailable(fromShop, 'y').byCat.shop.cash,
+     myAvailable(noExp, 'y').byCat.shop.cash - 400,
+     'A248: an expense from the FIRST pot comes off THAT pot, exactly its own amount');
+  eq(myAvailable(fromShop, 'y').byCat.shop.upi, myAvailable(noExp, 'y').byCat.shop.upi,
+     'A248: …and touches nothing else in it');
+  const pd = potDetail(fromShop, 'y', 'shop');
+  eq(pd.expenses.total, 400, 'A248: …and the pot\'s own screen files it under this pot…');
+  eq(pd.unattributed, 0, 'A248: …rather than in the unattributed pile');
+  // The routing rule — which pot an expense came out of — is written TWICE, once
+  // in myAvailable and once in potDetail, and the survey found both copies
+  // untested in the same three places. Rather than one test per copy, assert the
+  // law they both have to obey: every rupee spent is attributed to exactly one
+  // pot or to none, and never to two. Drift in either copy breaks it.
+  {
+    const spread = Object.assign({}, msData, { expenses: [
+      { id: 'e1', collectorId: 'y', amount: 100, cashAmount: 100, upiAmount: 0,
+        source: 'collection', srcCat: 'shop', date: '2026-07-24' },        // the FIRST pot
+      { id: 'e2', collectorId: 'y', amount: 200, cashAmount: 200, upiAmount: 0,
+        source: 'collection', srcCat: 'nonesuch', date: '2026-07-24' },    // a pot that is not one
+      { id: 'e3', collectorId: 'y', amount: 300, cashAmount: 300, upiAmount: 0,
+        source: 'collection', collectionType: 'road', date: '2026-07-24' },// named the old way
+      { id: 'e4', collectorId: 'y', amount: 50, cashAmount: 50, upiAmount: 0,
+        source: 'general', date: '2026-07-24' },                           // names no pot at all
+      { id: 'e5', collectorId: 'y', amount: 100, cashAmount: 100, upiAmount: 0,
+        source: 'collection', collectionType: 'shop', date: '2026-07-24' },// old way, FIRST pot
+      { id: 'e6', collectorId: 'y', amount: 100, cashAmount: 100, upiAmount: 0,
+        source: 'general', collectionType: 'road', date: '2026-07-24' },   // general spend: the pot name means nothing
+    ] });
+    const cats = ['shop', 'person', 'member', 'payment', 'bus', 'road', 'toto', 'ticket',
+                  'received', 'other', 'sponsor', 'gupt'];
+    let attributed = 0;
+    cats.forEach(function (c) { attributed += ((potDetail(spread, 'y', c).expenses || {}).total) || 0; });
+    // Two halves of one law. An expense that names a real pot is attributed to
+    // exactly that pot — never two, never none; one that names no pot appears on
+    // no pot screen at all, and comes off the total instead. Both halves have to
+    // hold, or money is either double-counted on the screens or quietly kept.
+    eq(attributed, 500, 'A248: exactly the expenses that NAME a real pot are attributed to one');
+    eq(potDetail(spread, 'y', 'shop').expenses.total, 200,
+       'A248: …the FIRST pot collects both ways of naming it, srcCat and the older collectionType');
+    eq(potDetail(spread, 'y', 'nonesuch').expenses.total, 0,
+       'A248: …asking for a pot that is not one answers nothing, it does not invent the pot');
+    eq(potDetail(spread, 'y', 'road').expenses.total, 300,
+       'A248: …and a GENERAL spend naming a pot is not from that pot — road stays 300, not 400');
+    const before = myAvailable(Object.assign({}, msData, { expenses: [] }), 'y');
+    const after = myAvailable(spread, 'y');
+    eq((before.cash + before.upi) - (after.cash + after.upi), 850,
+       'A248: …while every rupee of all six comes off what is in hand, attributed or not');
+    // and the same two facts through myAvailable, which holds its own copy of
+    // the rule: the pot screens and the pot totals must route identically or
+    // one of them is lying about where the money went.
+    eq(before.byCat.shop.cash - after.byCat.shop.cash, 200,
+       'A248: myAvailable routes BOTH shop spends to the shop pot, the same as the pot screen');
+    eq(before.byCat.road.cash - after.byCat.road.cash, 300,
+       'A248: …and does not let a general spend that merely names road come out of road');
+  }
+}
+
+// 3. THE EMPTY GROUP. `byGiver` and the summary bands drop anything totalling
+// zero. Nothing had a zero band to drop, so `> 0` and `>= 0` were the same test.
+{
+  const zero = myAvailable(Object.assign({}, msData, {
+    handovers: msData.handovers.concat([{
+      id: 'hz', fromId: 'z', toId: 'y', to: 'Y', amount: 0, cashAmount: 0, upiAmount: 0,
+      status: 'confirmed', breakdown: JSON.stringify({ person: { cash: 0, upi: 0 } }) }]),
+  }), 'y');
+  eq(zero.byGiver.filter(function (g) { return g.total === 0; }).length, 0,
+     'A248: a giver who handed over nothing is not listed as a ₹0 line');
+  const ps = personalSummary(Object.assign({}, msData, { payments: [], daily: [], expenses: [] }), 'y');
+  eq((ps.rows || []).filter(function (r) { return r && r.total === 0 && r.pending === 0; }).length, 0,
+     'A248: …and an empty personal summary shows no empty rows either');
+}
+
+// 4. A NULL ROW. Five separate `if (p && p.id)` guards survived every mutation
+// because no fixture has ever contained a null row — and a pull that lands
+// mid-write, or a corrupted local store, is exactly where one comes from. One
+// null in each store proves all five at once.
+{
+  const holed = { parties: [null].concat(msData.parties), payments: [null].concat(msData.payments),
+                  daily: [null].concat(msData.daily), expenses: [null].concat(msData.expenses),
+                  handovers: [null].concat(msData.handovers), voids: [null], corrections: [null] };
+  let threw = '';
+  try {
+    mySummary(holed, 'y'); myAvailable(holed, 'y'); handoverable(holed, 'y');
+    personalSummary(holed, 'y'); cashierView(holed, 'y'); reconcile(holed, {});
+    const AG = require('../js/aggregate.js');
+    AG.sectorSplit(holed); AG.ofSector(holed, 'puja');
+    // a parcel carrying NO breakdown at all — a legacy row, or a truncated
+    // write — reaches both the report and the ceiling calculation
+    const noBd = Object.assign({}, holed, { handovers: [{ id: 'hb', fromId: 'y', toId: 'j', to: 'J',
+      amount: 100, cashAmount: 100, upiAmount: 0, status: 'confirmed' }] });
+    AG.handoverReport(noBd, 'y'); AG.handoverReport(holed, 'y');
+    // a parcel whose breakdown parses to null — an old row, or a truncated write
+    handoverable(Object.assign({}, holed, { handovers: [{ id: 'hn', fromId: 'y', toId: 'j',
+      amount: 100, cashAmount: 100, upiAmount: 0, status: 'pending', breakdown: 'null' }] }), 'y');
+  } catch (e) { threw = String((e && e.message) || e); }
+  eq(threw, '', 'A248: one empty row in every store does not take the money screens down');
+}
+
+// 5. And the same empty-group blind spot in the other two screens. A parcel of
+// ZERO — a correction that cancelled itself, a legacy row — leaves a person
+// with a total of 0 on both sides. Every fixture's handovers carry money, so
+// `> 0` and `>= 0` were the same test in both places.
+{
+  const zeroOut = Object.assign({}, msData, {
+    handovers: msData.handovers.concat([{
+      id: 'hz0', fromId: 'y', toId: 'k', to: 'Kali', amount: 0, cashAmount: 0, upiAmount: 0,
+      status: 'confirmed', breakdown: JSON.stringify({ person: { cash: 0, upi: 0 } }) }]),
+  });
+  eq(personalSummary(zeroOut, 'y').handedTo.filter(function (e) {
+    return e.total === 0 && e.pending === 0;
+  }).length, 0, 'A248: somebody handed a parcel of nothing is not a line on কাকে দিলাম');
+  eq(cashierView(zeroOut, 'k').byGiver.filter(function (g) { return g.total === 0; }).length, 0,
+     'A248: …nor a ₹0 giver on the cashier\'s desk');
+}
 eq(ho.byCat.toto, { cash: 0, upi: 0 }, 'handoverable: toto fully committed to a pending parcel');
 eq(ho.byCat.bus, { cash: 400, upi: 0 }, 'handoverable: an untouched pot is left alone');
 eq(ho.byCat.road, { cash: 0, upi: 0 }, 'handoverable: a negative pot is clamped to 0 — never an offer');
@@ -8441,6 +8635,7 @@ Promise.all(pending.map(function (p) {
     console.log('FAIL an async assertion block threw → ' + ((e && e.message) || e));
   });
 })).then(function () {
+  summarised = true;
   console.log(pass + ' passed, ' + fail + ' failed');
   process.exit(fail ? 1 : 0);
 });
