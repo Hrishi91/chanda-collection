@@ -1821,6 +1821,31 @@
     if (sec === 'puja') return Number(user.cashier) === 1;
     return String(user.entries || '').split(',').indexOf(sec + ':cashier') >= 0;
   }
+  // A257: turn the cash sheet's answer into the parcel it describes. Pure, and
+  // here rather than inside the flow's closure, because it is money arithmetic
+  // and money arithmetic that only a tap can reach is money arithmetic nobody
+  // tests — three mutations of it survived the whole suite before this moved.
+  //
+  // The sheet's answer is {cat: {cash, upi}} plus reserved `__` keys. `__sector`
+  // is the ভাঁড়ার, DERIVED from the pots the collector picked rather than asked;
+  // an answer that names none is the puja's, the same default every row without
+  // a `sector` has always had.
+  function parcelFromSheet(sheet) {
+    const out = { sector: 'puja', breakdown: {}, cash: 0, upi: 0, total: 0 };
+    if (!sheet || typeof sheet !== 'object') return out;
+    const sec = String(sheet.__sector || '');
+    if (SECTORS.indexOf(sec) >= 0) out.sector = sec;
+    Object.keys(sheet).forEach(function (k) {
+      if (k.slice(0, 2) === '__') return;   // metadata, never a pot
+      const e = sheet[k] || {};
+      const c = Number(e.cash) || 0, u = Number(e.upi) || 0;
+      if (c <= 0 && u <= 0) return;
+      out.breakdown[k] = { cash: c, upi: u };
+      out.cash += c; out.upi += u;
+    });
+    out.total = out.cash + out.upi;
+    return out;
+  }
   // A253: what "সব দাও" / "সব নাও" does to a draft. Pure, and here rather than
   // in the click handler, because the whole point of the change is that a bulk
   // button reaches ONLY its own group — the old one assigned PERM_KEYS wholesale,
@@ -2221,6 +2246,7 @@
                 FUND_PERM_KEYS: FUND_PERM_KEYS, permKeyFor: permKeyFor, permParts: permParts,
                 permGroups: permGroups, applyBulk: applyBulk,
                 fundRoleKeys: fundRoleKeys, fundRoleParts: fundRoleParts, isCashierOf: isCashierOf,
+                parcelFromSheet: parcelFromSheet,
                 SUMMARY_GROUPS: SUMMARY_GROUPS,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,

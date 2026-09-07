@@ -1383,7 +1383,8 @@
         const avail = kind === 'cash' ? c.cash : c.upi;
         if (avail <= 0) return '<span class="sh-none">—</span>';
         return '<button class="sh-pick on" data-cat="' + esc(c.key) + '" data-kind="' + kind +
-          '" data-amt="' + avail + '">' + (kind === 'cash' ? '💵' : '📱') + ' ' + fmtMoney(avail) + '</button>';
+          '" data-fund="' + esc(c.fund || 'puja') + '" data-amt="' + avail + '">' +
+          (kind === 'cash' ? '💵' : '📱') + ' ' + fmtMoney(avail) + '</button>';
       };
       const catRow = function (c) {
         return '<div class="sh-row"><span class="cat-name">' + esc(t(c.labelKey || CAT_LABEL_KEYS[c.key] || 'cat_other')) + '</span>' +
@@ -1592,6 +1593,7 @@
       // স্পনসর drops the ordinary pots; picking an ordinary pot drops স্পনসর.
       // The save-time message stays as a backstop nobody should ever reach.
       const isConf = function (b) { return Aggregate.isRestrictedType(b.dataset.cat); };
+      const fundOf = function (b) { return b.dataset.fund || 'puja'; };
       const exclusive = function (b) {
         if (!b.classList.contains('on')) return;
         const wantConf = isConf(b);
@@ -1599,7 +1601,11 @@
           if (o === b) return;
           // two confidential pots are mixing too, so same-family is not enough —
           // only the SAME pot may stay lit beside a confidential one
-          const keep = wantConf ? (isConf(o) && o.dataset.cat === b.dataset.cat) : !isConf(o);
+          let keep = wantConf ? (isConf(o) && o.dataset.cat === b.dataset.cat) : !isConf(o);
+          // A257: …and one ভাঁড়ার per parcel, for the same reason and by the
+          // same mechanism. Two books have two কোষাধ্যক্ষ; an envelope that
+          // holds both belongs to neither.
+          if (fundOf(o) !== fundOf(b)) keep = false;
           if (!keep) o.classList.remove('on');
         });
       };
@@ -1609,7 +1615,12 @@
       document.getElementById('sh-all').onclick = function () {
         // "সব" means all the OPEN money — a confidential pot is never part of
         // "everything", because everything is exactly what it may not travel with
-        picks.forEach(function (b) { b.classList.toggle('on', !isConf(b)); });
+        // A257: "সব" is all the open money of ONE book — whichever book the
+        // sheet is already showing, so the tap cannot build a parcel the save
+        // would refuse.
+        const lit = picks.filter(function (b) { return b.classList.contains('on'); });
+        const fund = lit.length ? fundOf(lit[0]) : fundOf(picks[0]);
+        picks.forEach(function (b) { b.classList.toggle('on', !isConf(b) && fundOf(b) === fund); });
         if (!picks.some(function (b) { return b.classList.contains('on'); })) {
           picks.forEach(function (b) { b.classList.add('on'); exclusive(b); });
         }
@@ -1622,6 +1633,13 @@
       // collector holding both kinds would otherwise land on a mixed parcel
       // before touching anything. Somebody holding ONLY confidential money keeps
       // theirs lit — there is nothing for it to be mixed with.
+      // A257: …and in ONE book. Everything renders lit, so somebody holding
+      // money in both would otherwise land on a mixed parcel before touching
+      // anything — the exact shape A146 fixed for confidential pots.
+      if (picks.length) {
+        const firstFund = fundOf(picks[0]);
+        picks.forEach(function (b) { if (fundOf(b) !== firstFund) b.classList.remove('on'); });
+      }
       if (picks.some(isConf) && picks.some(function (b) { return !isConf(b); })) {
         picks.forEach(function (b) { if (isConf(b)) b.classList.remove('on'); });
       } else if (picks.some(isConf)) {
@@ -1632,12 +1650,16 @@
       refresh();
       nextB.onclick = function () {
         const per = {};
+        let fund = '';
         picks.forEach(function (b) {
           if (!b.classList.contains('on')) return;
           const k = b.dataset.cat;
+          fund = fundOf(b);
           per[k] = per[k] || { cash: 0, upi: 0 };
           per[k][b.dataset.kind] += Number(b.dataset.amt) || 0;
         });
+        // A257: derived from the pots, never asked. Reserved key, like __cash.
+        if (fund) per.__sector = fund;
         submitSheet(per);
       };
     }
@@ -2022,7 +2044,23 @@
         return { key: k, labelKey: CAT_LABELS[k], amount: c + u, cash: c, upi: u };
       });
     };
-    const categories = catsOf(avail.byCat || {});
+    // A257: one row per (ভাঁড়ার, pot), because a parcel belongs to ONE book —
+    // the programme has its own কোষাধ্যক্ষ now, and money for two books cannot
+    // travel in one envelope any more than স্পনসর money can travel with
+    // ordinary money. The collector is asked nothing extra: the pots they
+    // already pick say which book, exactly as A153 removed the "কোন ভাঁড়ার?"
+    // question from entry by letting the screen answer it.
+    //
+    // Only funds this person actually holds money in appear, so a committee
+    // with no programme sees precisely the sheet it always saw.
+    const byFund = avail.byFund || [];
+    const categories = byFund.length
+      ? byFund.reduce(function (acc, fa) {
+          return acc.concat(catsOf(fa.byCat || {}).map(function (c) {
+            return Object.assign({ fund: fa.fund }, c);
+          }));
+        }, [])
+      : catsOf(avail.byCat || {});
     // TWO different screens, because the two jobs are genuinely different.
     //
     // A COLLECTOR knows which round each note came from, so they pick
@@ -2059,7 +2097,7 @@
         { key: 'note', qKey: 'q_note', kind: 'text', optional: true },
       ]),
       save: function (a) {
-        let m, breakdown = null;
+        let m, breakdown = null, sheetSector = 'puja';
         if (a.cashsheet && typeof a.cashsheet === 'object') {
           // A cashier types one cash and one UPI figure — there is no honest
           // category to record, so instead the row keeps a SNAPSHOT of where
@@ -2072,13 +2110,13 @@
           m = { cash: c, upi: u, total: c + u };
         } else if (a.sheet && typeof a.sheet === 'object') {
           // the sheet already IS the per-category, per-money-type split —
-          // store it verbatim so both sides' books stay exact
-          breakdown = {}; let cash = 0, upi = 0;
-          Object.keys(a.sheet).forEach(function (k) {
-            const c = Number(a.sheet[k].cash) || 0, u = Number(a.sheet[k].upi) || 0;
-            if (c > 0 || u > 0) { breakdown[k] = { cash: c, upi: u }; cash += c; upi += u; }
-          });
-          m = { cash: cash, upi: upi, total: cash + upi };
+          // store it verbatim so both sides' books stay exact. A257 moved the
+          // arithmetic to Aggregate.parcelFromSheet: it decides the ভাঁড়ার too,
+          // and money arithmetic only a tap can reach is money arithmetic
+          // nobody tests.
+          const parcel = Aggregate.parcelFromSheet(a.sheet);
+          breakdown = parcel.breakdown; sheetSector = parcel.sector;
+          m = { cash: parcel.cash, upi: parcel.upi, total: parcel.total };
         } else m = moneyOf(a);
         if (m.total <= 0) return Promise.reject(new Error('zero'));
         // A144: a confidential pot travels ALONE. visibleData withholds such a
@@ -2107,6 +2145,11 @@
           amount: m.total, cashAmount: m.cash, upiAmount: m.upi,
           date: todayISO(), note: a.note || '',
           status: 'pending', confirmedBy: '', confirmedAt: '',
+          // A257: which ভাঁড়ার this envelope belongs to, DERIVED from the pots
+          // the collector picked — never asked. A parcel with no pots behind it
+          // (the cashier's typed-amount sheet) is the puja's, the same default
+          // every row without a `sector` has always had.
+          sector: sheetSector,
           breakdown: breakdown ? JSON.stringify(breakdown) : '',
         });
         return DB.put('handovers', row).then(function () {
@@ -2124,7 +2167,16 @@
       // handoverable(), NOT myAvailable(): pending parcels are still counted as
       // this person's money in the books, but the notes have already left the
       // pocket, so offering them again would promise the same money twice.
-      return { avail: Aggregate.handoverable(data, ident),
+      // A257: the same answer per ভাঁড়ার, so the sheet can tag each pot with the
+      // book it came from. Only funds this person holds money in are carried,
+      // so a committee with no programme gets exactly one entry and a sheet
+      // that looks precisely as it always did.
+      const whole = Aggregate.handoverable(data, ident);
+      whole.byFund = Aggregate.SECTORS.map(function (sec) {
+        const a = Aggregate.handoverable(data, ident, sec);
+        return { fund: sec, byCat: a.byCat, cash: a.cash, upi: a.upi };
+      }).filter(function (fa) { return (fa.cash + fa.upi) > 0; });
+      return { avail: whole,
                // only a cashier/admin uses this, but computing it always keeps
                // the two code paths from drifting apart
                view: Aggregate.cashierView(data, ident) };

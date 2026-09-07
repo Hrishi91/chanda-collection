@@ -3204,6 +3204,45 @@ eq(ho.debt.total, 100, 'handoverable: reports the overspent pot separately — a
 // pot-level: each pending parcel comes off ITS OWN pot, read from the breakdown
 eq(ho.byCat.person, { cash: 200, upi: 0 }, 'handoverable: person 500 − its own 300 pending');
 
+// ---- A257: the cash sheet's answer becomes the parcel -------------------------
+// This arithmetic used to live inside the handover flow's closure, where only a
+// tap could reach it — and three mutations of it survived the entire suite.
+// Money arithmetic that no test can call is money arithmetic nobody tests.
+{
+  const A257c = require('../js/aggregate.js');
+  const P = A257c.parcelFromSheet;
+  const sheet = { shop: { cash: 700, upi: 300 }, road: { cash: 200, upi: 0 }, __sector: 'program' };
+  const p = P(sheet);
+  eq([p.cash, p.upi, p.total], [900, 300, 1200], 'A257: the parcel is exactly what was picked, per money type');
+  eq(Object.keys(p.breakdown).sort().join(','), 'road,shop', 'A257: …the pots, and only the pots');
+  eq(p.breakdown.__sector, undefined,
+     'A257: …with the ভাঁড়ার kept OUT of the breakdown, never filed as a pot');
+  eq(p.sector, 'program', 'A257: …and carried as the parcel\'s own fund');
+  // the default, which is what every parcel written before funds existed is
+  eq(P({ shop: { cash: 100, upi: 0 } }).sector, 'puja',
+     'A257: a sheet naming no fund makes a puja parcel');
+  eq(P({ shop: { cash: 100, upi: 0 }, __sector: 'nonsense' }).sector, 'puja',
+     'A257: …and so does one naming a fund that does not exist');
+  eq(P({ shop: { cash: 100, upi: 0 }, __sector: 'program' }).sector, 'program',
+     'A257: …while a real one is kept');
+  // zero pots are dropped, so a parcel never claims a pot it took nothing from
+  eq(Object.keys(P({ shop: { cash: 0, upi: 0 }, road: { cash: 50, upi: 0 } }).breakdown).join(','), 'road',
+     'A257: a pot nothing was taken from is not in the breakdown');
+  eq(P({}).total, 0, 'A257: an empty sheet is an empty parcel…');
+  eq(P(null).sector, 'puja', 'A257: …and no sheet at all does not throw');
+  // the snapshot the cashier's typed sheet stores is metadata too
+  eq(Object.keys(P({ __snap: { totalIn: 5 }, shop: { cash: 10, upi: 0 } }).breakdown).join(','), 'shop',
+     'A257: the cashier\'s __snap is metadata as well, not a pot');
+  // …and the `__` rule has to do the work ITSELF, not lean on metadata happening
+  // to carry no amount. __snap already stores {cash, upi} objects; the day one
+  // of them is flattened, a snapshot would be filed as a pot and the parcel
+  // would claim money from a category that does not exist.
+  eq(Object.keys(P({ __snap: { cash: 99, upi: 1 }, shop: { cash: 10, upi: 0 } }).breakdown).join(','), 'shop',
+     'A257: …even when a metadata key carries amounts of its own');
+  eq(P({ __snap: { cash: 99, upi: 1 }, shop: { cash: 10, upi: 0 } }).total, 10,
+     'A257: …and metadata never adds a rupee to the parcel');
+}
+
 // ---- A256: one ভাঁড়ার's purse ------------------------------------------------
 // Hrishi's decision: the programme gets its own কোষাধ্যক্ষ, so a collector's
 // money has to be answerable per book. The cheap way — the one that asks the
@@ -7506,8 +7545,14 @@ try {
      'A146: the sheet knows which pots are confidential…');
   eq(/b\.onclick = function \(\) \{ b\.classList\.toggle\('on'\); exclusive\(b\); refresh\(\); \};/.test(app), true,
      'A146: …picking one drops whatever it may not travel with…');
-  eq(/const keep = wantConf \? \(isConf\(o\) && o\.dataset\.cat === b\.dataset\.cat\) : !isConf\(o\);/.test(app), true,
+  // A257: `const` became `let`, because one ভাঁড়ার per parcel is a second
+  // reason to drop a pot and it narrows the same decision. The property is
+  // unchanged and is what this asserts: beside a confidential pot, only the
+  // SAME pot may stay lit — two confidential pots are mixing too.
+  eq(/keep = wantConf \? \(isConf\(o\) && o\.dataset\.cat === b\.dataset\.cat\) : !isConf\(o\);/.test(app), true,
      'A146: …including a SECOND confidential pot, which is mixing too');
+  eq(/if \(fundOf\(o\) !== fundOf\(b\)\) keep = false;/.test(app), true,
+     'A257: …and a pot from another ভাঁড়ার, which cannot share an envelope either');
   eq(/if \(picks\.some\(isConf\) && picks\.some\(function \(b\) \{ return !isConf\(b\); \}\)\) \{/.test(app), true,
      'A146: …and the sheet OPENS valid, so the default tap is never the refused parcel');
 

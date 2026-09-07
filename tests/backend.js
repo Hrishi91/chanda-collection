@@ -4561,6 +4561,54 @@ module.exports = function runBackendTests(eq) {
        'backend A197: …and "ঠিক আছে, বেশিই দিয়েছেন" settles it on the SERVER row, for every phone');
   }
 
+  // --- A257: a parcel belongs to ONE ভাঁড়ার, and the server keeps that -------
+  // Two books now have two কোষাধ্যক্ষ, so an envelope holding both belongs to
+  // neither. The fund is DERIVED from the pots the collector already picked —
+  // nobody is asked — and this is the round trip that proves it survives the
+  // sheet: written, pushed, stored in its own column, and read back.
+  {
+    const b257 = loadBackend(); b257.api.setup();
+    ['adm257', 'sub257', 'kali257'].forEach(function (u, i) {
+      b257.post('register', { username: u, name: u, password: 'secret' + i, phone: '98400000' + i });
+    });
+    const t257 = b257.call('login', { username: 'adm257', password: 'secret0', year: 2026 }).token;
+    const uid = function (u) { return b257.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+    ['sub257', 'kali257'].forEach(function (u) {
+      b257.call('setStatus', { token: t257, userId: uid(u), status: 'approved' });
+      b257.call('approveYear', { token: t257, userId: uid(u), year: 2026 });
+    });
+    b257.call('setEntries', { token: t257, userId: uid('sub257'),
+                              entries: ['shop', 'program:ticket', 'program:person'] });
+    b257.call('setCashier', { token: t257, userId: uid('kali257'), cashier: 1 });
+    const tk257 = b257.call('login', { username: 'sub257', password: 'secret1', year: 2026 }).token;
+    const put257 = function (store, row) {
+      return b257.call('push', { token: tk257, records: [{ store: store, row: row }] });
+    };
+    put257('parties', { id: 'p257', year: 2026, type: 'shop', name: 'দোকান', pledged: 1000,
+                        side: 'main_malda', sector: 'puja' });
+    put257('payments', { id: 'y257', year: 2026, partyId: 'p257', partyName: 'দোকান', amount: 1000,
+                         cashAmount: 1000, upiAmount: 0, date: '2026-09-07' });
+    put257('daily', { id: 'd257', year: 2026, type: 'ticket', amount: 600, cashAmount: 600,
+                      upiAmount: 0, date: '2026-09-07', sector: 'program' });
+    const sent = put257('handovers', { id: 'h257', year: 2026, toId: 'kali257', to: 'kali257',
+      amount: 600, cashAmount: 600, upiAmount: 0, date: '2026-09-07', status: 'pending',
+      sector: 'program', breakdown: JSON.stringify({ ticket: { cash: 600, upi: 0 } }) });
+    eq((sent.savedIds || []).indexOf('h257') >= 0, true, 'backend A257: a programme parcel is accepted');
+    const stored = b257.rows('Handovers').filter(function (x) { return x.id === 'h257'; })[0];
+    eq(stored && String(stored.sector), 'program',
+       'backend A257: …and the sheet keeps its ভাঁড়ার in its own column, not in a note');
+
+    const A257 = require('../js/aggregate.js');
+    const d257 = (b257.call('pull', { token: tk257, year: 2026, since: 0 }) || {}).data || {};
+    const tot257 = function (x) { return x.cash + x.upi; };
+    eq(tot257(A257.handoverable(d257, 'sub257', 'program')), 0,
+       'backend A257: the programme purse is emptied by the programme parcel…');
+    eq(tot257(A257.handoverable(d257, 'sub257', 'puja')), 1000,
+       'backend A257: …and the puja\'s is untouched by it');
+    eq(tot257(A257.handoverable(d257, 'sub257')), 1000,
+       'backend A257: …with the whole-book answer still the sum of the two');
+  }
+
   // --- A255: the per-fund cashier gate, on the side that is the lock --------
   // Nothing calls it yet — it is wired up when parcels learn their fund. An
   // untested decider that is only reached later is one nobody goes back to

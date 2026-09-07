@@ -17041,3 +17041,52 @@ Tests 3,442 (from 3,430). Four mutations, all named.
 **Still inert:** nothing calls it with a fund yet. Step 2b gives a parcel its
 fund and splits what the screens show; step 3 makes `confirmHandover` demand the
 cashier of that book.
+
+## A257 — a parcel belongs to ONE ভাঁড়ার, and nobody is asked which
+
+Two books now have two কোষাধ্যক্ষ, so an envelope holding both belongs to
+neither. The fund is **derived from the pots the collector already picked** —
+the same move A153 made when it deleted "কোন ভাঁড়ার?" from every entry screen by
+letting the screen answer it.
+
+**The mechanism was already in the file.** A146 made mixing confidential money
+impossible *on the sheet* rather than punishing it at save, because the old
+behaviour let somebody choose pots, choose a cashier, write a note, and only
+then be refused — *"a dead end wearing a rule's clothes"*. One fund per parcel
+is the same rule with a different reason, so it is the same three lines: pots
+carry their book, picking one drops the others, and the sheet **opens** in a
+valid state rather than starting mixed. "সব" now means all the open money of
+**one** book.
+
+The parcel carries `sector`, `Handovers` gained the column (`ensureCols_`
+appends it; a row written before it exists reads as the puja's), and a real
+round trip proves it survives: written, pushed, stored in its own column, read
+back, and the programme purse emptied while the puja's is untouched.
+
+**No schema bump.** The contract did not change; a column did.
+
+### Three mutations survived, and that was the finding
+
+Breaking the client's parcel arithmetic three ways — always writing `'puja'`,
+never recording the picked fund, reading `__sector` as a pot — changed nothing
+in 3,448 assertions. All three lived inside the handover flow's closure, where
+only a tap can reach them. **Money arithmetic that no test can call is money
+arithmetic nobody tests.**
+
+It moved to `Aggregate.parcelFromSheet`, pure, the same way A253 moved the bulk
+buttons' logic out of a click handler. Now driven: the parcel is exactly what
+was picked per money type, the fund is carried and an unknown one falls back to
+the puja, zero pots are dropped so a parcel never claims a pot it took nothing
+from, and metadata keys are never pots.
+
+That last one needed a second attempt. The `__` guard looked load-bearing and
+was not: metadata happens to carry no `cash`, so the amounts test dropped it
+anyway. `__snap` already stores `{cash, upi}` objects — the day one is
+flattened, a snapshot becomes a pot and the parcel claims money from a category
+that does not exist. The test now passes a metadata key **with amounts**, and
+the guard fails by name without it.
+
+Tests 3,461 (from 3,442). Mutation-proved on both sides.
+
+**Still to come:** step 3 — `confirmHandover` demands the cashier of the book
+the parcel names, and the recipient list is built the same way.
