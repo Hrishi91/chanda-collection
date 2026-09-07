@@ -17299,3 +17299,43 @@ fallback and left the road alone.
 Schema stays 5. Nothing is locked out, and a phone still on v4.90.0 keeps
 collecting and handing over exactly as before — it simply cannot yet see a
 programme cashier, which is the state it has been in all along.
+
+## A261 — the four programme paths I had not walked
+
+A260 walked the collection half. These are the four I said were untested and
+should not stay that way, `progmoney` first because it takes money OUT.
+
+**Nothing was broken.** Unlike the last walk, this one found no defect — which
+is worth recording as plainly as a finding would be.
+
+- **🧾 খরচ.** সুব্রত holds `progmoney` and is **not** a cashier. ₹700 to শিল্পী
+  saved and accepted, stored `sector: program`, `source: general`. That is the
+  whole point of `progmoney`: running the programme's purse does not require the
+  committee's.
+- **The subject list is filtered by fund.** A puja-only subject (প্রতিমা, added
+  for this) does **not** appear in the programme's খরচ flow, while the
+  fund-less seeded ones (প্যান্ডেল, আলো) do — which is A152's design exactly:
+  a subject with no fund belongs to both, so nothing had to be migrated.
+- **🤝 দায়.** ₹25,000 promised to রূপা সংগীত দল, stored `source: commitment`
+  with `amount: 0` and `committed: 25000` — so a promise never counts as a
+  spend, and only the unpaid remainder shows.
+- **🔁 ভাঁড়ার-বদল.** ₹300 moved programme → puja. Both sides land:
+  `program` transferOut 300 balance 1000, `puja` transferIn 300 balance 300.
+- **📊 হিসাব** reads আয় ₹2,000 · খরচ ₹700 · **ভাঁড়ারে ₹1,000** — the transfer
+  included — with the দায় shown separately as *কথা দেওয়া আছে ₹25,000, দেওয়া
+  হয়েছে ₹0*.
+
+**One false alarm, mine.** I read `computeReport('overview', ofSector(d,'program')).inHand`
+as ₹1,300 and thought the transfer had gone missing. It had not: that function
+excludes transfers by design (A150 — the money has not left the committee), and
+the fund's true balance comes from `sectorSplit`, which is what the screen
+actually shows. **I was asking a function the screen does not use.** Checking
+what the screen says settled it in one step; the two-sided transfer was already
+pinned by A150.
+
+**Not walked, and left so deliberately:** rejecting a parcel from the cashier's
+screen — the same screen and the same guard as confirming, which A258 and A259
+drive from both directions server-side — and the 📄 PDF button, which is
+present and wired but opens a print dialog that would hang the pane.
+
+Docs only. Tests unchanged at 3,499.
