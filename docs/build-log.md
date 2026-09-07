@@ -17280,3 +17280,22 @@ and still could not see either of these, because one lived on the road the
 screen takes and the other in a sentence no test reads.
 
 Tests 3,499 (from 3,493).
+
+### Deploy — server to chanda-v4.91.0 (the roster carries `funds`)
+
+Probed three times from the Browser pane before rebaking: the GET envelope plus
+two POSTs of a deliberately bad token, all `chanda-v4.91.0` / schema 5.
+
+**This one could not have waited.** The client already reads `funds` off the
+committee roster to decide who may receive a parcel; until the server sends it,
+a cashier who holds only `program:cashier` appears in **no** handover picker at
+all. The fix and the field have to arrive together, and this is the half that
+was missing.
+
+Also carried: the roster is what the handover screen actually reads (A176), so
+this is the path the fix had to land on — A258 had taught the `cashiers`
+fallback and left the road alone.
+
+Schema stays 5. Nothing is locked out, and a phone still on v4.90.0 keeps
+collecting and handing over exactly as before — it simply cannot yet see a
+programme cashier, which is the state it has been in all along.
