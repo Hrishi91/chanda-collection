@@ -1684,7 +1684,7 @@
   //              funds — its own power, so running the programme's purse does
   //              not hand somebody the committee's
   // ('ticket' is an ENTRY_KIND and already grantable.)
-  const PROGRAM_KEYS = ['progteam', 'progdonor', 'progmoney'];
+  const PROGRAM_KEYS = ['progteam', 'progmoney'];
   // A251: an entry permission is a (FUND, KIND) pair, not a kind on its own.
   //
   // Hrishi's point, and it is the right one: a kind wanted in one book is not
@@ -1768,14 +1768,22 @@
   }
   // Which permission key a row needs, from the row itself. Stores with no key
   // are common to everyone.
+  // A252: the key a row DEMANDS is its (fund, kind) pair. Until now it was the
+  // kind alone, so a grant meant for one book opened the other — measured, not
+  // assumed: a bare `ticket` grant wrote into BOTH books, because the
+  // programme's membrane was a special case on `parties` and daily rows had no
+  // membrane at all.
   function permForRow(store, row) {
-    if (store === 'parties') return ENTRY_KINDS.indexOf(String(row && row.type)) >= 0 ? String(row.type) : null;
-    if (store === 'daily') return ENTRY_KINDS.indexOf(String(row && row.type)) >= 0 ? String(row.type) : null;
+    const kindKey = function (ty) {
+      return ENTRY_KINDS.indexOf(String(ty)) >= 0 ? permKeyFor(sectorOf(row), String(ty)) : null;
+    };
+    if (store === 'parties') return kindKey(row && row.type);
+    if (store === 'daily') return kindKey(row && row.type);
     // a collection expense is spent out of a round the person is running, so it
     // rides that round's permission; general puja expenses are cashier-only and
     // gated separately.
     if (store === 'expenses' && String(row && row.source) === 'collection') {
-      return ENTRY_KINDS.indexOf(String(row.collectionType)) >= 0 ? String(row.collectionType) : null;
+      return kindKey(row.collectionType);
     }
     return null;
   }

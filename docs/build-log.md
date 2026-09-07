@@ -16764,3 +16764,74 @@ gaining a prefix.
 
 **Not deployable on its own** — `PERM_KEYS` lives on both sides, so this rides
 the same release as the steps that follow.
+
+## A252 — the membrane is the key, not a branch beside it
+
+A251 made an entry permission a (fund, kind) pair. This is the step that makes
+the server ASK for it — the one that can stop collection, so it went on its own,
+measured before and after rather than reasoned about.
+
+**Measured first, and it found something.** Driving every grant through the real
+push gate showed that a bare `ticket` grant wrote into **both** books. A162's
+membrane was a special case on `parties`, and `daily` rows had no fund check at
+all. A test shaped by example would have missed exactly that pair; a matrix
+found it in the first run.
+
+**Now `permForRow` answers with the pair**, on both sides, and the special case
+is **deleted**. That deletion is the point rather than a side effect: A162 had
+to write a branch because a permission named only a kind, so the programme's
+book needed a rule of its own. With the fund inside the key, one line answers
+for both books and for every store — parties, daily, and a collection expense
+alike.
+
+Every grant now opens exactly one cell of the matrix, pinned exhaustively on
+both sides: eighteen grants × eighteen rows on the server through
+`tests/backend.js`, and the same eighteen through `permForRow`/`permAllowed` on
+the client. The client half exists because the client's copy decides what a
+screen OFFERS, and A162 recorded the cost of getting that wrong: a person walks
+a whole flow and watches it vanish at push, which is worse than no tile.
+
+**`progdonor` has retired.** It was the blanket covering whichever donor kinds
+the tab happened to offer; nine keys do that work now, each a decision taken by
+name. It is no longer grantable, and the matrix asserts it opens nothing — a
+key nobody can be given must not still be honoured by whichever half of the
+system forgot.
+
+**The 🎭 tab draws a tile per kind**, derived from `ENTRY_KINDS` and gated on
+that kind's programme key. Adding a kind to the programme is now a chip on the
+admin screen rather than a release. The icon map was hoisted out of `homeHTML`
+to module scope instead of being copied — the same duplication A222 hoisted
+`PERM_ONLY_LABELS` to end.
+
+### One deliberate guard removed, and it should be said plainly
+
+A162 required a programme sponsor to carry the puja's `sponsor` key on top of
+the programme grant, with a stated reason: *"who may take a sponsor is one
+decision for the whole committee, and the 🎭 tab must not become a second door
+to it."* That coupling is gone.
+
+The reason it existed was the blanket: with `progdonor` covering every kind the
+tab offered, the only way to stop it becoming a second door to sponsors was to
+demand the puja key as well. There is no blanket now — `program:sponsor` is its
+own decision, taken by name, which is what that rule was reaching for. The door
+is checked directly instead, and from **both** sides: the puja's sponsor key
+does not write a programme sponsor, and the programme's does not write a puja
+one. A membrane guarded in one direction is the bug this file has found four
+times.
+
+If Hrishi wants the old coupling back it is one condition in `permForRow_`, and
+the assertion that would fail is named `backend A252: the programme sponsor key
+alone writes a programme sponsor`.
+
+### Five guards moved from a spelling to a property
+
+`A78` read the icon map by its old variable name; `A153` pinned the exact tile
+line `if (canEntry('ticket')) h += tile('ticket', …)` and the exact dispatch
+`dailyFlow('ticket', 'program')`. Both now assert the RULE — the tab draws a
+tile per kind, each gated by that kind's programme key — because a kind cannot
+be forgotten by a rule the way it can be forgotten by a list. Ten fixtures in
+`tests/backend.js` moved from the blanket to the kinds they actually write.
+
+Tests 3,393 (from 3,357). Mutation-proved on both sides: the server forgetting
+the fund, every row read as puja, `progdonor` coming back, the client forgetting
+the fund, and the 🎭 tiles reading the puja key.

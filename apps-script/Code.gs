@@ -904,7 +904,7 @@ var DAILY_KINDS = ['road', 'toto', 'bus', 'ticket'];
 // cashier RECEIVE that money. Not an entry kind — it grants no right to write
 // one — but it rides the same field so granting stays one screen.
 // A153: the 🎭 tab's master + sub-permissions. Mirrors js/aggregate.js.
-var PROGRAM_KEYS = ['progteam', 'progdonor', 'progmoney'];
+var PROGRAM_KEYS = ['progteam', 'progmoney'];
 // A162: until now these three keys existed ONLY on the line above. Nothing on
 // this side read them, so the server answered every 🎭 entry with the puja
 // book's rules: a general expense, a দায় and a ভাঁড়ার-বদল all required
@@ -925,6 +925,13 @@ function hasProg_(u, key) {
   return effPerms_(u.row).entries.indexOf(key) >= 0;
 }
 function isProgramRow_(row) { return String((row && row.sector) || 'puja') === 'program'; }
+// A252: which ভাঁড়ার a row belongs to. Mirrors js/aggregate.js sectorOf — a
+// missing or unreadable value is the PUJA's book, never nothing, so a row can
+// never fall out of both.
+function sectorOf_(row) {
+  var s = String((row && row.sector) || '');
+  return SECTORS.indexOf(s) >= 0 ? s : 'puja';
+}
 // A251: an entry permission is a (FUND, KIND) pair. Mirrors js/aggregate.js —
 // `person` is a person in the PUJA's book, `program:person` one in the
 // programme's. Puja is the default fund and keeps bare keys, exactly as a row
@@ -997,12 +1004,19 @@ var AREA_SEED = [['main_malda', 'মেন রোড — মালদার দ�
                  ['singhadaha', 'সিংহদহ রোড', 'Singhadaha Road']];
 
 // Which permission key a row needs, from the row itself. null = common.
+// A252: the key a row DEMANDS is its (fund, kind) pair, not the kind alone.
+// Mirrors js/aggregate.js permForRow. Before this, a grant meant for one book
+// opened the other: the programme's membrane was a special case on `parties`
+// only, so a bare `ticket` grant wrote into both books and no daily row had a
+// fund check at all.
 function permForRow_(store, row) {
-  var ty = String((row && row.type) || '');
-  if (store === 'parties' || store === 'daily') return ENTRY_KINDS.indexOf(ty) >= 0 ? ty : null;
+  var sec = sectorOf_(row);
+  var kindKey = function (ty) {
+    return ENTRY_KINDS.indexOf(String(ty)) >= 0 ? permKeyFor_(sec, String(ty)) : null;
+  };
+  if (store === 'parties' || store === 'daily') return kindKey((row && row.type) || '');
   if (store === 'expenses' && String(row && row.source) === 'collection') {
-    var ct = String(row.collectionType || '');
-    return ENTRY_KINDS.indexOf(ct) >= 0 ? ct : null;
+    return kindKey((row && row.collectionType) || '');
   }
   return null;
 }
@@ -1295,7 +1309,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.84.0';
+var CODE_VERSION = 'chanda-v4.85.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1703,20 +1717,15 @@ var ACTIONS = {
         // confidential kind still needs its own key on top — who may take a
         // sponsor is one decision for the whole committee, and routing it
         // through the 🎭 tab must not become a second door to it.
+        // A252: the special case for the programme's parties is GONE, and that
+        // is the point of the change rather than a side effect of it. A162 had
+        // to write a branch because a permission named only a kind: the
+        // programme's book was gated by a blanket key, so it needed its own
+        // rule, and daily rows — which that branch never covered — had no fund
+        // check at all. Now the key a row demands already carries its fund, so
+        // one line answers for both books and for every store.
         var permKey = permForRow_(r.store, r.row);
-        if (r.store === 'parties' && isProgramRow_(r.row)) {
-          // The programme's book answers to progdonor in BOTH directions: it
-          // opens for the team, and it stays shut to a collector whose 'person'
-          // key is for the puja's book. Without the second half the membrane
-          // is one-way and anybody with the commonest grant in the app can file
-          // into the programme's ledger. A confidential kind still needs its
-          // own key on top — who may take a sponsor is one decision for the
-          // whole committee, and the 🎭 tab must not become a second door to it.
-          var restricted = RESTRICTED_TYPES.indexOf(String(r.row.type || '')) >= 0;
-          if (!hasProg_(user, 'progdonor') || (restricted && !entryAllowed_(user, permKey))) {
-            rejectedIds.push(r.row.id); return;
-          }
-        } else if (!entryAllowed_(user, permKey)) { rejectedIds.push(r.row.id); return; }
+        if (!entryAllowed_(user, permKey)) { rejectedIds.push(r.row.id); return; }
         (byStore[r.store] = byStore[r.store] || []).push(r.row);
       });
       // A200: one id, one row — inside the batch too.

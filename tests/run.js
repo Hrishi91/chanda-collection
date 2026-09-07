@@ -2543,7 +2543,7 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
 // something wrong is worse than one that renders nothing.
 {
   const appSrc = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
-  const icons = (appSrc.slice(appSrc.indexOf('const ICON = {'), appSrc.indexOf('// 🔴 A dot means'))
+  const icons = (appSrc.slice(appSrc.indexOf('const TILE_ICON = {'), appSrc.indexOf('const PERM_ONLY_LABELS'))
     .match(/(\w+):\s*\['/g) || []).map(function (s) { return s.split(':')[0]; });
   const plans = [
     homeTiles({ role: 'admin', cashier: 1, entries: 'shop' }),
@@ -7677,8 +7677,15 @@ try {
      'A153: …and only for somebody who is on it');
   // 'progteam', NOT 'program' — that word is already a REPORT id, and the three
   // key spaces are asserted disjoint because one flat list is split by membership
-  eq(require('../js/aggregate.js').PROGRAM_KEYS, ['progteam', 'progdonor', 'progmoney'],
-     'A153: the master and its two sub-permissions, arranged as a set');
+  // A252: `progdonor` has retired. It was the blanket that covered whichever
+  // donor kinds the tab happened to offer, and nine (fund, kind) keys do that
+  // job now — each a decision taken by name, which is what the blanket could
+  // never be. What is left is the master and the purse: `progteam` says whether
+  // the tab exists at all, `progmoney` whether its money may be spent.
+  eq(require('../js/aggregate.js').PROGRAM_KEYS, ['progteam', 'progmoney'],
+     'A153/A252: the master and the purse — the donor blanket is gone');
+  eq(require('../js/aggregate.js').PERM_KEYS.indexOf('progdonor'), -1,
+     'A252: …and it is not grantable any more, so nobody holds a key to nothing');
   eq(REPORT_IDS.indexOf('progteam'), -1, 'A153: …and the master does not collide with the report id');
   // three flows ask it; the daily one also refuses to ask for a টিকিট, which is
   // programme money by definition (A149) — so two plain and one qualified
@@ -7738,9 +7745,20 @@ try {
   // about the programme now lives — the home copy would have written puja money.
   eq(A.homeTiles({ role: 'user', entries: 'ticket' }, {}).daily, [],
      'A153: টিকিট is no longer a home-screen tile…');
-  eq(/if \(canEntry\('ticket'\)\) h \+= tile\('ticket', '🎟️', 'daily_ticket'\);/
-     .test(require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8')), true,
-     'A153: …it lives in the tab, still gated by the same grant');
+  // A252: the tab used to hard-code this one tile; it now draws one per kind the
+  // person may write in the programme's book, so the assertion is that টিকিট is
+  // reached by the RULE rather than by being named. A kind cannot be forgotten
+  // by a rule the way it can be forgotten by a list.
+  {
+    const app153 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    const prog153 = app153.slice(app153.indexOf('function progEntryHTML'),
+                                 app153.indexOf('function wireProgEntry'));
+    eq(/Aggregate\.ENTRY_KINDS\.forEach/.test(prog153) &&
+       /canEntry\(Aggregate\.permKeyFor\('program', k\)\)/.test(prog153), true,
+       'A153/A252: the tab draws a tile per kind, each gated by that kind\'s programme key');
+    eq(ENTRY_KINDS.indexOf('ticket') >= 0, true,
+       'A153: …and টিকিট is one of those kinds, so the tab still offers it');
+  }
 
   // three MORE copies of the daily list turned up here — the eighth, ninth and
   // tenth — each sweeping an unknown kind into the রোড pot, so টিকিট money would
@@ -8070,7 +8088,7 @@ try {
   eq(/if \(String\(centralConfig\.program_on \|\| ''\) !== wasProg\) changed = true;/.test(app), true,
      'A153: …and turning the programme on repaints the nav, instead of waiting for a navigation');
   // everything the tab starts is programme money, named at the call site
-  ['dailyFlow\\(\'ticket\', \'program\'\\)', 'newPartyFlow\\(g, \{\}, \'program\'\\)',
+  ['dailyFlow\\(g, \'program\'\\)', 'newPartyFlow\\(g, \{\}, \'program\'\\)',
    'startExpense\\(null, \'program\'\\)', 'dutyFlow\\(\'program\'\\)'].forEach(function (rx) {
     eq(new RegExp(rx).test(app), true, 'A153: the tab starts ' + rx.split('\\(')[0] + ' as programme money');
   });
@@ -8365,6 +8383,30 @@ try {
     });
     eq(ENTRY_KINDS.filter(function (k) { return PERM_KEYS.indexOf(k) < 0; }).join(', '), '',
        'A251: …and every bare kind is still grantable, so nothing already granted became unknown');
+
+    // A252: the same matrix on the CLIENT. The server is the lock and
+    // tests/backend.js drives it cell by cell — but the client's copy decides
+    // what a screen offers, and a screen that offers what the server will
+    // refuse makes somebody walk a whole flow and watch it vanish at push,
+    // which A162 recorded as worse than no tile at all. Both sides, same rule.
+    const cells = [];
+    A251.SECTORS.forEach(function (sec) {
+      ENTRY_KINDS.forEach(function (kind) {
+        cells.push({ sec: sec, kind: kind, key: A251.permKeyFor(sec, kind),
+                     store: A251.DAILY_KINDS.indexOf(kind) >= 0 ? 'daily' : 'parties' });
+      });
+    });
+    cells.forEach(function (c) {
+      const user = { role: 'user', entries: c.key };
+      const wrong = cells.filter(function (o) {
+        return permAllowed(user, permForRow(o.store, { type: o.kind, sector: o.sec })) !== (o.key === c.key);
+      }).map(function (o) { return o.key; });
+      eq(wrong.join(','), '', 'A252 (client): ' + c.key + ' allows ' + c.sec + '/' + c.kind + ' and nothing else');
+    });
+    // a row with no sector at all is the puja's, so every legacy row still
+    // answers to the bare key it always did
+    eq(permForRow('parties', { type: 'person' }), 'person',
+       'A252 (client): a row with no fund written on it is the puja\'s');
   }
 
   // --- A161: the sensitive grants must be visible ON the user list ----------

@@ -2589,14 +2589,7 @@
         staleVersion: Auth.schemaCmp() === -1,
         frozen: frozen(), // A110: admin paused entries for everyone
       });
-      const ICON = { shop: ['🏪', 'new_shop'], person: ['🙍', 'new_person'], member: ['🤝', 'new_member'],
-                     sponsor: ['🎪', 'new_sponsor'], gupt: ['🤫', 'new_gupt'],
-                     bus: ['🚌', 'daily_bus'], road: ['🛣️', 'daily_road'], toto: ['🛺', 'daily_toto'],
-                     ticket: ['🎟️', 'daily_ticket'],
-                     expense: ['🧾', 'expense'], cashier: ['💰', 'confirm_handover'],
-                     review: ['🛠️', 'review_title'], handover: ['', 'handover'], hbook: ['📗', 'hb_title'],
-                     anomalies: ['🩺', 'anom_title'],
-                     memberadmin: ['🎖️', 'member_admin_title'] };
+      const ICON = TILE_ICON;
       // 🔴 A dot means "there is something HERE you can finish". Every source
       // below is already computed elsewhere — no new counting, no new polling.
       //
@@ -2887,9 +2880,17 @@
     const tile = function (go, icon, key) {
       return '<button class="tile" data-pgo="' + go + '">' + icon + ' ' + esc(t(key)) + '</button>';
     };
+    // A252: one tile per KIND this person may write in the programme's book,
+    // derived from ENTRY_KINDS. Before this it was two fixed tiles behind one
+    // blanket key, so the tab could only ever offer ব্যক্তি and স্পনসর and a
+    // third kind meant editing this line. Adding a kind is now a chip on the
+    // admin screen, not a release.
     let h = '';
-    if (canEntry('ticket')) h += tile('ticket', '🎟️', 'daily_ticket');
-    if (canEntry('progdonor')) h += tile('person', '🙍', 'prog_donor') + tile('sponsor', '🎪', 'new_sponsor');
+    Aggregate.ENTRY_KINDS.forEach(function (k) {
+      if (!canEntry(Aggregate.permKeyFor('program', k))) return;
+      const ic = TILE_ICON[k] || ['', 'type_' + k];
+      h += tile(k, ic[0], ic[1]);
+    });
     if (canProgMoney()) h += tile('expense', '🧾', 'expense') + tile('duty', '🤝', 'duty_add') +
       tile('transfer', '🔁', 'transfer_title');
     // `grid` is the home screen's own two-column tile layout — reused rather
@@ -2903,8 +2904,8 @@
         const g = b.dataset.pgo;
         // every one of these carries 'program' as its FUND — from the tab, never
         // from a question
-        if (g === 'ticket') startFlow(dailyFlow('ticket', 'program'));
-        else if (g === 'person' || g === 'sponsor') freshThen(function () { startFlow(newPartyFlow(g, {}, 'program')); });
+        if (Aggregate.DAILY_KINDS.indexOf(g) >= 0) startFlow(dailyFlow(g, 'program'));
+        else if (Aggregate.PARTY_KINDS.indexOf(g) >= 0) freshThen(function () { startFlow(newPartyFlow(g, {}, 'program')); });
         else if (g === 'expense') startExpense(null, 'program');
         else if (g === 'duty') startFlow(dutyFlow('program'));
         else if (g === 'transfer') startFlow(transferFlow());
@@ -5300,12 +5301,22 @@
   // post — and before A222 each built its own list, so the post screen could
   // not grant sponsor, gupt, ticket or any of the three 🎭 keys, all of which
   // the server accepts for a post. One map, one derivation, both screens.
+  // A252: hoisted out of homeHTML. The 🎭 tab draws a tile per programme kind
+  // now, and copying nine icon/label pairs into it would be the same
+  // duplication A222 hoisted PERM_ONLY_LABELS to end — one map, two screens.
+  const TILE_ICON = { shop: ['🏪', 'new_shop'], person: ['🙍', 'new_person'], member: ['🤝', 'new_member'],
+                      sponsor: ['🎪', 'new_sponsor'], gupt: ['🤫', 'new_gupt'],
+                      bus: ['🚌', 'daily_bus'], road: ['🛣️', 'daily_road'], toto: ['🛺', 'daily_toto'],
+                      ticket: ['🎟️', 'daily_ticket'],
+                      expense: ['🧾', 'expense'], cashier: ['💰', 'confirm_handover'],
+                      review: ['🛠️', 'review_title'], handover: ['', 'handover'], hbook: ['📗', 'hb_title'],
+                      anomalies: ['🩺', 'anom_title'],
+                      memberadmin: ['🎖️', 'member_admin_title'] };
   const PERM_ONLY_LABELS = {
     review: 'review_title', otherdonor: 'perm_otherdonor',
     memberadmin: 'perm_memberadmin',
     sponsorview: 'perm_sponsorview', guptview: 'perm_guptview',
-    progteam: 'perm_progteam', progdonor: 'perm_progdonor',
-    progmoney: 'perm_progmoney',
+    progteam: 'perm_progteam', progmoney: 'perm_progmoney',
   };
   // A251: an entry key now carries its fund. The words come from the two parts
   // — the fund's own name and the kind's own name — so the nine programme keys

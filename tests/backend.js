@@ -1619,8 +1619,10 @@ module.exports = function runBackendTests(eq) {
         b.call('approveYear', { token: admin, userId: rowOf(u).id, year: 2026 });
       });
       b.call('setEntries', { token: admin, userId: rowOf('subrata').id,
-                             entries: ['progteam', 'progdonor', 'progmoney', 'ticket'] });
-      b.call('setEntries', { token: admin, userId: rowOf('tapan').id, entries: ['shop', 'person'] });
+                             entries: ['progteam', 'progmoney', 'ticket', 'program:person', 'program:sponsor', 'program:shop', 'program:member', 'program:ticket'] });
+      // A252: tapan also holds the PUJA's sponsor key, so the 🎭 tab can be
+      // tested as a second door to it — the thing A162 was written to prevent.
+      b.call('setEntries', { token: admin, userId: rowOf('tapan').id, entries: ['shop', 'person', 'sponsor'] });
       b.call('setEntries', { token: admin, userId: rowOf('kali').id, entries: ['shop', 'person'] });
       b.call('setCashier', { token: admin, userId: rowOf('kali').id, cashier: 1 });
       const tok = { admin: admin };
@@ -1637,6 +1639,7 @@ module.exports = function runBackendTests(eq) {
     };
     const PROG_EXPENSE = { subject: 'শিল্পী', amount: 500, cashAmount: 500, upiAmount: 0, date: '2026-09-05', sector: 'program' };
     const PUJA_EXPENSE = { subject: 'আলো', amount: 500, cashAmount: 500, upiAmount: 0, date: '2026-09-05', sector: 'puja' };
+    const PUJA_SPONSOR = { type: 'sponsor', name: 'বসু', pledged: 9000, side: 'main_malda', sector: 'puja' };
     const PROG_DUTY = { source: 'commitment', payee: 'রূপা', committed: 5000, amount: 0, date: '2026-09-05', sector: 'program' };
     const OUT = { source: 'transfer', transferTo: 'puja', sector: 'program', amount: 100, cashAmount: 100, upiAmount: 0, date: '2026-09-05' };
     const IN = { source: 'transfer', transferTo: 'program', sector: 'puja', amount: 100, cashAmount: 100, upiAmount: 0, date: '2026-09-05' };
@@ -1662,8 +1665,25 @@ module.exports = function runBackendTests(eq) {
        'backend A162: …and does NOT pull committee money INTO the programme');
     eq(saves(k, 'subrata', 'parties', PUJA_DONOR), false,
        'backend A162: …and progdonor does not write into the puja book');
-    eq(saves(k, 'subrata', 'parties', PROG_SPONSOR), false,
-       'backend A162: …and a সponsor still needs the sponsor key, 🎭 tab or not');
+    // A252: this used to read "a সponsor still needs the sponsor key, 🎭 tab or
+    // not" — because the programme was gated by ONE blanket key, so the only way
+    // to stop it becoming a second door to sponsors was to demand the puja's
+    // sponsor key on top. There is no blanket any more: `program:sponsor` is its
+    // own decision, taken by name, which is what that rule was reaching for. So
+    // the coupling is gone and the door is checked directly instead — from BOTH
+    // sides, which is the half a one-key design could not express.
+    eq(saves(k, 'subrata', 'parties', PROG_SPONSOR), true,
+       'backend A252: the programme sponsor key alone writes a programme sponsor');
+
+    // A252: and the 🎭 tab is still not a second door to sponsors — the puja's
+    // own sponsor key does not open the programme's, and the programme's does
+    // not open the puja's. Both halves, because a membrane guarded in one
+    // direction is the bug this file has found four times.
+    k = progBook();
+    eq(saves(k, 'tapan', 'parties', PROG_SPONSOR), false,
+       'backend A252: the PUJA sponsor key does not write a programme sponsor');
+    eq(saves(k, 'subrata', 'parties', PUJA_SPONSOR), false,
+       'backend A252: …and the programme sponsor key does not write a puja one');
 
     // and the programme's book is shut to a collector holding the commonest key
     k = progBook();
@@ -1781,7 +1801,7 @@ module.exports = function runBackendTests(eq) {
       entries: ['shop', 'person', 'sponsor', 'gupt', 'sponsorview', 'guptview'] });
     bk.call('setEntries', { token: a, userId: row('bimal').id, entries: ['shop', 'person', 'sponsor', 'gupt'] });
     bk.call('setEntries', { token: a, userId: row('ratan').id, entries: ['shop', 'person'] });
-    bk.call('setEntries', { token: a, userId: row('subrata').id, entries: ['shop', 'progteam', 'progdonor', 'progmoney', 'ticket'] });
+    bk.call('setEntries', { token: a, userId: row('subrata').id, entries: ['shop', 'progteam', 'progmoney', 'ticket', 'program:person', 'program:sponsor', 'program:shop', 'program:member', 'program:ticket'] });
     bk.call('setCashier', { token: a, userId: row('kali').id, cashier: 1 });
     const tk = { hrishi: a };
     who.slice(1).forEach(function (u, i) {
@@ -1946,7 +1966,7 @@ module.exports = function runBackendTests(eq) {
         bq.call('setEntries', { token: t0, userId: rw(u).id, entries: ['shop', 'person', 'road'] });
       });
       bq.call('setEntries', { token: t0, userId: rw('subrata').id,
-        entries: ['progteam', 'progdonor', 'progmoney', 'ticket'] });
+        entries: ['progteam', 'progmoney', 'ticket', 'program:person', 'program:sponsor', 'program:shop', 'program:member', 'program:ticket'] });
       bq.call('setCashier', { token: t0, userId: rw('kali').id, cashier: 1 });
       if (opts.exiting) bq.call('setAccess', { token: t0, userId: rw('dipak').id, access: 'exiting' });
       const tq = {};
@@ -2115,7 +2135,7 @@ module.exports = function runBackendTests(eq) {
           entries: ['shop', 'person', 'road', 'toto', 'sponsor', 'gupt'] });
       });
       ba.call('setEntries', { token: t0, userId: rw('subrata').id,
-        entries: ['progteam', 'progdonor', 'progmoney', 'ticket'] });
+        entries: ['progteam', 'progmoney', 'ticket', 'program:person', 'program:sponsor', 'program:shop', 'program:member', 'program:ticket'] });
       ba.call('setCashier', { token: t0, userId: rw('kali').id, cashier: 1 });
       ba.call('addItem', { token: t0, kind: 'area', nameBn: 'মেন রোড', nameEn: 'Main Rd', id: 'main_malda' });
       const tka = {};
@@ -3336,7 +3356,7 @@ module.exports = function runBackendTests(eq) {
       ['mrkali', 'mrratan'].forEach(function (u) {
         bm2.call('setStatus', { token: tm0, userId: mid(u), status: 'approved' });
         bm2.call('approveYear', { token: tm0, userId: mid(u), year: 2026 });
-        bm2.call('setEntries', { token: tm0, userId: mid(u), entries: ['shop', 'person', 'road', 'toto', 'bus', 'sponsor', 'gupt', 'ticket', 'progteam', 'progdonor'] });
+        bm2.call('setEntries', { token: tm0, userId: mid(u), entries: ['shop', 'person', 'road', 'toto', 'bus', 'sponsor', 'gupt', 'ticket', 'progteam', 'program:person', 'program:sponsor', 'program:shop', 'program:member', 'program:ticket'] });
       });
       bm2.call('setCashier', { token: tm0, userId: mid('mrkali'), cashier: 1 });
       bm2.call('addItem', { token: tm0, kind: 'area', nameBn: 'মেন রোড', nameEn: 'Main Rd' });
@@ -3442,7 +3462,7 @@ module.exports = function runBackendTests(eq) {
       be.call('setEntries', { token: te0, userId: eid('evkali'), entries: ['shop', 'person', 'road', 'toto', 'sponsor', 'gupt', 'review', 'sponsorview', 'guptview'] });
       be.call('setEntries', { token: te0, userId: eid('evratan'), entries: ['shop', 'person', 'road'] });
       be.call('setEntries', { token: te0, userId: eid('evtapan'), entries: ['shop', 'toto'] });
-      be.call('setEntries', { token: te0, userId: eid('evsubrata'), entries: ['progteam', 'progdonor', 'progmoney', 'ticket'] });
+      be.call('setEntries', { token: te0, userId: eid('evsubrata'), entries: ['progteam', 'progmoney', 'ticket', 'program:person', 'program:sponsor', 'program:shop', 'program:member', 'program:ticket'] });
       be.call('setCashier', { token: te0, userId: eid('evkali'), cashier: 1 });
       be.call('addItem', { token: te0, kind: 'area', nameBn: 'মেন রোড', nameEn: 'Main Rd' });
       const evArea = (be.rows('Lists') || []).filter(function (x) { return x.kind === 'area' && x.nameBn === 'মেন রোড'; })[0].id;
@@ -3552,7 +3572,7 @@ module.exports = function runBackendTests(eq) {
       const dkid = bt2.rows('Users').filter(function (x) { return x.username === 'dtkali'; })[0].id;
       bt2.call('setStatus', { token: td0, userId: dkid, status: 'approved' });
       bt2.call('approveYear', { token: td0, userId: dkid, year: 2026 });
-      bt2.call('setEntries', { token: td0, userId: dkid, entries: ['shop', 'progteam', 'progdonor', 'progmoney'] });
+      bt2.call('setEntries', { token: td0, userId: dkid, entries: ['shop', 'progteam', 'progmoney', 'program:person', 'program:sponsor', 'program:shop', 'program:member', 'program:ticket'] });
       bt2.call('setCashier', { token: td0, userId: dkid, cashier: 1 });
       const tdk = bt2.call('login', { username: 'dtkali', password: 'secret1', year: 2026 }).token;
       const tda = bt2.call('login', { username: 'dtadm', password: 'secret0', year: 2026 }).token;
@@ -3952,9 +3972,9 @@ module.exports = function runBackendTests(eq) {
         bz.call('setStatus', { token: tz0, userId: zid(u), status: 'approved' });
         bz.call('approveYear', { token: tz0, userId: zid(u), year: 2026 });
       });
-      bz.call('setEntries', { token: tz0, userId: zid('tzkali'), entries: ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor', 'gupt', 'review', 'progteam', 'progdonor', 'progmoney', 'ticket'] });
+      bz.call('setEntries', { token: tz0, userId: zid('tzkali'), entries: ['shop', 'person', 'member', 'bus', 'road', 'toto', 'sponsor', 'gupt', 'review', 'progteam', 'progmoney', 'ticket', 'program:person', 'program:sponsor', 'program:shop', 'program:member', 'program:ticket'] });
       bz.call('setEntries', { token: tz0, userId: zid('tzratan'), entries: ['shop', 'person', 'road', 'toto'] });
-      bz.call('setEntries', { token: tz0, userId: zid('tzsub'), entries: ['progteam', 'progdonor', 'progmoney', 'ticket'] });
+      bz.call('setEntries', { token: tz0, userId: zid('tzsub'), entries: ['progteam', 'progmoney', 'ticket', 'program:person', 'program:sponsor', 'program:shop', 'program:member', 'program:ticket'] });
       bz.call('setCashier', { token: tz0, userId: zid('tzkali'), cashier: 1 });
       const tz = {};
       ['tzadm', 'tzkali', 'tzratan', 'tzsub'].forEach(function (u, i) {
@@ -4343,7 +4363,7 @@ module.exports = function runBackendTests(eq) {
       const kid = bt.rows('Users').filter(function (x) { return x.username === 'ztkali'; })[0].id;
       bt.call('setStatus', { token: tta, userId: kid, status: 'approved' });
       bt.call('approveYear', { token: tta, userId: kid, year: 2026 });
-      bt.call('setEntries', { token: tta, userId: kid, entries: ['shop', 'person', 'road', 'progteam', 'progdonor', 'progmoney'] });
+      bt.call('setEntries', { token: tta, userId: kid, entries: ['shop', 'person', 'road', 'progteam', 'progmoney', 'program:person', 'program:sponsor', 'program:shop', 'program:member', 'program:ticket'] });
       bt.call('setCashier', { token: tta, userId: kid, cashier: 1 });
       const ttk = bt.call('login', { username: 'ztkali', password: 'secret1', year: 2026 }).token;
       const A9 = require('../js/aggregate.js');
@@ -4539,5 +4559,63 @@ module.exports = function runBackendTests(eq) {
     bc.call('setAnomalyFlag', { token: tc.kali, store: 'parties', field: 'pledgeOk', id: 'c1', year: 2026, value: 1 });
     eq(kinds().indexOf('overpaid') < 0, true,
        'backend A197: …and "ঠিক আছে, বেশিই দিয়েছেন" settles it on the SERVER row, for every phone');
+  }
+
+  // --- A252: the whole membrane, one cell at a time -------------------------
+  // An entry permission is a (fund, kind) pair. The claim this makes is simple
+  // and total: granting exactly one key opens exactly one cell of the matrix —
+  // that kind, in that book — and every other cell stays shut.
+  //
+  // It is worth doing exhaustively rather than by example, because the bug this
+  // replaces was found by measuring rather than reading: a bare `ticket` grant
+  // wrote into BOTH books, since the old membrane was a special case on
+  // `parties` and daily rows had no fund check at all. An example-shaped test
+  // would have missed exactly that pair.
+  {
+    const A252 = require('../js/aggregate.js');
+    const CELLS = [];
+    A252.SECTORS.forEach(function (sec) {
+      A252.ENTRY_KINDS.forEach(function (kind) {
+        CELLS.push({ sec: sec, kind: kind, key: A252.permKeyFor(sec, kind),
+                     store: A252.DAILY_KINDS.indexOf(kind) >= 0 ? 'daily' : 'parties' });
+      });
+    });
+    eq(CELLS.length, A252.SECTORS.length * A252.ENTRY_KINDS.length,
+       'backend A252: the matrix is built from the lists, not typed out — ' + CELLS.length + ' cells');
+
+    const rowFor = function (c, id) {
+      return c.store === 'daily'
+        ? { id: id, year: 2026, type: c.kind, amount: 50, cashAmount: 50, upiAmount: 0,
+            date: '2026-09-07', sector: c.sec }
+        : { id: id, year: 2026, type: c.kind, name: 'ক', pledged: 100, side: 'main_malda',
+            sector: c.sec };
+    };
+    const opened = function (grant) {
+      const b = loadBackend(); b.api.setup();
+      ['adm252', 'usr252'].forEach(function (u, i) {
+        b.post('register', { username: u, name: u, password: 'secret' + i, phone: '98600000' + i });
+      });
+      const t0 = b.call('login', { username: 'adm252', password: 'secret0', year: 2026 }).token;
+      const uid = b.rows('Users').filter(function (x) { return x.username === 'usr252'; })[0].id;
+      b.call('setStatus', { token: t0, userId: uid, status: 'approved' });
+      b.call('approveYear', { token: t0, userId: uid, year: 2026 });
+      b.call('setEntries', { token: t0, userId: uid, entries: [grant] });
+      const tk = b.call('login', { username: 'usr252', password: 'secret1', year: 2026 }).token;
+      const out = [];
+      CELLS.forEach(function (c, i) {
+        const id = 'm252-' + i;
+        const r = b.call('push', { token: tk, records: [{ store: c.store, row: rowFor(c, id) }] });
+        if ((r.savedIds || []).indexOf(id) >= 0) out.push(c.key);
+      });
+      return out;
+    };
+    CELLS.forEach(function (c) {
+      eq(opened(c.key).join(','), c.key,
+         'backend A252: ' + c.key + ' opens ' + c.sec + '/' + c.kind + ' and nothing else');
+    });
+    // and the retired blanket opens nothing at all — a key nobody can be given
+    // must not still be honoured by the half of the system that forgot
+    eq(opened('progdonor').join(','), '',
+       'backend A252: the retired progdonor blanket opens no cell of the matrix');
   }
 };
