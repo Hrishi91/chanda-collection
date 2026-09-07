@@ -16903,3 +16903,55 @@ either is on somebody's row it now opens nothing, and has to be re-granted as
 `program:<kind>` on the new screen. Everything else — `shop`, `person`,
 `member`, `road`, `toto`, `bus`, `sponsor`, `gupt`, and both view keys — is
 untouched, which was the whole point of keeping the puja's keys bare.
+
+## A254 — the local harness was pointing at the live server
+
+Asked to check the permission screen, and the honest way to do that is to look
+at it — `scripts/admin-harness.js` exists for exactly that, serving the app's
+static files and answering its POSTs by running the real `Code.gs` through the
+suite's shim. Its first line has always said *"nothing here touches the live
+book."*
+
+**That was a claim, not a mechanism.** The harness serves the app's own
+`js/config.js`, and `js/config.js` holds whichever `/exec` the last deployment
+baked in — which, an hour ago, became the live one. So the local page came up
+pointing at Hrishi's live Apps Script, and the first thing typed into it, a
+fixture login of `hrishi / secret0`, went straight there. It was refused: the
+password is a test fixture and the live account's is not. Nothing changed, and
+at most a failed login is recorded. But the promise was false and had been false
+since the first rebake.
+
+A stub whose isolation depends on the tester remembering to set a Settings
+override is not isolated. `js/config.js` is now rewritten on its way out to
+point at the harness's own port, so it cannot be forgotten and does not depend
+on what the repo happens to hold today. Pinned, with the third assertion — that
+the baked config really does hold a remote URL — there so the guard cannot
+quietly become a no-op the day someone commits a localhost config.
+
+`.claude/launch.json` gained an `admin-harness` entry, on its own port, so the
+harness starts the sanctioned way rather than from a shell.
+
+### What the screen actually does, looked at rather than reasoned about
+
+Logged in as admin against the harness and opened 👥 → a collector:
+
+- **Four groups, each with its own bulk pair**: 🙏 পুজো (9) · 🎭 অনুষ্ঠান (11) ·
+  🤫 অন্যের গোপন সারি দেখা (2) · 🛠️ আরও কিছু কাজ (3) — twenty-five chips, the
+  partition the tests assert, now seen.
+- **The bulk fix, driven from a clean slate**: every group emptied, then "সব দাও"
+  on 🙏 পুজো — exactly the nine puja keys, **not one view key and not one
+  programme key**. Then the same with `guptview` already granted by hand: the
+  puja bulk left it exactly where it was.
+- **Both dead-key warnings, in the two states that produce them.** With the fund
+  off: *"🎭 অনুষ্ঠানের ভাঁড়ার এখন বন্ধ, তাই এই 🎭 অনুমতিগুলো ওঁর ফোনে কোনো
+  দরজাই খুলবে না"*, with the admin path to switch it on. With the fund on and
+  `program:person` granted but `progteam` missing: *"🎭 অনুষ্ঠানের দলে — এটা না
+  দিলে ট্যাবটাই খোলে না, তাই নিচের কাজগুলোতে পৌঁছনো যাবে না"* — and it clears
+  the moment `progteam` is ticked.
+- The 👥 summary line spells out the puja kinds and marks the rest, as A251
+  rebuilt it.
+
+Nothing was saved: every chip touched was a draft, and the server it spoke to
+was the stub.
+
+Tests 3,405 (from 3,402). Mutation-proved by removing the rewrite.

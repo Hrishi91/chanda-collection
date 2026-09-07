@@ -1,7 +1,10 @@
 // A99: a local stand-in for the deployed Apps Script, so the admin screens can
 // be LOOKED AT without Hrishi's live sheet. Serves the app's static files and
 // answers its POSTs by running the REAL apps-script/Code.gs through the same
-// shim the suite uses (tests/gas-shim.js). Nothing here touches the live book.
+// shim the suite uses (tests/gas-shim.js). Nothing here touches the live book —
+// and A254 made that true rather than merely stated: js/config.js is rewritten
+// on the way out to point at this port, because the repo's copy holds the LIVE
+// deployment URL and a page served straight from it talks to the live server.
 //
 //   node scripts/admin-harness.js 9060      -> http://localhost:9060
 //   log in as  hrishi / secret0
@@ -225,7 +228,24 @@ http.createServer(function (req, res) {
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
                  '.json': 'application/json', '.png': 'image/png',
                  '.webmanifest': 'application/manifest+json' };
+  let body = fs.readFileSync(file);
+  // A254: point the app at THIS harness, always.
+  //
+  // The first line of this file promises "nothing here touches the live book".
+  // That promise was false the moment js/config.js was rebaked for a
+  // deployment: the harness serves the app's own config, so a local page came
+  // up pointing at Hrishi's live Apps Script, and a login typed here went
+  // straight to it. Found by doing exactly that — a fixture password was sent
+  // to the live server, which refused it.
+  //
+  // A stub whose isolation depends on the tester remembering to override a
+  // setting is not isolated. Rewritten on the way out, so it cannot be
+  // forgotten and cannot depend on what the repo happens to hold today.
+  if (p === '/js/config.js') {
+    body = Buffer.from(String(body).replace(/SCRIPT_URL: '[^']*'/,
+      "SCRIPT_URL: 'http://localhost:" + PORT + "/exec'"), 'utf8');
+  }
   res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
                        'Cache-Control': 'no-store' });
-  res.end(fs.readFileSync(file));
+  res.end(body);
 }).listen(PORT, function () { console.log('admin stub on http://localhost:' + PORT); });

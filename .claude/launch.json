@@ -10,6 +10,15 @@
         "8734"
       ],
       "port": 8734
+    },
+    {
+      "name": "admin-harness",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "scripts/admin-harness.js",
+        "9188"
+      ],
+      "port": 9188
     }
   ]
 }

@@ -4203,6 +4203,26 @@ try {
      'A31: sw.js answers a version query, so the app can compare running vs held');
 }
 
+// ---- A254: the local harness cannot reach the live book ----------------------
+// scripts/admin-harness.js opens with "nothing here touches the live book". That
+// was a claim, not a mechanism: it serves the app's own js/config.js, which
+// holds whichever /exec the last deployment baked in — so a local page came up
+// pointing at the LIVE Apps Script, and a login typed into it went there.
+// Found by doing exactly that. A stub whose isolation depends on the tester
+// remembering to override a setting is not isolated.
+{
+  const harness = require('fs').readFileSync(__dirname + '/../scripts/admin-harness.js', 'utf8');
+  eq(/if \(p === '\/js\/config\.js'\) \{/.test(harness), true,
+     'A254: the harness intercepts the config file on its way out');
+  eq(/SCRIPT_URL: 'http:\/\/localhost:" \+ PORT \+ "\/exec'/.test(harness), true,
+     'A254: …and points it at its own port, so a local page can never reach the live server');
+  // and the repo's own config really does hold a remote URL — otherwise the
+  // rewrite above would be guarding nothing
+  const cfg254 = require('fs').readFileSync(__dirname + '/../js/config.js', 'utf8');
+  eq(/SCRIPT_URL: 'https:\/\//.test(cfg254), true,
+     'A254: …which matters, because the baked config points at a remote deployment');
+}
+
 // ---- A244: RUN the version/schema lock ---------------------------------------
 // Everything above reads auth.js as text. `schemaCmp() === -1` is the one switch
 // in this app that stops twelve people entering money, and it keeps its answer
