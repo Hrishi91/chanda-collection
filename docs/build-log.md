@@ -16642,3 +16642,51 @@ promise is a kind of money — not a fact about the code, and it came within one
 conversation of deferring a working feature by a year.
 
 Docs only. Nothing in js/ or apps-script/ changed; tests stay at 3,284.
+
+## A250 — `scripts/release-check.sh`: one command for a nightly release
+
+Hrishi's plan: check locally, then deploy every night after a backup, with the
+programme built side by side while the collection runs live. The plan is right —
+it is the shape the code was already built for (`program_on` is a server Config
+value that rides every pull, so the 🎭 tab appears within one poll, no deploy,
+no ⚙️ → 🔄). What it needs is for none of it to rest on remembering.
+
+One read-only command that answers the three questions a nightly release has.
+
+**1. Which kind of night.** The last real deployment is the last
+`rebake config.js` commit, because that is the commit that pointed the phones at
+a new `/exec`. Diff `Code.gs` against it and the night names itself — with one
+refinement that matters: **`Code.gs` changing is not the same as the SERVER
+changing.** The version triple is test-pinned, so every client-only release
+drags `CODE_VERSION` along with it, and treating that as a server night would
+send him into the Apps Script editor to redeploy a string. The check ignores the
+version stamp and counts the rest. A client night says plainly that there is
+nothing to do in the editor; a server night prints the order — backup first,
+then paste, then **New deployment** (never "New version", which has never
+repointed the URL on this account), then hand over the new `/exec`.
+
+**2. The gates.** Version triple equal; the suite green *and* its summary
+actually printed (A248's abort hook makes an aborted run say so rather than
+going silent); the scope check clean *and* watching more than a hundred names,
+because A247's derived list collapsing to nothing would report a clean tree just
+as loudly; the tree committed; and `HEAD` touching `docs/`.
+
+**3. What is open, and what nobody checked.** The open `- [ ]` items from
+pending.md — because A249 happened this morning: an item stayed NOT STARTED for
+nine build-log entries after it shipped, and the reason is structural, the build
+log grows by itself while pending.md has to be edited. And the four things no
+check here can see: the service-worker update cycle (verify on a FRESH port —
+unregistering and clearing the cache has lied before), the real Apps Script
+runtime, iOS/Safari, and real latency.
+
+It closes with the distinction the whole nightly plan turns on: **pushing is not
+releasing.** The worker is cache-first, so a phone takes new code only at
+⚙️ → 🔄. Push at night, walk the app on your own phone in the morning, and only
+then tell eleven other people to refresh.
+
+Broken four ways before being believed: a real `Code.gs` change flips it to
+SERVER night, a mismatched `sw.js` fails the triple, one wrong assertion fails
+the suite gate, and a deliberate `throw` is caught as an ABORTED run rather than
+read as silence.
+
+Tests unchanged at 3,284 — this adds a tool, not a rule.

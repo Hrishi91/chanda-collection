@@ -706,6 +706,37 @@ program spents, guests, artists and all". Discussed first, then split by cost.
   needs a new store" was an assumption about the domain (a promise is a kind of
   money), not a fact about the code, and it nearly deferred a feature by a year.
 
+## THE NIGHTLY LOOP (Hrishi, 2026-09-07)
+
+Hrishi: *"cant we check in local then if all ok then every night there will be
+deployment after taking backup and all"* — with the programme built side by side
+while the collection runs live.
+
+Agreed, with three conditions, and one command to keep them:
+
+```sh
+sh scripts/release-check.sh
+```
+
+- [ ] **`APP_SCHEMA` stays 5 until the collection is over.** It is the single
+      change that stops twelve people entering money. Everything the programme
+      needed so far fitted inside schema 5 — including দায়, which I twice said
+      would need 6.
+- [ ] **Leave 🎭 অনুষ্ঠানের ভাঁড়ার OFF while building.** With it off the tab does
+      not exist for anybody, so work inside it is invisible and safe. The
+      exception, and it is the sharp one: the fund *field* is always live
+      (A148), so anything touching `sectorOf` / `ofSector` is live collection
+      code even with the switch off.
+- [ ] **Push at night, release in the morning.** The worker is cache-first, so a
+      phone takes nothing until ⚙️ → 🔄. Walk the app yourself first, then tell
+      the others.
+
+Backups need no new work: `dailyBackup()` writes every sheet plus `Users` (with
+tokens stripped), `ExpenseSubjects`, `Lists`, `Config` and `Audit` to Drive, and
+`ensureBackupTrigger_()` is idempotent and runs on every `setup`. ⚙️ has a
+button for one on demand — worth taking before a SERVER night, which is the only
+kind that can lose data.
+
 ## AFTER THE PUJA — the PRODUCT question (Hrishi, 2026-08-17)
 
 Hrishi: *"I was thinking it as a product sale."* Recorded as the standing
