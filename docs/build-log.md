@@ -17472,3 +17472,50 @@ are green":
 `seenAt` is optional, so a phone still on v4.92.0 or earlier behaves exactly as
 it did — it simply does not get the protection until it refreshes. Schema stays
 5; nobody is locked out.
+
+## A264 — the block door's half-paisa, and a write-off written to fourteen places
+
+The mutation survey has never been run on `apps-script/Code.gs`. Run now: **321
+mutable spots, 36 tried, 20 survived.** Most are equivalent — loop bounds, and
+`getLastRow() > 1` guards on sheets no fixture leaves empty. One was about
+money, so it went first.
+
+A78's rule is that blocking somebody refuses while they still hold cash: the
+login is the last door, and *a person who cannot log in cannot hand money back*.
+It rests on a half-paisa epsilon, and **the epsilon had never been driven** —
+the comparison survived every mutation because no fixture stood anywhere near
+it.
+
+Both sides of it matter, and they pull opposite ways.
+
+**Too tight** and a rounding crumb becomes a door nobody can open. ₹1.10 + ₹2.20
+is `3.3000000000000003` in binary; the collector hands over "₹3.30" and is left
+holding `4.4e-16`. Without the epsilon that person can never be stood down —
+over four ten-thousandths of a trillionth of a rupee. Both directions are pinned
+now, because the first version of this test used a crumb that came out
+**negative** and therefore never tested the lower side at all.
+
+**Too loose** and real money is written off in silence. One genuine paisa
+outstanding is still refused, to the paisa.
+
+### And the thing the record said
+
+Blocking somebody who held one real paisa wrote this into the audit log:
+
+```
+@rat79 · ₹0.009999999999990905 অনাদায়ী (override)
+```
+
+True, and unreadable, in the one line that says the committee gave up on some
+money — the line somebody reads months later to answer *"what happened to
+that?"*. The snapshot's `writtenOff` carried the same figure.
+
+`paise_()` now rounds what is **written down**. The **comparison** keeps its
+half-paisa epsilon untouched, because that is the part doing real work: one is
+for deciding whether money is there, the other for the figure a person reads.
+The audit line reads `₹0.01`.
+
+Tests 3,527 (from 3,518). Four mutations, all named: rounding removed, the
+epsilon loosened, the epsilon tightened, and the raw figure back in the record.
+
+**SERVER night** — `paise_` and the three call sites are in `Code.gs`.

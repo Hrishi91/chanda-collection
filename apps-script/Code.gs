@@ -582,6 +582,15 @@ function findUser_(col, val) {
 // `seenAt` is OPTIONAL on purpose: a phone running an older build sends none
 // and behaves exactly as it always did. A guard that broke every un-refreshed
 // phone would be a worse bug than the one it fixes.
+// A264: money as it is WRITTEN DOWN — to the paisa, never to fourteen decimal
+// places. The half-paisa EPS this file already uses is for deciding whether an
+// amount is really there; this is for the figure that goes into a record a
+// person will read months later. Blocking somebody who still held ₹0.01 wrote
+// "₹0.009999999999990905 অনাদায়ী (override)" into the audit log — a true number
+// and an unreadable one, in the one line that says money was given up on.
+function paise_(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
 function requireUnchanged_(u, seenAt) {
   var seen = String(seenAt || '');
   if (!seen) return;
@@ -1367,7 +1376,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.93.0';
+var CODE_VERSION = 'chanda-v4.94.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -2951,9 +2960,13 @@ var ACTIONS = {
       // with the amount — never silently zeroed, or the book stops adding up.
       var pic = accountPicture_(readAll_(Number(b.year) || new Date().getFullYear()), String(u.row.username));
       var held = pic.inHand;
-      if (held > 0.005 && !b.override) throw new Error('holds-money:' + held);
-      takeSnap_(u.row, 'block', b.year, held > 0.005 ? { writtenOff: held } : null);
-      if (held > 0.005) note = ' · ₹' + held + ' অনাদায়ী (override)';
+      // A264: the COMPARISON keeps its half-paisa epsilon — that is what stops
+      // a rounding crumb from a collector who handed over ₹300.30 against
+      // ₹300.30000000000007 collected becoming a door nobody can open. What is
+      // written down is rounded to the paisa.
+      if (held > 0.005 && !b.override) throw new Error('holds-money:' + paise_(held));
+      takeSnap_(u.row, 'block', b.year, held > 0.005 ? { writtenOff: paise_(held) } : null);
+      if (held > 0.005) note = ' · ₹' + paise_(held) + ' অনাদায়ী (override)';
       u.row.token = '';
     }
     u.row.status = b.status;

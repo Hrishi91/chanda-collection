@@ -4609,6 +4609,87 @@ module.exports = function runBackendTests(eq) {
        'backend A257: …with the whole-book answer still the sum of the two');
   }
 
+  // --- A264: the block door's half-paisa, from both sides -------------------
+  // A78's rule — a person who cannot log in cannot hand money back, so blocking
+  // refuses while they still hold some — rests on an epsilon, and the epsilon
+  // had never been driven. The survey said so: the comparison survived every
+  // mutation because no fixture stood anywhere near it.
+  //
+  // Both sides matter and they pull opposite ways. Too tight and a rounding
+  // crumb becomes a door nobody can open; too loose and real money is written
+  // off in silence.
+  {
+    const money264 = function (collect, hand) {
+      const b = loadBackend(); b.api.setup();
+      ['adm264', 'rat264', 'kal264'].forEach(function (u, i) {
+        b.post('register', { username: u, name: u, password: 'secret' + i, phone: '98210000' + i });
+      });
+      const t = b.call('login', { username: 'adm264', password: 'secret0', year: 2026 }).token;
+      const id = function (u) { return b.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+      ['rat264', 'kal264'].forEach(function (u) {
+        b.call('setStatus', { token: t, userId: id(u), status: 'approved' });
+        b.call('approveYear', { token: t, userId: id(u), year: 2026 });
+      });
+      b.call('setEntries', { token: t, userId: id('rat264'), entries: ['road'] });
+      b.call('setCashier', { token: t, userId: id('kal264'), cashier: 1 });
+      const tk = b.call('login', { username: 'rat264', password: 'secret1', year: 2026 }).token;
+      collect.forEach(function (a, i) {
+        b.call('push', { token: tk, records: [{ store: 'daily', row: { id: 'r' + i, year: 2026,
+          type: 'road', amount: a, cashAmount: a, upiAmount: 0, date: '2026-09-07' } }] });
+      });
+      if (hand) {
+        b.call('push', { token: tk, records: [{ store: 'handovers', row: { id: 'h264', year: 2026,
+          toId: 'kal264', to: 'kal264', amount: hand, cashAmount: hand, upiAmount: 0,
+          date: '2026-09-07', status: 'pending',
+          breakdown: JSON.stringify({ road: { cash: hand, upi: 0 } }) } }] });
+        b.call('confirmHandover', {
+          token: b.call('login', { username: 'kal264', password: 'secret2', year: 2026 }).token,
+          id: 'h264', year: 2026 });
+      }
+      const out = { held: null, refusal: '', audit: '' };
+      const A264 = require('../js/aggregate.js');
+      const d = (b.call('pull', { token: tk, year: 2026, since: 0 }) || {}).data || {};
+      const av = A264.myAvailable(d, 'rat264');
+      out.held = av.cash + av.upi;
+      try { b.call('setStatus', { token: t, userId: id('rat264'), status: 'blocked', year: 2026 }); }
+      catch (e) { out.refusal = String((e && e.message) || e); }
+      const n0 = b.rows('Audit').length;
+      b.call('setStatus', { token: t, userId: id('rat264'), status: 'blocked', year: 2026, override: 1 });
+      out.audit = b.rows('Audit').slice(n0).map(function (r) { return String(r.detail); }).join(' ');
+      return out;
+    };
+
+    // handed over the lot: nothing held, the door opens
+    const clean = money264([500], 500);
+    eq(clean.held, 0, 'backend A264: handing over the lot leaves nothing held');
+    eq(clean.refusal, '', 'backend A264: …and blocking is not refused');
+
+    // the REAL crumb, and it must be a POSITIVE one or the epsilon's lower side
+    // is not being tested at all: ₹1.10 + ₹2.20 is 3.3000000000000003 in binary
+    // and the collector hands over "₹3.30", leaving 4.4e-16 in hand. The door
+    // must still open — an epsilon too tight here is a person nobody can stand
+    // down, over four ten-thousandths of a trillionth of a rupee.
+    const crumb = money264([1.1, 2.2], 3.30);
+    eq(crumb.held > 0, true, 'backend A264: the crumb is on the side the epsilon has to forgive');
+    eq(crumb.held < 0.005, true,
+       'backend A264: …and smaller than half a paisa (' + crumb.held + ')');
+    eq(crumb.refusal, '', 'backend A264: …so blocking is not refused over it');
+    // the other direction rounds the other way and must be just as harmless
+    const under = money264([100.1, 200.2], 300.30);
+    eq(under.refusal, '', 'backend A264: …and a crumb the other way is not refused either');
+
+    // one paisa genuinely outstanding: refused, and the figure is READABLE —
+    // it goes into the audit log, which is where "what happened to that money?"
+    // is answered months later
+    const paisa = money264([500], 499.99);
+    eq(paisa.refusal, 'holds-money:0.01',
+       'backend A264: one real paisa outstanding is refused, to the paisa');
+    eq(/₹0\.01 /.test(paisa.audit), true,
+       'backend A264: …and the write-off is recorded as ₹0.01, not to fourteen decimal places');
+    eq(/0\.00999/.test(paisa.audit), false,
+       'backend A264: …with the binary residue kept out of the committee\'s record');
+  }
+
   // --- A263: two admins, one person, and the change that vanished -----------
   // Driven as an interleaving, which is the only shape that finds it: adm1
   // opens the permission screen, adm2 grants বাস, adm1 saves the screen they
