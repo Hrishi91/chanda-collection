@@ -17133,3 +17133,23 @@ Tests 3,477 (from 3,461). Eight mutations, all named.
 
 **The three steps are done.** The programme has its own কোষাধ্যক্ষ, its own
 purse, and parcels that belong to one book. Schema stays 5 throughout.
+
+### A244's version trap fired, exactly as it was written to
+
+Bumping to **v4.90.0** turned `A244: a string-vs-number trap still exists to
+test` red. That assertion exists for this moment: it hunts, at the CURRENT
+version, for a pair where number order and text order disagree, and refuses to
+pass if it cannot find one — *"better a loud failure than a test that quietly
+proves nothing"*.
+
+It was right that its own trap was gone, and wrong about why. The search only
+looked for a **smaller number that sorts later** — 9 beside 83 — and at 4.90.0
+nothing under 90 sorts after `"90"`. But the trap had simply moved to the other
+side: **100 is larger than 90 and sorts before it.** A string compare reads
+`4.100.0` as older than `4.90.0`; the numbers read it as newer.
+
+So the fix was to complete the search rather than to move the anchor, and the
+assertion now runs both ways. Proved by putting the string compare back: it
+fails with `chanda-v10.90.0 vs chanda-v4.90.0 is decided by NUMBERS, not text`.
+
+Tests 3,477, unchanged in count — this fixed the test, not the code.

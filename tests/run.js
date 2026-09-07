@@ -4404,20 +4404,26 @@ try {
       eq(cmp(at(i, mine[i] + 1)), -1, 'A244: a higher ' + slot + ' means this phone is behind');
       if (mine[i] > 0) eq(cmp(at(i, mine[i] - 1)), 1, 'A244: a lower ' + slot + ' means the server is behind');
     });
-    // Find a slot where a SMALLER number sorts LATER as text — that pair is the
-    // whole point of the check. If a future version bump leaves no such pair
-    // (say 4.95.x), this fails by name and whoever bumped it picks a new
-    // anchor; better a loud failure than a test that quietly proves nothing.
+    // Find a slot where number order and TEXT order disagree — that pair is the
+    // whole point of the check. It runs BOTH ways, and A258 is why: the first
+    // version only looked for a smaller number that sorts later (9 beside 83),
+    // and at v4.90.0 no such pair exists — nothing under 90 sorts after "90".
+    // The trap was simply on the other side: 100 is LARGER than 90 and sorts
+    // BEFORE it. The test failed by name, as it was written to, and the fix was
+    // to complete the search rather than to move the anchor.
     let trap = null;
     [0, 1, 2].forEach(function (i) {
       for (let v = 0; v < mine[i] && trap === null; v++) {
-        if (String(v) > String(mine[i])) trap = { i: i, v: v };
+        if (String(v) > String(mine[i])) trap = { i: i, v: v, want: 1 };   // smaller, sorts later
+      }
+      for (let v = mine[i] + 1; v < mine[i] + 200 && trap === null; v++) {
+        if (String(v) < String(mine[i])) trap = { i: i, v: v, want: -1 };  // larger, sorts earlier
       }
     });
     eq(trap !== null, true, 'A244: a string-vs-number trap still exists to test at ' + myVer);
     if (trap) {
-      eq(cmp(at(trap.i, trap.v)), 1,
-         'A244: ' + at(trap.i, trap.v) + ' is BEHIND ' + myVer + ' — numbers, not text');
+      eq(cmp(at(trap.i, trap.v)), trap.want,
+         'A244: ' + at(trap.i, trap.v) + ' vs ' + myVer + ' is decided by NUMBERS, not text');
     }
     eq(cmp('chanda-v'), null, 'A244: a version with no numbers claims nothing');
     eq(cmp(''), null, 'A244: …nor does an empty one');
