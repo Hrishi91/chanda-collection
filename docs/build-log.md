@@ -16690,3 +16690,8 @@ the suite gate, and a deliberate `throw` is caught as an ABORTED run rather than
 read as silence.
 
 Tests unchanged at 3,284 — this adds a tool, not a rule.
+
+**And then Hrishi made it a rule.** Two lines in `CLAUDE.md`, so it survives the
+end of this session rather than depending on me remembering it next time: run
+the check before any release and put its answer in the handoff, and — the one
+that matters most on a nightly cadence — **pushing is not releasing.**

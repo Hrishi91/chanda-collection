@@ -25,6 +25,15 @@ one ever disagrees with these files, these files win.
 - Verify claims live before reporting done; walk the ALL-SURFACES
   checklist (logic, storage, UI, notification, tests, docs, handoff).
 - Never expose secrets (Apps Script URL secret) in chat, logs, or repo.
+- **Before any release, run `sh scripts/release-check.sh`** and put its answer
+  in the handoff. It says whether this is a CLIENT night (nothing to do in the
+  Apps Script editor) or a SERVER night (backup → paste → **New deployment**,
+  never "New version" → hand over the new `/exec`), checks the five gates,
+  lists what is still open in `docs/pending.md`, and names the four things no
+  check can see. Read-only; it deploys nothing.
+- **Pushing is not releasing.** The worker is cache-first, so a phone takes new
+  code only at ⚙️ → 🔄. Push at night; Hrishi walks the app on his own phone in
+  the morning and only then tells the other collectors to refresh.
 
 ## Stack & constraints
 
