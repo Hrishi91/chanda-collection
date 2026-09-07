@@ -127,15 +127,23 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
 // it in words, on the screen, never on hover.
 {
   const app7 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
-  const blk7 = (app7.match(/function entriesChips\(u\)[\s\S]*?return permGroup\(u, 'entry_perms'/) || [''])[0];
-  eq(/const progOff = !programOn\(\) &&/.test(blk7), true,
+  const blk7 = app7.slice(app7.indexOf('function entriesChips(u)'),
+                          app7.indexOf('function areaChips'));
+  // A253: the three key names were typed out here and in app.js. Both lists are
+  // derived from the group now, so this asserts the RULE — a key held in a fund
+  // that is switched off is doorless, however it was granted.
+  eq(/held\.length && !programOn\(\)/.test(blk7), true,
      'A207: the screen notices a 🎭 grant made while the programme is off');
-  eq(/\['progteam', 'progdonor', 'progmoney'\]\.some/.test(blk7), true,
-     'A207: …for all three of them, from a post or granted personally');
+  eq(/g\.keys\.filter/.test(blk7), true,
+     'A207: …for every key in that fund, not a list of three that stopped being three');
   eq(/post\.indexOf\(k\) >= 0 \|\| own\.indexOf\(k\) >= 0/.test(blk7), true,
      'A207: …a post-granted 🎭 key is just as doorless as a personal one');
-  eq(/progOff \? '  ' \+ t\('perm_prog_off'\) : ''/.test(blk7), true,
+  eq(/bits\.push\(t\('perm_prog_off'\)\)/.test(blk7), true,
      'A207: …and it lands in the note under the chips, which a phone can actually show');
+  // A253: the second way a granted key opens nothing — the tab's master is
+  // missing, so the person has the sub-permission and no door to use it behind.
+  eq(/held\.indexOf\('progteam'\) < 0/.test(blk7) && /bits\.push\(t\('perm_no_progteam'\)\)/.test(blk7),
+     true, 'A253: …and a sub-permission without the tab master says so too');
   // the sentence has to point at a real place
   const i18n7 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
   const line7 = (i18n7.match(/perm_prog_off: \{[\s\S]*?\},/) || [''])[0];
@@ -8339,8 +8347,42 @@ try {
     PERM_KEYS.forEach(function (k) {
       eq(have.indexOf(k) >= 0 || pairLabelled(k), true, 'A160: permission chip exists for ' + k);
     });
-    eq(/const kinds = Aggregate\.PERM_KEYS\.map/.test(app), true,
-       'A160: …and the chips are DERIVED from PERM_KEYS, not hand-written');
+    // A253: the chips come from the derived GROUPS now, and the groups are
+    // asserted below to cover PERM_KEYS exactly — so a new key still cannot be
+    // added without a chip, which is what this has always been protecting.
+    eq(/const groups = Aggregate\.permGroups\(\);/.test(app) && /g\.keys\.map\(function \(k\)/.test(app), true,
+       'A160: …and the chips are DERIVED from the permission groups, not hand-written');
+    {
+      const gs253 = Aggregate251.permGroups();
+      const all253 = gs253.reduce(function (a, g) { return a.concat(g.keys); }, []);
+      eq(all253.slice().sort().join(','), PERM_KEYS.slice().sort().join(','),
+         'A253: the groups cover every grantable permission exactly — none lost, none twice');
+      eq(new Set(all253).size, all253.length, 'A253: …and no key appears in two groups');
+      eq(gs253.filter(function (g) { return !g.keys.length; }).map(function (g) { return g.id; }).join(','), '',
+         'A253: …and no group is empty, which would draw a heading over nothing');
+
+      // THE fix, driven rather than read. "সব দাও" used to assign PERM_KEYS
+      // wholesale: one tap on the entry section handed a plain collector every
+      // sponsor, every গুপ্ত দান and the whole programme team. Hrishi is still
+      // carrying the job of going back through 👥 to trim exactly that.
+      const ab = Aggregate251.applyBulk;
+      const puja253 = gs253.filter(function (g) { return g.id === 'puja'; })[0].keys;
+      const view253 = gs253.filter(function (g) { return g.id === 'view'; })[0].keys;
+      const prog253 = gs253.filter(function (g) { return g.id === 'program'; })[0].keys;
+      const gotAll = ab([], 'puja', true);
+      eq(gotAll.slice().sort().join(','), puja253.slice().sort().join(','),
+         'A253: "সব দাও" on the puja group grants the puja group…');
+      eq(view253.concat(prog253).filter(function (k) { return gotAll.indexOf(k) >= 0; }).join(','), '',
+         'A253: …and hands out not one confidential view and not one programme key');
+      eq(ab(['guptview', 'progteam'], 'puja', true).indexOf('guptview') >= 0 &&
+         ab(['guptview', 'progteam'], 'puja', true).indexOf('progteam') >= 0, true,
+         'A253: …and leaves what another group already granted exactly where it was');
+      eq(ab(puja253.concat(view253), 'puja', false).slice().sort().join(','),
+         view253.slice().sort().join(','),
+         'A253: "সব নাও" takes away its own group and nothing else');
+      eq(ab(['shop', 'guptview'], 'nosuchgroup', true).slice().sort().join(','), 'guptview,shop',
+         'A253: …and a group that does not exist changes nothing at all');
+    }
     eq(/PERM_ONLY_LABELS\[k\] \|\| CAT_LABEL_KEYS\[k\]/.test(app), true,
        'A160: …reusing the category map rather than copying it (A66)');
 

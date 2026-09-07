@@ -1732,6 +1732,46 @@
   // funds, which is the next step and the one that can break collection.
   const PERM_KEYS = FUND_PERM_KEYS.concat(['review', 'otherdonor', 'memberadmin'])
     .concat(VIEW_PERM_KEYS).concat(PROGRAM_KEYS);
+  // A253: the permission SCREEN's grouping, decided here so the screen and the
+  // tests read the same answer. Hrishi: *"the permissions of the program will be
+  // separated from the available permission… otherwise usage will conflict."*
+  //
+  // Derived, because this is the seventh time this codebase would otherwise
+  // have grown a hand-written list of "which keys are special": one group per
+  // ভাঁড়ার from its own (fund, kind) keys, one for the fund-neutral confidences,
+  // and one for what is left. A key that falls in no group would vanish from
+  // the screen, which is why the tests assert the three cover PERM_KEYS exactly.
+  //
+  // `progteam` / `progmoney` are named for the programme rather than built from
+  // its id, so they are attached by name — the one association here that is not
+  // computed, and it is written once instead of in every screen that needs it.
+  const FUND_EXTRA_KEYS = { program: PROGRAM_KEYS };
+  function permGroups() {
+    const taken = {};
+    const groups = SECTORS.map(function (sec) {
+      const keys = ENTRY_KINDS.map(function (k) { return permKeyFor(sec, k); })
+        .concat(FUND_EXTRA_KEYS[sec] || []);
+      keys.forEach(function (k) { taken[k] = 1; });
+      return { id: sec, titleKey: 'sector_' + sec, keys: keys };
+    });
+    VIEW_PERM_KEYS.forEach(function (k) { taken[k] = 1; });
+    groups.push({ id: 'view', titleKey: 'perm_grp_view', keys: VIEW_PERM_KEYS.slice() });
+    groups.push({ id: 'other', titleKey: 'perm_grp_other',
+                  keys: PERM_KEYS.filter(function (k) { return !taken[k]; }) });
+    return groups;
+  }
+  // A253: what "সব দাও" / "সব নাও" does to a draft. Pure, and here rather than
+  // in the click handler, because the whole point of the change is that a bulk
+  // button reaches ONLY its own group — the old one assigned PERM_KEYS wholesale,
+  // so one tap on the entry section handed out guptview, sponsorview and the
+  // entire programme. That is on Hrishi's own list of things to go back and
+  // trim, which is how we know it happened.
+  function applyBulk(entries, groupId, on) {
+    const g = permGroups().filter(function (x) { return x.id === String(groupId); })[0];
+    const keys = g ? g.keys : [];
+    const rest = (entries || []).filter(function (k) { return keys.indexOf(k) < 0; });
+    return on ? rest.concat(keys) : rest;
+  }
   // What a committee POST may carry, so granting is one dropdown per person
   // instead of ~16 checkboxes each. Mirrors Code.gs POSITION_PERM_KEYS.
   //
@@ -2118,6 +2158,7 @@
                 isCommitment: isCommitment, commitmentRows: commitmentRows, spokenFor: spokenFor,
                 PARTY_KINDS: PARTY_KINDS, DAILY_KINDS: DAILY_KINDS, PROGRAM_KEYS: PROGRAM_KEYS,
                 FUND_PERM_KEYS: FUND_PERM_KEYS, permKeyFor: permKeyFor, permParts: permParts,
+                permGroups: permGroups, applyBulk: applyBulk,
                 SUMMARY_GROUPS: SUMMARY_GROUPS,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,

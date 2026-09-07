@@ -16835,3 +16835,51 @@ be forgotten by a rule the way it can be forgotten by a list. Ten fixtures in
 Tests 3,393 (from 3,357). Mutation-proved on both sides: the server forgetting
 the fund, every row read as puja, `progdonor` coming back, the client forgetting
 the fund, and the 🎭 tiles reading the puja key.
+
+## A253 — the permission screen in groups, and a bulk button that stays in its own
+
+Hrishi: *"the permissions of the program will be separated from the available
+permission… it should be selected differently, otherwise usage will conflict."*
+
+Twenty-five chips in one flat strip mixed three different worlds, and the cost
+was not theoretical:
+
+**"সব দাও" assigned `PERM_KEYS` wholesale.** One tap on the entry section handed
+a plain collector every sponsor, every গুপ্ত দান and the entire programme team.
+We know it happened because trimming exactly that is still an open item on
+Hrishi's own list — *"👥-তে 🤫 কটা সারিতে"*. It now reaches only its own group,
+and that is driven rather than read: `Aggregate.applyBulk` is a pure function,
+so the test grants the puja group and asserts that not one confidential view and
+not one programme key came with it, that another group's grants are left exactly
+where they were, and that "সব নাও" takes away its own group and nothing else.
+
+**Four groups, derived** — one per ভাঁড়ার from its own (fund, kind) keys, one
+for the fund-neutral confidences, one for what is left. Not a hand-written list,
+because that would have been the seventh in this codebase. The tests assert the
+groups cover `PERM_KEYS` **exactly**: none lost, none in two groups, and no
+empty group drawing a heading over nothing. So a new key still cannot be added
+without a chip — which is what A160 has been protecting since the day eight keys
+had labels and no way to tick them.
+
+**Two dead-key warnings, both in words on the screen.** A granted key that opens
+nothing is the shape A72 and A207 have each been burned by once:
+
+- the ভাঁড়ার is switched off, so its tab exists for nobody — A207's case,
+  which now reads every key in that fund rather than a list of three that had
+  already stopped being three;
+- **`progteam` is missing**, so the tab exists for nobody *in particular*: the
+  person holds `program:person` and has no door to use it behind, rings the
+  admin, and the admin's own screen shows the chip ticked. New here.
+
+The rule both obey was already written in this same function for the from-post
+case: *a screen headed "give this person permissions" that shows permissions it
+did not give has to say so IN WORDS, on the screen, never on hover.*
+
+Two guards moved from a spelling to a property: **A160** read
+`const kinds = Aggregate.PERM_KEYS.map`, **A207** read the literal
+`['progteam', 'progdonor', 'progmoney'].some` — a list that had just stopped
+being those three. Both assert the rule now.
+
+Tests 3,402 (from 3,393). Six mutations, all named: বulk granting everything
+again, bulk erasing another group, a group lost, a key in two groups, and each
+of the two warnings switched off.

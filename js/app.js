@@ -7995,55 +7995,49 @@
         const eff = String(u.entries || '').split(',').filter(Boolean);
         // A160: derived from PERM_KEYS, not hand-written. The hand-written list
         // was nine keys long and stayed nine keys long through A144 and A153,
-        // so the eight keys those releases added — sponsor, gupt, ticket, the
-        // two *view* grants and the three 🎭 ones — had labels written for them
-        // and NO CHIP TO TICK. The only way to grant one was "সব দাও", which
-        // hands out guptview along with everything else: the exact opposite of
-        // what the confidential kinds are for. Same list-duplication bug as
-        // A146–A149, in the one screen where it locks the admin out.
-        // tests/run.js asserts every PERM_KEYS entry appears here, so the next
-        // key cannot be added without its chip.
-        // The entry kinds already have labels in CAT_LABEL_KEYS — reused, not
-        // copied, because A66 pinned that map as the single definition after
-        // exactly this duplication went wrong once before. Only the keys that
-        // are NOT an entry kind need their own line.
-        const kinds = Aggregate.PERM_KEYS.map(function (k) { return [k, permLabel(k)]; });
-        let nPost = 0;
-        const chips = kinds.map(function (k) {
-          const fromPost = post.indexOf(k[0]) >= 0;
-          if (fromPost) nPost++;
-          const on = fromPost || own.indexOf(k[0]) >= 0;
-          return '<button class="chip' + (on ? ' on' : '') + (fromPost ? ' from-post' : '') + '" data-ent-user="' + u.id +
-            '" data-ent-id="' + k[0] + '"' + (fromPost ? ' disabled title="' + esc(t('from_post')) + '"' : '') + '>' +
-            (fromPost ? '🎖️ ' : '') + esc(k[1]) + '</button>';
+        // so the eight keys those releases added had labels written for them and
+        // NO CHIP TO TICK. The only way to grant one was "সব দাও", which hands
+        // out guptview along with everything else: the exact opposite of what
+        // the confidential kinds are for.
+        //
+        // A253: and now in GROUPS — Hrishi's point that one flat strip of
+        // twenty-five chips mixes three different worlds, so "সব দাও" handed a
+        // plain collector the programme team AND every sponsor in one tap. Each
+        // group has its own bulk buttons and reaches only its own keys.
+        const groups = Aggregate.permGroups();
+        return groups.map(function (g) {
+          let nPost = 0;
+          const chips = g.keys.map(function (k) {
+            const fromPost = post.indexOf(k) >= 0;
+            if (fromPost) nPost++;
+            const on = fromPost || own.indexOf(k) >= 0;
+            return '<button class="chip' + (on ? ' on' : '') + (fromPost ? ' from-post' : '') + '" data-ent-user="' + u.id +
+              '" data-ent-id="' + esc(k) + '"' + (fromPost ? ' disabled title="' + esc(t('from_post')) + '"' : '') + '>' +
+              (fromPost ? '🎖️ ' : '') + esc(permLabel(k)) + '</button>';
+          }).join('');
+          // A72: the tooltip was the ONLY explanation, and a phone never shows a
+          // title tooltip. A screen headed "give this person permissions" that
+          // shows permissions it did not give has to say so IN WORDS.
+          const bits = [];
+          if (nPost) bits.push(t('perm_from_post_n').replace('{n}', String(nPost))
+            .replace('{post}', Lists.labelOf('position', admDraft.position || '')));
+          if (g.id === 'puja') bits.push(t('perms_common'));
+          // A207/A253: two ways a granted key opens nothing at all, and the
+          // person rings the admin while the admin's own screen shows it ticked.
+          //   · the ভাঁড়ার is switched off, so its tab does not exist for anybody
+          //   · progteam is missing, so the tab does not exist for THIS person
+          // Both are said here, in words, for the same reason the line above is.
+          if (g.id !== 'puja' && g.id !== 'view' && g.id !== 'other') {
+            const held = g.keys.filter(function (k) {
+              return post.indexOf(k) >= 0 || own.indexOf(k) >= 0;
+            });
+            if (held.length && !programOn()) bits.push(t('perm_prog_off'));
+            else if (held.some(function (k) { return k !== 'progteam'; }) &&
+                     held.indexOf('progteam') < 0) bits.push(t('perm_no_progteam'));
+          }
+          return permGroup(u, g.titleKey, 'ent:' + g.id, chips, bits.join('  '), false,
+                           g.id === 'puja' && !eff.length);
         }).join('');
-        // A72: the tooltip was the ONLY explanation, and a phone never shows a
-        // title tooltip — the same mistake as the sync badge (audit #2 U4).
-        //
-        // The consequence found in the field: Hrishi pressed 🧹, every personal
-        // grant really was cleared on the server, and this screen still showed
-        // ticked chips — because they now come from the POST. Correct, and
-        // indistinguishable from "the clear did not work". A screen headed "give
-        // this person permissions" that shows permissions it did not give has to
-        // say so in words, on the screen, not on hover.
-        // A207: the three 🎭 keys are drawn whatever `program_on` says, and the
-        // programme is OFF by default — deliberately, it is the committee's
-        // switch. So granting one while it is off is a key to a door that is
-        // not there: no 🎭 tab, no entry screens, nothing. The person rings the
-        // admin, and the admin's own screen showed a ticked chip.
-        //
-        // The rule is already written six lines up, for a different case:
-        // a screen headed "give this person permissions" that shows something
-        // it did not give has to say so IN WORDS, on the screen. Same here.
-        const progOff = !programOn() &&
-          ['progteam', 'progdonor', 'progmoney'].some(function (k) {
-            return post.indexOf(k) >= 0 || own.indexOf(k) >= 0;
-          });
-        const note = (nPost
-          ? t('perm_from_post_n').replace('{n}', String(nPost))
-              .replace('{post}', Lists.labelOf('position', admDraft.position || '')) + '  ' + t('perms_common')
-          : t('perms_common')) + (progOff ? '  ' + t('perm_prog_off') : '');
-        return permGroup(u, 'entry_perms', 'ent', chips, note, false, !eff.length);
       }
       // which master areas a collector is responsible for (drives area reports)
       function areaChips(u) {
@@ -8750,7 +8744,13 @@
           const uid = b.dataset.bulkUser, on = b.dataset.bulkOn === '1';
           const u = resp.users.find(function (x) { return x.id === uid; });
           if (!u) return;
-          if (b.dataset.bulk === 'ent') admDraft.entries = on ? Aggregate.PERM_KEYS.slice() : [];
+          // A253: scoped to its own group. It used to be
+          // `admDraft.entries = PERM_KEYS.slice()`, so one tap on the entry
+          // section handed out guptview, sponsorview and the whole programme —
+          // which is on Hrishi's own list of things to go back and trim.
+          if (String(b.dataset.bulk).slice(0, 4) === 'ent:') {
+            admDraft.entries = Aggregate.applyBulk(admDraft.entries, String(b.dataset.bulk).slice(4), on);
+          }
           else if (b.dataset.bulk === 'rep') admDraft.reports = on ? REPORT_IDS.slice() : [];
           else admDraft.areas = on ? areas.map(function (a) { return a.id; }) : [];
           redraw();
