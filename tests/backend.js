@@ -4609,6 +4609,139 @@ module.exports = function runBackendTests(eq) {
        'backend A257: …with the whole-book answer still the sum of the two');
   }
 
+  // --- A259: a whole evening with the programme fund ON ----------------------
+  // The three nights' work, driven end to end instead of in pieces: every entry
+  // kind written in both books by two different people, both purses, both
+  // handovers, both cashiers, the 🩺 desk, and the reports.
+  //
+  // Hrishi asked for this before switching the fund on live. It is the one test
+  // shaped like the evening rather than like the code.
+  {
+    const A259 = require('../js/aggregate.js');
+    const b259 = loadBackend(); b259.api.setup();
+    const CAST = ['hrishi259', 'ratan259', 'subrata259', 'kali259', 'pori259'];
+    CAST.forEach(function (u, i) {
+      b259.post('register', { username: u, name: u, password: 'secret' + i, phone: '98110000' + i });
+    });
+    let adm = b259.call('login', { username: 'hrishi259', password: 'secret0', year: 2026 }).token;
+    const uid = function (u) { return b259.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+    CAST.slice(1).forEach(function (u) {
+      b259.call('setStatus', { token: adm, userId: uid(u), status: 'approved' });
+      b259.call('approveYear', { token: adm, userId: uid(u), year: 2026 });
+    });
+    b259.call('addItem', { token: adm, kind: 'area', nameBn: 'মেন রোড', nameEn: 'Main Rd', id: 'main_malda' });
+    b259.call('setConfig', { token: adm, key: 'program_on', value: 'on' });
+    b259.call('setEntries', { token: adm, userId: uid('ratan259'),
+      entries: A259.ENTRY_KINDS.filter(function (k) { return k !== 'ticket'; }) });
+    b259.call('setEntries', { token: adm, userId: uid('subrata259'),
+      entries: ['progteam', 'progmoney'].concat(A259.ENTRY_KINDS.map(function (k) { return 'program:' + k; })) });
+    b259.call('setCashier', { token: adm, userId: uid('kali259'), cashier: 1 });
+    b259.call('setEntries', { token: adm, userId: uid('pori259'), entries: ['program:cashier'] });
+    // one account, one active device: logging everyone in AFTER the admin work,
+    // and re-reading the admin's own token, because the loop below mints a new
+    // one for hrishi259 and kills the first.
+    const tk = {};
+    CAST.forEach(function (u, i) {
+      tk[u] = b259.call('login', { username: u, password: 'secret' + i, year: 2026 }).token;
+    });
+    adm = tk.hrishi259;
+    const push = function (who, store, row) {
+      const r = b259.call('push', { token: tk[who], records: [{ store: store, row: row }] });
+      return (r.savedIds || []).indexOf(row.id) >= 0;
+    };
+
+    // every kind, in its own book
+    const wrote = { puja: [], program: [] };
+    A259.PARTY_KINDS.forEach(function (kind) {
+      if (push('ratan259', 'parties', { id: 'pj-' + kind, year: 2026, type: kind, name: kind,
+          pledged: 500, side: 'main_malda', sector: 'puja' })) wrote.puja.push(kind);
+      push('ratan259', 'payments', { id: 'pjy-' + kind, year: 2026, partyId: 'pj-' + kind,
+          partyName: kind, amount: 100, cashAmount: 100, upiAmount: 0, date: '2026-09-07' });
+      if (push('subrata259', 'parties', { id: 'pr-' + kind, year: 2026, type: kind, name: kind,
+          pledged: 500, side: 'main_malda', sector: 'program' })) wrote.program.push(kind);
+      push('subrata259', 'payments', { id: 'pry-' + kind, year: 2026, partyId: 'pr-' + kind,
+          partyName: kind, amount: 200, cashAmount: 200, upiAmount: 0, date: '2026-09-07' });
+    });
+    A259.DAILY_KINDS.forEach(function (kind) {
+      if (kind !== 'ticket' && push('ratan259', 'daily', { id: 'pjd-' + kind, year: 2026, type: kind,
+          amount: 50, cashAmount: 50, upiAmount: 0, date: '2026-09-07', sector: 'puja' })) wrote.puja.push(kind);
+      if (push('subrata259', 'daily', { id: 'prd-' + kind, year: 2026, type: kind,
+          amount: 60, cashAmount: 60, upiAmount: 0, date: '2026-09-07', sector: 'program' })) wrote.program.push(kind);
+    });
+    eq(wrote.puja.length, A259.PARTY_KINDS.length + A259.DAILY_KINDS.length - 1,
+       'backend A259: the puja collector writes every puja kind — all but টিকিট, which they were not given');
+    eq(wrote.program.length, A259.PARTY_KINDS.length + A259.DAILY_KINDS.length,
+       'backend A259: the programme collector writes every programme kind');
+
+    // and neither reaches the other's book
+    eq(push('ratan259', 'parties', { id: 'x1', year: 2026, type: 'person', name: 'ভুল', pledged: 10,
+        side: 'main_malda', sector: 'program' }), false,
+       'backend A259: the puja collector cannot write into the programme\'s book');
+    eq(push('subrata259', 'parties', { id: 'x2', year: 2026, type: 'person', name: 'ভুল', pledged: 10,
+        side: 'main_malda', sector: 'puja' }), false,
+       'backend A259: …nor the programme collector into the puja\'s');
+
+    // two pockets
+    const dR = (b259.call('pull', { token: tk.ratan259, year: 2026, since: 0 }) || {}).data || {};
+    const dS = (b259.call('pull', { token: tk.subrata259, year: 2026, since: 0 }) || {}).data || {};
+    const tot = function (x) { return x.cash + x.upi; };
+    eq(tot(A259.handoverable(dR, 'ratan259', 'program')), 0, 'backend A259: the puja collector\'s programme pocket is empty');
+    eq(tot(A259.handoverable(dS, 'subrata259', 'puja')), 0, 'backend A259: …and the programme collector\'s puja pocket');
+    eq(tot(A259.handoverable(dS, 'subrata259', 'puja')) + tot(A259.handoverable(dS, 'subrata259', 'program')),
+       tot(A259.handoverable(dS, 'subrata259')), 'backend A259: …with the two halves summing to the whole');
+
+    // handovers, addressed to the WRONG cashier so the fund gate is the one reached
+    const parcel = function (who, id, sector, cat, amt, to) {
+      return push(who, 'handovers', { id: id, year: 2026, toId: to, to: to, amount: amt,
+        cashAmount: amt, upiAmount: 0, date: '2026-09-07', status: 'pending', sector: sector,
+        breakdown: JSON.stringify((function () { const o = {}; o[cat] = { cash: amt, upi: 0 }; return o; })()) });
+    };
+    const settle = function (who, id, action) {
+      try {
+        b259.call(action, Object.assign({ token: tk[who], id: id, year: 2026 },
+          action === 'rejectHandover' ? { reason: 'ভুল' } : {}));
+        return 'ok';
+      } catch (e) { return String((e && e.message) || e); }
+    };
+    parcel('subrata259', 'h-wrong', 'program', 'ticket', 60, 'kali259');
+    parcel('subrata259', 'h-prog', 'program', 'ticket', 60, 'pori259');
+    parcel('ratan259', 'h-wrong2', 'puja', 'shop', 100, 'pori259');
+    parcel('ratan259', 'h-puja', 'puja', 'shop', 100, 'kali259');
+    eq(settle('kali259', 'h-wrong', 'confirmHandover'), 'not-cashier-of-fund',
+       'backend A259: a programme parcel sent to the PUJA cashier is refused even though it is addressed to them');
+    eq(settle('pori259', 'h-wrong2', 'confirmHandover'), 'not-cashier-of-fund',
+       'backend A259: …and the mirror, which is the half that is usually missed');
+    eq(settle('pori259', 'h-prog', 'confirmHandover'), 'ok', 'backend A259: each settles their own book');
+    eq(settle('kali259', 'h-puja', 'confirmHandover'), 'ok', 'backend A259: …both of them');
+
+    // the picker would not have offered the wrong one in the first place
+    const cl = b259.call('cashiers', { token: tk.subrata259 });
+    const list = cl.cashiers || cl.names || [];
+    const names = function (sec) {
+      return A259.cashiersForFund(list, sec).map(function (c) { return c.username; });
+    };
+    eq(names('program').indexOf('kali259') < 0 && names('program').indexOf('pori259') >= 0, true,
+       'backend A259: a programme parcel offers the programme cashier and not the puja\'s');
+    eq(names('puja').indexOf('pori259') < 0 && names('puja').indexOf('kali259') >= 0, true,
+       'backend A259: …and a puja parcel the other way round');
+
+    // the 🩺 desk, and the books
+    const dAll = (b259.call('pull', { token: adm, year: 2026, since: 0 }) || {}).data || {};
+    const anom = (A259.reconcile(dAll, {}).anomalies || []).map(function (a) { return a.type; });
+    // member_no_account is EARNED: this fixture writes সদস্য donors with no
+    // linked account, which is exactly what that check watches for. Everything
+    // about the money must be silent.
+    eq(anom.filter(function (t) { return t !== 'member_no_account'; }).join(', '), '',
+       'backend A259: a whole evening in two books leaves the 🩺 desk with nothing to say about money');
+    const ov = A259.computeReport('overview', dAll);
+    const pj = A259.computeReport('overview', A259.ofSector(dAll, 'puja'));
+    const pr = A259.computeReport('overview', A259.ofSector(dAll, 'program'));
+    eq(pj.totalCollection + pr.totalCollection, ov.totalCollection,
+       'backend A259: the two books\' takings sum to the whole');
+    eq(ov.bySector.program.collected, pr.totalCollection,
+       'backend A259: …and the overview\'s own fund split says the same thing');
+  }
+
   // --- A258: only the কোষাধ্যক্ষ of the parcel's own book may settle it ------
   // Two books have two cashiers, so being the committee's treasurer stopped
   // being an answer to "may I take the programme's money". Both halves of the

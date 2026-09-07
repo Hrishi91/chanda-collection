@@ -17183,3 +17183,47 @@ only begins to matter the day the fund is switched on and somebody holds
 The one thing worth walking after this deploy is therefore the OLD path: a
 collector sends an ordinary parcel and the cashier confirms it. That is what
 these gates sit in front of.
+
+## A259 — a whole evening with the programme fund ON, driven end to end
+
+Hrishi, before switching the fund on live: *"you test — with all entries."*
+
+Not on his book: driven through the real server in `tests/gas-shim.js`, with the
+fund switched on, and now kept as a permanent test shaped like the **evening**
+rather than like the code.
+
+Two collectors, two cashiers, every kind:
+
+- **রতন** holds every puja kind and writes all of them — দোকান · ব্যক্তি ·
+  সদস্য · স্পনসর · গুপ্ত · রোড · টোটো · বাস. Not টিকিট, which he was not given.
+- **সুব্রত** holds every programme kind and writes all nine, টিকিট included.
+- Neither reaches the other's book: রতন's `person` key refuses a programme
+  donor, সুব্রত's refuses a puja one.
+- **Two pockets.** রতন holds ₹650, all of it the puja's, ₹0 in the programme's.
+  সুব্রত holds ₹1,240, all of it the programme's. The two halves sum to the
+  whole for both.
+- **Two cashiers.** A programme parcel *addressed to* the puja cashier is
+  refused — `not-cashier-of-fund` — and the mirror as well, which is the half
+  usually missed. Each settles their own book.
+- **And the picker would never have offered the wrong one:** a programme parcel
+  lists পরী and the admin; a puja parcel lists কালী and the admin.
+- **The 🩺 desk has nothing to say about money.** It does raise two
+  `member_no_account` complaints, and it is right to: this fixture writes সদস্য
+  donors with no linked app account, which is exactly what that check watches
+  for and is on Hrishi's own list to clear.
+- **The books add up:** ₹650 + ₹1,240 = ₹1,890, and the overview's own fund
+  split agrees with each book read on its own.
+
+Two of my own mistakes on the way, both worth keeping:
+
+- The first run asserted *which* guard refused a wrong-cashier parcel and got
+  `not-recipient` instead — the recipient check fires first. So the parcel is
+  refused either way; to reach the FUND gate the parcel has to be **addressed to
+  the wrong cashier**, which is the real-world mistake it exists for. Fixed by
+  testing that case rather than by loosening the assertion.
+- And I logged the admin in twice — one account, one active device, so the
+  second login killed the first token and the pull failed with `bad-token`. The
+  trap that is written down in three places in this repo, walked into again.
+
+Tests 3,493 (from 3,477). Mutation-proved: the fund gate removed, the membrane
+removed on either side, and the recipient filter blinded.
