@@ -17553,3 +17553,12 @@ and all three now closed (A264's epsilon, and these two). The remaining
 seventeen are equivalent as far as I can tell — loop bounds that read one past
 the end, and `getLastRow() > 1` guards on sheets no fixture leaves empty. That
 is a judgement, not a proof, and it is written down as one.
+
+## v4.94.0 deployed — A264's paisa reaches the server
+
+SERVER night, because `paise_` is Code.gs. Probed three times before the URL was
+baked in: GET `/exec` answered `chanda-v4.94.0 / schema 5`, and two POSTs of a
+deliberately bad token answered `bad-token` carrying the same version — the
+error envelope, which reads the deployment without touching a single row.
+
+`js/config.js` rebaked. Phones need ⚙️ → 🔄: `js/auth.js` and `sw.js` moved.
