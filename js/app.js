@@ -2110,7 +2110,7 @@
                   pendingOut: avail.pendingOut || { total: 0 },
                   debt: avail.debt || { cash: 0, upi: 0, total: 0 } } }];
     return {
-      title: t('handover_title') + (avail.cash || avail.upi
+      title: t('handover_title') + (Aggregate.moreThan(avail.cash + avail.upi, 0)
         ? ' — ' + t('you_have') + ': 💵' + fmtMoney(avail.cash) + ' · 📱' + fmtMoney(avail.upi) : ''),
       // A146: money first, THEN the name. See toStep for why the order is the fix.
       steps: moneySteps_.concat([toStep], [
@@ -4210,7 +4210,7 @@
     Object.keys(bd).forEach(function (k) {
       if (k.slice(0, 2) === '__') return; // reserved metadata, not a category
       const v = bd[k] || {};
-      if (!((Number(v.cash) || 0) + (Number(v.upi) || 0))) return;
+      if (!Aggregate.moreThan((Number(v.cash) || 0) + (Number(v.upi) || 0), 0)) return;
       (Aggregate.isRestrictedType(k) ? cats : open).push(k);
     });
     // A145: `cats.length > 1` is mixing too, and it only became visible once a
@@ -4889,9 +4889,9 @@
         '<div class="hint" style="margin:0 4px 8px">' + esc(t('pot_hint')) + '</div>' +
         '<div class="tillnow"><div class="eqrow">' +
           term(t('my_collected'), p.collected.total) +
-          (p.receivedIn.total ? '<span class="op">+</span>' + term(t('my_received'), p.receivedIn.total) : '') +
-          (p.expenses.total ? '<span class="op">−</span>' + term(t('expense'), p.expenses.total) : '') +
-          (p.handedOut.total ? '<span class="op">−</span>' + term(t('my_handed'), p.handedOut.total) : '') +
+          (Aggregate.moreThan(p.receivedIn.total, 0) ? '<span class="op">+</span>' + term(t('my_received'), p.receivedIn.total) : '') +
+          (Aggregate.moreThan(p.expenses.total, 0) ? '<span class="op">−</span>' + term(t('expense'), p.expenses.total) : '') +
+          (Aggregate.moreThan(p.handedOut.total, 0) ? '<span class="op">−</span>' + term(t('my_handed'), p.handedOut.total) : '') +
           // legacy rows the old drain rule spread across pots: named, not hidden
           (p.unattributed ? '<span class="op">' + (p.unattributed < 0 ? '−' : '+') + '</span>' +
             term(t('pot_other'), Math.abs(p.unattributed)) : '') +
@@ -5270,7 +5270,7 @@
       // A151: the line the in-hand figure has always been missing. NOT subtracted
       // — the committee really does hold that cash — but named, so nobody plans
       // against money an artist is already waiting for.
-      ((tt.spokenFor && tt.spokenFor.total) ?
+      (Aggregate.moreThan((tt.spokenFor || {}).total, 0) ?
         '<div class="strip act">' + esc(t('spoken_for')) + ': ' + fmtMoney(tt.spokenFor.total) +
           ' · ' + esc(t('really_free')) + ': <b>' + fmtMoney(tt.inHand - tt.spokenFor.total) + '</b>' +
           '<span class="sub">' + esc(t('spoken_for_note')) + '</span></div>' : '') +
@@ -5532,15 +5532,15 @@
           esc(t('my_device_note')) + '</div>' : '') +
         '<button class="sum-more" id="sum-toggle">' + esc(t(sumOpen ? 'sum_close' : 'sum_open')) + '</button>' +
         // money that is NOT in the hero but needs an action from this person
-        (pin.total ? '<div class="strip act">' + tMoney('strip_pend_in', pin.total) +
+        (Aggregate.moreThan(pin.total, 0) ? '<div class="strip act">' + tMoney('strip_pend_in', pin.total) +
           '<span class="sub">' + esc(t('strip_pend_in_sub')) + '</span>' +
           '<button class="cta" data-go="cashier">' + esc(t('strip_pend_in_cta')) + '</button></div>' : '') +
         // money that IS in the hero but is on its way out
-        (pend.total ? '<div class="strip">' + tMoney('strip_pend_out', pend.total) +
+        (Aggregate.moreThan(pend.total, 0) ? '<div class="strip">' + tMoney('strip_pend_out', pend.total) +
           '<span class="sub">' + tMoney('strip_pend_out_sub', m.afterApprove) + '</span></div>' : '') +
         // money that came back: the hero never moved, which is exactly what
         // confuses people, so say it in so many words
-        (rej.total ? '<div class="strip act">' + tMoney('strip_rejected', rej.total) +
+        (Aggregate.moreThan(rej.total, 0) ? '<div class="strip act">' + tMoney('strip_rejected', rej.total) +
           '<span class="sub">' + tMoney('strip_rejected_sub', hero) + '</span></div>' : '') +
       '</div>' +
       '<div id="sum-body"' + (sumOpen ? '' : ' hidden') + '>' +
@@ -5561,15 +5561,15 @@
           '<div class="final"><span class="k">' + esc(t('sum_total')) + '</span>' +
             '<span class="v">' + fmtMoney(hero) + '</span></div>' +
         '</div>' +
-        (pend.total || rej.total || ok.total ?
+        (Aggregate.moreThan(pend.total + rej.total + ok.total, 0) ?
           '<div class="secttl">' + esc(t('sum_handover')) + '</div><div class="calc">' +
-            (pend.total ? grpHTML(true, esc(t('slot_pending')), fmtMoney(pend.total),
+            (Aggregate.moreThan(pend.total, 0) ? grpHTML(true, esc(t('slot_pending')), fmtMoney(pend.total),
               slotRowsHTML(pend.rows, 'slot_await_row') +
               '<div class="expl">' + tMoney('slot_pending_note', m.afterApprove) + '</div>', 'pendbox') : '') +
-            (rej.total ? grpHTML(true, esc(t('slot_rejected')), fmtMoney(rej.total),
+            (Aggregate.moreThan(rej.total, 0) ? grpHTML(true, esc(t('slot_rejected')), fmtMoney(rej.total),
               slotRowsHTML(rej.rows, 'slot_rejected_row') +
               '<div class="expl">' + esc(t('slot_rejected_note')) + '</div>', 'nobox') : '') +
-            (ok.total ? grpHTML(false, esc(t('slot_confirmed')), fmtMoney(ok.total),
+            (Aggregate.moreThan(ok.total, 0) ? grpHTML(false, esc(t('slot_confirmed')), fmtMoney(ok.total),
               slotRowsHTML(ok.rows, 'slot_got_row') +
               '<div class="expl">' + tMoney('slot_confirmed_note', hero) + '</div>', 'okbox') : '') +
           '</div>' : '') +
@@ -5830,7 +5830,9 @@
             return [r.collector, money(r.collected), money(r.received), money(r.handedOver),
                     money(r.pending), money(r.spent), money(r.inHand)]
               .concat(used.map(function (k) {
-                const c = (r.byCat || {})[k]; return c ? money((c.cash || 0) + (c.upi || 0)) : '';
+                const c = (r.byCat || {})[k];
+                return c && Aggregate.moreThan((c.cash || 0) + (c.upi || 0), 0)
+                  ? money((c.cash || 0) + (c.upi || 0)) : '';
               }));
           }));
     }
@@ -5958,11 +5960,11 @@
       };
       const head = '<div class="cat-group tot-group">' +
         '<div class="sh-row ro"><span class="cat-name">📥 ' + esc(t('hb_received')) + '</span>' + money(r.received) + '</div>' +
-        (r.pendingIn.total ? '<div class="sh-row ro"><span class="cat-name">⏳ ' + esc(t('hb_pending_in')) + '</span>' + money(r.pendingIn) + '</div>' : '') +
-        (r.rejectedIn.total ? '<div class="sh-row ro"><span class="cat-name">❌ ' + esc(t('hb_rejected_in')) + '</span>' + money(r.rejectedIn) + '</div>' : '') +
+        (Aggregate.moreThan(r.pendingIn.total, 0) ? '<div class="sh-row ro"><span class="cat-name">⏳ ' + esc(t('hb_pending_in')) + '</span>' + money(r.pendingIn) + '</div>' : '') +
+        (Aggregate.moreThan(r.rejectedIn.total, 0) ? '<div class="sh-row ro"><span class="cat-name">❌ ' + esc(t('hb_rejected_in')) + '</span>' + money(r.rejectedIn) + '</div>' : '') +
         '<div class="sh-row ro"><span class="cat-name">📤 ' + esc(t('hb_sent')) + '</span>' + money(r.sent) + '</div>' +
-        (r.pendingOut.total ? '<div class="sh-row ro"><span class="cat-name">⏳ ' + esc(t('hb_pending_out')) + '</span>' + money(r.pendingOut) + '</div>' : '') +
-        (r.rejectedOut.total ? '<div class="sh-row ro"><span class="cat-name">❌ ' + esc(t('hb_rejected_out')) + '</span>' + money(r.rejectedOut) + '</div>' : '') +
+        (Aggregate.moreThan(r.pendingOut.total, 0) ? '<div class="sh-row ro"><span class="cat-name">⏳ ' + esc(t('hb_pending_out')) + '</span>' + money(r.pendingOut) + '</div>' : '') +
+        (Aggregate.moreThan(r.rejectedOut.total, 0) ? '<div class="sh-row ro"><span class="cat-name">❌ ' + esc(t('hb_rejected_out')) + '</span>' + money(r.rejectedOut) + '</div>' : '') +
         '</div>';
       const tabs = [['all', t('all')], ['in', '📥 ' + t('hb_received')], ['out', '📤 ' + t('hb_sent')]];
       const rows = r.rows.filter(function (x) { return hbFilter === 'all' || x.dir === hbFilter; });

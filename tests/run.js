@@ -9612,6 +9612,58 @@ pending.push((async function () {
      'A273: …with no copy of the rule left behind in the drawing');
 }
 
+// A274 — the third spelling: money tested by TRUTHINESS, with no 0 anywhere.
+//
+// A272's sweep looks for a money name meeting a bare 0. It structurally cannot
+// see this, because there is no 0 to see:
+//
+//   (pend.total ? '<div class="strip">' + …            ⏳ অপেক্ষায় ₹0
+//   (tt.spokenFor && tt.spokenFor.total) ? …           money "already promised"
+//   t('handover_title') + (avail.cash || avail.upi ? …  "you have 💵₹0 · 📱₹0"
+//
+// 5.7e-14 is truthy. Every one of these is an aggregate SUM, so every one of
+// them can be a crumb, and each draws a strip announcing money that is not
+// there — on the 🤝 screens, where a collector is deciding what to hand over.
+{
+  const app74 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const lines74 = app74.split('\n');
+  // A bucket field used as a bare CONDITION. `.total`, `.cash`, `.upi` only —
+  // those are what aggregate builds by adding things up. A typed figure
+  // (`Number(p.pledged) ?`, `Number(r.amount) ?`) is deliberately NOT here: one
+  // number a person entered cannot drift, and A267's rule is that dragging it
+  // through an epsilon only blurs what it means.
+  // `x.cash || 0` is a DEFAULT, not a test — the operator followed by a 0 is
+  // exactly what tells the two apart, and five honest lines said so the first
+  // time this ran.
+  const COND = /(?:\(|&&|\|\||!|\?)\s*(?:Number\()?[A-Za-z_$][\w$.\[\]]*\.(total|cash|upi)\)?\s*(?:\?|&&|\|\|(?!\s*0\b))/;
+  const flags = [];
+  lines74.forEach(function (ln, i) {
+    if (ln.trim().indexOf('//') === 0) return;
+    const code = ln.split('//')[0];
+    if (!COND.test(code)) return;
+    if (/Aggregate\.|[<>]=?\s*0\b/.test(code)) return;
+    flags.push('L' + (i + 1) + ' ' + ln.trim().slice(0, 64));
+  });
+  eq(flags.length, 0,
+     'A274: no money SUM in js/app.js is tested by truthiness → ' + flags.join(' ⏐ '));
+
+  // the ones that draw a strip, pinned where a collector reads them
+  eq(/\(Aggregate\.moreThan\(pend\.total \+ rej\.total \+ ok\.total, 0\) \?/.test(app74), true,
+     'A274: the 🤝 slot block appears only when a slot holds money');
+  eq(/\(Aggregate\.moreThan\(\(tt\.spokenFor \|\| \{\}\)\.total, 0\) \?/.test(app74), true,
+     'A274: …and "money already spoken for" is not announced for a crumb');
+  eq((app74.match(/Aggregate\.moreThan\(/g) || []).length >= 34,
+     true, 'A274: every strip and row that used truthiness asks the epsilon now');
+
+  // and the property, so the spellings above are not the only thing holding it
+  const A74 = require('../js/aggregate.js');
+  const crumb = (100.10 + 200.20 + 0.30) - (0.30 + 200.20 + 100.10);
+  eq(crumb !== 0, true, 'A274: adding the same three pots in two orders really does differ');
+  eq(!!crumb, true, 'A274: …and the difference is TRUTHY, which is the whole bug');
+  eq(A74.moreThan(crumb, 0), false, 'A274: …while the epsilon calls it nothing');
+  eq(A74.moreThan(Math.abs(crumb), 0), false, 'A274: …whichever way round it fell');
+}
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

@@ -17999,3 +17999,48 @@ rules, both correct. The comment travelled into aggregate.js with the rule so th
 next person meets it before "fixing" it.
 
 Tests 3,677 → 3,704. CLIENT night.
+
+## A274 — the money survivors: a third spelling, with no zero in it at all
+
+A targeted re-survey first, because a full pass is 48 minutes and this is eight:
+`tests/mutation-survey.js` now takes a **line filter**, so "survey just the money
+and permission decisions" is one command. Baseline after A272/A273:
+**50 of 66 survived.**
+
+A272's sweep hunts a money name meeting a bare `0`. It **structurally cannot
+see** this, because there is no `0` to see:
+
+```js
+(pend.total ? '<div class="strip">' + …                  ⏳ অপেক্ষায় ₹0
+((tt.spokenFor && tt.spokenFor.total) ? …                money "already promised"
+t('handover_title') + (avail.cash || avail.upi ? …       "you have 💵₹0 · 📱₹0"
+```
+
+**5.7e-14 is truthy.** Every one of those is an aggregate SUM, so every one can
+be a crumb — and each draws a strip announcing money that is not there, on the 🤝
+screens, while a collector is deciding what to hand over. That is the same
+complaint A260 fixed for one pot, arriving eighteen more times.
+
+Eighteen decisions routed through `Aggregate.moreThan`: the handover title, a
+breakdown category with nothing in it, the three ledger terms on a person's own
+summary, `spokenFor`, the three 🤝 strips, the slot block and its three groups,
+the four balance-sheet rows, and a CSV cell so an export carries no ₹0 columns
+either.
+
+**Deliberately not routed:** `Number(p.pledged) ?` and `Number(r.amount) ?`.
+A pledge and one record's amount are typed figures — one number a person entered
+cannot drift, and A267's rule stands: dragging a single stored figure through an
+epsilon only blurs what it means. Crumbs live in sums.
+
+### The sweep, third revision
+
+`.total` / `.cash` / `.upi` used as a bare condition, with one exclusion that had
+to be learned: **`x.cash || 0` is a default, not a test**, and the operator being
+followed by a `0` is exactly what tells the two apart. Five honest lines said so
+the first time it ran.
+
+Proved both ways, which is the point of an exclusion: putting one strip back on
+truthiness fails by name and quotes the line, and turning a default into
+`|| 0.0` flags nothing.
+
+Tests 3,704 → 3,712. CLIENT night.

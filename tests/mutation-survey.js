@@ -31,6 +31,10 @@ const LIMIT = ALL ? Infinity : Number(process.argv[3] || 60);
 const JSONL = process.argv[4]
   ? (process.argv[4].charAt(0) === '/' ? process.argv[4] : ROOT + '/' + process.argv[4])
   : '';
+// A274: an optional 5th argument narrows the run to lines whose TEXT matches.
+// A full pass over a 9,000-line file is 48 minutes; "survey just the money
+// decisions" is eight, and after a fix you want the eight, not the forty-eight.
+const ONLY = process.argv[5] ? new RegExp(process.argv[5]) : null;
 const path = ROOT + '/' + TARGET;
 const orig = fs.readFileSync(path, 'utf8');
 const lines = orig.split('\n');
@@ -56,11 +60,14 @@ lines.forEach(function (ln, i) {
 });
 
 // spread the sample across the file rather than taking the first N
-const step = ALL ? 1 : Math.max(1, Math.floor(cands.length / LIMIT));
-const sample = ALL ? cands
-  : cands.filter(function (_, i) { return i % step === 0; }).slice(0, LIMIT);
+const picked = ONLY ? cands.filter(function (c) { return ONLY.test(lines[c.line]); }) : cands;
+const step = ALL ? 1 : Math.max(1, Math.floor(picked.length / LIMIT));
+const sample = ALL ? picked
+  : picked.filter(function (_, i) { return i % step === 0; }).slice(0, LIMIT);
 
-console.log(TARGET + ': ' + cands.length + ' mutable spots, testing ' + sample.length + '\n');
+console.log(TARGET + ': ' + cands.length + ' mutable spots' +
+  (ONLY ? ', ' + picked.length + ' match /' + ONLY.source + '/' : '') +
+  ', testing ' + sample.length + '\n');
 
 const survivors = [];
 sample.forEach(function (c, n) {
