@@ -17692,3 +17692,64 @@ A161 got **stricter**, not looser: the block must now contain no `PROGRAM_KEYS`,
 what caused this; asking one question is the cure.
 
 Tests 3,560 → 3,574. CLIENT night.
+
+## A269 — js/auth.js, run instead of read
+
+The module sweep: **50 mutations across eight files**, 23 survived. Most of the
+survivors are the `cb && cb(x)` optional-callback idiom or a loop bound that
+reads one past the end. One was not.
+
+```js
+isAdmin: function () { var u = current(); return !!u && u.role === 'admin'; },
+```
+
+Turn that `&&` into `||` and **every logged-in person is an admin** — and all
+3,574 assertions stayed green. Same for `isCashier`, same for `loggedIn`. The
+permission system's own primitives, never once called by a test.
+
+auth.js needs localStorage, Settings, window and fetch. Nothing a `vm` context
+cannot hand it. *"It is browser code"* was never the reason.
+
+`loadAuth()` in `tests/idb-shim.js` gives it those four, a queue of replies for
+the fake fetch, and a list of the events it fires. What that bought:
+
+- the role truth table, **both halves of every pair** — including that `cashier`
+  is the NUMBER 1, so a string off a stale row does not promote anybody
+- a torn session (token without user, user without token) is not a login, and a
+  corrupted `ck_user` reads as nobody rather than throwing
+- `schemaCmp` at its boundaries — **equal is 0**, server-ahead locks, server-
+  behind is a warning, and never-heard-from is `null`, because unknown must not
+  lock a phone out
+- one account one device: `bad-token` on an authenticated call drops the session
+  and announces it once — while a failed **login** does not end the session
+  already on the phone
+- the version rides on every request; the server's answer is read even when the
+  response is an error, so a device that is behind AND erroring still learns it
+- a reply carrying no version leaves the stored one alone (the `||` mutant wrote
+  the string `"undefined"` into it, permanently blinding the amber strip)
+- `logout` tells the server so a leaked token stops working, clears locally
+  either way, and posts nothing when there is nothing to invalidate
+
+**auth.js survivors: 8 of 18 → 1 of 18.** The one left is `i < 3` → `i <= 3` in
+`versionCmp`: it reads index 3 of a three-element array, both comparisons on
+`undefined` are false, and it falls through to the same `return 0`. Equivalent —
+and the comparison that matters on that same line, `a[i] < b[i]`, is caught.
+
+Tests 3,574 → 3,618. No shell file changed: **nothing to release for this one.**
+
+### The rest of the sweep, and why it was left
+
+| file | survived | what they are |
+|---|---|---|
+| sync.js | 1/5 | building an error message |
+| db.js | 1/3 | a cache key |
+| auth.js | 1/18 | the loop bound above |
+| lists.js | 3/13 | one refresh-throttle line |
+| voice.js | 5/5 | all five are `cb && cb(x)` — no test at all |
+| i18n.js | 2/2 | `n < 0 ? '−' : ''` would print −₹0 |
+| numparse.js | 3/4 | one real: `result > 0 \|\| sawNumber` |
+| help.js | 0/0 | no comparison in the file |
+
+`voice.js` at 5/5 looks alarming and is not: thirty-two lines, every survivor an
+optional callback. `numparse.js` is worth a night — `result > 0` → `>= 0` turns
+"no number at all" into ₹0 instead of a refusal, and that one feeds voice entry.

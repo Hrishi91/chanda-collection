@@ -9191,6 +9191,132 @@ pending.push((async function () {
   eq(A68.keyOfFund('progmoney', ''), false, 'A268: …and no key belongs to no fund');
 }
 
+// A269 — js/auth.js, RUN instead of read.
+//
+// The module sweep (50 mutations across eight files) found eight survivors in
+// auth.js, and one of them is the whole permission system: turn the `&&` in
+// `isAdmin: !!u && u.role === 'admin'` into `||` and every logged-in person is
+// an admin, with every other assertion in this file still green. auth.js needs
+// localStorage, Settings, window and fetch — nothing a vm cannot give it — so
+// "it is browser code" was never the reason it went untested.
+pending.push((async function () {
+  const { loadAuth } = require('./idb-shim.js');
+  const who = function (role, cashier) {
+    return loadAuth({ session: { token: 't', user: { username: 'u', role: role, cashier: cashier } } }).Auth;
+  };
+
+  // the truth table, both halves of every pair
+  eq(who('admin', 0).isAdmin(), true, 'A269: an admin is an admin');
+  eq(who('collector', 0).isAdmin(), false, 'A269: a collector is NOT');
+  eq(who('collector', 1).isAdmin(), false, 'A269: …and neither is the কোষাধ্যক্ষ');
+  eq(who('collector', 1).isCashier(), true, 'A269: the কোষাধ্যক্ষ is one');
+  eq(who('admin', 0).isCashier(), true, 'A269: …and an admin counts as one');
+  eq(who('collector', 0).isCashier(), false, 'A269: a plain collector does not');
+  eq(who('collector', '1').isCashier(), false,
+     'A269: cashier is the NUMBER 1 — a string from a stale row does not promote');
+
+  // logged-in needs BOTH halves, and a torn session is not a login
+  eq(loadAuth({ session: { token: 't', user: { role: 'admin' } } }).Auth.loggedIn(), true,
+     'A269: token + user is logged in');
+  eq(loadAuth({ session: { token: 't' } }).Auth.loggedIn(), false, 'A269: a token with no user is not');
+  eq(loadAuth({ session: { user: { role: 'admin' } } }).Auth.loggedIn(), false, 'A269: nor a user with no token');
+  eq(loadAuth({}).Auth.loggedIn(), false, 'A269: nor nothing at all');
+  eq(loadAuth({}).Auth.isAdmin(), false, 'A269: and a logged-OUT device is not an admin');
+  eq(loadAuth({ settings: { ck_user: '{oops' } }).Auth.current(), null,
+     'A269: a corrupted user row reads as nobody, not as a crash');
+
+  // the contract number, which is what can actually lock a phone out
+  const sc = function (n) { return loadAuth({ srvSchema: n }).Auth.schemaCmp(); };
+  eq(sc(5), 0, 'A269: same schema as the server is 0 — the ordinary case');
+  eq(sc(6), -1, 'A269: a server ahead means this phone is behind');
+  eq(sc(4), 1, 'A269: a server behind is the redeploy warning, not a lockout');
+  eq(loadAuth({}).Auth.schemaCmp(), null, 'A269: never heard from the server says nothing');
+  eq(loadAuth({ settings: { ck_srv_schema: '' } }).Auth.schemaCmp(), null,
+     'A269: …and an empty value is unknown, not zero');
+
+  const vc = function (v) { return loadAuth({ srvVersion: v }).Auth.versionCmp(); };
+  eq(vc(loadAuth({}).Auth.APP_VERSION), 0, 'A269: the same release compares EQUAL');
+  eq(vc('chanda-v99.0.0'), -1, 'A269: a newer server means behind');
+  eq(vc('chanda-v0.0.1'), 1, 'A269: an older one means ahead');
+  eq(vc('rubbish'), null, 'A269: a garbled version raises no alarm anybody could act on');
+
+  // one account, one device: the server says bad-token, the session goes
+  const a1 = loadAuth({ session: { token: 't', user: { role: 'admin' } },
+                        replies: [{ ok: false, error: 'bad-token' }] });
+  let err = null;
+  try { await a1.Auth.call('pull', { token: 't' }); } catch (e) { err = e.message; }
+  eq(err, 'bad-token', 'A269: the error reaches the caller');
+  eq(a1.Auth.loggedIn(), false, 'A269: …and the dead session is dropped');
+  eq(a1.events.filter(function (e) { return e.type === 'ck-auth-invalid'; }).length, 1,
+     'A269: …once, with the app told why');
+
+  // but an UNAUTHENTICATED call that fails must not log anybody out
+  const a2 = loadAuth({ session: { token: 't', user: { role: 'admin' } },
+                        replies: [{ ok: false, error: 'bad-token' }] });
+  try { await a2.Auth.call('login', { username: 'x' }); } catch (e) {}
+  eq(a2.Auth.loggedIn(), true, 'A269: a failed LOGIN does not end the session already on the phone');
+
+  // every request carries who this device is, so no handler can forget
+  const a3 = loadAuth({ session: { token: 't', user: { role: 'admin' } }, replies: [{ ok: true }] });
+  await a3.Auth.call('pull', { token: 't', year: 2026 });
+  eq(a3.sent[0].appVersion, a3.Auth.APP_VERSION, 'A269: the release rides on every call');
+  eq(a3.sent[0].appSchema, a3.Auth.APP_SCHEMA, 'A269: …and so does the contract number');
+  eq(a3.sent[0].action, 'pull', 'A269: …alongside what was actually asked');
+
+  // and the server's answer is read BEFORE anything can throw
+  const a4 = loadAuth({ session: { token: 't', user: { role: 'admin' } },
+                        replies: [{ ok: false, error: 'server', codeVersion: 'chanda-v9.9.9', schema: 9 }] });
+  try { await a4.Auth.call('pull', { token: 't' }); } catch (e) {}
+  eq(a4.Auth.serverVersion(), 'chanda-v9.9.9',
+     'A269: a device that is behind AND erroring still learns the first fact');
+  eq(a4.Auth.serverSchema(), 9, 'A269: …contract included');
+
+  const a5 = loadAuth({ session: { token: 't', user: { role: 'admin' } }, fetchFails: true });
+  let e5 = null;
+  try { await a5.Auth.call('pull', { token: 't' }); } catch (e) { e5 = e.message; }
+  eq(e5, 'network', 'A269: a dead link is "network", not the server\'s fault');
+  eq(a5.Auth.loggedIn(), true, 'A269: …and being offline does not log you out');
+
+  const a6 = loadAuth({ session: { token: 't', user: { role: 'admin' } }, noUrl: true });
+  let e6 = null;
+  try { await a6.Auth.call('pull', {}); } catch (e) { e6 = e.message; }
+  eq(e6, 'not-configured', 'A269: no server URL is refused before the network');
+  eq(a6.sent.length, 0, 'A269: …without a request being made');
+
+  // logout invalidates server-side too, best-effort, and clears locally regardless
+  const a7 = loadAuth({ session: { token: 't', user: { role: 'admin' } }, replies: [{ ok: true }] });
+  a7.Auth.logout();
+  eq(a7.sent.length === 1 && a7.sent[0].action === 'logout', true,
+     'A269: logout tells the server, so a leaked token stops working');
+  eq(a7.Auth.loggedIn(), false, 'A269: …and the device is logged out either way');
+  const a8 = loadAuth({ session: { token: 't', user: { role: 'admin' } }, noUrl: true });
+  a8.Auth.logout();
+  eq(a8.Auth.loggedIn(), false, 'A269: …even with no server to tell');
+  // and a device with nothing to invalidate must not post an empty token at it
+  const a9 = loadAuth({ replies: [{ ok: true }] });
+  a9.Auth.logout();
+  eq(a9.sent.length, 0, 'A269: logging out of nothing sends nothing');
+
+  // A response that carries no version must LEAVE the stored one alone. The
+  // amber "server behind" strip reads this; writing the string "undefined" into
+  // it makes the phone unable to tell what the server is, quietly and for good.
+  const b1 = loadAuth({ srvVersion: 'chanda-v4.90.0', srvSchema: 5,
+                        session: { token: 't', user: { role: 'admin' } },
+                        replies: [{ ok: true }] });
+  await b1.Auth.call('pull', { token: 't' });
+  eq(b1.Auth.serverVersion(), 'chanda-v4.90.0', 'A269: a reply with no version changes nothing');
+  eq(b1.Auth.serverSchema(), 5, 'A269: …nor its contract number');
+  eq(b1.events.length, 0, 'A269: …and nothing is announced that did not happen');
+
+  const b2 = loadAuth({ srvVersion: 'chanda-v4.90.0',
+                        session: { token: 't', user: { role: 'admin' } },
+                        replies: [{ ok: true, codeVersion: 'chanda-v4.97.0', schema: 5 }] });
+  await b2.Auth.call('pull', { token: 't' });
+  eq(b2.Auth.serverVersion(), 'chanda-v4.97.0', 'A269: a reply that DOES carry one updates it');
+  eq(b2.events.filter(function (e) { return e.type === 'ck-version'; }).length, 1,
+     'A269: …and says so once, so the strip can repaint');
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

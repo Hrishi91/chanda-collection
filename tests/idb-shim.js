@@ -146,7 +146,63 @@ function bootSync(opts) {
   return { Sync: box.__S, DB: box.__DB, box: box, store: store };
 }
 
+// A269 — js/auth.js, run rather than read.
+//
+// The module survey found `isAdmin: !!u && u.role === 'admin'` untested: turn
+// that `&&` into `||` and every logged-in person is an admin, with 3,574 green
+// assertions saying nothing. auth.js needs almost nothing to run — localStorage,
+// Settings, window, fetch — so "it is browser code" was never the reason.
+//
+// `opts`:
+//   session     { token, user } seeded into ck_token / ck_user
+//   srvVersion  what the server last said (ck_srv_version)
+//   srvSchema   …and its contract number (ck_srv_schema)
+//   replies     queue of response objects the fake fetch resolves with, in order
+//   fetchFails  reject the fetch instead (a dead link)
+//   noUrl       no CONFIG.SCRIPT_URL, so call() refuses before the network
+// Returns { Auth, store, events, sent }: `events` is every window event fired,
+// `sent` every request body, `store` the localStorage as a plain object.
+function loadAuth(opts) {
+  const o = opts || {};
+  const store = {};
+  if (o.session) {
+    if (o.session.token !== undefined) store.ck_token = String(o.session.token);
+    if (o.session.user !== undefined) store.ck_user = JSON.stringify(o.session.user);
+  }
+  if (o.srvVersion !== undefined) store.ck_srv_version = String(o.srvVersion);
+  if (o.srvSchema !== undefined) store.ck_srv_schema = String(o.srvSchema);
+  Object.assign(store, o.settings || {});
+  const events = [], sent = [];
+  const replies = (o.replies || []).slice();
+  const box = {
+    localStorage: {
+      getItem: function (k) { return (k in store) ? store[k] : null; },
+      setItem: function (k, v) { store[k] = String(v); },
+      removeItem: function (k) { delete store[k]; },
+    },
+    CONFIG: { SCRIPT_URL: o.noUrl ? '' : 'https://example.invalid/exec' },
+    CustomEvent: function (n, d) { this.type = n; this.detail = d && d.detail; },
+    setTimeout: setTimeout, clearTimeout: clearTimeout,
+    fetch: function (url, init) {
+      sent.push(JSON.parse(init.body));
+      if (o.fetchFails) return Promise.reject(new Error('boom'));
+      const r = replies.length ? replies.shift() : { ok: true };
+      return Promise.resolve({ json: function () { return Promise.resolve(r); } });
+    },
+    JSON: JSON, Math: Math, Number: Number, String: String, Date: Date,
+    Array: Array, Object: Object, Promise: Promise, RegExp: RegExp, Error: Error,
+  };
+  box.window = box;
+  box.window.dispatchEvent = function (e) { events.push({ type: e.type, detail: e.detail }); };
+  vm.createContext(box);
+  const read = function (f) { return fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'); };
+  vm.runInContext(read('db.js'), box);          // Settings
+  vm.runInContext(read('aggregate.js'), box);   // Aggregate.roleOf, used by saveSession
+  vm.runInContext(read('auth.js') + '\n;globalThis.__A = Auth;', box);
+  return { Auth: box.__A, store: store, events: events, sent: sent, box: box };
+}
+
 // fakeIndexedDB is exported too: sync.js reads DB and Settings as globals, so a
 // test that drives the push loop has to run db.js and sync.js in ONE context of
 // its own rather than reusing loadDB's.
-module.exports = { loadDB: loadDB, bootSync: bootSync, fakeIndexedDB: fakeIndexedDB };
+module.exports = { loadDB: loadDB, bootSync: bootSync, fakeIndexedDB: fakeIndexedDB, loadAuth: loadAuth };
