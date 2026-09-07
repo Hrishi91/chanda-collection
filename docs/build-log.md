@@ -16955,3 +16955,56 @@ Nothing was saved: every chip touched was a draft, and the server it spoke to
 was the stub.
 
 Tests 3,405 (from 3,402). Mutation-proved by removing the rewrite.
+
+## A255 — the programme gets its own কোষাধ্যক্ষ (step 1: the key and the decider)
+
+Hrishi, after working out that the two ভাঁড়ার are operationally separate
+everywhere except the pocket: *"অনুষ্ঠানের নিজের কোষাধ্যক্ষ থাকবে, আর তার জন্য
+আলাদা অনুমতি লাগলে লাগুক."*
+
+**And the expensive part turned out not to be needed.** The plan was to make
+the POTS (`shop`, `road`, `ticket`) into (fund, kind) pairs the way the keys
+became — doubling `AVAIL_CATS`, changing the stored breakdown format, and
+migrating every parcel already handed in. None of that: `ofSector` already
+splits donors, chanda, daily and expenses, so
+
+```
+myAvailable(ofSector(data, 'program'), me)
+```
+
+**is that person's programme purse, for free.** What is actually needed is a
+`sector` on the parcel and one fund per parcel — the shape A144/A145 already
+use for confidential money. The collector is asked nothing new: the pots they
+pick already belong to a book.
+
+This step is the key and the decider, and it changes no behaviour.
+
+- **`program:cashier`**, derived from `SECTORS` the same way the entry keys are,
+  so a third ভাঁড়ার grows one without being named anywhere.
+- **`isCashierOf(user, sector)`** on both sides. The **puja reads the `cashier`
+  column it always did** — every cashier appointed today stays one, and no row
+  in the Users sheet is rewritten. Any other fund reads its own granted key.
+- Kept deliberately apart from `permParts`: a (fund, kind) pair says who may
+  WRITE a kind of row, a role says who may RECEIVE that book's money. Folding
+  them together would have put `cashier` where the push matrix iterates kinds
+  and tried to save a row of type `cashier`.
+- Its words come from the same rule as the pairs — the role's own label and the
+  fund's own name — so it needed one new dictionary entry rather than one per
+  fund.
+
+Four label guards (A160, A222, A72, A161) learned the role shape, each **more**
+strictly than before: both halves must resolve.
+
+**The server's copy is exposed to the shim before anything calls it.** It is
+inert this step and wired up in step 3, and a decider that is only reached later
+is one nobody goes back to check — so it is driven now, through real
+`setCashier` and `setEntries` calls: the flag makes the puja's cashier and not
+the programme's, the key makes the programme's and not the puja's, the admin is
+both, and an unknown fund falls back to the puja.
+
+Tests 3,430 (from 3,405). Eight mutations, all named — including the three on
+the server gate that nothing calls yet.
+
+**Still to come:** step 2 gives a parcel its fund and splits "আমার হাতে কত";
+step 3 makes `confirmHandover` demand the cashier of that book. Those touch the
+money path; this one does not.

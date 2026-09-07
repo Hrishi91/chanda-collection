@@ -1009,6 +1009,8 @@ const I18N = {
   // Permission chips reuse the tile labels themselves (new_shop, daily_bus …)
   // so a grant reads exactly like the button it turns on. Only the section
   // heading and the always-open note live here.
+  perm_fund_cashier: { bn: '💰 এই ভাঁড়ারের কোষাধ্যক্ষ — জমা নিতে পারবে',
+                       en: '💰 Cashier of this fund — may receive handovers' },
   perm_grp_view: { bn: '🤫 অন্যের গোপন সারি দেখা', en: "🤫 Seeing others' confidential rows" },
   perm_grp_other: { bn: '🛠️ আরও কিছু কাজ', en: '🛠️ Other duties' },
   perm_no_progteam: { bn: '⚠️ 🎭 অনুষ্ঠানের দলে — এটা না দিলে ট্যাবটাই খোলে না, তাই নিচের কাজগুলোতে পৌঁছনো যাবে না।',

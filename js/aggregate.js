@@ -1710,8 +1710,32 @@
     const s = SECTORS.indexOf(String(sector)) >= 0 ? String(sector) : 'puja';
     return s === 'puja' ? String(kind) : s + ':' + String(kind);
   }
+  // A255: a ROLE inside a ভাঁড়ার. Hrishi: the programme has its own কোষাধ্যক্ষ,
+  // and a separate permission for it is fine.
+  //
+  // Kept apart from permParts on purpose. A (fund, kind) pair says "may WRITE
+  // this kind of row in this book"; `program:cashier` says "may RECEIVE this
+  // book's money". Folding them into one shape would put `cashier` where the
+  // matrix tests iterate kinds and try to push a row of type 'cashier'.
+  //
+  // The puja's cashier stays the `cashier` COLUMN it has always been — the
+  // default fund keeps its bare form here exactly as its entry keys do, so no
+  // row in the Users sheet changes and every cashier already appointed stays
+  // one.
+  const FUND_ROLES = ['cashier'];
+  function fundRoleKeys(sector) {
+    return String(sector) === 'puja' ? [] : FUND_ROLES.map(function (r) { return sector + ':' + r; });
+  }
+  function fundRoleParts(key) {
+    const k = String(key || ''), i = k.indexOf(':');
+    if (i < 0) return null;
+    const fund = k.slice(0, i), role = k.slice(i + 1);
+    return (fund !== 'puja' && SECTORS.indexOf(fund) >= 0 && FUND_ROLES.indexOf(role) >= 0)
+      ? { fund: fund, role: role } : null;
+  }
   const FUND_PERM_KEYS = SECTORS.reduce(function (acc, s) {
-    return acc.concat(ENTRY_KINDS.map(function (k) { return permKeyFor(s, k); }));
+    return acc.concat(ENTRY_KINDS.map(function (k) { return permKeyFor(s, k); }))
+              .concat(fundRoleKeys(s));
   }, []);
   // The inverse. Every screen that has to say what a key MEANS comes here
   // rather than splitting on ':' itself — one place decides, so a fund whose id
@@ -1750,7 +1774,7 @@
     const taken = {};
     const groups = SECTORS.map(function (sec) {
       const keys = ENTRY_KINDS.map(function (k) { return permKeyFor(sec, k); })
-        .concat(FUND_EXTRA_KEYS[sec] || []);
+        .concat(fundRoleKeys(sec)).concat(FUND_EXTRA_KEYS[sec] || []);
       keys.forEach(function (k) { taken[k] = 1; });
       return { id: sec, titleKey: 'sector_' + sec, keys: keys };
     });
@@ -1759,6 +1783,19 @@
     groups.push({ id: 'other', titleKey: 'perm_grp_other',
                   keys: PERM_KEYS.filter(function (k) { return !taken[k]; }) });
     return groups;
+  }
+  // A255: is this person the কোষাধ্যক্ষ OF THIS BOOK? One place answers it, for
+  // the same reason isCashier_ was written on the server: the question now has
+  // two sources per fund and every screen must get the same answer.
+  //
+  // The puja reads the cashier flag it always did — so nobody appointed today
+  // stops being one — and any other ভাঁড়ার reads its own granted key.
+  function isCashierOf(user, sector) {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    const sec = SECTORS.indexOf(String(sector)) >= 0 ? String(sector) : 'puja';
+    if (sec === 'puja') return Number(user.cashier) === 1;
+    return String(user.entries || '').split(',').indexOf(sec + ':cashier') >= 0;
   }
   // A253: what "সব দাও" / "সব নাও" does to a draft. Pure, and here rather than
   // in the click handler, because the whole point of the change is that a bulk
@@ -2159,6 +2196,7 @@
                 PARTY_KINDS: PARTY_KINDS, DAILY_KINDS: DAILY_KINDS, PROGRAM_KEYS: PROGRAM_KEYS,
                 FUND_PERM_KEYS: FUND_PERM_KEYS, permKeyFor: permKeyFor, permParts: permParts,
                 permGroups: permGroups, applyBulk: applyBulk,
+                fundRoleKeys: fundRoleKeys, fundRoleParts: fundRoleParts, isCashierOf: isCashierOf,
                 SUMMARY_GROUPS: SUMMARY_GROUPS,
                 cashierView: cashierView, handoverReport: handoverReport,
                 mySummary: mySummary, handoverSlots: handoverSlots, handoverable: handoverable,

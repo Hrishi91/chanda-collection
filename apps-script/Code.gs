@@ -419,6 +419,15 @@ function effPerms_(row) {
 function isCashier_(row) {
   return !!row && (row.role === 'admin' || effPerms_(row).cashier === 1);
 }
+// A255: …and OF WHICH BOOK. The puja reads the flag it always did; any other
+// ভাঁড়ার reads its own granted key. Mirrors js/aggregate.js isCashierOf.
+function isCashierOf_(row, sector) {
+  if (!row) return false;
+  if (row.role === 'admin') return true;
+  var sec = SECTORS.indexOf(String(sector)) >= 0 ? String(sector) : 'puja';
+  if (sec === 'puja') return effPerms_(row).cashier === 1;
+  return effPerms_(row).entries.indexOf(sec + ':cashier') >= 0;
+}
 // A78: the committee has stood this person down, but they still hold cash. The
 // login stays open ON PURPOSE — a person who cannot log in cannot hand money
 // back, and the money is the reason we are here. What they may still do is
@@ -943,8 +952,18 @@ function permKeyFor_(sector, kind) {
   var s = SECTORS.indexOf(String(sector)) >= 0 ? String(sector) : 'puja';
   return s === 'puja' ? String(kind) : s + ':' + String(kind);
 }
+// A255: a ROLE inside a ভাঁড়ার — the programme has its own কোষাধ্যক্ষ. Mirrors
+// js/aggregate.js. Kept apart from the (fund, kind) pairs: a pair says who may
+// WRITE a kind of row in a book, a role says who may RECEIVE that book's money.
+// The puja's cashier stays the `cashier` COLUMN it has always been, so every
+// cashier already appointed stays one and no row is rewritten.
+var FUND_ROLES = ['cashier'];
+function fundRoleKeys_(sector) {
+  return String(sector) === 'puja' ? [] : FUND_ROLES.map(function (r) { return sector + ':' + r; });
+}
 var FUND_PERM_KEYS = SECTORS.reduce(function (acc, s) {
-  return acc.concat(ENTRY_KINDS.map(function (k) { return permKeyFor_(s, k); }));
+  return acc.concat(ENTRY_KINDS.map(function (k) { return permKeyFor_(s, k); }))
+            .concat(fundRoleKeys_(s));
 }, []);
 var PERM_KEYS = FUND_PERM_KEYS.concat(['review', 'otherdonor', 'memberadmin'])
   .concat(VIEW_PERM_KEYS).concat(PROGRAM_KEYS);
@@ -1309,7 +1328,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.86.0';
+var CODE_VERSION = 'chanda-v4.87.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually

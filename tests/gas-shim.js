@@ -240,6 +240,10 @@ function loadBackend(opts) {
     // cashier flag, and getting that translation wrong once already meant a
     // cashier could neither void a row nor resolve its correction flag.
     '\n g.roleOf_ = roleOf_; g.rowRole_ = rowRole_;' +
+    // A255: the per-fund cashier gate, exposed before anything calls it — it
+    // decides who may receive a book's money, and an untested decider that is
+    // only wired up later is one nobody ever goes back to check.
+    '\n g.isCashierOf_ = isCashierOf_;' +
     // reset the per-request caches the real runtime gets for free by starting a
     // fresh execution context each time — forgetting this is how a shim starts
     // reporting things the server would never do

@@ -237,6 +237,9 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
     const p22 = A22.permParts(k);
     if (p22) return !labelled[p22.kind] ||
       !new RegExp('\\n  sector_' + p22.fund + ': \\{').test(i18n22);
+    const r22 = A22.fundRoleParts(k);
+    if (r22) return !new RegExp('\\n  perm_fund_' + r22.role + ': \\{').test(i18n22) ||
+      !new RegExp('\\n  sector_' + r22.fund + ': \\{').test(i18n22);
     return !labelled[k];
   });
   eq(wordless.join(', '), '',
@@ -6841,6 +6844,11 @@ try {
                   road: 'daily_road', toto: 'daily_toto', sponsor: 'new_sponsor', ticket: 'daily_ticket' };
     const missing = A.POSITION_PERM_KEYS.filter(function (k) {
       // A251: same rule as A222 — a fund/kind pair is labelled by its parts.
+      const r72 = A.fundRoleParts(k);
+      if (r72) {
+        return !new RegExp('^  perm_fund_' + r72.role + ':', 'm').test(i18n) ||
+               !new RegExp('^  sector_' + r72.fund + ':', 'm').test(i18n);
+      }
       const p72 = A.permParts(k);
       if (p72) {
         return !new RegExp('^  ' + (CAT[p72.kind] || ('perm_' + p72.kind)) + ':', 'm').test(i18n) ||
@@ -8360,9 +8368,15 @@ try {
     const i18n160 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
     const pairLabelled = function (k) {
       const p = Aggregate251.permParts(k);
-      if (!p) return false;
-      return have.indexOf(p.kind) >= 0 &&
-             new RegExp('^  sector_' + p.fund + ':', 'm').test(i18n160);
+      if (p) {
+        return have.indexOf(p.kind) >= 0 &&
+               new RegExp('^  sector_' + p.fund + ':', 'm').test(i18n160);
+      }
+      // A255: a fund's own ROLE is labelled the same way — the role's words and
+      // the fund's name, both required.
+      const r = Aggregate251.fundRoleParts(k);
+      return !!r && new RegExp('^  perm_fund_' + r.role + ':', 'm').test(i18n160) &&
+             new RegExp('^  sector_' + r.fund + ':', 'm').test(i18n160);
     };
     PERM_KEYS.forEach(function (k) {
       eq(have.indexOf(k) >= 0 || pairLabelled(k), true, 'A160: permission chip exists for ' + k);
@@ -8471,6 +8485,44 @@ try {
        'A252 (client): a row with no fund written on it is the puja\'s');
   }
 
+  // --- A255: who is the কোষাধ্যক্ষ OF WHICH BOOK -----------------------------
+  // Hrishi: the programme gets its own কোষাধ্যক্ষ, and a separate permission for
+  // it is fine. The half that matters most is what does NOT change: the puja's
+  // cashier is still the `cashier` flag, so nobody appointed today stops being
+  // one and no row in the Users sheet is rewritten.
+  {
+    const A255 = require('../js/aggregate.js');
+    const pujaCashier = { role: 'user', cashier: 1, entries: 'shop,person' };
+    const progCashier = { role: 'user', cashier: 0, entries: 'program:person,program:cashier' };
+    const plain = { role: 'user', cashier: 0, entries: 'shop' };
+
+    eq(A255.isCashierOf(pujaCashier, 'puja'), true,
+       'A255: the puja cashier is still the cashier FLAG — nobody appointed today loses it');
+    eq(A255.isCashierOf(pujaCashier, 'program'), false,
+       'A255: …and receiving the puja\'s money does not mean receiving the programme\'s');
+    eq(A255.isCashierOf(progCashier, 'program'), true,
+       'A255: the programme cashier is its own granted key');
+    eq(A255.isCashierOf(progCashier, 'puja'), false,
+       'A255: …and does not reach the committee\'s purse — both halves of the pair');
+    eq(A255.isCashierOf(plain, 'puja') || A255.isCashierOf(plain, 'program'), false,
+       'A255: a plain collector receives neither');
+    eq(A255.isCashierOf({ role: 'admin' }, 'puja') && A255.isCashierOf({ role: 'admin' }, 'program'), true,
+       'A255: the admin is cashier of every book, as they are of everything');
+    eq(A255.isCashierOf(null, 'puja'), false, 'A255: nobody at all is nobody\'s cashier');
+    eq(A255.isCashierOf(progCashier, 'nonsense'), false,
+       'A255: an unknown fund reads as the puja\'s, which this person is not cashier of');
+    // the key exists, is grantable, and sits in its own fund's group
+    eq(PERM_KEYS.indexOf('program:cashier') >= 0, true, 'A255: …and the key is grantable');
+    eq(A255.permGroups().filter(function (g) { return g.id === 'program'; })[0]
+        .keys.indexOf('program:cashier') >= 0, true, 'A255: …in the 🎭 group, with the rest of that book');
+    eq(A255.fundRoleKeys('puja').join(','), '',
+       'A255: the DEFAULT fund grows no role key — its cashier is the column it always was');
+    // and it is not an entry permission, or the push matrix would try to write
+    // a row of type "cashier"
+    eq(A255.permParts('program:cashier'), null,
+       'A255: a role is not an entry kind, so nothing tries to push a row of it');
+  }
+
   // --- A161: the sensitive grants must be visible ON the user list ----------
   // The summary filters to ENTRY_KINDS, so guptview/sponsorview/prog* appeared
   // nowhere on it and "who can see গুপ্ত দান?" needed twelve screens opened
@@ -8551,6 +8603,7 @@ try {
     PERM_KEYS.forEach(function (k) {
       const p = A161.permParts(k);
       const shown = !!p                                        // an entry pair: spelled out, or marked by its fund
+        || !!A161.fundRoleParts(k)                             // a fund's own role: marked by its fund
         || A161.VIEW_PERM_KEYS.indexOf(k) >= 0                 // marked by its own kind
         || A161.PROGRAM_KEYS.indexOf(k) >= 0                   // marked by its fund
         || ['review', 'otherdonor', 'memberadmin'].indexOf(k) >= 0;

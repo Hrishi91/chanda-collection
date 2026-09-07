@@ -4561,6 +4561,43 @@ module.exports = function runBackendTests(eq) {
        'backend A197: …and "ঠিক আছে, বেশিই দিয়েছেন" settles it on the SERVER row, for every phone');
   }
 
+  // --- A255: the per-fund cashier gate, on the side that is the lock --------
+  // Nothing calls it yet — it is wired up when parcels learn their fund. An
+  // untested decider that is only reached later is one nobody goes back to
+  // check, and this one decides who may RECEIVE a book's money.
+  {
+    const b255 = loadBackend(); b255.api.setup();
+    ['adm255', 'kali255', 'sub255'].forEach(function (u, i) {
+      b255.post('register', { username: u, name: u, password: 'secret' + i, phone: '98500000' + i });
+    });
+    const t255 = b255.call('login', { username: 'adm255', password: 'secret0', year: 2026 }).token;
+    const id255 = function (u) {
+      return b255.rows('Users').filter(function (x) { return x.username === u; })[0].id;
+    };
+    ['kali255', 'sub255'].forEach(function (u) {
+      b255.call('setStatus', { token: t255, userId: id255(u), status: 'approved' });
+      b255.call('approveYear', { token: t255, userId: id255(u), year: 2026 });
+    });
+    b255.call('setCashier', { token: t255, userId: id255('kali255'), cashier: 1 });
+    b255.call('setEntries', { token: t255, userId: id255('sub255'),
+                              entries: ['program:person', 'program:cashier'] });
+    const row = function (u) { return b255.rows('Users').filter(function (x) { return x.username === u; })[0]; };
+    const isC = b255.api.isCashierOf_;
+    eq(typeof isC, 'function', 'backend A255: the per-fund cashier gate exists on the server');
+    eq(isC(row('kali255'), 'puja'), true,
+       'backend A255: setCashier still makes the PUJA cashier — the flag, unchanged');
+    eq(isC(row('kali255'), 'program'), false,
+       'backend A255: …and that does not make them the programme\'s');
+    eq(isC(row('sub255'), 'program'), true,
+       'backend A255: the granted program:cashier key makes the programme\'s cashier');
+    eq(isC(row('sub255'), 'puja'), false,
+       'backend A255: …and does not reach the committee\'s purse');
+    eq(isC(row('adm255'), 'puja') && isC(row('adm255'), 'program'), true,
+       'backend A255: the admin receives for every book');
+    eq(isC(row('sub255'), 'nonsense'), false,
+       'backend A255: an unknown fund falls back to the puja, which they are not');
+  }
+
   // --- A252: the whole membrane, one cell at a time -------------------------
   // An entry permission is a (fund, kind) pair. The claim this makes is simple
   // and total: granting exactly one key opens exactly one cell of the matrix —

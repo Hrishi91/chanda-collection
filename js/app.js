@@ -5325,6 +5325,14 @@
   // fund's own group the heading already says the fund, so the chip shows only
   // the kind and stays short enough to read on a phone.
   function permLabel(k, full) {
+    // A255: a fund's own ROLE — `program:cashier`. Its words are the role's own
+    // label and the fund's own name, the same rule the (fund, kind) pairs use,
+    // so it needed no new dictionary entry either.
+    const r = Aggregate.fundRoleParts(k);
+    if (r) {
+      const role = t(r.role === 'cashier' ? 'perm_fund_cashier' : r.role);
+      return full ? t('sector_' + r.fund) + ' · ' + role : role;
+    }
     const p = Aggregate.permParts(k);
     if (p) {
       const kind = t(CAT_LABEL_KEYS[p.kind] || p.kind);
@@ -7924,8 +7932,9 @@
           .concat(Aggregate.SECTORS.filter(function (sec) {
             if (sec === 'puja') return false;
             return ent.some(function (k) {
-              const p = Aggregate.permParts(k);
-              return (p && p.fund === sec) || Aggregate.PROGRAM_KEYS.indexOf(k) >= 0;
+              const p = Aggregate.permParts(k), r = Aggregate.fundRoleParts(k);
+              return (p && p.fund === sec) || (r && r.fund === sec) ||
+                     Aggregate.PROGRAM_KEYS.indexOf(k) >= 0;
             });
           }).map(function (sec) { return firstGlyph(t('sector_' + sec)); }))
           .filter(function (g, i, a) { return g && a.indexOf(g) === i; }).join('');
