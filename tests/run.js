@@ -4908,7 +4908,7 @@ try {
   eq(/function canEntry\(key\) \{\n    if \(key &&/.test(app), true,
      'A36: …only when a key is given — the common actions, handover included, stay open');
   eq(/staleVersion: Auth\.schemaCmp\(\) === -1/.test(app)
-     && /holding: \(avail\.cash \+ avail\.upi\) > 0/.test(app), true,
+     && /holding: Aggregate\.moreThan\(avail\.cash \+ avail\.upi, 0\)/.test(app), true,
      'A36: the home screen tells homeTiles both facts');
   // Different walls need different cards, or the fix sends you the wrong way.
   // A78 added a third (stood down), and this assertion pinned the exact TEXT of
@@ -5878,7 +5878,7 @@ try {
      'A64: home computes the right-now figure from the ALREADY computed myAvailable');
   eq(/class="hero-hold" data-go="report"/.test(app), true,
      'A64: …and it is tappable, to the screen that explains what it is made of');
-  eq(/inHandNow > 0\n?\s*\?/.test(app) || /inHandNow > 0$/m.test(app), true,
+  eq(/Aggregate\.moreThan\(inHandNow, 0\)\n?\s*\?/.test(app), true,
      'A64: …but not a button at zero — a tap onto an empty breakdown teaches people it is decorative');
 
   // it must agree with the money engine, or home and the report contradict
@@ -6425,7 +6425,7 @@ try {
   // "counted now, will leave" is exactly what money still with a collector is.
   {
     const ih = app.slice(app.indexOf('function reportInhandHTML'), app.indexOf('// order = how every report lists'));
-    eq(/r\.inHand > 0 \? 'gold' : r\.inHand < 0 \? 'red' : 'green'/.test(ih), true,
+    eq(/Aggregate\.moreThan\(r\.inHand, 0\) \? 'gold' : Aggregate\.moreThan\(0, r\.inHand\) \? 'red' : 'green'/.test(ih), true,
        'A137: positive = gold (still out), negative = red (shortfall), zero = green (settled)');
     eq(ih.indexOf("r.inHand > 0 ? 'red'") < 0, true,
        'A137: …the old healthy-collector-is-red rule is gone');
@@ -9101,6 +9101,56 @@ pending.push((async function () {
   eq(/EPS_UI/.test(app66), false, 'A266: …and keeps no epsilon of its own to drift');
   eq((app66.match(/Aggregate\.isDue\(/g) || []).length >= 7, true,
      'A266: every place that used to ask goes through the one that knows');
+}
+
+// A267 — the same question, eleven more times, and one of them is a locked door.
+//
+// A266 fixed `due`. The survey's other survivors said the shape repeats: any
+// money figure compared to a bare 0 or to another money figure. The one that
+// costs is the 🤝 handover sheet. `cap.cash` is `avail.cash`, computed by
+// aggregate; `cash` is Σ of the chips the collector taps — THE SAME NUMBERS
+// ADDED IN A DIFFERENT ORDER. Floating point does not promise those agree.
+{
+  const A67 = require('../js/aggregate.js');
+  eq(typeof A67.moreThan, 'function', 'A267: aggregate exports the one money comparison');
+
+  // ordinary pots, nothing chosen for effect
+  const pots = [100.10, 200.20, 0.30];
+  const avail = pots.reduce(function (a, b) { return a + b; }, 0);
+  const picked = pots.slice().reverse().reduce(function (a, b) { return a + b; }, 0);
+  eq(picked > avail, true, 'A267: adding the same pots in another order gives a BIGGER number');
+  eq((picked - avail).toFixed(2), '0.00', 'A267: …bigger by an amount that prints as ₹0.00');
+  eq(A67.moreThan(picked, avail), false,
+     'A267: handing over everything you hold is not over the cap');
+  eq(A67.moreThan(picked, avail - 1), true, 'A267: …but a rupee over still is');
+
+  eq(A67.moreThan(0.006, 0), true, 'A267: over half a paisa is money');
+  eq(A67.moreThan(0.004, 0), false, 'A267: under half a paisa is not');
+  eq(A67.moreThan(0, 0), false, 'A267: equal is not more');
+  eq(A67.moreThan(0, -0.004), false, 'A267: …in the negative direction too');
+  eq(A67.moreThan(0, -5), true, 'A267: a real shortfall reads as one');
+  eq(A67.moreThan(null, null), false, 'A267: two missing figures do not differ');
+  eq(A67.isDue(7), A67.moreThan(7, 0), 'A267: isDue is this question asked about a debt');
+
+  const app67 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  // The door money actually gets stuck behind: the cap, and the button the cap
+  // greys out. Pinned by name because these two lines are the difference between
+  // a collector handing over their day and a collector deciding the app is broken.
+  eq(/const overCash = Aggregate\.moreThan\(cash, capCash\), overUpi = Aggregate\.moreThan\(upi, capUpi\);/.test(app67),
+     true, 'A267: the 🤝 sheet asks the cap through the epsilon');
+  eq(/nextB\.disabled = !Aggregate\.moreThan\(cash \+ upi, 0\)/.test(app67), true,
+     'A267: …and so does the button it greys out');
+
+  // the sums, swept. Counts are NOT money: a committee post's maxCount and a
+  // stored cashAmount on one record are whole figures nobody adds up, and
+  // dragging them through an epsilon would only blur what it means.
+  const code67 = app67.split('\n').map(function (l) {
+    return l.trim().indexOf('//') === 0 ? '' : l.split('//')[0];
+  }).join('\n');
+  const bare = (code67.match(/\b(inHand|inHandNow|avail|balance|capCash|capUpi)\b[\w.]*\s*[<>]=?\s*0\b/g) || []);
+  eq(bare.length, 0, 'A267: no money SUM in js/app.js is compared to a bare 0 → ' + bare.join(' '));
+  eq((app67.match(/Aggregate\.moreThan\(/g) || []).length >= 12, true,
+     'A267: every site the survey named goes through it');
 }
 
 Promise.all(pending.map(function (p) {

@@ -737,6 +737,30 @@ tokens stripped), `ExpenseSubjects`, `Lists`, `Config` and `Audit` to Drive, and
 button for one on demand — worth taking before a SERVER night, which is the only
 kind that can lose data.
 
+## The measured hole: js/app.js is never RUN (A266/A267, 2026-09-07)
+
+- [ ] **Decide whether app.js gets a DOM harness.** The first mutation survey of
+  `js/app.js` — 9,188 lines, the largest file here — sampled forty changes and
+  **thirty-two survived**. The eight caught were caught by a regex over the
+  source text, so they pin a line's spelling, not what it does. Behavioural
+  coverage of app.js is **zero**, and that is now measured rather than assumed.
+
+  It is not nothing: those tripwires caught four of my own edits this session
+  and each one had to be repointed deliberately. But they cannot catch a bug on
+  a line nobody thought to pin, and the two real bugs the survey found (A266's
+  dues list and 📞 button, A267's dead হস্তান্তর button) were both on unpinned
+  lines.
+
+  The cheap half is already being done: when a decision can move OUT of app.js
+  into `js/aggregate.js`, it becomes properly testable — `isDue` and `moreThan`
+  are that. The open question is whether the rest is worth a jsdom harness, or
+  whether "extract the decision, leave the drawing" is enough. **Not a puja-week
+  job either way.**
+
+  Also still unswept: `js/sync.js`, `js/db.js`, `js/auth.js`, `js/lists.js`.
+  Run `node tests/mutation-survey.js js/sync.js 40` on a quiet night and find out
+  rather than guess — twice this year guessing was wrong in the good direction.
+
 ## AFTER THE PUJA — the PRODUCT question (Hrishi, 2026-08-17)
 
 Hrishi: *"I was thinking it as a product sale."* Recorded as the standing

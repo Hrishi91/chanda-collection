@@ -1387,7 +1387,7 @@
       // Everything starts selected, so handing over the lot = change nothing.
       const cell = function (c, kind) {
         const avail = kind === 'cash' ? c.cash : c.upi;
-        if (avail <= 0) return '<span class="sh-none">—</span>';
+        if (!Aggregate.moreThan(avail, 0)) return '<span class="sh-none">—</span>';
         return '<button class="sh-pick on" data-cat="' + esc(c.key) + '" data-kind="' + kind +
           '" data-fund="' + esc(c.fund || 'puja') + '" data-amt="' + avail + '">' +
           (kind === 'cash' ? '💵' : '📱') + ' ' + fmtMoney(avail) + '</button>';
@@ -1579,13 +1579,13 @@
           const v = Number(b.dataset.amt) || 0;
           if (b.dataset.kind === 'cash') cash += v; else upi += v;
         });
-        const overCash = cash > capCash, overUpi = upi > capUpi;
+        const overCash = Aggregate.moreThan(cash, capCash), overUpi = Aggregate.moreThan(upi, capUpi);
         totalEl.innerHTML = esc(t('sheet_total')) + ': ' +
           '<span class="cat-split">💵' + fmtMoney(cash) + ' · 📱' + fmtMoney(upi) + '</span>' +
           '<b class="cat-tot">' + fmtMoney(cash + upi) + '</b>' +
           (overCash ? '<div class="sh-over">' + tMoney('sheet_over_cash', capCash, cash - capCash) + '</div>' : '') +
           (overUpi ? '<div class="sh-over">' + tMoney('sheet_over_upi', capUpi, upi - capUpi) + '</div>' : '');
-        nextB.disabled = (cash + upi) <= 0 || overCash || overUpi;
+        nextB.disabled = !Aggregate.moreThan(cash + upi, 0) || overCash || overUpi;
       };
       // A146: mixing is made IMPOSSIBLE here, not punished at the end.
       //
@@ -2056,7 +2056,7 @@
     const CAT_LABELS = CAT_LABEL_KEYS;
     const catsOf = function (src) {
       return Object.keys(CAT_LABELS).filter(function (k) {
-        return src[k] && (src[k].cash + src[k].upi) > 0;
+        return src[k] && Aggregate.moreThan(src[k].cash + src[k].upi, 0);
       }).map(function (k) {
         // clamp BOTH the chip total and the selectable subtypes the same way,
         // so the label always equals what selecting the chip actually gives
@@ -2195,7 +2195,7 @@
       whole.byFund = Aggregate.SECTORS.map(function (sec) {
         const a = Aggregate.handoverable(data, ident, sec);
         return { fund: sec, byCat: a.byCat, cash: a.cash, upi: a.upi };
-      }).filter(function (fa) { return (fa.cash + fa.upi) > 0; });
+      }).filter(function (fa) { return Aggregate.moreThan(fa.cash + fa.upi, 0); });
       return { avail: whole,
                // only a cashier/admin uses this, but computing it always keeps
                // the two code paths from drifting apart
@@ -2667,7 +2667,7 @@
       // updates, per Hrishi).
       const avail = Aggregate.myAvailable(data, meId);
       const plan = Aggregate.homeTiles(Auth.current(), {
-        holding: (avail.cash + avail.upi) > 0,
+        holding: Aggregate.moreThan(avail.cash + avail.upi, 0),
         staleVersion: Auth.schemaCmp() === -1,
         frozen: frozen(), // A110: admin paused entries for everyone
       });
@@ -2754,7 +2754,7 @@
       // zero: nothing to explain, and a tap that leads to an empty breakdown
       // is how people learn the figure is decorative.
       const inHandNow = (avail.cash + avail.upi);
-      const holdLine = inHandNow > 0
+      const holdLine = Aggregate.moreThan(inHandNow, 0)
         ? '<button class="hero-hold" data-go="report">' + esc(t('sum_hero')) + ': <b>' + fmtMoney(inHandNow) + '</b> ›</button>'
         : '<div class="hero-sub">' + esc(t('sum_hero')) + ': <b>' + fmtMoney(0) + '</b></div>';
       $view().innerHTML =
@@ -2814,7 +2814,7 @@
       '<div style="height:10px;border-radius:5px;background:#eee;overflow:hidden;margin:8px 0 6px">' +
         '<div style="height:100%;width:' + pct + '%;background:' + (pct >= 100 ? '#2e7d32' : '#d9a441') + '"></div></div>' +
       '<div class="row-sub">' + fmtMoney(got) + ' / ' + fmtMoney(target) +
-        (left > 0 ? ' · ' + esc(t('target_left')).replace('{amt}', fmtMoney(left))
+        (Aggregate.moreThan(left, 0) ? ' · ' + esc(t('target_left')).replace('{amt}', fmtMoney(left))
                   : ' · ' + esc(t('target_done'))) + '</div>' +
       // A228: the numerator is what THIS READER may see. Measured: with a
       // ₹1,00,000 target and ₹10,000 গুপ্ত plus ₹50,000 sponsor in the book, a
@@ -3819,7 +3819,7 @@
       // pledge typed below what is already collected parks a permanent red line
       // on the 🩺 desk. Say that here, where it can still be undone in one tap,
       // rather than letting it be discovered on the anomaly screen in October.
-      if (pledged > 0 && paid > pledged &&
+      if (pledged > 0 && Aggregate.moreThan(paid, pledged) &&
           !window.confirm(t('party_pledge_low').replace('{paid}', fmtMoney(paid)).replace('{pledged}', fmtMoney(pledged)))) return;
       return DB.get('parties', id).then(function (row) {
         // A115e, A68's lesson again: this is THIS DEVICE's IndexedDB. A donor
@@ -5381,7 +5381,7 @@
           // overspent — used to come out green with everything else at zero,
           // which is the one row that genuinely needs red.
           '</div><div class="row-right"><span class="' +
-          (r.inHand > 0 ? 'gold' : r.inHand < 0 ? 'red' : 'green') + '"><b>' +
+          (Aggregate.moreThan(r.inHand, 0) ? 'gold' : Aggregate.moreThan(0, r.inHand) ? 'red' : 'green') + '"><b>' +
           fmtMoney(r.inHand) + '</b></span><div class="row-sub">' + esc(t('inhand_col')) + '</div></div></div>';
       }).join('') + '</div>';
   }
@@ -5467,7 +5467,7 @@
   // squared up later by exchanging cash, so it is never hidden or borrowed from.
   function potKidsHTML(pots) {
     return pots.map(function (p) {
-      const neg = p.total < 0;
+      const neg = Aggregate.moreThan(0, p.total);
       // A140: the pot opens. It is a BUTTON, not a div, because a figure you
       // cannot open is a figure people learn to distrust — and this is the
       // level where "where did my ₹3,400 come from" is actually asked.
@@ -5715,7 +5715,7 @@
       '<div class="stat3">' +
         '<div><span>' + esc(t('prog_income')) + '</span><b>' + fmtMoney(d.collected) + '</b></div>' +
         '<div><span>' + esc(t('prog_spend')) + '</span><b>' + fmtMoney(d.expense) + '</b></div>' +
-        '<div class="' + (d.balance < 0 ? 'red' : 'green') + '"><span>' + esc(t('prog_balance')) +
+        '<div class="' + (Aggregate.moreThan(0, d.balance) ? 'red' : 'green') + '"><span>' + esc(t('prog_balance')) +
           '</span><b>' + fmtMoney(d.balance) + '</b></div>' +
       '</div>' +
       (d.transferIn ? '<div class="row"><div>' + esc(t('prog_transfer_in')) + '</div><b>' +

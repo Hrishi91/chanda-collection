@@ -17611,3 +17611,51 @@ explaining it, and a sweep that cannot tell code from commentary is one that get
 weakened the first time it cries wolf.
 
 Tests 3,530 → 3,544. CLIENT night.
+
+## A267 — the same question eleven more times, and one of them is a locked door
+
+A266 fixed `due`. The survey's other survivors said the shape repeats: **a money
+figure compared against a bare 0**, or against another money figure, anywhere the
+epsilon could not reach. Eleven more sites, and one of them stops money moving.
+
+### The 🤝 sheet's cap
+
+`cap.cash` is `avail.cash`, computed by aggregate from the collector's pots.
+`cash` is Σ of the chips the collector taps. **The same numbers, added in a
+different order** — and floating point does not promise those agree.
+
+Three ordinary pots: ₹100.10 + ₹200.20 + ₹0.30. One order gives
+`300.59999999999997`, the other `300.6`. Tap every chip — hand over exactly what
+you hold — and the sheet reads **"₹0.00 বেশি"** and greys out পরের. The comment
+directly above that line says a dead button with no reason is what makes people
+think the app is broken, and then the line under it built one.
+
+### What was changed and what deliberately was not
+
+Twelve sites now go through `Aggregate.moreThan(a, b)`; `isDue` is that function
+asked about a debt. Changed: the cap and its button, the pot chips, `holding`,
+the in-hand line and its 🩺 colours, the target's "left", the overpaid check
+(bug #1 in aggregate's own EPS comment, still bare in app.js), a negative pot,
+the programme's balance.
+
+**Not changed, on purpose:** a committee post's `maxCount`, `n >= cap` on held
+posts, and `payMode` read off one record's stored `cashAmount`/`upiAmount`.
+Those are counts and single stored figures — nobody adds them up, so no crumb
+can arise, and dragging them through an epsilon would only blur what they mean.
+The rule that separates them: **crumbs live in SUMS.**
+
+### What holds it
+
+`moreThan` tested behaviourally, including the reordering case computed rather
+than written down; the cap and its button pinned by name, because those two
+lines are the difference between a collector handing over their day and a
+collector deciding the app is broken; and a sweep over the money-sum names.
+Three mutations, three names: *"handing over everything you hold is not over the
+cap"*, *"the 🤝 sheet asks the cap through the epsilon"*, *"no money SUM in
+js/app.js is compared to a bare 0 → inHandNow > 0"*.
+
+Four more of app.js's spelling tripwires had to be repointed by hand (A36, A64,
+A134, A137). That is the honest cost of a suite that reads source instead of
+running it — and it is written up as an open question in `docs/pending.md`.
+
+Tests 3,544 → 3,560. CLIENT night.

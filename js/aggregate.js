@@ -29,7 +29,15 @@
   //
   // Exported so no screen has to keep its own epsilon — the mistake was not the
   // number, it was that the number was reachable from only one file.
-  function isDue(amount) { return (Number(amount) || 0) > EPS; }
+  // A267: the primitive, because "is there money here" is the same question as
+  // "is this donor in debt" and the survey found ELEVEN more places asking it
+  // with a bare 0. The one that costs: the 🤝 sheet caps Σ(picked chips) at
+  // avail.cash — the same numbers added in a DIFFERENT ORDER — so a collector
+  // selecting everything they hold can land 1e-13 over, read "₹0.00 বেশি", and
+  // find the button dead. The comment above that very line worries about a dead
+  // button with no reason.
+  function moreThan(a, b) { return (Number(a) || 0) - (Number(b) || 0) > EPS; }
+  function isDue(amount) { return moreThan(amount, 0); }
   function voidedIds(data) {
     const s = {};
     (data.voids || []).forEach(function (v) { if (v && v.targetId) s[v.targetId] = 1; });
@@ -2255,7 +2263,7 @@
     return granted.filter(function (r) { return REPORT_IDS.indexOf(r) >= 0; });
   }
 
-  const api = { isDue, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
+  const api = { isDue, moreThan, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
                 inHandRows: inHandRows, personalSummary: personalSummary,
                 myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,
