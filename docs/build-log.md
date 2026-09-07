@@ -16883,3 +16883,23 @@ being those three. Both assert the rule now.
 Tests 3,402 (from 3,393). Six mutations, all named: বulk granting everything
 again, bulk erasing another group, a group lost, a key in two groups, and each
 of the two warnings switched off.
+
+### Deploy — server to chanda-v4.86.0 (the permission rebuild)
+
+Probed three times from the Browser pane before rebaking: the GET envelope plus
+two POSTs of a deliberately bad token, all `chanda-v4.86.0` / schema 5.
+
+This one carries real server behaviour, unlike the last two deploys: A251's
+derived `PERM_KEYS`, A252's fund-aware `permForRow_` and `sectorOf_`, and the
+deletion of A162's special branch for programme parties. **Schema stays 5** — no
+new store, no new column, `entries` was always a comma-joined string — so no
+phone is locked out and a phone still on v4.82.0 keeps collecting until its
+⚙️ → 🔄.
+
+**What changes for a person the moment this is live:** a grant that names only a
+kind now opens only the PUJA's book. Nothing anybody holds today was a
+programme grant except `progdonor` and the old bare `ticket`, both retired — if
+either is on somebody's row it now opens nothing, and has to be re-granted as
+`program:<kind>` on the new screen. Everything else — `shop`, `person`,
+`member`, `road`, `toto`, `bus`, `sponsor`, `gupt`, and both view keys — is
+untouched, which was the whole point of keeping the puja's keys bare.
