@@ -219,7 +219,73 @@ function loadI18n(opts) {
   return { t: box.__t, tBn: box.__tBn, fmtMoney: box.__f, I18N: box.__I };
 }
 
+// A271 — js/lists.js and js/voice.js, the last two modules nothing ran.
+//
+// lists.js needs navigator, Auth, Sync and localStorage; voice.js needs a
+// SpeechRecognition constructor and Settings. Both are a few lines of stand-in.
+//   online / loggedIn / configured   the three doors refresh() checks first
+//   items                            what the fake listItems call answers with
+// Returns { Lists, sent, box }: `sent` is every Auth.call made.
+function loadLists(opts) {
+  const o = opts || {};
+  const store = {};
+  const sent = [];
+  const box = {
+    localStorage: {
+      getItem: function (k) { return (k in store) ? store[k] : null; },
+      setItem: function (k, v) { store[k] = String(v); },
+      removeItem: function (k) { delete store[k]; },
+    },
+    navigator: { onLine: o.online === undefined ? true : !!o.online },
+    Auth: {
+      loggedIn: function () { return o.loggedIn === undefined ? true : !!o.loggedIn; },
+      token: function () { return 'tok'; },
+      call: function (action, payload) {
+        sent.push({ action: action, payload: payload });
+        return Promise.resolve({ ok: true, items: o.items || [] });
+      },
+    },
+    Sync: { configured: function () { return o.configured === undefined ? true : !!o.configured; } },
+    JSON: JSON, Math: Math, Number: Number, String: String, Date: Date,
+    Array: Array, Object: Object, Promise: Promise,
+  };
+  box.window = box;
+  vm.createContext(box);
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'lists.js'), 'utf8');
+  vm.runInContext(src, box);
+  return { Lists: box.Lists, sent: sent, store: store, box: box };
+}
+
+// `opts`: { unsupported } drops the SpeechRecognition constructor entirely;
+// { startThrows } makes r.start() throw the way a denied microphone does.
+// Returns { Voice, box }; box.__last is the recogniser start() built, so a test
+// can fire its onresult / onerror / onend the way the browser would.
+function loadVoice(opts) {
+  const o = opts || {};
+  const box = {
+    Settings: { get: function () { return o.lang || 'bn'; } },
+    JSON: JSON, Math: Math, Number: Number, String: String, Date: Date,
+    Array: Array, Object: Object, Promise: Promise,
+  };
+  box.window = box;
+  if (!o.unsupported) {
+    box.SpeechRecognition = function () {
+      box.__last = this;
+      this.__started = 0; this.__stopped = 0;
+      this.start = function () {
+        if (o.startThrows) throw new Error('not-allowed');
+        this.__started++;
+      };
+      this.stop = function () { this.__stopped++; };
+    };
+  }
+  vm.createContext(box);
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'voice.js'), 'utf8');
+  vm.runInContext(src + '\n;globalThis.__V = Voice;', box);
+  return { Voice: box.__V, box: box };
+}
+
 // fakeIndexedDB is exported too: sync.js reads DB and Settings as globals, so a
 // test that drives the push loop has to run db.js and sync.js in ONE context of
 // its own rather than reusing loadDB's.
-module.exports = { loadDB: loadDB, bootSync: bootSync, fakeIndexedDB: fakeIndexedDB, loadAuth: loadAuth, loadI18n: loadI18n };
+module.exports = { loadDB: loadDB, bootSync: bootSync, fakeIndexedDB: fakeIndexedDB, loadAuth: loadAuth, loadI18n: loadI18n, loadLists: loadLists, loadVoice: loadVoice };

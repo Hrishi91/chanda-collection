@@ -71,6 +71,13 @@ const DB = (function () {
     // Serve the same snapshot until something is written. The promise itself is
     // cached, so several callers in one paint share ONE traversal rather than
     // racing three of their own.
+    // A271: the second clause cannot currently be false — `touch()` nulls
+    // `cached` on every write, and line 82 refuses to cache at all if a write
+    // landed mid-traversal, so a non-null `cached` always carries the current
+    // version. It stays as the belt to that pair of braces: the day somebody
+    // makes touch() cheaper by only bumping the number, this is what keeps a
+    // saved entry from being invisible. The COUPLING is what a test can hold,
+    // and A271 holds it — a write bumps dataVersion() and drops the snapshot.
     if (cached && cachedAt === version) return cached;
     const v = version;
     const p = Promise.all(STORES.map(getAll)).then(function (r) {

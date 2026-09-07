@@ -9372,6 +9372,122 @@ pending.push((async function () {
      'A270: and the condition that could not be false is gone, not left reading like a guard');
 }
 
+// A271 — closing the module sweep: the last four survivors.
+//
+// db.js's snapshot cache, lists.js's refresh throttle, sync.js's failure reason,
+// and voice.js — thirty-two lines nothing had ever run.
+pending.push((async function () {
+  const { loadDB, bootSync, loadLists, loadVoice } = require('./idb-shim.js');
+
+  // ── db.js: `if (cached && cachedAt === version) return cached;`
+  // Flip that `&&` to `||` and the snapshot is served for ever: a collector
+  // saves an entry and every screen keeps painting the world before it. That is
+  // what "my entry did not show up" looks like from the inside.
+  {
+    const t = loadDB({});
+    const a = await t.DB.allData();
+    const b = await t.DB.allData();
+    eq(a === b, true, 'A271: two reads with no write in between share ONE traversal');
+    await t.DB.put('parties', { id: 'p1', name: 'ক', year: 2026 });
+    const c = await t.DB.allData();
+    eq(c.parties.length, 1, 'A271: …and a write is visible on the very next read');
+    eq(a === c, false, 'A271: …because the snapshot was thrown away, not reused');
+    await t.DB.put('parties', { id: 'p2', name: 'খ', year: 2026 });
+    eq((await t.DB.allData()).parties.length, 2, 'A271: …every time, not just the first');
+    // the coupling the surviving mutation rests on, pinned directly: db.js's
+    // second clause (cachedAt === version) cannot be false while touch() nulls
+    // the cache, so what a test can hold is that touch() DOES both.
+    const v0 = t.DB.dataVersion();
+    await t.DB.put('parties', { id: 'p3', name: 'গ', year: 2026 });
+    eq(t.DB.dataVersion() > v0, true, 'A271: a write moves the data version');
+    const d = t.DB.allData();
+    eq(d === t.DB.allData(), true, 'A271: …and the traversal after it is shared again');
+  }
+
+  // ── lists.js: `if (!force && lastRefresh && (now - lastRefresh) < REFRESH_MS)`
+  // A56 put that throttle in because eleven collectors were spending a
+  // 90-minute daily quota on a list that changes twice a season. But `!force`
+  // is the escape hatch, and the admin who has just RENAMED an area is the
+  // person who needs it.
+  {
+    const L = loadLists({ items: [{ kind: 'area', id: 'z', nameBn: 'নতুন', nameEn: 'New' }] });
+    eq(L.Lists.get('area').length >= 4, true, 'A271: the seeded areas are there before any server call');
+    await L.Lists.refresh();
+    eq(L.sent.length, 1, 'A271: the first refresh asks the server');
+    await L.Lists.refresh();
+    eq(L.sent.length, 1, 'A271: …a second one inside five minutes does not');
+    await L.Lists.refresh(true);
+    eq(L.sent.length, 2, 'A271: …but FORCE always does — that is the admin who just renamed an area');
+    eq(L.sent[0].action, 'listItems', 'A271: …and it asks for the lists');
+    eq(L.Lists.get('area')[0].id, 'z', 'A271: the server\'s answer replaces the seed');
+  }
+  // all three doors, both halves: each one alone stops the call
+  {
+    const off = loadLists({ online: false });
+    await off.Lists.refresh(true);
+    eq(off.sent.length, 0, 'A271: offline asks nobody, even forced');
+    const out = loadLists({ loggedIn: false });
+    await out.Lists.refresh(true);
+    eq(out.sent.length, 0, 'A271: …nor logged out');
+    const unc = loadLists({ configured: false });
+    await unc.Lists.refresh(true);
+    eq(unc.sent.length, 0, 'A271: …nor with no server configured');
+  }
+
+  // ── sync.js: the reason a failed push gives back is shown to a person.
+  // `String(e && e.message || e)` flipped to `||` yields "Error: boom" — the
+  // word Error in front of a sentence a collector is meant to act on.
+  {
+    const s1 = bootSync({ callFails: 'boom' });
+    await s1.DB.put('payments', { id: 'x', synced: 0 });
+    const r = await s1.Sync.syncNow();
+    eq(r.ok, false, 'A271: a failed push says so');
+    eq(r.reason, 'boom', 'A271: …with the bare reason, not "Error: boom"');
+    eq(/Error/.test(r.reason), false, 'A271: …nothing about a class name reaches the screen');
+    eq(s1.Sync.busy(), false, 'A271: …and the door is released, so the next attempt can run');
+  }
+
+  // ── voice.js: thirty-two lines, five mutable spots, five survivors, no test.
+  {
+    const u = loadVoice({ unsupported: true });
+    eq(u.Voice.supported(), false, 'A271: a browser with no Web Speech API says so');
+    let err = null;
+    eq(u.Voice.start(function () {}, function () {}, function (e) { err = e; }), null,
+       'A271: …and start() hands back nothing to drive');
+    eq(err, 'unsupported', 'A271: …having said why, rather than failing silently');
+
+    const v = loadVoice({});
+    eq(v.Voice.supported(), true, 'A271: a browser with it says so too');
+    const got = [];
+    const r = v.Voice.start(function (t) { got.push(['result', t]); },
+                            function () { got.push(['end']); },
+                            function (e) { got.push(['error', e]); });
+    eq(r.__started, 1, 'A271: the recogniser is listening');
+    eq(r.lang, 'bn-IN', 'A271: …in the collector\'s own language');
+    r.onresult({ results: [[{ transcript: 'পাঁচশো' }]] });
+    eq(got[0][1], 'পাঁচশো', 'A271: what was heard reaches the caller');
+    r.onerror({ error: 'no-speech' });
+    eq(got[1][1], 'no-speech', 'A271: …and so does why it stopped');
+    r.onend();
+    eq(got[2][0], 'end', 'A271: …and that it stopped at all');
+    v.Voice.stop();
+    eq(r.__stopped, 0, 'A271: stopping after onend does not stop a recogniser twice');
+
+    const en = loadVoice({ lang: 'en' });
+    eq(en.Voice.start(function () {}, function () {}, function () {}).lang, 'en-IN',
+       'A271: English is listened for as en-IN');
+
+    // a denied microphone throws inside start() — the caller must be told, and
+    // the module must not be left holding a recogniser that never started
+    const bad = loadVoice({ startThrows: true });
+    let e2 = null;
+    bad.Voice.start(function () {}, function () {}, function (e) { e2 = e; });
+    eq(e2, 'start-failed', 'A271: a refused microphone is reported, not swallowed');
+    bad.Voice.stop();
+    eq(bad.box.__last.__stopped, 0, 'A271: …and nothing dead is stopped afterwards');
+  }
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

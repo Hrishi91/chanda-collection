@@ -17802,3 +17802,62 @@ checks it strips comments first — the same lesson A266 learned, met again thre
 hours later on the very comment documenting the fix.
 
 Tests 3,618 → 3,639. CLIENT night (`js/i18n.js`, `js/numparse.js`).
+
+## A271 — closing the module sweep: the last four
+
+`db.js`, `lists.js`, `sync.js`, `voice.js`. Two of them nothing had ever run.
+
+**lists.js — the throttle's escape hatch.** A56 added
+`if (!force && lastRefresh && (now - lastRefresh) < REFRESH_MS) return;` because
+eleven collectors were spending a 90-minute daily quota re-fetching a list that
+changes twice a season. `!force` is the way out, and **the admin who has just
+renamed an area is the person who needs it.** Three survivors sat on that one
+line. Now pinned: first call asks, a second inside five minutes does not, and
+`force` always does — plus each of the three doors (offline, logged out, no
+server) alone stopping the call, forced or not.
+
+**sync.js — the word "Error" in front of a sentence.** A failed push hands back
+`String(e && e.message || e)`; flipped, that is `"Error: boom"`. The reason
+string is shown to a collector. Pinned bare, with the door released.
+
+**voice.js — thirty-two lines, five mutable spots, five survivors, no test at
+all.** `loadVoice()` gives it a stand-in `SpeechRecognition`, so the guided flow
+can be driven: no API → `unsupported` and nothing to drive; bn-IN vs en-IN; the
+transcript, the error and the end each reaching the caller; a **refused
+microphone** reported as `start-failed` rather than swallowed.
+
+**db.js — the day's second dead condition.**
+`if (cached && cachedAt === version) return cached;` survived, and the reason is
+not a missing test: `touch()` nulls `cached` on every write, and the line below
+refuses to cache at all if a write landed mid-traversal. A non-null `cached`
+therefore *always* carries the current version. The second clause cannot be
+false.
+
+Unlike numparse's, this one is kept — it is the belt to that pair of braces, and
+the day somebody makes `touch()` cheaper by only bumping the number, it is what
+stops a saved entry from being invisible. **The coupling is what a test can
+hold**, so A271 holds that instead: a write moves `dataVersion()` and drops the
+snapshot, and the traversal after it is shared again.
+
+### Sweep, closed
+
+| file | before | after | left |
+|---|---|---|---|
+| auth.js | 8/18 | 1/18 | loop bound reading one past the end |
+| lists.js | 3/13 | 1/13 | `<` vs `<=` at a gap of **exactly** 300,000 ms |
+| voice.js | 5/5 | 0/5 | — |
+| i18n.js | 2/2 | 0/2 | — |
+| numparse.js | 3/4 | 0/3 | — |
+| sync.js | 1/5 | 0/5 | — |
+| db.js | 1/3 | 1/3 | the coupling above, held by a test instead |
+| help.js | 0/0 | 0/0 | no comparison in the file |
+
+23 survivors → **3**, and each of the three is written down with the argument
+for why it is equivalent. That is a judgement, recorded as one — not a claim
+that nothing is left.
+
+`js/app.js` is the exception and stays open in `docs/pending.md`: 32 of 40, and
+the only file here whose survivors were never triaged one by one, because there
+are 436 of them.
+
+Tests 3,639 → 3,671. CLIENT night (`js/db.js` comment only).
