@@ -6069,8 +6069,12 @@ try {
     const iCall = sh.indexOf("Auth.call('cashiers'");
     eq(iRoster >= 0 && iCall >= 0 && iRoster < iCall, true,
        'A118: the handover flow opens from the roster, without a round trip');
-    eq(/u\.status === 'approved' && \(u\.role === 'admin' \|\| Number\(u\.cashier\) === 1\)/.test(sh), true,
-       'A118: …with the same test the server list applies (approved + admin-or-cashier)');
+    // A260: the test the server list applies gained a third arm — somebody who
+    // receives only the programme's money has the puja's cashier FLAG at 0.
+    // Leaving it out is what dropped them from every picker, found by walking
+    // the screen rather than by any test here.
+    eq(/u\.status === 'approved' &&\s*\n?\s*\(u\.role === 'admin' \|\| Number\(u\.cashier\) === 1 \|\| String\(u\.funds \|\| ''\) !== ''\)/.test(sh), true,
+       'A118/A260: …with the same test the server list applies (approved + admin-or-cashier-of-any-book)');
   }
 
   // A121 (Hrishi: "user will be confused with these two screens"): the two
@@ -7523,7 +7527,7 @@ try {
   eq(/key: 'to', qKey: 'q_handover_to', kind: 'choice',[\s\S]{0,300}?optionsFn: function \(a\) \{[\s\S]{0,200}?recipientsFor\(opts, a\)/.test(app), true,
      'A146: …and the recipient list is built from the answers, at the moment it is shown');
   // the base rule must NOT have moved: approved + admin-or-cashier, as before
-  eq(/u\.status === 'approved' && \(u\.role === 'admin' \|\| Number\(u\.cashier\) === 1\)/.test(app), true,
+  eq(/u\.status === 'approved' &&/.test(app) && /u\.role === 'admin' \|\| Number\(u\.cashier\) === 1/.test(app), true,
      'A146: the base rule is untouched — still approved, and admin or কোষাধ্যক্ষ');
   // an ORDINARY parcel narrows nothing: twelve people's daily screen is unchanged
   // A258: an ordinary parcel still narrows nothing on the CONFIDENTIAL rule —
@@ -7561,8 +7565,8 @@ try {
     eq(A258.cashiersForFund(null, 'puja').length, 0, 'A258: no list at all does not throw');
   }
   // `sees` has to survive both paths into the flow, or every cashier looks eligible
-  eq(/\{ username: u\.username, name: u\.name, sees: String\(u\.sees \|\| ''\) \}/.test(app), true,
-     'A146: `sees` travels with the roster name…');
+  eq(/sees: String\(u\.sees \|\| ''\),\s*\n?\s*funds: String\(u\.funds \|\| ''\)/.test(app), true,
+     'A146/A260: `sees` travels with the roster name, and now `funds` beside it…');
   // the key is anchored on its left: without that, a renamed `xsees:` still
   // matched as a substring and the mutation sailed through green (vacuous pin)
   eq(/names\.push\(\{ username: row\.username, name: row\.name, role: row\.role,[\s\S]{0,300}?[\s,{]sees: RESTRICTED_TYPES\.filter/.test(gs), true,

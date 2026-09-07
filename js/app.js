@@ -1119,7 +1119,13 @@
     if (step.kind === 'sheet') {
       // show what the sheet actually hands over: total, then each category
       let cash = 0, upi = 0;
-      const parts = Object.keys(val || {}).map(function (k) {
+      const parts = Object.keys(val || {}).filter(function (k) {
+        // A260: `__sector` and `__snap` are metadata riding in the same answer.
+        // The confirm line printed "__sector ₹0" beside the real pots — found
+        // by reading the screen, not by any test, because every test of this
+        // shape asks for the parcel rather than the sentence.
+        return k.slice(0, 2) !== '__';
+      }).map(function (k) {
         const c = Number(val[k].cash) || 0, u = Number(val[k].upi) || 0;
         cash += c; upi += u;
         const cat = step.categories.find(function (x) { return x.key === k; });
@@ -2210,11 +2216,22 @@
     // at most one poll (60 s) stale, which is also true of any list fetched
     // when the screen opened.
     const rosterCashiers = committee.filter(function (u) {
-      return u.status === 'approved' && (u.role === 'admin' || Number(u.cashier) === 1);
+      // A260: `cashier === 1` is the PUJA's cashier and was the only kind there
+      // was. Somebody who receives only the programme's money has that flag at
+      // 0 and would have been left out of every picker — found by walking the
+      // screen, which is the one thing A258's tests could not do: they drove
+      // the `cashiers` action, and this roster is the path the flow really
+      // takes.
+      return u.status === 'approved' &&
+        (u.role === 'admin' || Number(u.cashier) === 1 || String(u.funds || '') !== '');
     // A146: `sees` travels with the name — it is what the recipient step filters
     // on, and dropping it here would silently make every cashier look eligible
-    // for confidential money.
-    }).map(function (u) { return { username: u.username, name: u.name, sees: String(u.sees || '') }; });
+    // for confidential money. A260: `funds` travels for the same reason, one
+    // question later — which BOOK they may receive.
+    }).map(function (u) {
+      return { username: u.username, name: u.name, sees: String(u.sees || ''),
+               funds: String(u.funds || '') };
+    });
     if (rosterCashiers.length) {
       availP.then(function (a) { begin(others(rosterCashiers), a); });
     } else if (navigator.onLine && Sync.configured()) {

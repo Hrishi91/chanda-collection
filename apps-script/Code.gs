@@ -401,10 +401,18 @@ function committeeRoster_() {
         return String(row.role) === 'admin' ||
           effPerms_(row).entries.indexOf(viewPermFor_(ty)) >= 0;
       }).join(',');
+      // A260: `funds` — which ভাঁড়ার this person may RECEIVE, derived the same
+      // way `sees` is. It rides the roster because the roster is what the
+      // handover screen actually reads: A176 made the flow open from the pulled
+      // roster instead of blocking on a `cashiers` round trip, so the list in
+      // the `cashiers` action is the fallback path a phone takes only when it
+      // has never pulled. A258 taught the fallback about funds and left the
+      // main road exactly as it was.
       out.push({ username: String(row.username), name: String(row.name),
                  role: String(row.role), status: String(row.status),
                  phone: String(row.phone || ''), email: String(row.email || ''),
                  position: String(row.position || ''), cashier: effPerms_(row).cashier,
+                 funds: SECTORS.filter(function (sec) { return isCashierOf_(row, sec); }).join(','),
                  sees: sees });
     });
   }
@@ -1339,7 +1347,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.90.0';
+var CODE_VERSION = 'chanda-v4.91.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually

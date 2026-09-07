@@ -4609,6 +4609,49 @@ module.exports = function runBackendTests(eq) {
        'backend A257: …with the whole-book answer still the sum of the two');
   }
 
+  // --- A260: the ROSTER is the path the handover screen actually takes -------
+  // A258 taught the `cashiers` action about funds and tested it there. But A176
+  // made the handover flow open from the committee roster that rides every
+  // pull, precisely so it does NOT wait on that round trip — so `cashiers` is
+  // the fallback for a phone that has never pulled, and the roster is the road.
+  // The tests guarded the fallback.
+  //
+  // Found by walking the screen: a collector handing over programme money was
+  // offered the two PUJA cashiers and not the programme's, because the roster
+  // still carried only the puja's `cashier` flag. This drives the roster.
+  {
+    const b260 = loadBackend(); b260.api.setup();
+    ['adm260', 'kali260', 'pro260', 'plain260'].forEach(function (u, i) {
+      b260.post('register', { username: u, name: u, password: 'secret' + i, phone: '98200000' + i });
+    });
+    const t260 = b260.call('login', { username: 'adm260', password: 'secret0', year: 2026 }).token;
+    const uid = function (u) { return b260.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+    ['kali260', 'pro260', 'plain260'].forEach(function (u) {
+      b260.call('setStatus', { token: t260, userId: uid(u), status: 'approved' });
+      b260.call('approveYear', { token: t260, userId: uid(u), year: 2026 });
+    });
+    b260.call('setCashier', { token: t260, userId: uid('kali260'), cashier: 1 });
+    b260.call('setEntries', { token: t260, userId: uid('pro260'), entries: ['program:cashier'] });
+    b260.call('setEntries', { token: t260, userId: uid('plain260'), entries: ['shop'] });
+    const tkp = b260.call('login', { username: 'plain260', password: 'secret3', year: 2026 }).token;
+    const roster = (b260.call('pull', { token: tkp, year: 2026, since: 0 }) || {}).committee || [];
+    const by = {};
+    roster.forEach(function (u) { by[u.username] = u; });
+    eq(Object.keys(by).length >= 4, true, 'backend A260: the roster was actually read');
+    eq(String((by.kali260 || {}).funds || ''), 'puja',
+       'backend A260: the roster says the puja cashier receives the puja\'s book');
+    eq(String((by.pro260 || {}).funds || ''), 'program',
+       'backend A260: …and the programme\'s cashier the programme\'s — the row that was missing');
+    eq(String((by.plain260 || {}).funds || ''), '',
+       'backend A260: …while a plain collector receives nothing');
+    eq(String((by.adm260 || {}).funds || '').split(',').length >= 2,
+       true, 'backend A260: …and the admin every book');
+    // the programme's cashier has the puja FLAG at 0 — which is exactly why the
+    // screen dropped them, and why the roster answer has to be the derived one
+    eq(Number((by.pro260 || {}).cashier) === 1, false,
+       'backend A260: the programme cashier is NOT the puja cashier flag — the trap that hid them');
+  }
+
   // --- A259: a whole evening with the programme fund ON ----------------------
   // The three nights' work, driven end to end instead of in pieces: every entry
   // kind written in both books by two different people, both purses, both

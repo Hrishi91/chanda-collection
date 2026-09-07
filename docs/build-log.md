@@ -17227,3 +17227,56 @@ Two of my own mistakes on the way, both worth keeping:
 
 Tests 3,493 (from 3,477). Mutation-proved: the fund gate removed, the membrane
 removed on either side, and the recipient filter blinded.
+
+## A260 — walking the screen found two bugs the server tests could not
+
+Hrishi: *"cant you test fully"* — and he was right that A259 was not full. It
+drove the server: every kind, both books, both cashiers, all green. It never
+touched a screen. So the app was walked end to end in the local harness —
+switch on, grant, enter, hand over, confirm — and **two real defects fell out in
+the first pass.**
+
+### 1. The recipient list offered the WRONG cashiers
+
+Handing over ₹900 of programme money, the picker showed **কালী and বিমল** — the
+two puja cashiers — and **not রতন**, who holds `program:cashier`. Exactly
+backwards.
+
+A258 taught the server's `cashiers` action about funds, and tested it there.
+But A176 made the handover flow open from the **committee roster that rides
+every pull**, precisely so it does not wait on that round trip — so `cashiers`
+is the fallback a phone takes only when it has never pulled, and the roster is
+the road. **I guarded the fallback and left the main road exactly as it was.**
+
+The roster's filter was still `role === 'admin' || Number(cashier) === 1` — the
+puja's flag, which is 0 for somebody who receives only the programme's money.
+It now carries `funds`, derived the same way `sees` is, and the filter has a
+third arm. `tests/backend.js` drives the **roster** now, and asserts the trap
+directly: the programme's cashier has the puja flag at 0, which is what hid
+them.
+
+### 2. `__sector ₹0` was printed as a pot
+
+The confirm line read *"₹900 (টিকিট বিক্রি ₹900, `__sector` ₹0)"*. A257 taught
+`parcelFromSheet` that `__` keys are metadata; this is a **different** reader —
+the sentence that summarises an answer — and it had no such rule. Every test of
+that shape asks for the parcel, not for the sentence.
+
+### What the walk proved, after the fixes
+
+The fund switched on from the admin screen (button flipping to *"চালু আছে —
+বন্ধ করো"*), the 🎭 tab appearing in the nav **without a refresh**, the tab
+offering exactly the two kinds granted, a টিকিট entry saved and pushed carrying
+`sector: program` with nobody asked which book, the handover sheet showing three
+pots tagged `shop/puja`, `road/puja`, `ticket/program` and **opening with the
+programme pot unlit** because a parcel is one book, picking টিকিট dropping both
+puja pots by itself, the picker then offering **হৃষিকেশ and রতন only**, the
+parcel stored `sector: program`, রতন confirming it — and কালী, the puja cashier,
+refused with `not-cashier-of-fund` on a programme parcel addressed to her.
+
+**The lesson, and it is the same one three times this week:** logic a test
+cannot call is logic nobody tests. The server tests were exhaustive and green
+and still could not see either of these, because one lived on the road the
+screen takes and the other in a sentence no test reads.
+
+Tests 3,499 (from 3,493).
