@@ -17153,3 +17153,33 @@ assertion now runs both ways. Proved by putting the string compare back: it
 fails with `chanda-v10.90.0 vs chanda-v4.90.0 is decided by NUMBERS, not text`.
 
 Tests 3,477, unchanged in count — this fixed the test, not the code.
+
+### Deploy — server to chanda-v4.90.0 (the programme's own কোষাধ্যক্ষ)
+
+Probed three times from the Browser pane before rebaking: the GET envelope plus
+two POSTs of a deliberately bad token, all `chanda-v4.90.0` / schema 5.
+
+The first deploy of the cashier split, and the first in a while that changes
+real server behaviour rather than a version string:
+
+- `Handovers` gains a `sector` column. `ensureCols_` appends it to the live
+  sheet; every parcel already there reads as the puja's, which is what they all
+  were.
+- `confirmHandover` and `rejectHandover` now demand the কোষাধ্যক্ষ **of the
+  parcel's own book**, read from the row under the lock.
+- `cashiers` carries each person's `funds`, so the handover screen can offer
+  only the right treasurers.
+- `isCashierOf_` / `isAnyCashier_` / `sectorOf_` / `permKeyFor_`.
+
+**Schema stays 5**, so nothing is locked out, and a phone still on the old
+client keeps collecting and handing over exactly as before.
+
+**What changes for a person the moment this is live: nothing yet.** The
+programme fund is still switched off, so no `program:` row exists and every
+parcel is the puja's — which the puja's cashier settles, as always. The split
+only begins to matter the day the fund is switched on and somebody holds
+`program:cashier`.
+
+The one thing worth walking after this deploy is therefore the OLD path: a
+collector sends an ordinary parcel and the cashier confirms it. That is what
+these gates sit in front of.
