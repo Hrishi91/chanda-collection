@@ -62,6 +62,7 @@ const I18N = {
   q_duty_payee: { bn: 'কাকে কথা দেওয়া হয়েছে? (শিল্পী / সাউন্ড / যাঁকে)',
                   en: 'Promised to whom? (artist / sound / whoever)' },
   q_duty_amount: { bn: 'মোট কত টাকায় কথা হয়েছে?', en: 'Agreed amount?' },
+  duty_payee_col: { bn: 'কাকে', en: 'Payee' },
   duty_owed: { bn: 'এখনো দিতে হবে', en: 'Still to pay' },
   duty_paid_of: { bn: 'দেওয়া হয়েছে {p} / {c}', en: 'Paid {p} of {c}' },
   duty_settled: { bn: '✅ মিটে গেছে', en: '✅ Settled' },

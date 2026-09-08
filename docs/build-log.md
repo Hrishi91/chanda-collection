@@ -18925,3 +18925,71 @@ freeze still go through (deliberately: a morning round written offline must not
 be lost). So freeze narrows the window and does not close it.
 
 No code changed. Tests 3,958, unmoved.
+
+## A287 — the 🎭 report had no printed shape, and the sheet did not say who made it
+
+Hrishi, before going live: *"what about the reports, pdf download — are we giving
+the detailing there or can we give more?"*
+
+**First, what is already there, because I nearly proposed building it.** There is
+no PDF generator and there should not be: printing goes through `window.print()`
+and the phone's own "Save as PDF". No library, no dependency, works offline —
+the right shape for a no-build-step app.
+
+And `printReportHTML` already builds a RICHER table for paper than the phone
+shows, with the reasoning written down: *"the screen is a phone held one-handed —
+compact on purpose. The printed sheet is read at a table, kept in a file, and
+shown to people who were not there."* Built from the snapshot the client holds,
+deliberately **not** by widening `computeReport`, which is mirrored byte-for-byte
+in `Code.gs` — widening it would mean a server redeploy for a formatting
+improvement.
+
+Six of the eight reports have one: dues (with phone number, last payment date and
+who collected), inhand, expenses, collectors, areas, daily.
+
+**`overview` and `program` fall through to the phone version.** For `overview`
+that is a defensible call and the comment says so — it is all totals, no table.
+For `program` it was **not a decision**: it is the newest report, and the
+fall-through line was written before it existed.
+
+### What the printed 🎭 report is now
+
+Five tables: the fund (আয় · খরচ · ভাঁড়ারে আছে · এসেছে · পুজো থেকে · **এখনো দিতে
+হবে**), income by pot, spend by subject, the **দায় list**, and the puja's own
+figures beside it — the committee reads both books in one sitting and the 🎭
+screen never shows the puja's side.
+
+The দায় table is the one a committee meeting argues about: who, promised, paid,
+still owed, and the note. Two details that only a rendering pass could teach:
+
+- **`owed` is taken off the row, not recomputed.** A second subtraction here
+  would be a second place for the same arithmetic to be wrong.
+- **A settled promise says ✅ মিটে গেছে IN the owed column.** A separate status
+  column leaves an empty cell for every open promise, and `printTable` renders an
+  empty cell as `—`, which reads as *missing data* rather than *nothing left to
+  pay*.
+
+### And the header now says WHO
+
+`printReport` already headed the sheet with the puja's name, the report and year,
+when it was generated, and a training-mode marker — **I had proposed adding a
+header without checking, and it was there.** The one thing missing was the
+person: a filed sheet whose figures somebody wants to check is asked *"who
+produced this?"* first.
+
+### Three fixture mistakes, each caught by rendering rather than assuming
+
+1. A commitment is `source: 'commitment'` — not a `kind`. With the wrong field
+   the দায় table silently rendered nothing and the row leaked into `spend` as
+   **₹0 অন্যান্য**.
+2. Its note lives in `desc`, not `note`.
+3. The income column header was `t('cat_payment')` — a legacy CATEGORY name
+   ("চাঁদা (পুরোনো)"), not a column name.
+
+None of these would have been visible from reading the code. All three were
+obvious the moment the table was printed.
+
+One new dictionary entry: `duty_payee_col` (কাকে / Payee).
+
+Tests 3,958 → 3,975. CLIENT night — `printReportHTML` lives entirely in
+`js/app.js`, so this needs no Apps Script deploy.

@@ -5905,6 +5905,51 @@
         printTable([t('date_col'), t('type_col'), t('amount_col')],
           (d.rows || []).map(function (r) { return [fmtDate(r.date), t('type_' + r.type), money(r.amount)]; }));
     }
+    if (id === 'program') {
+      // A287: the 🎭 report fell through to the phone version below — not by a
+      // decision, but because it is the newest report and the fall-through line
+      // was written before it existed. `computeReport('program')` already
+      // carries everything a committee meeting asks for; nobody had laid it out
+      // for a table. Same rule as every other print branch: built from what the
+      // client already holds, never by widening computeReport, which is mirrored
+      // byte-for-byte in Code.gs.
+      const potLabel = function (k) { return t(CAT_LABEL_KEYS[k] || 'cat_other'); };
+      const sum = [[t('prog_income'), money(d.collected)],
+                   [t('prog_spend'), money(d.expense)],
+                   [t('prog_balance'), money(d.balance)]];
+      if (d.transferIn) sum.push([t('prog_transfer_in'), money(d.transferIn)]);
+      if (d.fromPuja) sum.push([t('prog_from_puja'), money(d.fromPuja)]);
+      // A151's number, and the reason it is here: a balance that ignores what is
+      // already promised is the most confident wrong number in the book.
+      if (d.spokenFor) sum.push([t('duty_owed'), money(d.spokenFor)]);
+      // `owed` is already on the row — recomputing it here would be a second
+      // place for the same subtraction to be got wrong. A settled row says so IN
+      // the owed column rather than in a status column of its own: an empty
+      // status cell prints as "—", which reads like missing data instead of
+      // "nothing left to pay".
+      const duty = (d.commitments || []).map(function (c) {
+        return [c.payee || '—', money(c.committed), money(c.paid),
+                c.settled ? t('duty_settled') : money(c.owed), c.note || ''];
+      });
+      const pj = d.puja || {};
+      return '<h3>🎭 ' + esc(t('program_fund')) + '</h3>' +
+        printTable([t('program_fund'), t('amount_col')], sum) +
+        (d.income.length ? '<h3>' + esc(t('prog_income')) + '</h3>' +
+          printTable([t('type_col'), t('amount_col')],
+            d.income.map(function (r) { return [potLabel(r.key), money(r.amount)]; })) : '') +
+        (d.spend.length ? '<h3>' + esc(t('prog_spend')) + '</h3>' +
+          printTable([t('subject_col'), t('amount_col')],
+            d.spend.map(function (r) { return [r.key === '—' ? t('cat_other') : r.key, money(r.amount)]; })) : '') +
+        (duty.length ? '<h3>' + esc(t('duty_title')) + '</h3>' +
+          printTable([t('duty_payee_col'), t('pledged'), t('paid'), t('duty_owed'), t('comment_col')], duty) : '') +
+        // The committee reads the two books in one sitting; the 🎭 screen never
+        // shows the puja's side, and on paper there is room for it.
+        '<h3>' + esc(t('sector_puja')) + '</h3>' +
+        printTable([t('sector_puja'), t('amount_col')],
+          [[t('total_collection'), money(pj.collected || 0)],
+           [t('total_expense'), money(pj.expense || 0)],
+           [t('prog_balance'), money(pj.balance || 0)]]);
+    }
     return reportHTML(id, d); // overview is already a full statement
   }
   function reportHTML(id, d) {
@@ -6596,7 +6641,12 @@
       area.innerHTML =
         '<div class="p-head"><div class="p-puja">' + esc(pujaName()) + '</div>' +
         '<div class="p-sub">' + esc(t('report_' + id)) + ' · ' + esc(String(Settings.get('year'))) + '</div>' +
-        '<div class="p-meta">' + esc(t('printed_on')) + ': ' + esc(now) + (isLive() ? '' : ' · ' + esc(t('training_mode'))) + '</div></div>' +
+        // A287: and BY WHOM. The sheet is filed and shown to people who were
+        // not there; "who produced this" is the first thing asked of a paper
+        // whose figures somebody wants to check.
+        '<div class="p-meta">' + esc(t('printed_on')) + ': ' + esc(now) +
+          ' · ' + esc(Settings.get('collectorName') || (Auth.current() || {}).username || '') +
+          (isLive() ? '' : ' · ' + esc(t('training_mode'))) + '</div></div>' +
         printReportHTML(id, Aggregate.computeReport(id, bookFor(id, data)), data);
       window.print();
     });

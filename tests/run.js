@@ -10809,6 +10809,91 @@ pending.push((async function () {
      'A283: …and a post carries no area key either — areas are assigned per person');
 })());
 
+// A287 — the 🎭 report had no printed shape, and the sheet did not say who made it.
+//
+// Six of the eight reports build a richer table for paper than for the phone —
+// "the printed sheet is read at a table, kept in a file, and shown to people who
+// were not there". `program` was not one of them, and not by a decision: it is
+// the newest report and the fall-through line was written before it existed.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const EMPTY = { parties: [], payments: [], daily: [], expenses: [], handovers: [],
+                  voids: [], corrections: [], messages: [] };
+  const central = Object.assign({}, EMPTY, {
+    parties: [{ id: 'pg1', year: 2026, type: 'shop', name: 'স্পনসর', pledged: 5000,
+                sector: 'program', collectorId: 'ratan' }],
+    payments: [{ id: 'y1', year: 2026, partyId: 'pg1', amount: 5000, sector: 'program',
+                 date: '2026-09-07', collectorId: 'ratan', cashAmount: 5000, upiAmount: 0 }],
+    expenses: [
+      { id: 'e1', year: 2026, subject: 'শিল্পী', amount: 2000, sector: 'program',
+        date: '2026-09-07', collectorId: 'ratan', cashAmount: 2000, upiAmount: 0, commitmentId: 'c1' },
+      { id: 'e2', year: 2026, subject: 'সাউন্ড', amount: 1500, sector: 'program',
+        date: '2026-09-07', collectorId: 'ratan', cashAmount: 1500, upiAmount: 0, commitmentId: 'c2' },
+      // a commitment is `source: 'commitment'` — NOT an expense with a kind, and
+      // its note lives in `desc`. Both cost a rendering pass to learn.
+      { id: 'c1', year: 2026, source: 'commitment', committed: 8000, payee: 'গায়ক দল',
+        desc: 'বায়না বাকি', sector: 'program', date: '2026-09-06', collectorId: 'ratan' },
+      { id: 'c2', year: 2026, source: 'commitment', committed: 1500, payee: 'সাউন্ড সিস্টেম',
+        sector: 'program', date: '2026-09-06', collectorId: 'ratan' }] });
+  const h = loadApp({ user: { username: 'ratan', name: 'রতন', role: 'admin', cashier: 1,
+                              entries: 'shop', reports: 'program,overview' },
+    lists: { area: [] }, central: central, settings: { collectorName: 'রতন' } });
+  await h.ready;
+  const data = await h.app.viewData();
+  const d = h.box.Aggregate.computeReport('program', h.app.bookFor('program', data));
+  const html = h.app.printReportHTML('program', d, data);
+
+  eq((html.match(/<table class="p-table">/g) || []).length, 5,
+     'A287: the printed 🎭 report is five tables — fund, income, spend, দায়, and the puja beside it');
+  // ₹5,000 in, ₹2,000 + ₹1,500 out, so ₹1,500 left; ₹8,000 promised with ₹2,000
+  // against it leaves ₹6,000 still owed. Both figures computed by the app, both
+  // read off the printed page.
+  eq(/ভাঁড়ারে আছে[\s\S]{0,80}?₹1,500/.test(html), true, 'A287: the fund summary carries the balance');
+  eq(/এখনো দিতে হবে[\s\S]{0,80}?₹6,000/.test(html), true,
+     'A287: …and what is already promised, which that balance does not know about');
+  eq(/অনুষ্ঠানের খরচ[\s\S]{0,80}?₹3,500/.test(html), true, 'A287: …over the spending it does know about');
+  eq(/দোকান[\s\S]{0,60}?₹5,000/.test(html), true, 'A287: income is broken down by pot');
+  eq(/শিল্পী[\s\S]{0,60}?₹2,000/.test(html), true, 'A287: …and spending by subject');
+
+  // the দায় table, which is the thing a committee meeting actually argues about
+  eq(/গায়ক দল[\s\S]{0,140}?₹8,000[\s\S]{0,40}?₹2,000[\s\S]{0,40}?₹6,000/.test(html), true,
+     'A287: each promise shows what was promised, what is paid and what is left');
+  eq(/গায়ক দল[\s\S]{0,220}?বায়না বাকি/.test(html), true,
+     'A287: …and its note, which lives in `desc` and not in `note`');
+  eq(/সাউন্ড সিস্টেম[\s\S]{0,140}?✅ মিটে গেছে/.test(html), true,
+     'A287: a settled promise says so IN the owed column');
+  eq(/সাউন্ড সিস্টেম[\s\S]{0,120}?<td class="p-num">—<\/td>[\s\S]{0,40}?<td class="p-num">—/.test(html), false,
+     'A287: …rather than leaving an empty status cell, which prints as "—" and reads as missing data');
+  // owed comes off the row; a second subtraction here would be a second place to be wrong
+  eq(/c\.owed/.test(require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8')), true,
+     'A287: the printed figure is the row\'s own `owed`, not recomputed');
+
+  eq(/🙏[\s\S]{0,400}?মোট আদায়/.test(html), true,
+     'A287: and the puja book sits beside it — the committee reads both in one sitting, and the 🎭 SCREEN never shows it');
+
+  // an empty programme prints nothing misleading
+  const h2 = loadApp({ user: { username: 'ratan', name: 'রতন', role: 'admin', cashier: 1,
+                               entries: 'shop', reports: 'program' }, lists: { area: [] }, central: EMPTY });
+  await h2.ready;
+  const d2 = h2.box.Aggregate.computeReport('program', h2.app.bookFor('program', await h2.app.viewData()));
+  const empty = h2.app.printReportHTML('program', d2, {});
+  eq(/₹0/.test(empty.slice(empty.indexOf('অনুষ্ঠানের আয়'), empty.indexOf('🙏'))) === false ||
+     !/অনুষ্ঠানের আয়<\/h3>/.test(empty), true,
+     'A287: an untouched 🎭 fund prints no income table full of zeros');
+
+  // ── the sheet says WHO made it
+  await h.show('report');
+  h.app.printReport('program');
+  await new Promise(function (r) { setTimeout(r, 300); });
+  const area = h.doc.__byId['print-area'];
+  eq(!!area, true, 'A287: printing builds its own headed copy');
+  const head = area ? area.innerHTML : '';
+  eq(/class="p-puja"/.test(head), true, 'A287: …headed with the puja');
+  eq(/রতন/.test(head.slice(0, head.indexOf('</div>', head.indexOf('p-meta')))), true,
+     'A287: …and with WHO produced it — the first thing asked of a filed sheet');
+  eq(h.box.__printed >= 1, true, 'A287: …and it actually asks the phone to print');
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

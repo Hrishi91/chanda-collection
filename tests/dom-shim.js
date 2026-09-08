@@ -282,6 +282,7 @@ function loadApp(opts) {
     confirm: function (m) { calls.push(['confirm', String(m)]); return true; },
     prompt: function () { return null; },
     scrollTo: function () {},
+    print: function () { box.__printed = (box.__printed || 0) + 1; },
     fetch: function () { return Promise.reject(new Error('network')); },
     console: console,
     JSON: JSON, Math: Math, Number: Number, String: String, Date: Date, Array: Array,
@@ -389,7 +390,9 @@ function loadApp(opts) {
                " newPartyFlow: newPartyFlow, paymentFlow: paymentFlow, dailyFlow: dailyFlow," +
                " expenseFlow: expenseFlow, collectionExpenseFlow: collectionExpenseFlow," +
                " handoverFlow: handoverFlow, transferFlow: transferFlow, dutyFlow: dutyFlow," +
-               " flow: function () { return flowState; }, admGo: admGo };\n";
+               " flow: function () { return flowState; }, admGo: admGo," +
+               " printReport: printReport, printReportHTML: printReportHTML," +
+               " bookFor: bookFor };\n";
   vm.runInContext(src.slice(0, cut) + hook + src.slice(cut), box);
   if (!box.__app) throw new Error('dom-shim: the hook did not land');
 
