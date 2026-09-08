@@ -9827,6 +9827,132 @@ pending.push((async function () {
      'A276: the four chip lists all go through it');
 }
 
+// A277 — js/app.js, BUILT and read, not grepped.
+//
+// 288 of 352 mutations of that file survive and 66 of the 72 catches were a
+// regex over its source. What is left is the drawing, and the only way to hold
+// a drawing is to draw it. tests/dom-shim.js stands in for the DOM the way
+// gas-shim stands in for Apps Script — by hand, because this repo has no
+// package.json and adding jsdom is not a test's decision to make.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন রোড', nameEn: 'Main Rd' }];
+  const book = function (parties, payments) {
+    return { parties: parties, payments: payments || [], daily: [], expenses: [],
+             handovers: [], voids: [], corrections: [], messages: [] };
+  };
+  const P = function (o) {
+    return Object.assign({ year: 2026, type: 'shop', pledged: 1000, side: 'main_malda',
+                           collectorId: 'ratan', createdAt: '2026-09-01T10:00:00Z' }, o);
+  };
+  const Y = function (o) {
+    return Object.assign({ year: 2026, amount: 0, date: '2026-09-07', collectorId: 'ratan' }, o);
+  };
+  const RATAN = { username: 'ratan', name: 'রতন', role: 'collector', cashier: 0,
+                  entries: 'shop,person,road' };
+  const open = function (user, central, extra) {
+    return loadApp(Object.assign({ user: user, lists: { area: AREA }, central: central }, extra || {}));
+  };
+
+  // ── the ledger row: what a collector actually reads
+  {
+    const h = open(RATAN, book(
+      [P({ id: 'p1', name: 'রাম স্টোর্স' }), P({ id: 'p2', type: 'person', name: 'শ্যাম', pledged: 500, collectorId: 'pori' })],
+      [Y({ id: 'y1', partyId: 'p1', amount: 400 })]));
+    await h.ready;
+    const html = await h.show('list');
+    eq(/রাম স্টোর্স/.test(html), true, 'A277: the ledger lists a donor by name');
+    eq(/রাম স্টোর্স[\s\S]{0,200}?₹400\/₹1,000/.test(html), true,
+       'A277: …with paid over pledged, in that order');
+    eq(/রাম স্টোর্স[\s\S]{0,220}?বাকি ₹600/.test(html), true, 'A277: …and what is still owed');
+    eq(/রাম স্টোর্স[\s\S]{0,200}?দোকান • মেন রোড/.test(html), true,
+       'A277: …the KIND first and then the area, both in Bengali');
+    eq(/শ্যাম[\s\S]{0,200}?ব্যক্তি/.test(html), true, 'A277: a person is not drawn as a shop');
+    eq(/data-id="p1"/.test(html) && /data-id="p2"/.test(html), true,
+       'A277: …and every row carries the id its tap needs');
+  }
+
+  // ── A266, END TO END, on the screen this whole thread started from.
+  // ₹300.30 pledged, three installments of ₹100.10, every rupee handed over.
+  {
+    const h = open(RATAN, book([P({ id: 'p1', name: 'পুরো দিয়েছে', pledged: 300.30 })],
+      [Y({ id: 'y1', partyId: 'p1', amount: 100.10 }), Y({ id: 'y2', partyId: 'p1', amount: 100.10 }),
+       Y({ id: 'y3', partyId: 'p1', amount: 100.10 })]));
+    await h.ready;
+    const html = await h.show('list');
+    eq(/বাকি ₹0/.test(html), false,
+       'A277: a donor who paid in full is NOT shown owing ₹0 — A266, through the real screen');
+    eq(/পুরো দিয়েছে[\s\S]{0,220}?✅/.test(html), true, 'A277: …they are shown settled');
+    const party = await h.show('party', { id: 'p1' });
+    eq(/remind-btn/.test(party), false,
+       'A277: …and their page offers no 📞 reminder, which is what the epsilon was for');
+    eq(/class="green"/.test(party) || !/class="red"/.test(party), true,
+       'A277: …and the বাকি figure is not painted red');
+  }
+
+  // ── the empty state, and the sentence a partial book has to say
+  {
+    const h = open(RATAN, book([]));
+    await h.ready;
+    const html = await h.show('list');
+    eq(/এখনো কোনো এন্ট্রি নেই/.test(html), true, 'A277: an empty book says so');
+    eq(/সব ধরনের entry ধরা নেই/.test(html), true,
+       'A277: …and an account that cannot see everything says THAT, with no figure attached');
+  }
+  {
+    const h = open({ username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' },
+                   book([P({ id: 'p1', name: 'রাম' })]));
+    await h.ready;
+    const html = await h.show('list');
+    eq(/সব ধরনের entry ধরা নেই/.test(html), false,
+       'A277: …and an admin, who sees the whole book, is not told their book is partial');
+  }
+
+  // ── a donor's own page
+  {
+    const h = open(RATAN, book([P({ id: 'p1', name: 'রাম স্টোর্স', phone: '9812000001' })],
+      [Y({ id: 'y1', partyId: 'p1', amount: 400 })]));
+    await h.ready;
+    const html = await h.show('party', { id: 'p1' });
+    eq(/কথা[\s\S]{0,60}?₹1,000/.test(html), true, 'A277: the donor page shows what was promised');
+    eq(/জমা[\s\S]{0,60}?₹400/.test(html), true, 'A277: …what has come in');
+    eq(/class="red"[\s\S]{0,60}?বাকি[\s\S]{0,60}?₹600/.test(html), true,
+       'A277: …and what is still owed, in red because it IS owed');
+    eq(/id="remind-btn"/.test(html), true, 'A277: …with the 📞 reminder, because there is a debt and a number');
+    eq(/জমার ইতিহাস[\s\S]{0,400}?2026-09-07/.test(html), true, 'A277: …over a dated history');
+  }
+  {
+    const h = open(RATAN, book([P({ id: 'p1', name: 'ফোন নেই' })], [Y({ id: 'y1', partyId: 'p1', amount: 400 })]));
+    await h.ready;
+    const html = await h.show('party', { id: 'p1' });
+    eq(/id="remind-btn"/.test(html), false,
+       'A277: no phone number, no reminder button — both halves of that condition');
+  }
+
+  // ── the home screen offers only what this account may enter
+  {
+    const h = open(RATAN, book([P({ id: 'p1', name: 'রাম' })], [Y({ id: 'y1', partyId: 'p1', amount: 400 })]));
+    await h.ready;
+    const html = await h.show('home');
+    eq(/data-go="shop"/.test(html) && /data-go="person"/.test(html) && /data-go="road"/.test(html), true,
+       'A277: every granted kind gets a tile');
+    eq(/data-go="bus"/.test(html) || /data-go="member"/.test(html), false,
+       'A277: …and nothing that was not granted, because a dead tile is worse than a missing one');
+    eq(/এখন আমার হিসাবে আছে: <b>₹400<\/b>/.test(html), true,
+       'A277: …and the money this collector is holding, as a figure they can tap into');
+  }
+
+  // ── A91: the logged-out screen, which every check used to skip by injecting a session
+  {
+    const h = loadApp({ user: null });
+    await h.ready;
+    await h.show('home');
+    const nav = h.doc.__byId.bottomnav, badge = h.doc.__byId['sync-badge'];
+    eq(!!nav && nav.hidden, true, 'A277: a logged-out phone hides the nav — five dead tabs was A91');
+    eq(!!badge && badge.hidden, true, 'A277: …and the sync badge, which meant nothing either');
+  }
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

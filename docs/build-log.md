@@ -18193,3 +18193,89 @@ saying plainly: the named-catch count went DOWN, because some of what those
 catches were holding is no longer there to hold.
 
 Tests 3,748 → 3,767. CLIENT night.
+
+## A277 — js/app.js, BUILT and read
+
+The remaining survivors are the DRAWING: which sentence appears, which class is
+set, which row is shown. There is exactly one way to hold a drawing, and it is to
+draw it.
+
+**No jsdom, and no `package.json`.** This repo is a no-build-step PWA and adding
+a dependency is not a test's decision to make — it is Hrishi's. So the DOM was
+measured first: **9 `document.*` APIs and ~26 element ones**, and the weight all
+in `getElementById` / `innerHTML` / `dataset` / `onclick`. That is a shim, not a
+research project. `tests/dom-shim.js` stands in for the DOM the way
+`tests/gas-shim.js` stands in for Apps Script.
+
+`loadApp()` runs `js/db.js`, `js/i18n.js`, `js/numparse.js`, `js/aggregate.js`
+and then **js/app.js itself** in one vm context, over the fake IndexedDB A245
+already built, and hands back the HTML each screen paints.
+
+### Four ways the harness lied before it worked, each caught by looking
+
+1. **`DB` was undefined and a screen still painted.** `const DB = (function(){…})()`
+   is a top-level const and does not land on a vm context's global. The list
+   screen drew its search box and chips anyway, because that half is painted
+   before `viewData()` is ever called. *A harness that paints something is not a
+   harness that works.* Handed out explicitly, and the shim now throws if any of
+   DB / Settings / Aggregate / NumParse / t / fmtMoney is missing.
+2. **A server that answers instantly is not a fast server, it is a feedback
+   loop.** `pullCentral().then(…render())` and `applyNotifications(…render())`
+   both repaint on an answer; an answer in zero time re-renders for ever. It
+   starved the event loop and ate two gigabytes in six seconds — no stack, no
+   output, just an OOM. The default is now NO NETWORK, which is also the honest
+   default for an offline-first app: **every screen must paint from the local
+   snapshot.**
+3. **Forty microtasks is not "waiting".** The first `show()` spun a promise chain
+   and always read the PRE-data paint. Real event-loop turns from the host realm.
+4. **The snapshot was injected through `setCentral()`**, and the first pull threw
+   it away — A75's year guard is right, and a phone holds its snapshot in
+   `ck_central` + `ck_central_year`. Seeded that way now. (Settings keys are
+   `ck_`-prefixed too; the shim prefixes them so a test cannot get that wrong,
+   which this repo has written down twice and walked into twice.)
+
+Each of those looked like a working harness. Three of the four produced a green
+screen with nothing in it.
+
+### What it holds
+
+24 assertions over five screens, all reading real painted HTML: the ledger row's
+paid-over-pledged and its বাকি chip, kind-then-area in Bengali, the id every tap
+needs; the empty state; the partial-book sentence, shown to a limited account and
+**not** to an admin; the donor page's three figures with বাকি in red, its 📞
+button and dated history; the home screen's tiles, present for every granted kind
+and absent for every kind that was not; and **A91** — a logged-out phone hides
+the nav and the sync badge.
+
+And the one that closes the loop: **A266, end to end, through the real screen.**
+₹300.30 pledged, three installments of ₹100.10, every rupee handed over — the
+ledger shows ✅, not `বাকি ₹0`, and the donor's page offers no reminder.
+
+### What it does NOT do, said plainly
+
+`innerHTML` is **captured, not parsed**. There is no element tree, so
+`querySelectorAll` after a paint answers empty and wiring cannot be driven from
+here. What is tested is what the screen SAYS. Anything needing a real tree stays
+the browser's job — and that is written at the top of the shim, not left for
+somebody to discover.
+
+### The measurement
+
+| | spots | survived | named catches |
+|---|---|---|---|
+| A272 (first full run) | 411 | 339 | 72 |
+| after A272–A275 | 394 | 321 | 73 |
+| after A276 | 352 | 288 | 64 |
+| **after A277** | **352** | **276** | **72** |
+
+Twelve more render survivors dead, and **seven of the catches are now A277
+assertions that ran the code** rather than regexes that read it. Four render
+mutations that had survived every run were re-tried by hand and each failed by
+name: loosen the reminder's `&&`, make the বাকি chip unconditional, drop the
+partial-book sentence, swap paid and pledged.
+
+**The harness is the asset, not the twelve.** Every further screen is now a
+fixture and a handful of assertions, and `docs/pending.md`'s open question — "is
+a DOM harness worth it" — is answered by having one.
+
+Tests 3,767 → 3,791.

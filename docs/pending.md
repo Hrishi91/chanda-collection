@@ -739,33 +739,24 @@ kind that can lose data.
 
 ## The measured hole: js/app.js is never RUN (A266/A267, 2026-09-07)
 
-- [ ] **Decide whether app.js gets a DOM harness.** MEASURED, not estimated:
-  **411 mutations, 339 survived (82%)**, and of the 72 caught, **66 were caught
-  by a regex over the source text**. Five were caught by an assertion that ran a
-  computation (A119, A218, A222). Behavioural coverage of `js/app.js` is
-  **1.2%**.
+- [x] **A DOM harness for app.js — DONE (A277), and it needs no dependency.**
+  `tests/dom-shim.js` runs js/app.js in a vm over the fake IndexedDB and hands
+  back the HTML each screen paints. No jsdom, no package.json: the DOM surface
+  app.js uses is 9 document APIs and ~26 element ones.
 
-  The tripwires are worth keeping — they caught four edits in the A266–A273
-  session and each had to be repointed deliberately — but they are not coverage,
-  and the two real bugs the survey found (a second dues filter written inverted,
-  a handover gate that opened at ₹0) were both on lines nobody had pinned.
+  Measured journey: **339/411 → 321/394 → 288/352 → 276/352 surviving.** Seven of
+  the catches now RUN the code instead of reading it.
 
-  **The cheap half is proven and under way**: when a decision can move OUT of
-  app.js into `js/aggregate.js` it becomes properly testable. `isDue`,
-  `moreThan`, `keyOfFund`, `canEditParty` and `canVoid` are that — the last two
-  went from zero assertions to a 27-row truth table, all five of their guards
-  mutation-proved, in one commit and with the drawing untouched.
+- [ ] **Keep feeding it — one screen at a time, when there is time.** 24
+  assertions cover the ledger, the donor page, home, the empty state and the
+  logged-out screen. Still unheld and worth a night each: 🤝 handover, the 🩺
+  desk, the reports, the admin panel, and the guided entry flow. Each is now a
+  fixture plus a handful of assertions — the expensive part is already built.
 
-  **What is still open is the SIZE of the rest.** The remaining 332 survivors are
-  mostly `render` (165) and `list` (50) — the drawing, where extraction buys
-  little and a jsdom harness would buy a lot. Money (33) and permission (27) are
-  the ones worth extracting next, one rule at a time, each with its truth table.
-  **Not a puja-week job**, and there is no need to decide it in one go.
-
-  Also worth knowing: the module sweep is CLOSED. Every other file —
-  `sync`, `db`, `auth`, `lists`, `help`, `voice`, `i18n`, `numparse` — went from
-  23 survivors to 3, and each of the three is written up with the argument for
-  why it is equivalent (A269–A271).
+  Two limits are deliberate and written at the top of the shim: `innerHTML` is
+  captured, not parsed (so wiring cannot be driven from node — that stays the
+  browser's job), and the fake server never answers unless a test says so,
+  because an instant answer is a render feedback loop rather than a fast server.
 
 ## AFTER THE PUJA — the PRODUCT question (Hrishi, 2026-08-17)
 
