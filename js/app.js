@@ -3392,7 +3392,7 @@
           return '<div class="row" style="cursor:default;flex-wrap:wrap"><div style="flex:1 1 60%"><b>' +
             esc(m.name) + '</b><div class="row-sub">' + esc(bits.join(' · ')) + '</div></div>' +
             '<div class="chips" style="margin:0">' +
-              '<button class="chip" data-ma-edit="' + esc(m.id) + '">✏️ ' + esc(t('edit_btn')) + '</button>' +
+              '<button class="chip" data-ma-edit="' + esc(m.id) + '">' + esc(t('edit_btn')) + '</button>' +
             '</div></div>';
         }).join('') : '<div class="empty">' + esc(t('member_none_admin')) + '</div>');
       el.querySelectorAll('[data-ma-edit]').forEach(function (b) {

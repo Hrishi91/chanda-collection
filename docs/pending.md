@@ -747,16 +747,25 @@ kind that can lose data.
   Measured journey: **339/411 → 321/394 → 288/352 → 276/352 surviving.** Seven of
   the catches now RUN the code instead of reading it.
 
-- [ ] **Keep feeding it — one screen at a time, when there is time.** 24
-  assertions cover the ledger, the donor page, home, the empty state and the
-  logged-out screen. Still unheld and worth a night each: 🤝 handover, the 🩺
-  desk, the reports, the admin panel, and the guided entry flow. Each is now a
-  fixture plus a handful of assertions — the expensive part is already built.
+- [x] **Every screen is drawn in a test now (A277–A280).** The ledger, the donor
+  page, home, the empty and logged-out states, the 🤝 desk, the জমা-খাতা, the
+  report, the 🩺 desk, the 👑 panel, the guided entry flow ANSWERED end to end,
+  ✏️ আমার লেখা, ⚙️, 🔎, 🎖️ সদস্য, 🛠️, 🪦, profile, 💬 and a pot.
 
-  Two limits are deliberate and written at the top of the shim: `innerHTML` is
-  captured, not parsed (so wiring cannot be driven from node — that stays the
-  browser's job), and the fake server never answers unless a test says so,
-  because an instant answer is a render feedback loop rather than a fast server.
+- [ ] **What is left is a long tail, and it is worth knowing that before
+  spending a night on it.** 255 of 352 mutations still survive, spread across
+  **121 functions with a biggest cluster of eight** — there is no shape left to
+  fix in one pass. Most of the remainder is either the defensive `x && x.y`
+  idiom (where `||` throws rather than lies) or a loop bound that reads one past
+  the end.
+
+  The measured journey, for whoever picks this up: **339/411 → 321/394 →
+  288/352 → 276 → 275 → 263 → 255.** Six real bugs came out of it, and the last
+  two were the same rule broken twice (a label given an emoji it already owned),
+  which is now swept rather than remembered.
+
+  If more is wanted, the cheapest next steps are the flows nobody has answered
+  yet — payment, daily, expense, handover — each one a walk like A279's.
 
 ## AFTER THE PUJA — the PRODUCT question (Hrishi, 2026-08-17)
 

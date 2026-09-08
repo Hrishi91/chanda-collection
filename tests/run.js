@@ -10227,6 +10227,174 @@ pending.push((async function () {
   }
 })());
 
+// A280 — the long tail: every screen the harness had not yet opened.
+//
+// After A276–A279 the 263 survivors are spread across 121 functions, the biggest
+// cluster being eight. There is no shape left to fix — what is left is screens
+// nobody had drawn in a test. Each is a fixture and a handful of assertions.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন রোড', nameEn: 'Main Rd' }];
+  const EMPTY = { parties: [], payments: [], daily: [], expenses: [], handovers: [],
+                  voids: [], corrections: [], messages: [] };
+  const RATAN = { username: 'ratan', name: 'রতন', role: 'collector', cashier: 0,
+                  entries: 'shop,person,member,road', reports: 'inhand' };
+  const open = function (user, o) {
+    return loadApp(Object.assign({ user: user, lists: { area: AREA }, central: EMPTY }, o || {}));
+  };
+
+  // ── ✏️ আমার লেখা entry — A123's rule: every summary LEADS with what KIND of
+  // money it is, because "শিকল দাতা — ₹200" and "প্যান্ডেল — ₹50" looked
+  // identical on a mixed list and only memory could tell them apart.
+  {
+    const h = open(RATAN, {
+      central: Object.assign({}, EMPTY, { parties: [{ id: 'p1', year: 2026, type: 'shop',
+        name: 'রাম', pledged: 1000, side: 'main_malda', collectorId: 'ratan' }] }),
+      local: { payments: [{ id: 'y1', year: 2026, partyId: 'p1', partyName: 'রাম', amount: 400,
+                 date: '2026-09-07', collectorId: 'ratan', collector: 'রতন',
+                 collectorRole: 'collector', cashAmount: 400, upiAmount: 0, synced: 1 }],
+               daily: [{ id: 'd1', year: 2026, type: 'road', amount: 300, date: '2026-09-07',
+                 collectorId: 'ratan', collector: 'রতন', collectorRole: 'collector',
+                 cashAmount: 300, upiAmount: 0, synced: 1 }] } });
+    await h.ready;
+    const html = await h.show('entries');
+    eq(/💰 দাতার জমা · রাম — ₹400/.test(html), true,
+       'A280: a donor payment says it is a donor payment, and whose');
+    eq(/🛣️ রোড — ₹300/.test(html), true, 'A280: …and a road round says it is a road round');
+    eq(/data-fl="payments\|y1"/.test(html) && /data-fl="daily\|d1"/.test(html), true,
+       'A280: …each with the one thing its own author may do — flag it as wrong');
+    eq(/data-void="/.test(html), false,
+       'A280: …and a plain collector is offered no ✖️ on their own row, because the রায় is the cashier\'s');
+  }
+  {
+    const h = open(RATAN, {});
+    await h.ready;
+    eq(/এখনো কোনো এন্ট্রি নেই/.test(await h.show('entries')), true,
+       'A280: nothing written yet says so, rather than drawing an empty frame');
+  }
+
+  // ── ⚙️ Settings
+  {
+    const h = open(RATAN, {});
+    await h.ready;
+    const html = await h.show('settings');
+    eq(/@ratan/.test(html), true, 'A280: settings says which account this phone is signed into');
+    eq(/data-adm-go|Admin/.test(html), false, 'A280: …and offers a collector no admin door');
+  }
+  {
+    const h = open({ username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' }, {});
+    await h.ready;
+    const html = await h.show('settings');
+    eq(/Admin/.test(html), true, 'A280: …while an admin is offered one');
+  }
+
+  // ── 🔎 যেকোনো দাতা খুঁজে জমা নাও — the screen for somebody ELSE's donor
+  {
+    const h = open(RATAN, { central: Object.assign({}, EMPTY, {
+      parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'রাম', pledged: 1000, collectorId: 'pori' }] }) });
+    await h.ready;
+    // Reaching somebody ELSE's donors is its own grant, and the ROUTE is guarded
+    // as well as the button — Back and history can reach a screen whose button
+    // is hidden. Both halves:
+    const denied = await h.show('findparty');
+    eq(/id="fp-search"/.test(denied), false,
+       'A280: without the grant the find screen is not reached, however you got there');
+    eq(/data-duetoggle/.test(denied), true, 'A280: …you land on the ledger instead of on nothing');
+  }
+  {
+    const h = open(Object.assign({}, RATAN, { entries: RATAN.entries + ',otherdonor' }),
+      { central: Object.assign({}, EMPTY, {
+        parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'রাম', pledged: 1000, collectorId: 'pori' }] }) });
+    await h.ready;
+    const html = await h.show('findparty');
+    eq(/id="fp-search"/.test(html), true, 'A280: …and WITH the grant it opens, with a box to search in');
+    eq(/অন্য/.test(html), true, 'A280: …saying up front whose donors it is for');
+  }
+
+  // ── 🎖️ কমিটির সদস্য
+  {
+    const h = open({ username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: 'member,memberadmin' }, {
+      central: Object.assign({}, EMPTY, { parties: [{ id: 'm1', year: 2026, type: 'member',
+        name: 'সদস্য এক', pledged: 500, collectorId: 'boss', appUser: 'kali' }] }) });
+    await h.ready;
+    await h.show('memberadmin');
+    const list = h.doc.__byId['ma-list'].innerHTML;
+    eq(/সদস্য এক/.test(list), true, 'A280: the committee list names its members');
+    eq(/1 জন সদস্য/.test(list), true, 'A280: …and counts them');
+    eq(/@kali/.test(list), true, 'A280: …with the app account each is joined to, which is the point of the screen');
+    // A280: `edit_btn` is "✏️ বদলাও" — it carries its own pencil, and three of
+    // its four call sites print it plain. The fourth prepended a second one.
+    eq(/✏️ ✏️/.test(list), false, 'A280: …and no button prints its label\'s emoji twice');
+    const form = await h.show('memberform', {});
+    eq(/নতুন সদস্য/.test(form), true, 'A280: …and adding one opens on "new", not on somebody');
+    eq(/app-অ্যাকাউন্ট/.test(form), true,
+       'A280: …asking for the app account, which is what collapses the two copies of a person into one');
+  }
+
+  // ── 🛠️ নালিশের রায়, 🪦 মুছে-যাওয়া, ✏️ আমার তথ্য, 💬 বার্তা
+  {
+    const h = open({ username: 'kali', name: 'কালী', role: 'collector', cashier: 1,
+                     entries: 'shop,review', reports: 'inhand' }, {});
+    await h.ready;
+    eq(/নালিশ/.test(await h.show('review')), true, 'A280: the corrections desk explains what it is for');
+  }
+  {
+    const h = open(RATAN, {});
+    await h.ready;
+    eq(/মুছে-যাওয়া/.test(await h.show('graveyard')), true,
+       'A280: the 🪦 list exists so a wiped entry can be re-entered rather than lost');
+    const prof = await h.show('profile');
+    eq(/রতন/.test(prof), true, 'A280: the profile screen opens on THIS person');
+    eq(/Username/.test(prof), true, 'A280: …and says which parts of them cannot be changed here');
+  }
+  {
+    const h = open(RATAN, {});
+    await h.ready;
+    eq(/@ দিয়ে/.test(await h.show('messages')), true,
+       'A280: the chat says how to reach one person, because a broadcast nobody is named in is noise');
+  }
+
+  // ── one pot, opened
+  {
+    const h = open(RATAN, { central: Object.assign({}, EMPTY, {
+      parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'রাম', pledged: 1000, collectorId: 'ratan' }],
+      payments: [{ id: 'y1', year: 2026, partyId: 'p1', partyName: 'রাম', amount: 400, date: '2026-09-07',
+                   collectorId: 'ratan', collector: 'রতন', cashAmount: 400, upiAmount: 0 }] }) });
+    await h.ready;
+    const html = await h.show('pot', { cat: 'shop' });
+    eq(/আমি তুলেছি <b>₹400<\/b>/.test(html), true, 'A280: a pot opens on what went into it');
+    eq(/হাতে <b>₹400<\/b>/.test(html), true, 'A280: …and what is still in it');
+    eq(/💵 নগদ ₹400 · 📱 UPI ₹0/.test(html), true, 'A280: …split by the form it is held in');
+  }
+})());
+
+// A280 — the double-emoji class, swept.
+//
+// Twice in one pass: `🎖️ 🎖️ কমিটির পদ` (A279) and `✏️ ✏️ বদলাও` (A280). Both
+// are the same rule, which this project wrote down years ago: never let a title
+// carry an emoji the button also prepends. A rule you can only remember is a
+// rule you break twice; this one is checkable.
+{
+  const { loadI18n } = require('./idb-shim.js');
+  const I80 = loadI18n({}).I18N;
+  const app80 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  // "<emoji> ' + esc(t('key'))" — the shape that prepends
+  const RE80 = /'([\u{1F300}-\u{1FAFF}\u{2190}-\u{27BF}\u{2B00}-\u{2BFF}]\u{FE0F}?)\s'\s*\+\s*esc\(t\('([A-Za-z0-9_]+)'\)\)/gu;
+  const dup = [];
+  let m80;
+  while ((m80 = RE80.exec(app80))) {
+    const glyph = m80[1], key = m80[2];
+    const label = (I80[key] && (I80[key].bn || I80[key].en)) || '';
+    if (label.indexOf(glyph) === 0) dup.push(key + ' (' + glyph + ')');
+  }
+  eq(dup.length, 0, 'A280: no label is given an emoji it already starts with → ' + dup.join(', '));
+  // and the check can see one: these two labels DO carry their own glyph, so
+  // the sweep is looking at real data rather than an empty list.
+  eq(/^🎖️/.test((I80.list_position || {}).bn || ''), true,
+     'A280: …checked against labels that really do own their emoji (🎖️)');
+  eq(/^✏️/.test((I80.edit_btn || {}).bn || ''), true, 'A280: …and ✏️');
+}
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

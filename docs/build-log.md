@@ -18419,3 +18419,65 @@ which is the direction that matters: fewer places to be wrong, and more of what
 is left actually held.
 
 Tests 3,812 → 3,845.
+
+## A280 — the long tail, and the same rule broken twice
+
+After A279 the survivors were **263 across 121 functions, biggest cluster
+eight.** No shape left to fix in one pass — what remained was screens nobody had
+drawn in a test. So all of them were drawn: ✏️ আমার লেখা entry, ⚙️, 🔎 খুঁজে
+দাও, 🎖️ কমিটির সদস্য and its form, 🛠️ নালিশ, 🪦, ✏️ আমার তথ্য, 💬 and one pot.
+
+### `✏️ ✏️ বদলাও` — the second one
+
+`edit_btn` is **"✏️ বদলাও"**: it carries its own pencil, and three of its four
+call sites print it plain. The fourth prepended another. Exactly A279's
+`🎖️ 🎖️ কমিটির পদ`, one commit later, in a different screen.
+
+**A rule you can only remember is a rule you break twice.** So it is a sweep now:
+every `'<emoji> ' + esc(t('key'))` in `js/app.js` is checked against the label
+that key resolves to, and a label that already starts with that glyph fails the
+suite by name. The check also asserts that two labels really do own their emoji,
+so it is looking at data rather than at an empty list — a green sweep over
+nothing is the oldest way to feel safe and be wrong.
+
+### What the screens hold
+
+- **✏️ আমার লেখা** — A123's rule, asserted: every summary LEADS with what KIND of
+  money it is (`💰 দাতার জমা · রাম`, `🛣️ রোড`), because on a mixed list a donor's
+  payment and an expense rendered identically and only memory could tell them
+  apart. Each row offers its own author the one thing they may do — flag it —
+  and **no ✖️**, because the রায় is the cashier's.
+- **🔎 খুঁজে দাও** — both halves of its grant. Reaching somebody else's donors is
+  its own permission, and the ROUTE is guarded as well as the button, because
+  Back and history reach screens whose buttons are hidden. Without it you land on
+  the ledger; with it, the search box.
+- **🎖️ কমিটির সদস্য** — names, a count, and the app account each member is joined
+  to, which is the whole point of the screen.
+- ⚙️ names the account and offers a collector no admin door; 🛠️, 🪦, profile and
+  💬 each say what they are for; a pot opens on what went into it, what is left,
+  and the form it is held in.
+
+### The measurement, and an honest note about it
+
+352 spots, **255 survive** (263 before), 85 named catches, **12 threw**.
+
+That last number went 4 → 12, and it is worth saying why: as the harness runs
+more of the file, a mutation increasingly **kills the run** rather than failing
+an assertion. The tool counts those separately on purpose — a throw proves
+something executed the line, not that anything held its behaviour.
+
+| | spots | survived |
+|---|---|---|
+| A272 (first full run) | 411 | 339 |
+| A276 | 352 | 288 |
+| A277 | 352 | 276 |
+| A278 | 352 | 275 |
+| A279 | 352 | 263 |
+| **A280** | **352** | **255** |
+
+**339 → 255.** What is left is genuinely long-tailed: the defensive `x && x.y`
+idiom, and loop bounds that read one past the end. `docs/pending.md` says so,
+with the next cheapest step named (the flows nobody has answered yet) rather
+than an open-ended "keep going".
+
+Tests 3,845 → 3,874.
