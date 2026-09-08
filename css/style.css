@@ -1,5 +1,6 @@
 * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
 :root {
+  color-scheme: light;
   --saffron: #d9531e; --saffron-dark: #b03e12; --gold: #f6b93b; --gold-ink: #8a5a00;
   /* A177: the same saffron, one step darker, for the places where SMALL white
      text sits on it. #d9531e against white measures 4.03:1 — under the 4.5 that
@@ -9,6 +10,17 @@
      untouched: headers and gradients keep it, because their text is large and
      large text clears at 3:1. */
   --saffron-ontext: #cf4a17;
+  /* A285: there is no dark palette yet, and that is a roadmap item. What is NOT
+     a roadmap item is Android Chrome's auto-dark inverting this page with its
+     own algorithm — which would let the phone's maker decide what colour a
+     collector sees money in. Declared light until a real dark palette exists;
+     then this line changes rather than being remembered.
+     A285: a green dark enough for SMALL text, the same way --gold-ink and
+     --saffron-ontext already exist. --green (#1e8f4d) measures 3.85:1 on the
+     cream and 3.91 on the green panel — fine for the 34px hero (large text
+     clears at 3:1), under the 4.5 that a 15.5px bold "হাতে আছে ₹4,16,850"
+     needs. #1a7a42 measures 5.02 / 5.09 and is not visibly a different green. */
+  --green-ink: #1a7a42;
   --bg: #fdf6ee; --card: #ffffff; --ink: #2d2418; --sub: #7f6f5b; /* A64 (audit 2.13): was #8a7a66 = 3.88:1 on --bg, below WCAG AA,
      and it is the colour of every secondary line in the app — the collector's
      name, every row-sub, every hint, the dues under each donor. Read outdoors,
@@ -32,14 +44,28 @@ header {
 .hdr-right { display: flex; align-items: center; gap: 8px; }
 /* A129: the visible form of pull-to-refresh — same pill as the sync badge so
    the header reads as one "sync corner", not two unrelated controls */
+/* A285: 34×28 and 33×25, side by side in the hardest corner of the screen —
+   and 🔄 is the button a collector presses when the cashier says their money is
+   not showing. docs/pending.md records 44px on "every button, chip, back-bar,
+   void-btn and input"; these three were never in that list. */
 #hdr-refresh, #hdr-curtain { background: rgba(255,255,255,.2); border: 0; color: #fff;
-  font-size: 14px; padding: 4px 10px; border-radius: 99px; cursor: pointer; line-height: 1.4; }
+  font-size: 14px; padding: 4px 10px; border-radius: 99px; cursor: pointer; line-height: 1.4;
+  position: relative; }
+/* A285: the TARGET is 44px; the pill is not. Setting min-height on the pills
+   themselves was tried and measured — it pushed the header from 57px to 72px,
+   which is fifteen pixels off every screen in the app to fix a tap. An
+   invisible overlay inside the button gets the same finger and costs no
+   layout. */
+#hdr-refresh::after, #hdr-curtain::after, .hdr-right .badge::after {
+  content: ''; position: absolute; top: 50%; left: 50%;
+  width: 44px; height: 44px; transform: translate(-50%, -50%);
+}
 #hdr-refresh:active, #hdr-curtain:active { background: rgba(255,255,255,.35); }
 /* A144: a DRAWN curtain has to be unmistakable from every screen. An icon swap
    alone (👁️ → 🙈) is too quiet at header size — somebody forgets it is on and
    goes looking for money that was never missing. So the pill also lights up. */
 #hdr-curtain[aria-pressed="true"] { background: var(--gold); color: var(--ink); font-weight: 700; }
-.badge { font-size: 13px; padding: 4px 10px; border-radius: 99px; cursor: pointer; font-weight: 600; }
+.badge { font-size: 13px; padding: 4px 10px; border-radius: 99px; cursor: pointer; font-weight: 600; position: relative; }
 .badge.ok { background: rgba(255,255,255,.2); }
 .badge.warn { background: var(--gold); color: var(--ink); }
 /* A54: a refused entry is not a pending one — its own colour, so the header
@@ -168,8 +194,12 @@ button.block { display: block; width: 100%; margin: 8px 0; }
    guide today, the anomaly desk and the handover book tomorrow. Sticky needs a
    solid background (ghost buttons are transparent, and a see-through bar over
    scrolling text is unreadable) and a z-index above the cards. */
+/* A285: it stuck at top:8 with a z-index ABOVE the header, so on any long
+   screen a cream box slid over the saffron bar and covered half of
+   "🙏 চাঁদা খাতা". Header measures ~57px (≈49px under the 360px breakpoint);
+   the back bar sticks below it. */
 button.back-bar { margin: 0 0 12px; padding: 8px 14px; font-size: 14px; min-height: 44px;
-  position: sticky; top: 8px; z-index: 30; background: var(--bg); }
+  position: sticky; top: calc(60px + env(safe-area-inset-top)); z-index: 9; background: var(--bg); }
 .help-p { font-size: 14.5px; line-height: 1.65; color: var(--sub); margin: 8px 0; }
 .help-p b { color: var(--ink); }
 .row.voided b { text-decoration: line-through; color: var(--sub); }
@@ -259,7 +289,7 @@ select.chip { appearance: none; -webkit-appearance: none; max-width: 52vw; }
 .stat3 > div { flex: 1; background: var(--bg); border-radius: 10px; padding: 10px 8px; text-align: center; }
 .stat3 span { display: block; font-size: 11.5px; color: var(--sub); margin-bottom: 3px; }
 .stat3 b { font-size: 15.5px; }
-.stat3 .green b, .green b { color: var(--green); }
+.stat3 .green b, .green b { color: var(--green-ink); }
 .stat3 .red b, .red b { color: var(--red); }
 /* A137: gold as TEXT, not as a swatch. --gold (#f6b93b) is a background colour
    — on white it measures about 1.9:1, unreadable outdoors, which is exactly
@@ -283,6 +313,7 @@ select.chip { appearance: none; -webkit-appearance: none; max-width: 52vw; }
 .onboard h2 { margin: 8px 0 18px; font-size: 20px; }
 .toast {
   position: fixed; bottom: 86px; left: 50%; transform: translateX(-50%) translateY(20px);
+  /* A285: see the ladder below — two at once used to land in one slot. */
   background: var(--ink); color: #fff; padding: 11px 20px; border-radius: 99px;
   font-size: 15px; font-weight: 600; opacity: 0; transition: all .25s; z-index: 99;
   /* A64 (audit 2.13): was `nowrap` + ellipsis, so anything past ~35 characters
@@ -297,6 +328,23 @@ select.chip { appearance: none; -webkit-appearance: none; max-width: 52vw; }
   white-space: normal; text-align: center; line-height: 1.35; word-break: break-word;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* A285: js/app.js appends a fresh .toast per message and CSS put every one in
+   the same slot, so two at once printed on top of each other — measured
+   identical rects, y 684→726. Likeliest TODAY, on a first install: "the app is
+   not ready offline yet — ⚙️ → 🔄" fires beside the notification count, and it
+   is the INSTRUCTION that ends up underneath.
+   A stepped `bottom` ladder was tried first and measured STILL OVERLAPPING: the
+   offline message wraps to two lines (62px) and any fixed step is a guess about
+   a height that depends on the text and the language. A column that stacks by
+   its own contents cannot be wrong. */
+#toasts {
+  position: fixed; bottom: 86px; left: 0; right: 0; z-index: 99;
+  display: flex; flex-direction: column-reverse; align-items: center; gap: 8px;
+  pointer-events: none; padding: 0 12px;
+}
+/* the column ignores taps; the toasts in it do not — ✖️ Undo lives on one. */
+#toasts .toast { position: static; transform: translateY(20px); pointer-events: auto; }
+#toasts .toast.show { transform: translateY(0); }
 .toast-undo {
   display: flex; align-items: center; gap: 12px; white-space: normal;
 }
@@ -354,6 +402,7 @@ button.adm-stick {
   .hero { padding: 12px; }
   .row { padding: 10px 12px; }
   .section { margin: 10px 0 6px; }
+  button.back-bar { top: calc(52px + env(safe-area-inset-top)); }
 }
 
 @media print {
@@ -439,15 +488,24 @@ b.msg-at { color: var(--saffron); }
 .adm-user-name .row-sub { display: block; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .adm-caret { flex: 0 0 auto; color: var(--sub); font-size: 18px; }
 .adm-user-body { padding: 0 12px 12px; border-top: 1px solid var(--line); }
-.perm-grp { margin-top: 12px; }
-.perm-head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--sub); }
+/* A285: 🙏 পুজো and 🎭 অনুষ্ঠান draw the SAME nine chips in the same order, and
+   the only thing telling them apart was a 13px grey heading — the smallest,
+   faintest text on a 2,500px page, and in English the bulk buttons read only
+   "All" / "None". Same cure as A139's report zones, which are proven here:
+   make each group a block, and make the discriminator the strongest line in it
+   rather than the weakest. */
+.perm-grp { margin-top: 12px; padding: 10px 12px 12px; border-radius: 14px;
+  background: var(--card); border: 1px solid var(--line); border-left: 5px solid var(--line); }
+.perm-head { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; color: var(--ink); }
 .perm-bulk { margin-left: auto; display: flex; gap: 6px; }
 /* A72: a post-granted chip must not look like one somebody ticked here. Dashed
    border and the 🎖️ prefix, so the difference survives without a tooltip —
    which is the only thing a phone can rely on. */
 .chip.from-post { border-style: dashed; opacity: .85; cursor: not-allowed; }
 .chip.mini { padding: 8px 12px; font-size: 13px; min-height: 40px; }
-.perm-note { margin-top: 4px; font-size: 12px; color: var(--sub); opacity: .85; }
+/* A285: this line says what a group MEANS; it was the weakest text on the
+   screen at 12px + .85 opacity (~3.6:1). No opacity, and readable. */
+.perm-note { margin-top: 6px; font-size: 12.5px; color: var(--sub); }
 .perm-warn { margin-top: 4px; font-size: 12.5px; font-weight: 700; color: #c62828; }
 /* the cashier's read-only position above the two amount boxes */
 .sh-row.ro { cursor: default; }
@@ -563,9 +621,9 @@ b.msg-at { color: var(--saffron); }
 .expl b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .final { display: flex; justify-content: space-between; padding: 13px; background: #f2fbf5; border-top: 1px solid var(--line); }
 .final .k { font-weight: 700; }
-.final .v { font-weight: 800; font-size: 18px; color: var(--green); font-variant-numeric: tabular-nums; }
+.final .v { font-weight: 800; font-size: 18px; color: var(--green-ink); font-variant-numeric: tabular-nums; }
 /* slot colours — one colour, one meaning (see legend_note in i18n.js) */
-.pendbox > .head .amt, .pendbox .kid .v { color: #a9791a; }          /* gold: leaving */
+.pendbox > .head .amt, .pendbox .kid .v { color: var(--gold-ink); }   /* gold: leaving */
 .nobox   > .head .amt, .nobox   .kid .v { color: #1a5fa8; }          /* blue: your move */
 .actbox  > .head .amt, .actbox  .kid .v { color: #1a5fa8; }
 .okbox   > .head, .okbox > .head .amt   { color: var(--sub); }       /* grey: settled */

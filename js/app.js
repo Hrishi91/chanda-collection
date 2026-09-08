@@ -32,10 +32,25 @@
   function toastMs(msg) {
     return Math.min(8000, 2200 + String(msg || '').length * 45);
   }
+  // A285: every toast used to be appended straight to <body>, and CSS put every
+  // one of them in the same fixed slot — so two at once printed on top of each
+  // other and neither could be read. They go into a column now. A stepped CSS
+  // ladder was tried first and MEASURED still overlapping: the offline notice
+  // wraps to two lines, and any fixed step is a guess about a height that
+  // depends on the text and the language.
+  function toastHost() {
+    let host = document.getElementById('toasts');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'toasts';
+      document.body.appendChild(host);
+    }
+    return host;
+  }
   function toast(msg) {
     const el = document.createElement('div');
     el.className = 'toast'; el.textContent = msg;
-    document.body.appendChild(el);
+    toastHost().appendChild(el);
     setTimeout(function () { el.classList.add('show'); }, 10);
     setTimeout(function () { el.classList.remove('show'); setTimeout(function () { el.remove(); }, 300); }, toastMs(msg));
   }
@@ -45,7 +60,9 @@
     const el = document.createElement('div');
     el.className = 'toast toast-undo';
     el.innerHTML = '<span>' + esc(msg) + '</span><button class="toast-undo-btn">' + esc(t('undo')) + '</button>';
-    document.body.appendChild(el);
+    // the same column — this is the toast most likely to be covered, because it
+    // is the one with a button on it
+    toastHost().appendChild(el);
     let done = false;
     const finish = function () {
       if (done) return; done = true;

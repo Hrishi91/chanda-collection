@@ -18763,3 +18763,97 @@ Nothing here can verify the real Apps Script runtime — every server test runs 
 Both should now be refused with *"only an admin"*. Before this deployment the
 second one **went through silently** — no error, the post simply gone — which is
 what made it worth proving with a red test before fixing.
+
+## A285 — the pre-go-live phone review, applied
+
+Hrishi asked for an expert pass on presentation before going live tonight. The
+`ui-approach` agent drove the app on a real phone viewport (375 and 320px, bn and
+en, dark emulated), measured computed styles rather than eyeballing, and reported
+**no ship-blockers**: no horizontal scroll anywhere, no clipped text, ₹12,34,567
+grouping correctly, the keyboard-open flow fine, and the logged-out first screen
+fine. Six items were worth doing today. All six are here, and **two of my first
+attempts were wrong and were caught by measuring rather than assuming.**
+
+### 1. Two toasts printed on top of each other
+
+`js/app.js` appends a fresh `.toast` per message; the CSS put every one of them
+in the same fixed slot. Measured identical rects, `y 684→726`. The likeliest pair
+is the worst pair and it is likeliest TODAY — on a first install *"the app is not
+ready offline yet — ⚙️ → 🔄"* fires beside the notification count, and it is the
+**instruction** that ends up underneath.
+
+**First attempt: a stepped `bottom` ladder. Measured, and it still overlapped** —
+the offline notice wraps to two lines (62px) and my step was 52px. Any fixed step
+is a guess about a height that depends on the text and the language. So: a real
+column (`#toasts`, `flex-direction: column-reverse`), which stacks by its own
+contents and cannot be wrong. Verified with three at once: no overlap, all three
+on screen. `toastUndo` goes in it too — it is the toast most likely to be covered,
+because it is the one with a button.
+
+### 2. 👥 and 🎖️ — the same nine chips twice, told apart by the faintest text
+
+🙏 পুজো and 🎭 অনুষ্ঠান draw the **same nine chips in the same order**; the only
+discriminator was a 13px `--sub` heading — the smallest, lowest-contrast text on
+a 2,520px page, and in English the bulk buttons read only "All" / "None". Each
+group is a card with a left border now, and `.perm-head` is 15px/800 `--ink`:
+**the discriminator is the strongest line in the block instead of the weakest.**
+Same cure as A139's report zones, already proven in this app. `.perm-note` lost
+its `opacity: .85` (it was ~3.6:1 and it is the line that says what a group
+means).
+
+*A correction to my own brief:* the 🎖️ post screen has **no bulk buttons at all**
+— only the 👥 person screen does. The agent caught that; I had assumed six groups
+meant six bulk pairs.
+
+### 3. The ← পেছনে bar sat ON the header
+
+`sticky; top: 8px; z-index: 30` against a header at `top: 0; z-index: 10` and
+56.5px tall — so on any long screen a cream box slid over the saffron bar and
+covered half of "🙏 চাঁদা খাতা". Now `top: calc(60px + safe-area)` (52px under the
+360px breakpoint, where the header is shorter) and `z-index: 9`. Measured after:
+header `0→57`, back bar `60→104`.
+
+### 4. Two money figures under AA, at night
+
+Measured on the live DOM: `.pendbox` gold `#a9791a` = **3.86:1**, `--green
+#1e8f4d` at 15.5px bold = **3.85:1**. Both normal-size, both need 4.5. The gold
+already had an ink token — `--gold-ink #8a5a00`, 5.53 — which is A137's own
+lesson ("gold as TEXT, not as a swatch") applied one place further. Green gets
+the same treatment: a new `--green-ink #1a7a42` (5.02 on the cream, 5.09 on the
+green panel), used only where the text is SMALL. The 34px hero keeps `--green`,
+because large text clears at 3:1 and there was never anything wrong with it.
+
+### 5. Three header controls at 34×28, 33×25
+
+`docs/pending.md` records 44px on "every button, chip, back-bar, void-btn and
+input" — and it is true; these three were simply never in that list. 🔄 is the
+button a collector presses when the cashier says their money is not showing.
+
+**First attempt: `min-height: 44px` on the pills. Measured — the header went from
+56.5px to 72px**, which is fifteen pixels off every screen in the app to fix a
+tap. Replaced with an invisible 44×44 `::after` inside each control: same finger,
+**zero layout cost**. Verified: pill still 34×28, target 44×44, header back to
+56.5.
+
+### 6. `color-scheme: light`
+
+There is no dark palette and that stays a roadmap item. What is not a roadmap
+item is Android Chrome's **auto-dark** inverting the page with its own algorithm,
+which would let the phone's maker decide what colour a collector reads money in.
+One line; when a real dark palette arrives, the line changes.
+
+### Recorded, not fixed
+
+`📗 📗 জমা-খাতা` — see A286. And eight cosmetic items are in `docs/pending.md`.
+
+### One disclosure
+
+Seeding a session into the local page made it pull against the **baked live
+`/exec`**, because `js/config.js` points there. The live server answered
+`bad-token` and the app correctly dropped the session — nothing was read and
+nothing changed, a bad token can do neither. But that is A254's mistake in a
+different disguise, and the fix is one line: set `ck_scriptUrl` to a dead address
+first, so a local page cannot reach anybody's server. Written here so the next
+local UI check starts with it.
+
+Tests 3,955 → 3,955 (presentation; no assertion moved). CLIENT night.
