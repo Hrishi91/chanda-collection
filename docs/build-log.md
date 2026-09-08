@@ -18345,3 +18345,77 @@ the FIRST failing assertion, so "caught by A277/A278" undercounts — a mutation
 those tests catch is credited to whichever assertion happens to run first.
 
 Tests 3,791 → 3,812.
+
+## A279 — the 🩺 desk, the 👑 panel, and the guided entry flow, ANSWERED
+
+The flow is the one part of `js/app.js` that is a **state machine** rather than a
+paint: a question, an answer, the next question. In five months nothing had ever
+answered one. The harness can now — `startFlow`, `submitAnswer`, `goBack` and the
+flow builders are handed out through the hook, and a test walks the screen the
+way a collector's thumb does.
+
+### The bug: 🎖️ 🎖️ কমিটির পদ ও অনুমতি
+
+`menuRow(sec, icon, titleKey, …)` prepends its icon. `list_position` **carries
+its own**, because it doubles as a section heading where `head()` prints the
+label plain. Its three neighbours (`adm_users`, `adm_lists`, `adm_data`) carry
+none. So one row, and only that row, drew the medal twice.
+
+This project's own field rule, met again: **never let a title carry an emoji the
+tile builder also prepends.** `menuRow` accepts an empty icon now — a rule, not a
+special case — and the count is pinned at one.
+
+### A walk down the शop flow, asserted
+
+Nine steps, and the test answers them: name → owner → road (**location skipped,
+because a shop has none**) → phone → pledged → how they paid → cash. Then:
+
+- **a number that is not a phone number does not move the flow on**, and the step
+  index does not advance behind the error
+- the last answer closes the flow and writes **one** donor and **one** payment —
+  not a second one for the pledge
+- every answer lands in its own field, stamped with who entered it, and the
+  payment carries the cash/UPI split it was given
+
+And **back is the QUESTION before, not the screen before** — with the answer it
+returns to **cleared**, which is deliberate and now pinned as such: re-showing a
+question with its old answer already in it is how a tap silently keeps something
+the collector meant to change. Backing past the first question leaves the flow
+rather than trapping in it.
+
+### The desk and the panel
+
+The 🩺 desk raises money against a donor who is not there (with the amount), an
+overpaid donor (with **both** figures, because which one is wrong is the whole
+question), and a donor with no এলাকা — each **answerable in place**, because a
+desk you can only read is a desk nobody clears. And a book that reconciles raises
+**nothing**: a desk that always has cards is a desk people stop opening.
+
+The 👑 panel offers its four doors and counts who is in and who is waiting on the
+door itself.
+
+### One more thing the shim needed
+
+Finishing an entry builds the donor's **receipt on a canvas**, so a flow test
+that reaches the end walks straight into `getContext`. The stub measures and
+draws nothing — a receipt's pixels are the browser's business; what a test here
+holds is that the flow got that far without throwing.
+
+### The measurement
+
+352 spots, **263 survive** (275 before), 85 named catches, 4 threw.
+
+| | spots | survived |
+|---|---|---|
+| A272 (first full run) | 411 | 339 |
+| after A272–A275 | 394 | 321 |
+| after A276 | 352 | 288 |
+| after A277 | 352 | 276 |
+| after A278 | 352 | 275 |
+| **after A279** | **352** | **263** |
+
+**339 → 263.** Named catches went 72 → 85 while the file lost 59 mutable spots,
+which is the direction that matters: fewer places to be wrong, and more of what
+is left actually held.
+
+Tests 3,812 → 3,845.

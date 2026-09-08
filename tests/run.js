@@ -10075,6 +10075,158 @@ pending.push((async function () {
   }
 })());
 
+// A279 — the 🩺 desk, the 👑 panel, and the guided entry flow.
+//
+// The flow is the one part of js/app.js that is a STATE MACHINE rather than a
+// paint: a question, an answer, the next question. Nothing had ever answered one.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন রোড', nameEn: 'Main Rd' }];
+  const turn = function () { return new Promise(function (r) { setImmediate(r); }); };
+  const EMPTY = { parties: [], payments: [], daily: [], expenses: [], handovers: [],
+                  voids: [], corrections: [], messages: [] };
+
+  // ── the 🩺 desk: the book checking itself
+  {
+    const h = loadApp({ user: { username: 'kali', name: 'কালী', role: 'collector', cashier: 1,
+                                entries: 'shop', reports: 'inhand' },
+      lists: { area: AREA },
+      central: Object.assign({}, EMPTY, {
+        parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'রাম', pledged: 1000, collectorId: 'ratan' }],
+        payments: [
+          { id: 'y1', year: 2026, partyId: 'p1', amount: 1500, date: '2026-09-07',
+            collectorId: 'ratan', collector: 'রতন', cashAmount: 1500, upiAmount: 0 },
+          { id: 'y2', year: 2026, partyId: 'pX', amount: 200, date: '2026-09-07',
+            collectorId: 'ratan', collector: 'রতন', cashAmount: 200, upiAmount: 0 }] }) });
+    await h.ready;
+    const html = await h.show('anomalies');
+    eq(/দাতাহীন জমা[\s\S]{0,200}?₹200/.test(html), true,
+       'A279: money against a donor who is not there is raised, with the amount');
+    eq(/কথার চেয়ে বেশি জমা[\s\S]{0,220}?₹1,000[\s\S]{0,40}?₹1,500/.test(html), true,
+       'A279: …and an overpaid donor, with BOTH figures, because which is wrong is the question');
+    eq(/data-pledgeok="p1"/.test(html), true,
+       'A279: …answerable in place — a desk you can only read is a desk nobody clears');
+    eq(/data-goparty="p1"/.test(html) && /data-goparty="pX"/.test(html), true,
+       'A279: …and every card can be walked into');
+    eq(/এলাকা বসানো নেই/.test(html), true, 'A279: a donor with no এলাকা is reported, not blocked at entry');
+  }
+  {
+    const h = loadApp({ user: { username: 'kali', name: 'কালী', role: 'collector', cashier: 1,
+                                entries: 'shop', reports: 'inhand' },
+      lists: { area: AREA },
+      central: Object.assign({}, EMPTY, {
+        parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'রাম', pledged: 1000,
+                    side: 'main_malda', collectorId: 'ratan' }],
+        payments: [{ id: 'y1', year: 2026, partyId: 'p1', amount: 400, date: '2026-09-07',
+                     collectorId: 'ratan', collector: 'রতন', cashAmount: 400, upiAmount: 0 }] }) });
+    await h.ready;
+    const html = await h.show('anomalies');
+    eq(/কথার চেয়ে বেশি|দাতাহীন|এলাকা বসানো নেই/.test(html), false,
+       'A279: a book that reconciles raises nothing — a desk that always has cards is ignored');
+  }
+
+  // ── the 👑 panel
+  {
+    const users = [
+      { id: 'u1', username: 'boss', name: 'বস', role: 'admin', status: 'approved', cashier: 0, years: '2026', entries: '', reports: '' },
+      { id: 'u2', username: 'ratan', name: 'রতন', role: 'user', status: 'approved', cashier: 0, years: '2026', entries: 'shop', reports: 'inhand' },
+      { id: 'u3', username: 'kali', name: 'কালী', role: 'user', status: 'approved', cashier: 1, years: '2026', entries: 'shop', reports: 'inhand' },
+      { id: 'u4', username: 'notun', name: 'নতুন', role: 'user', status: 'pending', cashier: 0, years: '', entries: '', reports: '' }];
+    const h = loadApp({ user: { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' },
+      reply: function (a) {
+        if (a === 'listUsers') return { ok: true, users: users };
+        if (a === 'listSubjects') return { ok: true, subjects: [] };
+        if (a === 'listItems') return { ok: true, items: [] };
+        return null;   // everything else: no network, so no render loop
+      },
+      central: EMPTY });
+    await h.ready;
+    const html = await h.show('admin');
+    eq(/data-adm-go="users"/.test(html) && /data-adm-go="positions"/.test(html) &&
+       /data-adm-go="lists"/.test(html) && /data-adm-go="data"/.test(html), true,
+       'A279: the panel offers its four doors');
+    eq(/3 জন approved · 1 জন অপেক্ষায়/.test(html), true,
+       'A279: …and counts who is in and who is waiting, on the door itself');
+    eq(/<span class="badge warn">1<\/span>/.test(html), true, 'A279: …with the waiting count as a badge');
+    // A279: `list_position` carries its own 🎖️ because head() prints it plain as
+    // a section title — and menuRow prepended a second one.
+    eq((html.match(/🎖️/g) || []).length, 1, 'A279: no title carries an emoji its row also prepends');
+    eq(/<b>🎖️ কমিটির পদ ও অনুমতি<\/b>/.test(html), true, 'A279: …and the one it has is still there');
+  }
+
+  // ── the guided entry flow, answered
+  {
+    const h = loadApp({ user: { username: 'ratan', name: 'রতন', role: 'collector', cashier: 0,
+                                entries: 'shop,person,road' },
+      lists: { area: AREA }, central: EMPTY });
+    await h.ready;
+    const q = function () { return (h.html('view').match(/<div class="bubble q now">([^<]*)</) || [, ''])[1]; };
+    h.app.startFlow(h.app.newPartyFlow('shop'));
+    await turn();
+    eq(/দোকানের নাম/.test(q()), true, 'A279: a new shop is asked its name first');
+    const keys = h.app.flow().def.steps.map(function (s) { return s.key; }).join(',');
+    eq(keys, 'name,owner,side,location,phone,pledged,payMode,cashAmount,upiAmount',
+       'A279: …over the whole question list, in the order it will ask them');
+
+    h.app.submitAnswer('রাম স্টোর্স'); await turn();
+    eq(/মালিকের নাম/.test(q()), true, 'A279: …then the owner');
+    h.app.submitAnswer('রাম বাবু'); await turn();
+    eq(/কোন দিকে/.test(q()), true, 'A279: …then the road, LOCATION skipped because a shop has none');
+    h.app.submitAnswer('main_malda'); await turn();
+
+    // a phone number that is not one keeps the question, and says why
+    eq(/ফোন নম্বর/.test(q()), true, 'A279: …then the phone');
+    h.app.submitAnswer('12345'); await turn();
+    eq(/ফোন নম্বর/.test(q()), true, 'A279: a number that is not a phone number does not move the flow on');
+    eq(h.app.flow().idx, 4, 'A279: …the step does not advance behind the error');
+    h.app.submitAnswer('9812000001'); await turn();
+    eq(/কত টাকা কথা/.test(q()), true, 'A279: …and a real one does');
+
+    h.app.submitAnswer('2000'); await turn();
+    eq(/এখন কি টাকা দিল/.test(q()), true, 'A279: pledged, then whether they paid now');
+    h.app.submitAnswer('cash'); await turn();
+    eq(/নগদ কত/.test(q()), true, 'A279: …and cash asks for cash, not for UPI');
+    h.app.submitAnswer('2000'); await turn();
+    eq(h.app.flow(), null, 'A279: the last answer closes the flow');
+
+    const parties = await h.DB.getAll('parties');
+    const pays = await h.DB.getAll('payments');
+    eq(parties.length, 1, 'A279: …and writes ONE donor');
+    eq(pays.length, 1, 'A279: …and ONE payment, not a duplicate of the pledge');
+    const p = parties[0];
+    eq(p.name + '|' + p.owner + '|' + p.side + '|' + p.phone + '|' + p.pledged,
+       'রাম স্টোর্স|রাম বাবু|main_malda|9812000001|2000',
+       'A279: …every answer landing in its own field');
+    eq(String(p.collectorId), 'ratan', 'A279: …stamped with who entered it');
+    eq(Number(pays[0].amount), 2000, 'A279: …and the payment carries what was actually handed over');
+    eq(Number(pays[0].cashAmount) === 2000 && Number(pays[0].upiAmount) === 0, true,
+       'A279: …split the way it was paid');
+  }
+
+  // going back returns the previous question, with the answer still there
+  {
+    const h = loadApp({ user: { username: 'ratan', name: 'রতন', role: 'collector', cashier: 0,
+                                entries: 'shop' }, lists: { area: AREA }, central: EMPTY });
+    await h.ready;
+    const q = function () { return (h.html('view').match(/<div class="bubble q now">([^<]*)</) || [, ''])[1]; };
+    h.app.startFlow(h.app.newPartyFlow('shop')); await turn();
+    h.app.submitAnswer('রাম স্টোর্স'); await turn();
+    h.app.submitAnswer('রাম বাবু'); await turn();
+    eq(/কোন দিকে/.test(q()), true, 'A279: three questions in');
+    h.app.goBack(); await turn();
+    eq(/মালিকের নাম/.test(q()), true, 'A279: …and back is the QUESTION before, not the screen before');
+    // deliberate, and worth pinning as such: the answer you came back to is
+    // CLEARED, so the question is genuinely re-asked rather than re-shown with
+    // an answer already in it that a tap would silently keep.
+    eq(h.app.flow().answers.owner, undefined, 'A279: …the answer it returns to is cleared, so it is really re-asked');
+    eq(h.app.flow().answers.name, 'রাম স্টোর্স', 'A279: …while everything before it is kept');
+    // and backing out of the FIRST question leaves the flow rather than trapping
+    h.app.goBack(); await turn();
+    h.app.goBack(); await turn();
+    eq(h.app.flow(), null, 'A279: backing past the first question leaves the flow instead of trapping in it');
+  }
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

@@ -80,7 +80,31 @@ function makeDocument() {
     getElementById: function (id) { return byId[id] || (byId[id] = el(id, doc)); },
     querySelector: function () { return el('', doc); },
     querySelectorAll: function () { return []; },
-    createElement: function (tag) { const e = el('', doc); e.tagName = String(tag || 'div').toUpperCase(); return e; },
+    createElement: function (tag) {
+      const e = el('', doc);
+      e.tagName = String(tag || 'div').toUpperCase();
+      // A279: finishing an entry builds the donor's RECEIPT on a canvas, so a
+      // flow test that reaches the end walks straight into getContext(). This
+      // measures and draws nothing — a receipt's PIXELS are the browser's
+      // business; what a test here holds is that the flow got that far.
+      if (e.tagName === 'CANVAS') {
+        e.width = 0; e.height = 0;
+        e.getContext = function () {
+          const noop = function () {};
+          return { fillRect: noop, strokeRect: noop, clearRect: noop, fillText: noop,
+            strokeText: noop, beginPath: noop, closePath: noop, moveTo: noop, lineTo: noop,
+            arc: noop, rect: noop, fill: noop, stroke: noop, save: noop, restore: noop,
+            translate: noop, rotate: noop, scale: noop, clip: noop, drawImage: noop,
+            setLineDash: noop, createLinearGradient: function () { return { addColorStop: noop }; },
+            measureText: function (t) { return { width: String(t || '').length * 6 }; },
+            font: '', fillStyle: '', strokeStyle: '', lineWidth: 1, textAlign: 'left',
+            textBaseline: 'alphabetic', globalAlpha: 1 };
+        };
+        e.toDataURL = function () { return 'data:image/png;base64,'; };
+        e.toBlob = function (cb) { if (cb) cb(null); };
+      }
+      return e;
+    },
     __el: function (id) { return byId[id]; },
     __byId: byId,
   };
@@ -157,6 +181,9 @@ function loadApp(opts) {
   box.window.addEventListener = function () {};
   box.window.removeEventListener = function () {};
   box.window.scrollY = 0;
+  // a logo may be loaded before a receipt is drawn; nothing here has one, so
+  // the load never fires and the receipt resolves without it, exactly as offline
+  box.Image = function () { this.onload = null; this.onerror = null; this.src = ''; };
   vm.createContext(box);
   const read = function (f) { return fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8'); };
 
@@ -197,7 +224,12 @@ function loadApp(opts) {
     // A test that wants an answer passes `reply`.
     call: function (action, payload) {
       calls.push([action, payload]);
-      if (o.reply) return Promise.resolve(typeof o.reply === 'function' ? o.reply(action, payload) : o.reply);
+      // `reply` may be an object (every call answers it) or a function. A
+      // function that returns nothing means NO ANSWER for that action — which
+      // is how a test opens the admin panel without also handing `pull` an
+      // instant reply and re-arming the render loop above.
+      const r = typeof o.reply === 'function' ? o.reply(action, payload) : o.reply;
+      if (r) return Promise.resolve(r);
       return Promise.reject(new Error('network'));
     },
     logout: function () { calls.push(['logout']); },
@@ -235,7 +267,14 @@ function loadApp(opts) {
   if (cut < 0) throw new Error('dom-shim: js/app.js no longer ends with the IIFE close it is patched at');
   const hook = "\n  globalThis.__app = { render: render, navigate: navigate, setCentral: setCentral," +
                " viewData: viewData, current: function () { return current; }," +
-               " t: t, canEntry: canEntry, frozen: frozen };\n";
+               " t: t, canEntry: canEntry, frozen: frozen," +
+               // A279: the guided flow. It is the one part of this file that is a
+               // STATE MACHINE rather than a paint, so a test has to be able to
+               // answer a question and see the next one — startFlow, submitAnswer,
+               // goBack, and the flow builders that make the definitions.
+               " startFlow: startFlow, submitAnswer: submitAnswer, goBack: goBack," +
+               " newPartyFlow: newPartyFlow, paymentFlow: paymentFlow, dailyFlow: dailyFlow," +
+               " flow: function () { return flowState; } };\n";
   vm.runInContext(src.slice(0, cut) + hook + src.slice(cut), box);
   if (!box.__app) throw new Error('dom-shim: the hook did not land');
 

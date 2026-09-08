@@ -8288,7 +8288,12 @@
           '<div class="row-sub" style="margin-top:6px">' + esc(t('clear_training_hint')) + '</div></div>';
       const menuRow = function (sec, icon, titleKey, sub, badge) {
         return '<button class="row" data-adm-go="' + sec + '" style="width:100%;text-align:left">' +
-          '<div style="flex:1"><b>' + icon + ' ' + esc(t(titleKey)) + '</b>' +
+          // A279: an EMPTY icon is allowed, because one label owns its own.
+          // `list_position` doubles as a section heading, where head() prints it
+          // plain — so the 🎖️ lives in the string, and prepending another here
+          // drew "🎖️ 🎖️ কমিটির পদ". This project's own rule, met again:
+          // never let a title carry an emoji the tile builder also prepends.
+          '<div style="flex:1"><b>' + (icon ? icon + ' ' : '') + esc(t(titleKey)) + '</b>' +
           (badge ? ' <span class="badge warn">' + badge + '</span>' : '') +
           '<div class="row-sub">' + esc(sub) + '</div></div><span class="adm-caret">›</span></button>';
       };
@@ -8327,7 +8332,7 @@
               .replace('{p}', groups.pending.length).replace('{s}', staleN),
             groups.pending.length || '') +
           (admMoneyFailed ? '<div class="perm-note">' + esc(t('adm_money_off')) + '</div>' : '') +
-          menuRow('positions', '🎖️', 'list_position',
+          menuRow('positions', '', 'list_position',
             t('adm_sub_positions').replace('{n}', positions.length), '') +
           menuRow('lists', '🧾', 'adm_lists', t('adm_sub_lists'), '') +
           menuRow('data', '🗂️', 'adm_data', t('adm_sub_data'), '');
