@@ -272,8 +272,10 @@ function loadApp(opts) {
                // STATE MACHINE rather than a paint, so a test has to be able to
                // answer a question and see the next one — startFlow, submitAnswer,
                // goBack, and the flow builders that make the definitions.
-               " startFlow: startFlow, submitAnswer: submitAnswer, goBack: goBack," +
+               " startFlow: startFlow, submitAnswer: submitAnswer, submitSheet: submitSheet, goBack: goBack," +
                " newPartyFlow: newPartyFlow, paymentFlow: paymentFlow, dailyFlow: dailyFlow," +
+               " expenseFlow: expenseFlow, collectionExpenseFlow: collectionExpenseFlow," +
+               " handoverFlow: handoverFlow, transferFlow: transferFlow, dutyFlow: dutyFlow," +
                " flow: function () { return flowState; } };\n";
   vm.runInContext(src.slice(0, cut) + hook + src.slice(cut), box);
   if (!box.__app) throw new Error('dom-shim: the hook did not land');

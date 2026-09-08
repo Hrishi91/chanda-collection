@@ -18481,3 +18481,49 @@ with the next cheapest step named (the flows nobody has answered yet) rather
 than an open-ended "keep going".
 
 Tests 3,845 → 3,874.
+
+## A281 — the four flows money actually moves through
+
+A279 walked the new-donor flow. These are the ones used after it: 💰 a payment,
+🛣️/🚌 a daily round, 🧾 an expense, 🤝 a handover. Each is a state machine — a
+question, an answer, the next question — and at the end a row in the book.
+
+Thirty assertions, walked:
+
+- **💰 payment** asks HOW before HOW MUCH, because the split is the fact and the
+  total is derived from it. Cash asks for cash and does not ask for UPI; UPI-only
+  money is not written down as notes; and the two halves **add up to the total**,
+  which is exactly what the server re-checks.
+- **🛣️ road** is not asked a bus name. **🚌 bus** is asked both name and number,
+  and keeps them — that is what makes the receipt findable months later.
+- **🧾 expense** under a listed subject offers an optional note; under **অন্য
+  কিছু** the comment is **required and becomes the name** (A142). Two steps share
+  the key `comment` on purpose, mutually exclusive by `showIf`, so only one is
+  ever visible — surprising to read, and now pinned so nobody "fixes" it.
+- **🤝 handover** asks the sheet FIRST and "কাকে?" LAST (A146 — that order is the
+  feature), then writes ONE parcel, **pending**, addressed to the chosen
+  কোষাধ্যক্ষ, carrying what was picked, split as it is held — and its per-pot
+  breakdown **adds up to its amount**, which is the checksum the server refuses
+  a parcel for failing.
+
+Three mutations, three names: ask a road for a bus name; make the অন্য কিছু
+comment optional; write a parcel `confirmed` instead of `pending`.
+
+### The number barely moved, and that is the finding
+
+352 spots, **253 survive** — two fewer than A280.
+
+Thirty new assertions over four flows, and the survivor count moved by two. That
+is not a disappointment; it is the **edge of what this metric measures**. The
+survey mutates COMPARISON OPERATORS. A flow is built from `showIf` predicates,
+`required: true`, step keys and save functions — there is almost nothing in it
+of the shape `>=` or `&&` to flip. The tests are real and the behaviour they hold
+is real; the number simply does not see it.
+
+**A measurement is worth having and worth knowing the shape of.** 339 → 253 says
+what it says about one class of fault. It never claimed to be coverage, and this
+is the point at which continuing to chase it stops paying — the remaining 253 are
+the defensive `x && x.y` idiom and loop bounds that read one past the end, in 121
+functions.
+
+Tests 3,874 → 3,904. No shell file changed: **nothing to release for this one.**

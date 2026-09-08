@@ -10395,6 +10395,166 @@ pending.push((async function () {
   eq(/^✏️/.test((I80.edit_btn || {}).bn || ''), true, 'A280: …and ✏️');
 }
 
+// A281 — the four flows nobody had answered: payment, daily, expense, handover.
+//
+// A279 walked the new-donor flow. These are the ones money actually moves
+// through afterwards, and each is a state machine: a question, an answer, the
+// next question, and at the end a row in the book.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const EMPTY = { parties: [], payments: [], daily: [], expenses: [], handovers: [],
+                  voids: [], corrections: [], messages: [] };
+  const turn = function () { return new Promise(function (r) { setImmediate(r); }); };
+  const PARTY = { id: 'p1', year: 2026, type: 'shop', name: 'রাম', pledged: 1000,
+                  side: 'main_malda', collectorId: 'ratan' };
+  const open = function (extra) {
+    return loadApp(Object.assign({
+      user: { username: 'ratan', name: 'রতন', role: 'collector', cashier: 0,
+              entries: 'shop,person,road,toto,bus,expense' },
+      lists: { area: [{ id: 'main_malda', nameBn: 'মেন রোড', nameEn: 'Main Rd' }] },
+      central: Object.assign({}, EMPTY, { parties: [PARTY] }) }, extra || {}));
+  };
+  const asker = function (h) {
+    return function () { return (h.html('view').match(/<div class="bubble q now">([^<]*)</) || [, ''])[1]; };
+  };
+
+  // ── 💰 a payment against a donor
+  {
+    const h = open(); await h.ready;
+    const q = asker(h);
+    h.app.startFlow(h.app.paymentFlow({ id: 'p1', name: 'রাম', type: 'shop', pledged: 1000 }, 'list'));
+    await turn();
+    eq(h.app.flow().def.steps.map(function (s) { return s.key; }).join(','),
+       'payMode,cashAmount,upiAmount,note',
+       'A281: a payment asks HOW before it asks how much — the split is the fact, not the total');
+    eq(/কীভাবে দিল/.test(q()), true, 'A281: …starting with that question');
+    h.app.submitAnswer('cash'); await turn();
+    eq(/নগদ কত/.test(q()), true, 'A281: cash asks for cash');
+    h.app.submitAnswer('500'); await turn();
+    eq(/নোট/.test(q()), true, 'A281: …and UPI is not asked when nothing came by UPI');
+    h.app.submitAnswer(''); await turn();
+    eq(h.app.flow(), null, 'A281: the note closes it');
+    const pays = await h.DB.getAll('payments');
+    eq(pays.length, 1, 'A281: …writing ONE payment');
+    eq([pays[0].partyId, pays[0].amount, pays[0].cashAmount, pays[0].upiAmount].join('/'),
+       'p1/500/500/0', 'A281: …against the right donor, split the way it was handed over');
+    eq(Number(pays[0].cashAmount) + Number(pays[0].upiAmount), Number(pays[0].amount),
+       'A281: …and the two halves add up to the total, which is what the server checks');
+  }
+  // UPI only, the mirror
+  {
+    const h = open(); await h.ready;
+    h.app.startFlow(h.app.paymentFlow({ id: 'p1', name: 'রাম', type: 'shop', pledged: 1000 }, 'list'));
+    await turn();
+    h.app.submitAnswer('upi'); await turn();
+    h.app.submitAnswer('300'); await turn();
+    h.app.submitAnswer(''); await turn();
+    const p = (await h.DB.getAll('payments'))[0];
+    eq([p.amount, p.cashAmount, p.upiAmount].join('/'), '300/0/300',
+       'A281: …and money that came by UPI is not written down as notes');
+  }
+
+  // ── 🛣️ a road round: the bus questions are HIDDEN, because a road has no name
+  {
+    const h = open(); await h.ready;
+    const q = asker(h);
+    h.app.startFlow(h.app.dailyFlow('road')); await turn();
+    eq(/বাস/.test(q()), false, 'A281: a road round is not asked a bus name');
+    h.app.submitAnswer('cash'); await turn();
+    h.app.submitAnswer('300'); await turn();
+    h.app.submitAnswer(''); await turn();
+    const d = (await h.DB.getAll('daily'))[0];
+    eq([d.type, d.amount].join('/'), 'road/300', 'A281: …and lands as a road round');
+  }
+  // ── 🚌 a bus: name and number, because a bus IS a named donor with a receipt
+  {
+    const h = open(); await h.ready;
+    const q = asker(h);
+    h.app.startFlow(h.app.dailyFlow('bus')); await turn();
+    eq(/বাসের নাম/.test(q()), true, 'A281: a bus IS asked its name');
+    h.app.submitAnswer('মালদা এক'); await turn();
+    eq(/বাস নম্বর/.test(q()), true, 'A281: …and its number');
+    h.app.submitAnswer('WB73'); await turn();
+    h.app.submitAnswer('cash'); await turn();
+    h.app.submitAnswer('400'); await turn();
+    h.app.submitAnswer(''); await turn();
+    const d = (await h.DB.getAll('daily'))[0];
+    eq([d.type, d.busName, d.busNumber, d.amount].join('/'), 'bus/মালদা এক/WB73/400',
+       'A281: …both kept, because that is what makes the receipt findable later');
+  }
+
+  // ── 🧾 an expense, and the অন্য কিছু branch
+  {
+    const h = open(); await h.ready;
+    const q = asker(h);
+    h.app.startFlow(h.app.expenseFlow([{ id: 's1', name: 'প্যান্ডেল' }], [], '')); await turn();
+    eq(/কীসের খরচ/.test(q()), true, 'A281: an expense is asked its subject first');
+    h.app.submitAnswer('প্যান্ডেল'); await turn();
+    h.app.submitAnswer('cash'); await turn();
+    h.app.submitAnswer('200'); await turn();
+    eq(/নোট/.test(q()), true, 'A281: …and a LISTED subject only offers an optional note');
+    h.app.submitAnswer(''); await turn();
+    const e = (await h.DB.getAll('expenses'))[0];
+    eq([e.subject, e.amount].join('/'), 'প্যান্ডেল/200', 'A281: …landing under the subject chosen');
+  }
+  {
+    // A142: with "অন্য কিছু" the comment IS the name, so it is required rather
+    // than optional. Two steps share the key `comment` on purpose — mutually
+    // exclusive by showIf — and only one of them is ever visible.
+    const h = open(); await h.ready;
+    const q = asker(h);
+    h.app.startFlow(h.app.expenseFlow([{ id: 's1', name: 'প্যান্ডেল' }], [], '')); await turn();
+    h.app.submitAnswer('__other__'); await turn();
+    h.app.submitAnswer('cash'); await turn();
+    h.app.submitAnswer('150'); await turn();
+    const asked = q();
+    h.app.submitAnswer(''); await turn();
+    eq(h.app.flow() !== null, true,
+       'A281: …while "অন্য কিছু" REFUSES an empty comment, because that comment is the name');
+    eq(q(), asked, 'A281: …and stays on the same question');
+    h.app.submitAnswer('মাইক ভাড়া'); await turn();
+    const e = (await h.DB.getAll('expenses'))[0];
+    eq(String(e.desc), 'মাইক ভাড়া', 'A281: …then keeps it as the description');
+    eq(Number(e.amount), 150, 'A281: …with the amount that was typed');
+  }
+
+  // ── 🤝 the handover: pick pots, choose who, and a parcel goes out PENDING
+  {
+    const h = open({ central: Object.assign({}, EMPTY, { parties: [PARTY],
+      payments: [{ id: 'y1', year: 2026, partyId: 'p1', partyName: 'রাম', amount: 1000,
+        date: '2026-09-07', collectorId: 'ratan', collector: 'রতন',
+        cashAmount: 1000, upiAmount: 0 }] }) });
+    await h.ready;
+    const q = asker(h);
+    const A = h.box.Aggregate;
+    const av = A.handoverable(A.ofSector(await h.app.viewData(), 'puja'), 'ratan', 'puja');
+    eq(av.total, 1000, 'A281: what a collector may hand over is what they hold');
+    h.app.startFlow(h.app.handoverFlow([{ username: 'kali', name: 'কালী' }], av, null));
+    await turn();
+    eq(h.app.flow().def.steps.map(function (s) { return s.key; }).join(','), 'sheet,to,note',
+       'A281: the sheet comes FIRST and "কাকে?" last — A146, and that order is the feature');
+    h.app.submitSheet({ shop: { cash: 600, upi: 0 } }); await turn();
+    eq(/কোন ক্যাশিয়ার/.test(q()), true, 'A281: …then who is receiving it');
+    h.app.submitAnswer('kali'); await turn();
+    h.app.submitAnswer(''); await turn();
+    const hs = await h.DB.getAll('handovers');
+    eq(hs.length, 1, 'A281: one parcel');
+    const parcel = hs[0];
+    eq(String(parcel.toId), 'kali', 'A281: …addressed to the cashier who was chosen');
+    eq(String(parcel.status), 'pending', 'A281: …and PENDING, because nobody has confirmed receiving it');
+    eq([parcel.amount, parcel.cashAmount, parcel.upiAmount].join('/'), '600/600/0',
+       'A281: …carrying what was picked, split as it is held');
+    // the checksum the server enforces: the breakdown must add up to the amount
+    const bd = JSON.parse(parcel.breakdown || '{}');
+    const sum = Object.keys(bd).reduce(function (a, k) {
+      return a + (Number(bd[k].cash) || 0) + (Number(bd[k].upi) || 0);
+    }, 0);
+    eq(sum, Number(parcel.amount),
+       'A281: …and its per-pot breakdown adds up to that amount — a mismatch is what the server refuses');
+    eq(Object.keys(bd).join(','), 'shop', 'A281: …naming the pot the money came out of');
+  }
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;
