@@ -18527,3 +18527,23 @@ the defensive `x && x.y` idiom and loop bounds that read one past the end, in 12
 functions.
 
 Tests 3,874 → 3,904. No shell file changed: **nothing to release for this one.**
+
+## v4.108.0 deployed — and it did not have to be
+
+Probed three times before baking: GET `/exec` answers `chanda-v4.108.0 /
+schema 5`, and two POSTs with a deliberately bad token answer `bad-token`
+carrying the same version — the error envelope, which reads the deployment
+without touching a single row.
+
+**Worth recording: this was a CLIENT stretch.** Between the v4.94.0 rebake and
+here, `apps-script/Code.gs` differs by **zero** lines that are not `CODE_VERSION`
+— A265 through A281 never changed a server behaviour. `scripts/release-check.sh`
+said CLIENT night every one of those nights, and it was right.
+
+So the deploy bought nothing except silence: the admin screen's amber "server
+behind" strip goes away, which only Hrishi could see anyway. Harmless, and now
+the version triple reads the same on both sides — but the record should say
+plainly that nothing on the server moved, so nobody later reads this rebake as
+evidence that something did.
+
+`js/config.js` rebaked. Phones still need ⚙️ → 🔄 for everything from A266 on.
