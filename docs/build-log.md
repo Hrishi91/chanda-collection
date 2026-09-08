@@ -18683,3 +18683,55 @@ Three mutations, three names: the server's flag back to the bare key; the
 client's guard back to the bare key; the money group back to `['cashier']`.
 
 Tests 3,930 → 3,950. **SERVER night** — `Code.gs` behaviour changed.
+
+## A284 — 🎖️ Committee positions & permissions, walked once, in both languages
+
+Hrishi named the screen in ENGLISH, which is what prompted this: every render in
+this whole pass had been in Bengali. So the screen was drawn twice.
+
+### What was already right, and is now written down as right
+
+- **The English side translates.** Headings, hints, field labels, every chip, the
+  ⚠️ note — all of it.
+- **The post's NAME stays Bengali-bold with English underneath, in English mode
+  too.** That looked wrong for a moment. It is not: the areas list, the subjects
+  list and the positions list all do exactly this, because these are the screens
+  where you TYPE both names — and everywhere a post's name is USED,
+  `Lists.labelOf` follows the language. Deliberate and consistent; not touched.
+- The list says **⚠️ কোনো অনুমতি নেই** for a post that grants nothing, and prints
+  each post's cap and 🪜 level.
+
+### What was wrong
+
+In the ⚠️ money group the two keys did not read alike:
+
+```
+⚠️ 🎭 অনুষ্ঠান · 💰 এই ভাঁড়ারের কোষাধ্যক্ষ — জমা নিতে পারবে
+⚠️ ক্যাশিয়ার
+```
+
+The bare `cashier` **is** the puja's own fund role — A255 kept the flag it always
+had rather than migrating everybody — but asked for its FULL name it answered
+just "ক্যাশিয়ার". Sitting beside a key that names its ভাঁড়ার, it said nothing
+about which ভাঁড়ার it moves money in, **which is the one thing that group exists
+to make plain.** A283 put the two keys side by side; this is what putting them
+side by side revealed.
+
+And the order was `program:cashier, cashier` — POSITION_PERM_KEYS order — so the
+programme sat above the committee, reading as if it were the main one. In ভাঁড়ার
+order now, like every other group on the screen.
+
+```
+⚠️ 🙏 পুজো · 💰 এই ভাঁড়ারের কোষাধ্যক্ষ — জমা নিতে পারবে
+⚠️ 🎭 অনুষ্ঠান · 💰 এই ভাঁড়ারের কোষাধ্যক্ষ — জমা নিতে পারবে
+```
+
+Both mutation-proved: drop the puja's fund name, or reverse the order, and the
+assertion fails by name.
+
+**A lesson worth keeping: rendering in one language only is a blind spot of the
+same shape as injecting a session and never seeing the logged-out screen (A91).**
+The harness takes `settings: { lang }`; use it.
+
+Tests 3,950 → 3,955. Still the same SERVER night as A283 — one deployment covers
+both.

@@ -10757,6 +10757,20 @@ pending.push((async function () {
     eq(moneyGrp.indexOf('data-pp-key="' + k + '"') >= 0, true,
        'A283: …' + k + ' is in the money group and nowhere else');
   });
+  // A284: and each is NAMED BY ITS FUND. The bare `cashier` is the puja's own
+  // role — A255 kept the flag it always had rather than migrating everybody —
+  // and asked for its full name it answered just "ক্যাশিয়ার", so in this group
+  // it sat beside "🎭 অনুষ্ঠান · …" saying nothing about which ভাঁড়ার it moves
+  // money in, which is the one thing this group exists to make plain.
+  const moneyLabels = (moneyGrp.match(/data-pp-key="[^"]*">([^<]*)</g) || [])
+    .map(function (x) { return x.split('>')[1].slice(0, -1); });
+  eq(moneyLabels.length, 2, 'A284: both money keys are drawn');
+  eq(/পুজো/.test(moneyLabels[0]), true, 'A284: the committee\'s says WHICH fund it moves money in');
+  eq(/অনুষ্ঠান/.test(moneyLabels[1]), true, 'A284: …and so does the programme\'s');
+  eq(moneyLabels[0].indexOf('পুজো') >= 0 && moneyLabels[1].indexOf('অনুষ্ঠান') >= 0, true,
+     'A284: …committee FIRST, the way every other group on this screen is ordered');
+  eq(moneyLabels[0] === moneyLabels[1], false, 'A284: …and they do not read identically');
+
   const entryGrps = html.split('perm-grp').filter(function (g) {
     return g.indexOf('data-pp-key="shop"') >= 0 || g.indexOf('data-pp-key="program:shop"') >= 0;
   }).join('');

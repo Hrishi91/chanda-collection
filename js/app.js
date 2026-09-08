@@ -5416,6 +5416,15 @@
       const role = t(r.role === 'cashier' ? 'perm_fund_cashier' : r.role);
       return full ? t('sector_' + r.fund) + ' · ' + role : role;
     }
+    // A284: the bare `cashier` IS the puja's own fund role — A255 kept the flag
+    // it always had rather than migrating everybody. Asked for the FULL name it
+    // used to answer just "ক্যাশিয়ার", so in the ⚠️ money group it sat beside
+    // "🎭 অনুষ্ঠান · 💰 এই ভাঁড়ারের কোষাধ্যক্ষ" saying nothing about which
+    // ভাঁড়ার it moves money in — which is the one thing that group exists to
+    // make plain.
+    if (k === 'cashier') {
+      return full ? t('sector_puja') + ' · ' + t('perm_fund_cashier') : t('perm_fund_cashier');
+    }
     const p = Aggregate.permParts(k);
     if (p) {
       const kind = t(CAT_LABEL_KEYS[p.kind] || p.kind);
@@ -8463,7 +8472,12 @@
         // (backend A283).
         const allowed = {};
         Aggregate.POSITION_PERM_KEYS.forEach(function (k) { allowed[k] = 1; });
-        const moneyKeys = Aggregate.POSITION_PERM_KEYS.filter(Aggregate.isCashierKey);
+        // In ভাঁড়ার order, so the committee's own comes first the way it does in
+        // every other group on this screen — POSITION_PERM_KEYS order put the
+        // programme above the puja, which reads as if it were the main one.
+        const moneyKeys = Aggregate.SECTORS
+          .map(function (sec) { return sec === 'puja' ? 'cashier' : sec + ':cashier'; })
+          .filter(function (k) { return Aggregate.POSITION_PERM_KEYS.includes(k); });
         const groups = Aggregate.permGroups().map(function (g) {
           return [t(g.titleKey), g.keys
             .filter(function (k) { return allowed[k] && !Aggregate.isCashierKey(k); })
