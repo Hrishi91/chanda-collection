@@ -18735,3 +18735,31 @@ The harness takes `settings: { lang }`; use it.
 
 Tests 3,950 → 3,955. Still the same SERVER night as A283 — one deployment covers
 both.
+
+## v4.111.0 deployed — the SERVER night A283 needed
+
+Probed three times before baking: GET `/exec` answers `chanda-v4.111.0 /
+schema 5`, and two POSTs with a deliberately bad token answer `bad-token`
+carrying the same version — the error envelope, read without touching a row.
+
+**This one mattered.** Unlike the v4.108.0 rebake (which carried nothing but a
+version string), this deployment is what actually closes A283: until it landed,
+`positionPerms_` on the live server still set the money flag only for the bare
+`cashier`, so a সম্পাদক could hand out — or strip — a post carrying
+`program:cashier` while the committee's stayed admin-only. The fix existed in
+git and did nothing until the paste.
+
+`js/config.js` rebaked. Phones need ⚙️ → 🔄 for A283/A284's client halves.
+
+### The check to run on the live book, once
+
+Nothing here can verify the real Apps Script runtime — every server test runs on
+`tests/gas-shim.js`. So the one thing worth doing by hand, once:
+
+1. 👑 → 🎖️ → any post → tick **⚠️ 🎭 অনুষ্ঠান · 💰** and save
+2. as somebody who is NOT an admin but outranks that post, try to give it to
+   anybody, and try to take it away from whoever holds it
+
+Both should now be refused with *"only an admin"*. Before this deployment the
+second one **went through silently** — no error, the post simply gone — which is
+what made it worth proving with a red test before fixing.

@@ -16,9 +16,9 @@
       "runtimeExecutable": "/bin/sh",
       "runtimeArgs": [
         "-c",
-        "CK_SLOW=2500 node scripts/admin-harness.js 9318"
+        "CK_SLOW=2500 node scripts/admin-harness.js 9326"
       ],
-      "port": 9318
+      "port": 9326
     }
   ]
 }
