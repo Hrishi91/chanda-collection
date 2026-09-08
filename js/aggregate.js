@@ -468,7 +468,7 @@
   const SECTORS = ['puja', 'program'];
   function sectorOf(row) {
     const s = String((row && row.sector) || '');
-    return SECTORS.indexOf(s) >= 0 ? s : 'puja';
+    return SECTORS.includes(s) ? s : 'puja';
   }
   // A payment belongs to its DONOR's sector: the pledge and every instalment
   // against it are one promise, so asking the sector per instalment would let
@@ -495,7 +495,7 @@
     (d.transfers || []).forEach(function (e) {
       const amt = Number(e.amount) || 0;
       const from = sectorOf(e);
-      const to = SECTORS.indexOf(String(e.transferTo || '')) >= 0 ? String(e.transferTo) : null;
+      const to = SECTORS.includes(String(e.transferTo || '')) ? String(e.transferTo) : null;
       if (!to || to === from) return; // a transfer to nowhere moves nothing
       out[from].transferOut += amt;
       out[to].transferIn += amt;
@@ -545,7 +545,7 @@
     return out;
   }
   function catOfDaily(type) {
-    return DAILY_KINDS.indexOf(String(type)) >= 0 ? String(type) : 'road';
+    return DAILY_KINDS.includes(String(type)) ? String(type) : 'road';
   }
   // A153: one book's rows, and nothing else. The programme got its own TAB —
   // Hrishi's call, and the right one: asking "কোন ভাঁড়ার?" on every entry put the
@@ -562,7 +562,7 @@
   // committee-wide — splitting them would invent a fact that does not exist.
   function ofSector(data, sector) {
     if (!data) return data;
-    const want = SECTORS.indexOf(String(sector)) >= 0 ? String(sector) : 'puja';
+    const want = SECTORS.includes(String(sector)) ? String(sector) : 'puja';
     const party = {};
     (data.parties || []).forEach(function (p) { if (p && p.id) party[p.id] = p; });
     const out = {};
@@ -582,7 +582,7 @@
     // sixth donor kind would be accepted everywhere and land in the general
     // 'payment' pot here, which is a different LINE on a 🤝 parcel. Money on
     // the wrong line, no error anywhere.
-    return PARTY_KINDS.indexOf(String(partyType)) >= 0
+    return PARTY_KINDS.includes(String(partyType))
       ? String(partyType) : 'payment';
   }
   function splitOf(r) {
@@ -663,7 +663,7 @@
       if (isTo(h)) {
         const from = String(h.fromId || h.from || '?');
         if (bd) Object.keys(bd).forEach(function (k) {
-          const cat = AVAIL_CATS.indexOf(k) >= 0 ? k : 'received';
+          const cat = AVAIL_CATS.includes(k) ? k : 'received';
           const part = { cash: Number(bd[k].cash) || 0, upi: Number(bd[k].upi) || 0 };
           add(cat, part);
           moveSrc(from, h.from, cat, part);
@@ -672,7 +672,7 @@
       }
       if (isFrom(h)) {
         if (bd) Object.keys(bd).forEach(function (k) {
-          const cat = AVAIL_CATS.indexOf(k) >= 0 ? k : 'received';
+          const cat = AVAIL_CATS.includes(k) ? k : 'received';
           add(cat, { cash: -(Number(bd[k].cash) || 0), upi: -(Number(bd[k].upi) || 0) });
           const src = bd[k].src;
           if (src && typeof src === 'object') {
@@ -694,8 +694,8 @@
       // `srcCat` says which pot it came out of (asked at entry time); a
       // collection expense implies its own round; otherwise fall back to the
       // fixed-order drain.
-      const target = (e.srcCat && AVAIL_CATS.indexOf(e.srcCat) >= 0) ? e.srcCat
-        : ((e.source === 'collection' && AVAIL_CATS.indexOf(e.collectionType) >= 0) ? e.collectionType : null);
+      const target = (e.srcCat && AVAIL_CATS.includes(e.srcCat)) ? e.srcCat
+        : ((e.source === 'collection' && AVAIL_CATS.includes(e.collectionType)) ? e.collectionType : null);
       if (target) {
         // subtract from the NAMED pot even if it is empty — going negative there
         // is honest ("this pot owes"), and Hrishi's rule is that negatives get
@@ -820,7 +820,7 @@
     const push = function (b, store, r, amt) { b.total += amt; b.rows.push({ store: store, r: r, amount: amt }); };
     (d.payments || []).filter(mine).forEach(function (r) {
       const ty = partyType[r.partyId];
-      const k = ['shop', 'person', 'member'].indexOf(ty) >= 0 ? ty : 'payment';
+      const k = ['shop', 'person', 'member'].includes(ty) ? ty : 'payment';
       if (k === cat) push(collected, 'payments', r, Number(r.amount) || 0);
     });
     (d.daily || []).filter(mine).forEach(function (r) {
@@ -828,8 +828,8 @@
       if (k === cat) push(collected, 'daily', r, Number(r.amount) || 0);
     });
     (d.expenses || []).filter(mine).forEach(function (e) {
-      const target = (e.srcCat && AVAIL_CATS.indexOf(e.srcCat) >= 0) ? e.srcCat
-        : ((e.source === 'collection' && AVAIL_CATS.indexOf(e.collectionType) >= 0) ? e.collectionType : null);
+      const target = (e.srcCat && AVAIL_CATS.includes(e.srcCat)) ? e.srcCat
+        : ((e.source === 'collection' && AVAIL_CATS.includes(e.collectionType)) ? e.collectionType : null);
       if (target === cat) push(expenses, 'expenses', e, Number(e.amount) || 0);
     });
     (d.handovers || []).filter(function (h) { return h.status === 'confirmed'; }).forEach(function (h) {
@@ -840,7 +840,7 @@
       if (!bd || !Object.keys(bd).length) return;   // legacy: lands in unattributed
       let part = 0;
       Object.keys(bd).forEach(function (k) {
-        const c = AVAIL_CATS.indexOf(k) >= 0 ? k : 'received';
+        const c = AVAIL_CATS.includes(k) ? k : 'received';
         if (c !== cat) return;
         part += (Number(bd[k].cash) || 0) + (Number(bd[k].upi) || 0);
       });
@@ -942,7 +942,7 @@
   // for a row written before funds existed.
   function handoverable(data, ident, sector) {
     const want = sector === undefined ? null
-      : (SECTORS.indexOf(String(sector)) >= 0 ? String(sector) : 'puja');
+      : (SECTORS.includes(String(sector)) ? String(sector) : 'puja');
     const av = myAvailable(want ? ofSector(data, want) : data, ident);
     const allPend = handoverSlots(data, ident).out.pending;
     let pend = allPend;
@@ -968,7 +968,7 @@
       if (bd && typeof bd === 'object') {
         Object.keys(bd).forEach(function (k) {
           if (k.slice(0, 2) === '__') return; // reserved metadata, not a category
-          const cat = AVAIL_CATS.indexOf(k) >= 0 ? k : 'received';
+          const cat = AVAIL_CATS.includes(k) ? k : 'received';
           if (!free[cat]) free[cat] = { cash: 0, upi: 0 };
           free[cat].cash -= Number(bd[k].cash) || 0;
           free[cat].upi -= Number(bd[k].upi) || 0;
@@ -1153,15 +1153,15 @@
   function mentionsMe(msg, me) {
     const m = String((msg && msg.mentions) || '').split(',').map(function (x) { return x.trim(); }).filter(Boolean);
     if (!m.length) return false;
-    if (m.indexOf('all') >= 0) return true;
+    if (m.includes('all')) return true;
     // A203: matched as a group above / below, never as a person. The server
     // now refuses these three as usernames, but an account registered before
     // that would otherwise receive every @admin in the book — and the group
     // rule is the one that must win, because that is what the sender meant.
-    if (MENTION_GROUPS.indexOf(String(me.username)) < 0 &&
-        m.indexOf(String(me.username)) >= 0) return true;
-    if (m.indexOf('admin') >= 0 && me.role === 'admin') return true;
-    if (m.indexOf('cashiers') >= 0 && (Number(me.cashier) === 1 || me.role === 'admin')) return true;
+    if (!MENTION_GROUPS.includes(String(me.username)) &&
+        m.includes(String(me.username))) return true;
+    if (m.includes('admin') && me.role === 'admin') return true;
+    if (m.includes('cashiers') && (Number(me.cashier) === 1 || me.role === 'admin')) return true;
     return false;
   }
   // Newest last, the way a conversation reads. `unread` counts what arrived
@@ -1750,7 +1750,7 @@
   // avoided for confidential kinds by building machinery, which the programme
   // never got.
   function permKeyFor(sector, kind) {
-    const s = SECTORS.indexOf(String(sector)) >= 0 ? String(sector) : 'puja';
+    const s = SECTORS.includes(String(sector)) ? String(sector) : 'puja';
     return s === 'puja' ? String(kind) : s + ':' + String(kind);
   }
   // A255: a ROLE inside a ভাঁড়ার. Hrishi: the programme has its own কোষাধ্যক্ষ,
@@ -1773,7 +1773,7 @@
     const k = String(key || ''), i = k.indexOf(':');
     if (i < 0) return null;
     const fund = k.slice(0, i), role = k.slice(i + 1);
-    return (fund !== 'puja' && SECTORS.indexOf(fund) >= 0 && FUND_ROLES.indexOf(role) >= 0)
+    return (fund !== 'puja' && SECTORS.includes(fund) && FUND_ROLES.includes(role))
       ? { fund: fund, role: role } : null;
   }
   const FUND_PERM_KEYS = SECTORS.reduce(function (acc, s) {
@@ -1788,9 +1788,9 @@
   function permParts(key) {
     const k = String(key || '');
     const i = k.indexOf(':');
-    if (i < 0) return ENTRY_KINDS.indexOf(k) >= 0 ? { fund: 'puja', kind: k } : null;
+    if (i < 0) return ENTRY_KINDS.includes(k) ? { fund: 'puja', kind: k } : null;
     const fund = k.slice(0, i), kind = k.slice(i + 1);
-    return (SECTORS.indexOf(fund) >= 0 && ENTRY_KINDS.indexOf(kind) >= 0)
+    return (SECTORS.includes(fund) && ENTRY_KINDS.includes(kind))
       ? { fund: fund, kind: kind } : null;
   }
   // Additive in this step: the bare kinds are already in FUND_PERM_KEYS (puja
@@ -1815,12 +1815,25 @@
   const FUND_EXTRA_KEYS = { program: PROGRAM_KEYS };
   // A268: "does this permission key belong to this ভাঁড়ার" — asked here, once,
   // because the 👥 screen was answering it itself and got the last clause wrong.
-  // It read `PROGRAM_KEYS.indexOf(k) >= 0` INSIDE a per-sector filter, and that
+  // It read `PROGRAM_KEYS.includes(k)` INSIDE a per-sector filter, and that
   // clause never looks at the sector: today there is one non-puja fund so it is
   // accidentally right, and the day a second is added every holder of
   // `progmoney` is marked as belonging to it too. The comment above that very
   // line says the third ভাঁড়ার should be marked the day it is added rather than
   // the day somebody notices this line never mentioned it.
+  // A276: tick or untick one key on a draft permission list. The `indexOf` here
+  // is NOT a membership test — the index is what splice needs — and it is the
+  // one place in that whole pass where the boundary is load-bearing. Written
+  // `> 0` instead of `=== -1`, the FIRST key in the list can never be unticked:
+  // it gets pushed again, and the admin's permission screen quietly grows
+  // duplicates of whatever they ticked first. `=== -1` also leaves no
+  // comparison for a mutation to flip.
+  function toggleKey(list, key) {
+    const l = list || [];
+    const i = l.indexOf(key);
+    if (i === -1) l.push(key); else l.splice(i, 1);
+    return l;
+  }
   // A275: three more decisions the survey found unheld in js/app.js, and each
   // one was written more than once — which is the failure mode this repo keeps
   // meeting. Two copies of a rule are two chances to fix one of them.
@@ -1861,7 +1874,7 @@
     if (p.iAmAdmin) return '';
     if (p.freeze) return 'pos_no_freeze';
     const want = p.want || null, cur = p.cur || null;
-    const holdsCash = function (x) { return !!x && (x.perms || []).indexOf('cashier') >= 0; };
+    const holdsCash = function (x) { return !!x && (x.perms || []).includes('cashier'); };
     if (holdsCash(want)) return 'pos_no_cashier';
     if (holdsCash(cur)) return 'pos_no_cashier_off';
     if (!p.myLevel) return 'pos_no_level';
@@ -1910,7 +1923,7 @@
     const sec = String(sector || '');
     const p = permParts(key); if (p) return p.fund === sec;
     const r = fundRoleParts(key); if (r) return r.fund === sec;
-    return (FUND_EXTRA_KEYS[sec] || []).indexOf(String(key)) >= 0;
+    return (FUND_EXTRA_KEYS[sec] || []).includes(String(key));
   }
   function permGroups() {
     const taken = {};
@@ -1935,9 +1948,9 @@
   function isCashierOf(user, sector) {
     if (!user) return false;
     if (user.role === 'admin') return true;
-    const sec = SECTORS.indexOf(String(sector)) >= 0 ? String(sector) : 'puja';
+    const sec = SECTORS.includes(String(sector)) ? String(sector) : 'puja';
     if (sec === 'puja') return Number(user.cashier) === 1;
-    return String(user.entries || '').split(',').indexOf(sec + ':cashier') >= 0;
+    return String(user.entries || '').split(',').includes(sec + ':cashier');
   }
   // A257: turn the cash sheet's answer into the parcel it describes. Pure, and
   // here rather than inside the flow's closure, because it is money arithmetic
@@ -1952,7 +1965,7 @@
     const out = { sector: 'puja', breakdown: {}, cash: 0, upi: 0, total: 0 };
     if (!sheet || typeof sheet !== 'object') return out;
     const sec = String(sheet.__sector || '');
-    if (SECTORS.indexOf(sec) >= 0) out.sector = sec;
+    if (SECTORS.includes(sec)) out.sector = sec;
     Object.keys(sheet).forEach(function (k) {
       if (k.slice(0, 2) === '__') return;   // metadata, never a pot
       const e = sheet[k] || {};
@@ -1973,12 +1986,12 @@
   // never empty the picker: absent means the books that server knows nothing
   // about, which is the puja's — what every parcel was until now.
   function cashiersForFund(list, sector) {
-    const want = SECTORS.indexOf(String(sector)) >= 0 ? String(sector) : 'puja';
+    const want = SECTORS.includes(String(sector)) ? String(sector) : 'puja';
     const all = list || [];
     if (!all.some(function (c) { return c && c.funds; })) return all;
     return all.filter(function (c) {
       const funds = String((c && c.funds) || '').split(',').filter(Boolean);
-      return funds.length ? funds.indexOf(want) >= 0 : want === 'puja';
+      return funds.length ? funds.includes(want) : want === 'puja';
     });
   }
   // A253: what "সব দাও" / "সব নাও" does to a draft. Pure, and here rather than
@@ -1990,7 +2003,7 @@
   function applyBulk(entries, groupId, on) {
     const g = permGroups().filter(function (x) { return x.id === String(groupId); })[0];
     const keys = g ? g.keys : [];
-    const rest = (entries || []).filter(function (k) { return keys.indexOf(k) < 0; });
+    const rest = (entries || []).filter(function (k) { return !keys.includes(k); });
     return on ? rest.concat(keys) : rest;
   }
   // What a committee POST may carry, so granting is one dropdown per person
@@ -2012,7 +2025,7 @@
   // sponsor is a confidence the board gives to a PERSON; hung on a post it
   // would change hands silently the day somebody is made কোষাধ্যক্ষ, and
   // nobody would be told. Admin grants those one name at a time.
-  const POSITION_PERM_KEYS = PERM_KEYS.filter(function (k) { return VIEW_PERM_KEYS.indexOf(k) < 0; })
+  const POSITION_PERM_KEYS = PERM_KEYS.filter(function (k) { return !VIEW_PERM_KEYS.includes(k); })
     .concat(REPORT_IDS).concat(['cashier']);
   // Split a post's flat permission list into the three fields the app actually
   // reads. One place decides which bucket a key belongs to — the UI, the server
@@ -2022,8 +2035,8 @@
     const out = { entries: [], reports: [], cashier: 0 };
     list.forEach(function (k) {
       if (k === 'cashier') out.cashier = 1;
-      else if (PERM_KEYS.indexOf(k) >= 0) out.entries.push(k);
-      else if (REPORT_IDS.indexOf(k) >= 0) out.reports.push(k);
+      else if (PERM_KEYS.includes(k)) out.entries.push(k);
+      else if (REPORT_IDS.includes(k)) out.reports.push(k);
     });
     return out;
   }
@@ -2036,7 +2049,7 @@
   // membrane at all.
   function permForRow(store, row) {
     const kindKey = function (ty) {
-      return ENTRY_KINDS.indexOf(String(ty)) >= 0 ? permKeyFor(sectorOf(row), String(ty)) : null;
+      return ENTRY_KINDS.includes(String(ty)) ? permKeyFor(sectorOf(row), String(ty)) : null;
     };
     if (store === 'parties') return kindKey(row && row.type);
     if (store === 'daily') return kindKey(row && row.type);
@@ -2052,7 +2065,7 @@
     if (!user) return false;
     if (user.role === 'admin') return true;
     if (!key) return true; // common to everyone — handover, own donors, dues…
-    return String(user.entries || '').split(',').indexOf(key) >= 0;
+    return String(user.entries || '').split(',').includes(key);
   }
 
   // ---- confidential entry kinds (A144) -----------------------------------
@@ -2080,7 +2093,7 @@
   // deliberately a different key from the entry grant: writing a sponsor and
   // reading every sponsor are different powers, and the cashier who must
   // RECEIVE that cash needs the second one without the first.
-  function isRestrictedType(type) { return RESTRICTED_TYPES.indexOf(String(type)) >= 0; }
+  function isRestrictedType(type) { return RESTRICTED_TYPES.includes(String(type)); }
   function userIdent(user) { return String((user && (user.username || user.name)) || ''); }
   // The ONE decision, mirrored in Code.gs canSeeParty_. The server is the guard
   // — a row a reader may not see never leaves it — and this copy keeps the
@@ -2358,11 +2371,11 @@
     if (!user) return [];
     if (user.role === 'admin') return REPORT_IDS.slice();
     const granted = String(user.reports || '').split(',').filter(Boolean);
-    if (Number(user.cashier) === 1 && granted.indexOf('inhand') < 0) granted.push('inhand');
-    return granted.filter(function (r) { return REPORT_IDS.indexOf(r) >= 0; });
+    if (Number(user.cashier) === 1 && !granted.includes('inhand')) granted.push('inhand');
+    return granted.filter(function (r) { return REPORT_IDS.includes(r); });
   }
 
-  const api = { isDue, moreThan, keyOfFund, canEditParty, canVoid, isMine, isOrdinaryMember, positionBlock, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
+  const api = { isDue, moreThan, keyOfFund, canEditParty, canVoid, isMine, isOrdinaryMember, positionBlock, toggleKey, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
                 inHandRows: inHandRows, personalSummary: personalSummary,
                 myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,

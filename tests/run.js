@@ -136,13 +136,13 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
      'A207: the screen notices a 🎭 grant made while the programme is off');
   eq(/g\.keys\.filter/.test(blk7), true,
      'A207: …for every key in that fund, not a list of three that stopped being three');
-  eq(/post\.indexOf\(k\) >= 0 \|\| own\.indexOf\(k\) >= 0/.test(blk7), true,
+  eq(/post\.includes\(k\) \|\| own\.includes\(k\)/.test(blk7), true,
      'A207: …a post-granted 🎭 key is just as doorless as a personal one');
   eq(/bits\.push\(t\('perm_prog_off'\)\)/.test(blk7), true,
      'A207: …and it lands in the note under the chips, which a phone can actually show');
   // A253: the second way a granted key opens nothing — the tab's master is
   // missing, so the person has the sub-permission and no door to use it behind.
-  eq(/held\.indexOf\('progteam'\) < 0/.test(blk7) && /bits\.push\(t\('perm_no_progteam'\)\)/.test(blk7),
+  eq(/!held\.includes\('progteam'\)/.test(blk7) && /bits\.push\(t\('perm_no_progteam'\)\)/.test(blk7),
      true, 'A253: …and a sub-permission without the tab master says so too');
   // the sentence has to point at a real place
   const i18n7 = require('fs').readFileSync(__dirname + '/../js/i18n.js', 'utf8');
@@ -766,9 +766,9 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
 // taken by nobody with no reason given.
 {
   const appR = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
-  eq(/Aggregate\.MENTION_GROUPS\.indexOf\(v\.toLowerCase\(\)\) >= 0/.test(appR), true,
+  eq(/Aggregate\.MENTION_GROUPS\.includes\(v\.toLowerCase\(\)\)/.test(appR), true,
      'A203: the live hint marks a reserved name as they type');
-  eq(/Aggregate\.MENTION_GROUPS\.indexOf\(username\.toLowerCase\(\)\) >= 0/.test(appR), true,
+  eq(/Aggregate\.MENTION_GROUPS\.includes\(username\.toLowerCase\(\)\)/.test(appR), true,
      'A203: …and submitting one is stopped on the phone');
   eq(/err_reserved_username/.test(appR), true, 'A203: …with a sentence, not a raw code');
   const gs = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
@@ -1936,7 +1936,7 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
   // "this person is not here". Verified in a browser across all six.
   {
     const app103 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
-    eq(/function matchWords\(hay, query\) \{[\s\S]{0,260}q\.split\(' '\)\.every\(function \(w\) \{ return h\.indexOf\(w\) >= 0; \}\);/.test(app103), true,
+    eq(/function matchWords\(hay, query\) \{[\s\S]{0,260}q\.split\(' '\)\.every\(function \(w\) \{ return h\.includes\(w\); \}\);/.test(app103), true,
        'A103: one rule — every word of the query, anywhere in the haystack');
     // every caller goes through it; an extra matcher appearing that does NOT
     // raise this count is the N-places-guarded-for-N-minus-1 pattern starting
@@ -2519,7 +2519,7 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
   const bar = appSrc.slice(appSrc.indexOf('function targetBar(data)'),
                            appSrc.indexOf('function exitingCard()'));
   eq(bar.length > 0, true, 'A79: targetBar exists');
-  eq(/allowedReports\(Auth\.current\(\)\)\.indexOf\('overview'\) < 0\) return ''/.test(bar), true,
+  eq(/!Aggregate\.allowedReports\(Auth\.current\(\)\)\.includes\('overview'\)\) return ''/.test(bar), true,
      'A79: the bar is drawn only for somebody who may already see the season total');
   eq(/if \(!target \|\|/.test(bar), true,
      'A79: …and only when a target has been agreed — a bar against a made-up denominator is worse than no bar');
@@ -7634,7 +7634,7 @@ try {
   const agg = fs.readFileSync(__dirname + '/../js/aggregate.js', 'utf8');
   eq((agg.match(/\['shop', 'person', 'member', 'sponsor', 'gupt'\]/g) || []).length, 1,
      'A146: the payment→pot list is written ONCE (A66\'s lesson, third time)');
-  eq(/return PARTY_KINDS\.indexOf\(String\(partyType\)\) >= 0/.test(agg), true,
+  eq(/return PARTY_KINDS\.includes\(String\(partyType\)\)/.test(agg), true,
      'A242: …and catOfPayment reads that one list rather than repeating it');
   eq((agg.match(/put\(catOfPayment\(ty\), splitOf\(r\)\)/g) || []).length, 1,
      'A146: …and the cashier\'s own screen reads that one');
@@ -8439,7 +8439,7 @@ try {
   eq(/if \(Auth\.loggedIn\(\)\) paintNav\(\);\s*\n\s*if \(!changed \|\| flowState\) return;/.test(app), true,
      'A157: …and from the pull BEFORE the return that leaves screens alone');
   // and the screen-rebuild rule is untouched — that was never the bug
-  eq(/if \(\['list', 'party', 'report'\]\.indexOf\(current\.view\) >= 0\) render\(\);/.test(app), true,
+  eq(/if \(\['list', 'party', 'report'\]\.includes\(current\.view\)\) render\(\);/.test(app), true,
      'A157: …while a background poll still refuses to rebuild the screen under a finger');
 }
 
@@ -9747,6 +9747,84 @@ pending.push((async function () {
   eq(/Lists\.permsOf\([a-z]+\)\.indexOf\('cashier'\)/.test(app75), false,
      'A275: …nor why a post cannot be handed over');
   eq(/Aggregate\.positionBlock\(\{/.test(app75), true, 'A275: the dropdown asks instead');
+}
+
+// A276 — the render and list survivors: remove the boundary instead of testing it.
+//
+// The list bucket was 50 survivors and almost all of one shape:
+// `something.indexOf(x) >= 0`. Every one was CORRECT, and every one is the shape
+// A248, A265, A268 and A272 kept meeting — a fixture that grants the interesting
+// key second never notices a rule that drops the list's head.
+//
+// Writing 36 tests for 36 correct lines is the wrong answer. `includes` has no
+// boundary to get wrong: there is no `>=` left to flip, so the mutation cannot
+// be written. 70 mutable spots left the two files this way.
+{
+  const app76 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  const agg76 = require('fs').readFileSync(__dirname + '/../js/aggregate.js', 'utf8');
+  const membership = function (src, name) {
+    return src.split('\n').map(function (l, i) { return [i + 1, l]; })
+      .filter(function (r) {
+        const code = r[1].split('//')[0];
+        return code.indexOf('.indexOf(') >= 0 && /(>=|<)\s*0\b/.test(code);
+      })
+      .map(function (r) { return name + ':' + r[0] + ' ' + r[1].trim().slice(0, 60); });
+  };
+  const left = membership(app76, 'app').concat(membership(agg76, 'aggregate'));
+  eq(left.length, 0,
+     'A276: membership is asked with includes(), which has no boundary to get wrong → ' + left.join(' ⏐ '));
+  // position tests are a DIFFERENT question and stay as they are: `k.indexOf('__')
+  // !== 0` asks where something is, not whether it is there.
+  eq(/k\.indexOf\('__'\) !== 0/.test(app76), true,
+     'A276: …while asking WHERE something sits is left alone, because that is another question');
+
+  // ── the cash sheet's ceiling, which the render bucket was hiding
+  //
+  // `have` is s.view.availableTotal — an aggregate SUM. `tot` is what the
+  // collector typed. Type exactly the figure the screen prints and
+  // `tot > have` was true by 5.7e-14: a red "⚠️ you do not hold that much
+  // ₹300.6" against an amount equal to the ₹300.6 shown above it, and পরের
+  // greyed out. The onclick guard then returned SILENTLY — a dead button with
+  // no reason at all, which is what A267's own comment warns about.
+  eq(/const over = Aggregate\.moreThan\(tot, have\);/.test(app76), true,
+     'A276: the typed ceiling asks the epsilon');
+  eq(/nextB\.disabled = !Aggregate\.moreThan\(tot, 0\) \|\| over;/.test(app76), true,
+     'A276: …and so does the button it greys out');
+  eq(/if \(!Aggregate\.moreThan\(c \+ u, 0\) \|\| Aggregate\.moreThan\(c \+ u, have\)\) return;/.test(app76), true,
+     'A276: …and the silent guard behind it agrees, so the two cannot disagree');
+
+  // the property, computed rather than written down: what a collector types is
+  // the figure the screen showed them, and the screen shows the SUM.
+  const A76 = require('../js/aggregate.js');
+  const have = [100.10, 200.20, 0.30].reduce(function (a, b) { return a + b; }, 0);
+  const typed = 300.60;
+  eq(typed > have, true, 'A276: the printed figure is BIGGER than the sum it was printed from');
+  eq(A76.moreThan(typed, have), false, 'A276: …but handing over exactly that is not over the ceiling');
+  eq(A76.moreThan(typed + 1, have), true, 'A276: …while a rupee more still is');
+  eq(A76.moreThan(0, 0), false, 'A276: and nothing typed is not a handover');
+
+  // ── the one index that IS load-bearing: ticking a permission chip.
+  // `>= 0` written `> 0` means the FIRST key can never be unticked — it gets
+  // pushed again — so the admin's screen quietly grows duplicates of whatever
+  // they ticked first, on the four draft lists (perms, reports, areas, entries).
+  const tk = A76.toggleKey;
+  let l = ['shop', 'road', 'bus'];
+  eq(tk(l, 'shop').join(','), 'road,bus', 'A276: the FIRST key can be unticked');
+  eq(tk(l, 'bus').join(','), 'road', 'A276: …and so can the last');
+  eq(tk(l, 'toto').join(','), 'road,toto', 'A276: …and one that is not there is ticked ON');
+  eq(tk(l, 'toto').join(','), 'road', 'A276: …and ticking it again takes it off');
+  eq(tk(['only'], 'only').join(','), '', 'A276: a list of one empties');
+  eq(tk([], 'shop').join(','), 'shop', 'A276: an empty list takes the first key');
+  eq(tk(null, 'shop').join(','), 'shop', 'A276: …and so does no list at all');
+  // the duplicate the broken version would have produced
+  eq(tk(tk(['cashier'], 'cashier'), 'cashier').join(','), 'cashier',
+     'A276: off then on leaves ONE, never two');
+  const dup = ['a', 'b', 'a'];
+  eq(tk(dup, 'a').join(','), 'b,a', 'A276: a list that already has a duplicate loses one at a time');
+
+  const app76b = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/const toggle = Aggregate\.toggleKey;/.test(app76b), true,
+     'A276: the four chip lists all go through it');
 }
 
 Promise.all(pending.map(function (p) {

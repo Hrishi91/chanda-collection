@@ -18116,3 +18116,80 @@ unaffected — every catch there carried a name — but the classifier was wrong
 would have understated the next file it measured.
 
 Tests 3,712 → 3,748. CLIENT night.
+
+## A276 — render and list: remove the boundary instead of testing it
+
+The `list` bucket was 50 survivors and almost all of ONE shape:
+
+```js
+something.indexOf(x) >= 0
+```
+
+Every single one **correct**. And every single one the shape this repo keeps
+meeting — A248 (`viewPermFor`), A265 (`hasProg_`, `setup`), A268
+(`PROGRAM_KEYS`), A272 (`posBlock`, `REPORT_IDS`, the chip toggle): a fixture
+that grants the interesting key SECOND never notices a rule that drops the
+list's head.
+
+Writing 36 tests for 36 correct lines is the wrong answer.
+
+**`includes` has no boundary to get wrong.** There is no `>=` left to flip, so
+the mutation cannot be written at all. 36 in `js/app.js`, 43 in
+`js/aggregate.js` — and `js/app.js` went from **394 mutable spots to 352** on
+that change alone.
+
+Position tests are a different question and stay: `k.indexOf('__') !== 0` asks
+WHERE something sits, not whether it is there. One `> 0` that was really a
+membership test went too — `action.indexOf('Subject') > 0`, accidentally correct
+because none of the six actions starts with `Subject`, which is not a reason to
+keep the shape.
+
+### The one index that IS load-bearing
+
+```js
+const i = list.indexOf(k); if (i >= 0) list.splice(i, 1); else list.push(k);
+```
+
+The permission chips. Here the index is what `splice` needs, so it cannot become
+`includes` — and this is the one place in the whole pass where the boundary
+matters: written `> 0`, **the FIRST key can never be unticked.** It gets pushed
+again, and the admin's four draft lists (perms, reports, areas, entries) quietly
+grow duplicates of whatever they ticked first.
+
+`Aggregate.toggleKey` now, tested with a truth table, and written `=== -1` so
+there is no comparison left for a mutation to flip either. The proof prints the
+bug: break it and the assertion reports `shop,road,bus,shop`.
+
+### The bug the render bucket was hiding
+
+`render` is where a classifier puts a line with no money NAME on it. This is one:
+
+```js
+const over = tot > have;                      // have = s.view.availableTotal
+nextB.disabled = tot <= 0 || over;
+if (c + u <= 0 || c + u > have) return;       // …and silently
+```
+
+The 🤝 cash sheet. `have` is an aggregate SUM; `tot` is what the collector typed.
+**Type exactly the figure the screen prints above the box** and `tot > have` was
+true by 5.7e-14 — a red *"⚠️ তুমি এত টাকা রাখো না ₹300.6"* against an amount
+equal to the ₹300.6 shown, পরের greyed out, and the click handler returning with
+**no message at all**. A272's own comment warns about exactly that dead button.
+
+Three comparisons, one epsilon, and the two guards pinned together so they cannot
+drift apart.
+
+### The measurement
+
+| | spots | survived | named catches |
+|---|---|---|---|
+| A272 (first full run) | 411 | 339 | 72 |
+| after A272–A275 | 394 | 321 | 73 |
+| **after A276** | **352** | **288** | **64** |
+
+Fifty-one survivors gone since the first full run, and most of them not by being
+tested — **by ceasing to exist.** That is the better outcome and it is worth
+saying plainly: the named-catch count went DOWN, because some of what those
+catches were holding is no longer there to hold.
+
+Tests 3,748 → 3,767. CLIENT night.

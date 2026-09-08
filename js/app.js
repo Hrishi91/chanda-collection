@@ -349,7 +349,7 @@
   function viewGrantsOf(u) {
     const ent = String((u && u.entries) || '').split(',');
     return String((u && u.role) || '') + '|' +
-      Aggregate.VIEW_PERM_KEYS.filter(function (k) { return ent.indexOf(k) >= 0; }).join(',');
+      Aggregate.VIEW_PERM_KEYS.filter(function (k) { return ent.includes(k); }).join(',');
   }
   function pullCentral(opts) {
     if (!navigator.onLine || !Sync.configured() || !Auth.loggedIn()) return Promise.resolve();
@@ -584,7 +584,7 @@
       // background re-render while the user is typing so we don't steal focus.
       const el = document.activeElement;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
-      if (['list', 'party', 'report'].indexOf(current.view) >= 0) render();
+      if (['list', 'party', 'report'].includes(current.view)) render();
     }).catch(function () {
       // A69: a failed pull earns a growing skip. Doubling, capped at 8 polls
       // (~8 minutes) — long enough to stop hammering a dead tower, short enough
@@ -707,10 +707,10 @@
   function rejSeenIds() {
     try { return JSON.parse(Settings.get('rejSeen') || '[]') || []; } catch (e) { return []; }
   }
-  function rejSeen(id) { return rejSeenIds().indexOf(String(id)) >= 0; }
+  function rejSeen(id) { return rejSeenIds().includes(String(id)); }
   function rejMarkSeen(id) {
     const ids = rejSeenIds();
-    if (ids.indexOf(String(id)) < 0) ids.push(String(id));
+    if (!ids.includes(String(id))) ids.push(String(id));
     Settings.set('rejSeen', JSON.stringify(ids.slice(-200))); // cap: it only grows
   }
   // A127 (trial: "after clicking the button, no response for some time"): a
@@ -865,7 +865,7 @@
     // auto-refresh a data view (e.g. admin panel) when the count changes,
     // so a new registration/handover shows without a manual refresh
     if (changed && Auth.loggedIn() && !flowState && current.view !== 'home' &&
-        REFRESHABLE.indexOf(current.view) >= 0) render();
+        REFRESHABLE.includes(current.view)) render();
   }
   // once pull carries the feed, the standalone poll is redundant (halves calls)
   let notifViaPull = false;
@@ -887,7 +887,7 @@
     // backoff and force past the in-flight skip
     resetPullBackoff();
     pullCentral({ force: true }); // refresh the central snapshot (incl. notifications + me)
-    if (Auth.loggedIn() && !flowState && REFRESHABLE.indexOf(current.view) >= 0) render();
+    if (Auth.loggedIn() && !flowState && REFRESHABLE.includes(current.view)) render();
   }
   function startNotifPolling() {
     if (!notifWired) {
@@ -1380,7 +1380,7 @@
       // them and simply does not render.)
       const groups = Aggregate.SUMMARY_GROUPS.map(function (g) {
         return { key: g.key, labelKey: SUM_GROUP_KEYS[g.key] || 'cat_other',
-                 cats: s.categories.filter(function (c) { return g.cats.indexOf(c.key) >= 0; }) };
+                 cats: s.categories.filter(function (c) { return g.cats.includes(c.key); }) };
       }).filter(function (g) { return g.cats.length; });
       // cash and UPI are SEPARATE tap-to-select chips carrying the real
       // figure — nothing is typed; the total is simply what is selected.
@@ -1443,7 +1443,7 @@
           }).join('') +
           (cats.length > 1 ? subRow(sub) : '') + '</div>';
       };
-      const inGrp = function (keys) { return s.cats.filter(function (c) { return keys.indexOf(c.key) >= 0; }); };
+      const inGrp = function (keys) { return s.cats.filter(function (c) { return keys.includes(c.key); }); };
       // A146: the cashier's read-only position, banded from the same source, so
       // a new kind cannot appear on one of these two screens and not the other.
       // 'other' is drawn separately below, by GIVER rather than by category.
@@ -1681,18 +1681,18 @@
       // Cash and UPI are NOT capped separately: a cashier may hand over in
       // whatever form they have — settle a UPI balance in notes, or the other
       // way round. Only the TOTAL has to fit what they hold.
-      const over = tot > have;
+      const over = Aggregate.moreThan(tot, have);
       totalEl.innerHTML = esc(t('sheet_total')) + ': ' +
         '<span class="cat-split">💵' + fmtMoney(c) + ' · 📱' + fmtMoney(u) + '</span>' +
         '<b class="cat-tot' + (over ? ' over' : '') + '">' + fmtMoney(tot) + '</b>' +
         (over ? '<div class="cs-warn">⚠️ ' + esc(t('cs_over')) + ' ' + fmtMoney(have) + '</div>' : '');
-      nextB.disabled = tot <= 0 || over;
+      nextB.disabled = !Aggregate.moreThan(tot, 0) || over;
     };
     cashEl.oninput = refresh; upiEl.oninput = refresh;
     refresh();
     nextB.onclick = function () {
       const c = num(cashEl), u = num(upiEl);
-      if (c + u <= 0 || c + u > have) return;
+      if (!Aggregate.moreThan(c + u, 0) || Aggregate.moreThan(c + u, have)) return;
       submitSheet({ __cash: c, __upi: u });
     };
   }
@@ -2701,7 +2701,7 @@
       const dailyTiles = plan.daily.map(drawTile).join('');
       // চাঁদা নেওয়া is common: a later instalment may reach whoever is nearest,
       // no matter who first wrote the donor down.
-      const paymentTile = plan.common.indexOf('payments') >= 0
+      const paymentTile = plan.common.includes('payments')
         ? '<div class="grid one"><button class="tile wide" data-go="list">💰 ' + esc(t('add_payment')) + ' / ' + esc(t('dues_only')) + '</button></div>' : '';
       const cashTiles =
         plan.common.filter(function (k) { return k !== 'payments'; }).map(drawTile).join('') +
@@ -2804,7 +2804,7 @@
   // than no bar.
   function targetBar(data) {
     const target = Number((centralConfig || {}).target_amount) || 0;
-    if (!target || Aggregate.allowedReports(Auth.current()).indexOf('overview') < 0) return '';
+    if (!target || !Aggregate.allowedReports(Auth.current()).includes('overview')) return '';
     const got = Aggregate.computeTotals(data).totalCollection;
     const pct = Math.max(0, Math.min(100, Math.round(got / target * 100)));
     const left = target - got;
@@ -2986,8 +2986,8 @@
         const g = b.dataset.pgo;
         // every one of these carries 'program' as its FUND — from the tab, never
         // from a question
-        if (Aggregate.DAILY_KINDS.indexOf(g) >= 0) startFlow(dailyFlow(g, 'program'));
-        else if (Aggregate.PARTY_KINDS.indexOf(g) >= 0) freshThen(function () { startFlow(newPartyFlow(g, {}, 'program')); });
+        if (Aggregate.DAILY_KINDS.includes(g)) startFlow(dailyFlow(g, 'program'));
+        else if (Aggregate.PARTY_KINDS.includes(g)) freshThen(function () { startFlow(newPartyFlow(g, {}, 'program')); });
         else if (g === 'expense') startExpense(null, 'program');
         else if (g === 'duty') startFlow(dutyFlow('program'));
         else if (g === 'transfer') startFlow(transferFlow());
@@ -4155,7 +4155,7 @@
   function matchWords(hay, query) {
     const q = normText(query); if (!q) return true;
     const h = normText(hay);
-    return q.split(' ').every(function (w) { return h.indexOf(w) >= 0; });
+    return q.split(' ').every(function (w) { return h.includes(w); });
   }
   // A party matches on its name, owner, phone, area and location — so
   // "কমল মালদা" or "9998 malda" work.
@@ -4283,7 +4283,7 @@
     if (!cats.length) return list;
     return list.filter(function (c) {
       const sees = String((c && c.sees) || '').split(',');
-      return cats.every(function (ty) { return sees.indexOf(ty) >= 0; });
+      return cats.every(function (ty) { return sees.includes(ty); });
     });
   }
   // The breakdown a half-finished sheet answer implies. handoverFlow builds the
@@ -4305,7 +4305,7 @@
     (committee || []).forEach(function (c) { if (c && String(c.username) === String(toId)) row = c; });
     if (!row) return false;
     const sees = String(row.sees || '').split(',');
-    return cats.every(function (ty) { return sees.indexOf(ty) >= 0; });
+    return cats.every(function (ty) { return sees.includes(ty); });
   }
   function canSeeKind(key) {
     if (!Aggregate.isRestrictedType(key)) return canEntry(key);
@@ -5136,7 +5136,7 @@
         // the own-donor test — so the ✏️ that appears on an old round is a form
         // that cannot be saved.
         const canEdit = isFlag && !isVoid && mineNow && !amExiting() &&
-          ['payments', 'daily', 'expenses'].indexOf(it.store) >= 0;
+          ['payments', 'daily', 'expenses'].includes(it.store);
         const editBtn = canEdit
           ? '<button class="chip void-btn" data-ed="' + it.store + '|' + esc(r.id) + '">✏️ ' + esc(t('fix_btn')) + '</button>'
           : '';
@@ -6524,7 +6524,7 @@
   // in Ramesh's pocket is programme money, because it is not true of the notes.
   const WHOLE_BOOK_REPORTS = ['inhand', 'collectors'];
   function bookFor(id, data) {
-    if (WHOLE_BOOK_REPORTS.indexOf(id) >= 0) return data;
+    if (WHOLE_BOOK_REPORTS.includes(id)) return data;
     if (id === 'program') return data; // computeReport('program') filters itself
     return Aggregate.ofSector(data, 'puja');
   }
@@ -6600,7 +6600,7 @@
           // false all-clear. When the held version is not the running version
           // the fix was never a download, it is a reload.
           return swVersion().then(function (have) {
-            if (have && have.indexOf(' / ') < 0 && have !== APP_VERSION) { location.reload(); return; }
+            if (have && !have.includes(' / ') && have !== APP_VERSION) { location.reload(); return; }
             btn.disabled = false; toast(t('upd_latest')); showVersion();
           });
         }
@@ -7143,7 +7143,7 @@
     // each reason can have its own sentence, then fall back to the family. Both
     // halves matter: without the second, a new reason added server-side would
     // show the collector a raw English error code.
-    if (code.indexOf(':') >= 0) {
+    if (code.includes(':')) {
       const whole = 'err_' + code.replace(/:/g, '_');
       if (I18N[whole]) return t(whole);
       const family = 'err_' + code.split(':')[0];
@@ -7221,7 +7221,7 @@
     userEl.oninput = function () {
       const v = userEl.value.trim();
       if (!v) { hint.textContent = t('username_rule'); hint.className = 'hint'; }
-      else if (Aggregate.MENTION_GROUPS.indexOf(v.toLowerCase()) >= 0) {
+      else if (Aggregate.MENTION_GROUPS.includes(v.toLowerCase())) {
         // A203: say it WHILE they type. Finding out after submit that the name
         // they chose is taken by nobody, with no reason given, is the worst
         // version of this.
@@ -7239,7 +7239,7 @@
       // client-side checks with clear, persistent messages
       if (!name) { authError(t('fill_all')); return; }
       if (!USERNAME_RE.test(username)) { authError(t('err_bad_username')); return; }
-      if (Aggregate.MENTION_GROUPS.indexOf(username.toLowerCase()) >= 0) { authError(t('err_reserved_username')); return; }
+      if (Aggregate.MENTION_GROUPS.includes(username.toLowerCase())) { authError(t('err_reserved_username')); return; }
       if (pw.length < 6) { authError(t('err_bad_input')); return; }
       if (pw !== pw2) { authError(t('pw_mismatch')); return; }
       const phone = document.getElementById('rg-phone').value.trim();
@@ -7806,7 +7806,7 @@
     Auth.call(action, Object.assign({ token: Auth.token() }, payload)).then(function () {
       if (patch) { patch(); Lists.refresh(true); admRepaint(); return; }
       // add: fetch back just the list that grew
-      const isSubject = action.indexOf('Subject') > 0;
+      const isSubject = action.includes('Subject');
       Auth.call(isSubject ? 'listSubjects' : 'listItems', { token: Auth.token() })
         .then(function (r) {
           if (isSubject) admCache[1] = { subjects: r.subjects || [] };
@@ -7940,7 +7940,7 @@
         else (groups[u.status] || groups.blocked).push(u);
       });
       function userButtons(u) {
-        const hasYear = u.years.split(',').indexOf(year) >= 0;
+        const hasYear = u.years.split(',').includes(year);
         let btns = '';
         if (u.status === 'pending') {
           btns = '<button class="chip" data-act="approve" data-id="' + u.id + '">' + esc(t('approve')) + '</button>';
@@ -8033,7 +8033,7 @@
         const firstGlyph = function (str) { return Array.from(String(str || ''))[0] || ''; };
         const marks = []
           .concat(Aggregate.RESTRICTED_TYPES
-            .filter(function (ty) { return ent.indexOf(Aggregate.viewPermFor(ty)) >= 0; })
+            .filter(function (ty) { return ent.includes(Aggregate.viewPermFor(ty)); })
             .map(function (ty) { return firstGlyph(t('grp_' + ty)); }))
           .concat(Aggregate.SECTORS.filter(function (sec) {
             if (sec === 'puja') return false;
@@ -8119,9 +8119,9 @@
         return groups.map(function (g) {
           let nPost = 0;
           const chips = g.keys.map(function (k) {
-            const fromPost = post.indexOf(k) >= 0;
+            const fromPost = post.includes(k);
             if (fromPost) nPost++;
-            const on = fromPost || own.indexOf(k) >= 0;
+            const on = fromPost || own.includes(k);
             return '<button class="chip' + (on ? ' on' : '') + (fromPost ? ' from-post' : '') + '" data-ent-user="' + u.id +
               '" data-ent-id="' + esc(k) + '"' + (fromPost ? ' disabled title="' + esc(t('from_post')) + '"' : '') + '>' +
               (fromPost ? '🎖️ ' : '') + esc(permLabel(k)) + '</button>';
@@ -8140,11 +8140,11 @@
           // Both are said here, in words, for the same reason the line above is.
           if (g.id !== 'puja' && g.id !== 'view' && g.id !== 'other') {
             const held = g.keys.filter(function (k) {
-              return post.indexOf(k) >= 0 || own.indexOf(k) >= 0;
+              return post.includes(k) || own.includes(k);
             });
             if (held.length && !programOn()) bits.push(t('perm_prog_off'));
             else if (held.some(function (k) { return k !== 'progteam'; }) &&
-                     held.indexOf('progteam') < 0) bits.push(t('perm_no_progteam'));
+                     !held.includes('progteam')) bits.push(t('perm_no_progteam'));
           }
           return permGroup(u, g.titleKey, 'ent:' + g.id, chips, bits.join('  '), false,
                            g.id === 'puja' && !eff.length);
@@ -8155,7 +8155,7 @@
         if (u.status !== 'approved' || u.role === 'admin') return '';
         const mine = admDraft.areas;
         const chips = areas.length ? areas.map(function (a) {
-          const on = mine.indexOf(a.id) >= 0;
+          const on = mine.includes(a.id);
           return '<button class="chip' + (on ? ' on' : '') + '" data-area-user="' + u.id + '" data-area-id="' + esc(a.id) + '">' +
             esc(Settings.get('lang') === 'en' ? (a.nameEn || a.nameBn) : (a.nameBn || a.nameEn)) + '</button>';
         }).join('') : '<span class="row-sub">' + esc(t('no_areas_yet')) + '</span>';
@@ -8168,9 +8168,9 @@
         let nPost = 0;
         const chips = REPORT_IDS.map(function (rid) {
           const autoCashier = (rid === 'inhand' && u.cashier);
-          const fromPost = post.indexOf(rid) >= 0;
+          const fromPost = post.includes(rid);
           if (fromPost) nPost++;
-          const on = autoCashier || fromPost || own.indexOf(rid) >= 0;
+          const on = autoCashier || fromPost || own.includes(rid);
           const lock = autoCashier || fromPost;
           return '<button class="chip' + (on ? ' on' : '') + (lock ? ' from-post' : '') + '" data-rep-user="' + u.id +
             '" data-rep-id="' + rid + '"' + (lock ? ' disabled title="' + esc(fromPost ? t('from_post') : 'auto') + '"' : '') + '>' +
@@ -8196,7 +8196,7 @@
           .concat(Number(u.ownCashier) === 1 ? ['cashier'] : []);
         const name = function (k) {
           return k === 'cashier' ? t('cashier')
-            : REPORT_IDS.indexOf(k) >= 0 ? t('report_' + k)
+            : REPORT_IDS.includes(k) ? t('report_' + k)
             : t(CAT_LABEL_KEYS[k] || ('perm_' + k)) || k;
         };
         const line = function (icon, key, list) {
@@ -8206,7 +8206,7 @@
         const uniq = {}, eff = [];
         post.concat(own).forEach(function (k) { if (k && !uniq[k]) { uniq[k] = 1; eff.push(k); } });
         return '<div class="perm-grp">' + line('🎖️', 'eff_from_post', post) +
-          line('➕', 'eff_extra', own.filter(function (k) { return post.indexOf(k) < 0; })) +
+          line('➕', 'eff_extra', own.filter(function (k) { return !post.includes(k); })) +
           line('✅', 'eff_final', eff) + '</div>';
       }
       function section(key, list) {
@@ -8430,7 +8430,7 @@
         // with no chip, while setPositionRules filters against
         // POSITION_PERM_KEYS and would have taken every one of them.
         const posEntryKeys = Aggregate.POSITION_PERM_KEYS.filter(function (k) {
-          return Aggregate.REPORT_IDS.indexOf(k) < 0 && k !== 'cashier';
+          return !Aggregate.REPORT_IDS.includes(k) && k !== 'cashier';
         });
         const groups = [
           ['entry_perms', posEntryKeys.map(function (k) { return [k, permLabel(k)]; })],
@@ -8458,13 +8458,13 @@
             '<div class="row-sub" style="margin-top:4px">' + esc(t('pos_level_hint')) + '</div>' +
             (admPosDraft.level ? '' :
               '<div class="perm-warn" style="display:block;margin-top:6px">' + esc(t('pos_level_none')) + '</div>') +
-            (admPosDraft.perms.indexOf('cashier') >= 0 ?
+            (admPosDraft.perms.includes('cashier') ?
               '<div class="perm-note">' + esc(t('pos_level_cashier')) + '</div>' : '') +
           '</div>' +
           groups.map(function (g) {
             return '<div class="perm-grp"><div class="perm-head">' + esc(t(g[0])) + '</div>' +
               '<div class="chips" style="margin:4px 0 0">' + g[1].map(function (k) {
-                return '<button class="chip' + (admPosDraft.perms.indexOf(k[0]) >= 0 ? ' on' : '') +
+                return '<button class="chip' + (admPosDraft.perms.includes(k[0]) ? ' on' : '') +
                   '" data-pp-key="' + esc(k[0]) + '">' + esc(k[1]) + '</button>';
               }).join('') + '</div></div>';
           }).join('') +
@@ -8517,8 +8517,9 @@
       // itself: tell it which screen is the parent, and let admGo run the
       // unsaved-changes check on the way out.
       // ── draft edits: instant, local, no network, only this screen repaints
-      const toggle = function (list, k) {
-        const i = list.indexOf(k); if (i >= 0) list.splice(i, 1); else list.push(k); };
+      // A276: the rule is Aggregate.toggleKey — the one place in this file where
+      // an index was load-bearing, and therefore the one worth a truth table.
+      const toggle = Aggregate.toggleKey;
       const redraw = function () { paintAdmin(res); };
       wireNav();
       // AFTER wireNav — it wires #back-bar generically and would overwrite this.
@@ -8898,7 +8899,7 @@
         if (!victims.length) { toast(t('clear_grants_none')); return; }
         const stranded = victims.filter(function (u) {
           return !Lists.permsOf(u.position || '').filter(function (k) {
-            return Aggregate.PERM_KEYS.indexOf(k) >= 0;
+            return Aggregate.PERM_KEYS.includes(k);
           }).length;
         });
         let msg = t('clear_grants_confirm').replace('{n}', victims.length)
