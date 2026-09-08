@@ -18883,3 +18883,45 @@ precisely this. The label keeps its 📗 because `hb_title` is also printed plai
 as the screen's heading.
 
 Tests 3,955 → 3,958. CLIENT night.
+
+## Go-live runbook — read out of the code, not remembered
+
+Hrishi asked for a deep analysis of the operation around 🚀, hours before doing
+it. `docs/go-live-runbook.md` is the answer; three things in it were not what the
+existing notes said.
+
+**1. It is reversible, and pending.md implied otherwise.** `restoreBackup`
+accepts only files carrying the backup prefix, takes a safety snapshot of the
+current state first, and validates every sheet key **before the first clear** —
+because a throw halfway once left the book half old and half new. And
+`BACKUP_EXTRA_SHEETS` includes **`Config`**, which carries `live_mode`. So
+restoring the snapshot 🚀 itself made puts the book back into training. The
+filename is in the `went-live` audit line. That is the undo, and it should not
+have to be rediscovered at midnight.
+
+**2. The real danger is not the wipe; it is the RACE around it.** A new
+`data_epoch` makes a phone clear its whole local database, saving unsynced rows
+to the read-only 🪦 list first. But `autoSync()` pushes then pulls, while the
+60-second poll and the focus handler call `pullCentral` **directly** — so which
+happens first is undetermined:
+
+- pull first → the rows are wiped to 🪦 and must be typed again
+- push first → training rows land in the **live** book as live entries
+
+Neither is acceptable, which is why "everyone syncs to empty first" is a rule and
+not a suggestion.
+
+**3. The admin cannot see who is at risk.** The server never sees a phone's
+queue. `listUsers` reports each phone's app VERSION and nothing about pending
+entries. Only the collector's own ⏳ shows it — so go-live needs each collector to
+confirm, not an admin to check. That asymmetry is worth knowing before relying on
+the admin panel to tell you it is safe.
+
+**And a correction to my own advice:** I was about to suggest a 🛑 freeze as the
+way to hold everybody still during the switch. Reading `push` shows a freeze puts
+rows in `heldIds` — *"neither saved nor refused, so they stay queued"* — and a
+held row **is** an unsynced row, which 🚀 then destroys. Rows written BEFORE the
+freeze still go through (deliberately: a morning round written offline must not
+be lost). So freeze narrows the window and does not close it.
+
+No code changed. Tests 3,958, unmoved.

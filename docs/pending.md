@@ -458,6 +458,14 @@ survives it.
 
 ## Next decision — Go Live
 
+**→ `docs/go-live-runbook.md`** (2026-09-08) — what 🚀 does read out of the code
+rather than remembered, the fact that it IS reversible via the backup it makes
+itself, and the one real danger: an entry not yet synced when a phone first
+pulls after 🚀 is deleted from that phone. The admin cannot see whose phone still
+has one; only the collector's own ⏳ shows it. Freeze does not fix that — a held
+row is an unsynced row.
+
+
 Training mode is still ON (default since it shipped). Every entry made so
 far is a training/test entry and will be **wiped** the moment `🚀 Go Live`
 runs (admin panel → data+audit fold). Hrishi to decide **when** to trigger
