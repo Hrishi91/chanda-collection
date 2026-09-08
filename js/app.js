@@ -8057,8 +8057,11 @@
       // always the same word. `review` rides along — it is the cashier's
       // correction desk, not a category, hence the separator.
       // heading · all/none shortcuts · state note · the chips
-      function permGroup(u, titleKey, kind, chips, note, isDefaultAll, isEmpty) {
-        return '<div class="perm-grp"><div class="perm-head">' + esc(t(titleKey)) +
+      // A282: a resolved TITLE, not a key — a per-ভাঁড়ার group has to name the
+      // fund it belongs to ("📊 রিপোর্ট · 🎭 অনুষ্ঠান"), and that is two strings
+      // joined, not a key somebody has to remember to add for every new fund.
+      function permGroup(u, title, kind, chips, note, isDefaultAll, isEmpty) {
+        return '<div class="perm-grp"><div class="perm-head">' + esc(title) +
             '<span class="perm-bulk">' +
               '<button class="chip mini" data-bulk="' + kind + '" data-bulk-user="' + u.id + '" data-bulk-on="1">' + esc(t('bulk_all')) + '</button>' +
               '<button class="chip mini" data-bulk="' + kind + '" data-bulk-user="' + u.id + '" data-bulk-on="0">' + esc(t('bulk_none')) + '</button>' +
@@ -8152,7 +8155,7 @@
             else if (held.some(function (k) { return k !== 'progteam'; }) &&
                      !held.includes('progteam')) bits.push(t('perm_no_progteam'));
           }
-          return permGroup(u, g.titleKey, 'ent:' + g.id, chips, bits.join('  '), false,
+          return permGroup(u, t(g.titleKey), 'ent:' + g.id, chips, bits.join('  '), false,
                            g.id === 'puja' && !eff.length);
         }).join('');
       }
@@ -8165,31 +8168,38 @@
           return '<button class="chip' + (on ? ' on' : '') + '" data-area-user="' + u.id + '" data-area-id="' + esc(a.id) + '">' +
             esc(Settings.get('lang') === 'en' ? (a.nameEn || a.nameBn) : (a.nameBn || a.nameEn)) + '</button>';
         }).join('') : '<span class="row-sub">' + esc(t('no_areas_yet')) + '</span>';
-        return permGroup(u, 'assign_areas', 'area', chips, '', false);
+        return permGroup(u, t('assign_areas'), 'area', chips, '', false);
       }
       function reportChips(u) {
         if (u.status !== 'approved' || u.role === 'admin') return '';
         const own = admDraft.reports;
         const post = Lists.permsOf(admDraft.position || '');
-        let nPost = 0;
-        const chips = REPORT_IDS.map(function (rid) {
-          const autoCashier = (rid === 'inhand' && u.cashier);
-          const fromPost = post.includes(rid);
-          if (fromPost) nPost++;
-          const on = autoCashier || fromPost || own.includes(rid);
-          const lock = autoCashier || fromPost;
-          return '<button class="chip' + (on ? ' on' : '') + (lock ? ' from-post' : '') + '" data-rep-user="' + u.id +
-            '" data-rep-id="' + rid + '"' + (lock ? ' disabled title="' + esc(fromPost ? t('from_post') : 'auto') + '"' : '') + '>' +
-            (fromPost ? '🎖️ ' : '') + esc(t('report_' + rid)) + '</button>';
+        // A282: one group per ভাঁড়ার, exactly like the entry chips. 🎭's report
+        // is that fund's whole accounts; it has no business inside the puja's
+        // "সব দাও".
+        return Aggregate.reportGroups().map(function (g) {
+          let nPost = 0;
+          const chips = g.keys.map(function (rid) {
+            const autoCashier = (rid === 'inhand' && u.cashier);
+            const fromPost = post.includes(rid);
+            if (fromPost) nPost++;
+            const on = autoCashier || fromPost || own.includes(rid);
+            const lock = autoCashier || fromPost;
+            return '<button class="chip' + (on ? ' on' : '') + (lock ? ' from-post' : '') + '" data-rep-user="' + u.id +
+              '" data-rep-id="' + rid + '"' + (lock ? ' disabled title="' + esc(fromPost ? t('from_post') : 'auto') + '"' : '') + '>' +
+              (fromPost ? '🎖️ ' : '') + esc(t('report_' + rid)) + '</button>';
+          }).join('');
+          // A72: same as entriesChips — the reason a chip is ticked has to be on
+          // the screen. Two reasons here, not one, and they are different: the
+          // post grants it, or the cashier flag drags 'inhand' along. Said on
+          // the group the reason actually applies to.
+          const bits = [];
+          if (nPost) bits.push(t('perm_from_post_n').replace('{n}', String(nPost))
+                                .replace('{post}', Lists.labelOf('position', admDraft.position || '')));
+          if (u.cashier && g.keys.includes('inhand')) bits.push(t('inhand_auto_cashier'));
+          return permGroup(u, t('report_perms') + ' · ' + t(g.titleKey), 'rep:' + g.id,
+            chips, bits.join('  '), false);
         }).join('');
-        // A72: same as entriesChips — the reason a chip is ticked has to be on
-        // the screen. Two reasons here, not one, and they are different: the
-        // post grants it, or the cashier flag drags 'inhand' along.
-        const bits = [];
-        if (nPost) bits.push(t('perm_from_post_n').replace('{n}', String(nPost))
-                              .replace('{post}', Lists.labelOf('position', admDraft.position || '')));
-        if (u.cashier) bits.push(t('inhand_auto_cashier'));
-        return permGroup(u, 'report_perms', 'rep', chips, bits.join('  '), false);
       }
       // The answer to "why can he do that?", in one line, in the order a person
       // would ask it: what the post gives, what was added on top, what he ends
@@ -8874,7 +8884,13 @@
           if (String(b.dataset.bulk).slice(0, 4) === 'ent:') {
             admDraft.entries = Aggregate.applyBulk(admDraft.entries, String(b.dataset.bulk).slice(4), on);
           }
-          else if (b.dataset.bulk === 'rep') admDraft.reports = on ? REPORT_IDS.slice() : [];
+          // A282: scoped the same way, and for the same reason. This was
+          // `REPORT_IDS.slice()` — one tap on the puja's 📊 handed out the
+          // programme's whole accounts too, which is A253's bug standing in the
+          // group below the one A253 fixed.
+          else if (String(b.dataset.bulk).slice(0, 4) === 'rep:') {
+            admDraft.reports = Aggregate.applyBulkReports(admDraft.reports, String(b.dataset.bulk).slice(4), on);
+          }
           else admDraft.areas = on ? areas.map(function (a) { return a.id; }) : [];
           redraw();
         };

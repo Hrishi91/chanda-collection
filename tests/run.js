@@ -186,7 +186,12 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
 
   // the per-person report chips cover every report
   const rc = (app22.match(/function reportChips\(u\)[\s\S]*?\n      \}/) || [''])[0];
-  eq(/REPORT_IDS\.map\(/.test(rc), true, 'A222: the per-person report chips are derived, not typed');
+  // A282 split these per ভাঁড়ার, so they derive through reportGroups() — which
+  // itself derives from REPORT_IDS. A280's harness checks the PROPERTY (every
+  // report really does get a chip) rather than the spelling; this stays as the
+  // cheap tripwire that the list is not typed out again.
+  eq(/Aggregate\.reportGroups\(\)/.test(rc) && /g\.keys\.map\(/.test(rc), true,
+     'A222: the per-person report chips are derived, not typed');
 
   // the POST screen covers every permission the server will accept for a post
   const pg = (app22.match(/const posEntryKeys = [\s\S]*?\n        \];/) || [''])[0];
@@ -10273,6 +10278,93 @@ pending.push((async function () {
        'A280: nothing written yet says so, rather than drawing an empty frame');
   }
 
+  // ── A282: the permission SCREEN, per ভাঁড়ার
+  {
+    const users82 = [{ id: 'u2', username: 'ratan', name: 'রতন', role: 'user', status: 'approved',
+      cashier: 0, years: '2026', entries: 'shop', reports: 'inhand', areas: '', position: '' }];
+    const h = loadApp({ user: { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' },
+      central: EMPTY,
+      reply: function (a) {
+        if (a === 'listUsers') return { ok: true, users: users82 };
+        if (a === 'listSubjects') return { ok: true, subjects: [] };
+        if (a === 'listItems') return { ok: true, items: [] };
+        return null;
+      } });
+    await h.ready;
+    await h.show('admin');
+    h.app.admGo('users', 'u2');
+    await new Promise(function (r) { setTimeout(r, 300); });
+    const html = h.html('view');
+    const A = require('../js/aggregate.js');
+    // the A222 property, CHECKED: every report really does get a chip
+    const missing = A.REPORT_IDS.filter(function (r) {
+      return html.indexOf('data-rep-id="' + r + '"') < 0;
+    });
+    eq(missing.length, 0, 'A280/A282: every report has a chip to tick → missing ' + missing.join(','));
+    // and each ভাঁড়ার has its OWN bulk, reaching only itself
+    eq(/data-bulk="rep:puja"/.test(html) && /data-bulk="rep:program"/.test(html), true,
+       'A282: each ভাঁড়ার\'s reports have their own সব দাও / সব নাও');
+    eq(/data-bulk="rep"[^:]/.test(html), false,
+       'A282: …and there is no un-scoped one left that would hand out both');
+    // the group the programme's report sits in must not also hold a puja report
+    const progGrp = html.split('perm-grp').filter(function (x) {
+      return x.indexOf('data-bulk="rep:program"') >= 0;
+    })[0] || '';
+    eq(/data-rep-id="program"/.test(progGrp), true, 'A282: 🎭\'s accounts are in 🎭\'s group');
+    eq(/data-rep-id="overview"/.test(progGrp) || /data-rep-id="dues"/.test(progGrp), false,
+       'A282: …and no committee report is in there with it');
+  }
+
+  // ── A282: the button PRESSED. This is the line the bug was actually on —
+  //     else if (b.dataset.bulk === 'rep') admDraft.reports = on ? REPORT_IDS.slice() : [];
+  // — and a screen test that only reads HTML cannot reach it. The shim's query
+  // engine hands back the same element the wiring attached its handler to, so a
+  // test can press it. `ownReports` and not `reports`: the draft is seeded from
+  // a person's OWN extras, never the merged view, or a chip their post grants
+  // would be written into their own grants and outlive their time in the post.
+  {
+    const users82b = [{ id: 'u2', username: 'ratan', name: 'রতন', role: 'user', status: 'approved',
+      cashier: 0, years: '2026', entries: 'shop', ownEntries: 'shop',
+      reports: 'program', ownReports: 'program', areas: '', position: '' }];
+    const h = loadApp({ user: { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' },
+      central: EMPTY,
+      reply: function (a) {
+        if (a === 'listUsers') return { ok: true, users: users82b };
+        if (a === 'listSubjects') return { ok: true, subjects: [] };
+        if (a === 'listItems') return { ok: true, items: [] };
+        return null;
+      } });
+    await h.ready;
+    await h.show('admin');
+    h.app.admGo('users', 'u2');
+    await new Promise(function (r) { setTimeout(r, 300); });
+    const ticked = function () {
+      return h.doc.querySelectorAll('[data-rep-id]')
+        .filter(function (b) { return String(b.className).indexOf('on') >= 0; })
+        .map(function (b) { return b.dataset.repId; });
+    };
+    const press = async function (bulk, on) {
+      const b = h.doc.querySelectorAll('[data-bulk]').filter(function (x) {
+        return x.dataset.bulk === bulk && x.dataset.bulkOn === on;
+      })[0];
+      eq(!!(b && b.onclick), true, 'A282: the ' + bulk + ' ' + on + ' button is wired');
+      b.onclick();
+      await new Promise(function (r) { setTimeout(r, 250); });
+    };
+    eq(ticked().join(','), 'program', 'A282: the screen opens on what this person already holds');
+    await press('rep:puja', '1');
+    eq(ticked().includes('program'), true,
+       'A282: "সব দাও" on the committee\'s reports LEAVES the programme\'s where it was');
+    eq(ticked().length, 8, 'A282: …and grants the committee\'s seven');
+    await press('rep:puja', '0');
+    eq(ticked().join(','), 'program',
+       'A282: …and "সব নাও" takes back only the committee\'s — this is the tap the bug was in');
+    await press('rep:program', '0');
+    eq(ticked().length, 0, 'A282: …while the programme\'s own button takes back its own');
+    await press('rep:program', '1');
+    eq(ticked().join(','), 'program', 'A282: …and grants only its own');
+  }
+
   // ── ⚙️ Settings
   {
     const h = open(RATAN, {});
@@ -10554,6 +10646,46 @@ pending.push((async function () {
     eq(Object.keys(bd).join(','), 'shop', 'A281: …naming the pot the money came out of');
   }
 })());
+
+// A282 — the reports were never segregated.
+//
+// A253 split the ENTRY permissions per ভাঁড়ার because one flat strip meant
+// "সব দাও" handed a plain collector the programme along with the puja. The
+// REPORTS were left flat, and `program` — 🎭 অনুষ্ঠানের হিসাব, that fund's whole
+// accounts — sat in the same group as the puja's seven under a single tap:
+//
+//     else if (b.dataset.bulk === 'rep') admDraft.reports = on ? REPORT_IDS.slice() : [];
+//
+// The same bug, in the group below the one A253 fixed.
+{
+  const A82 = require('../js/aggregate.js');
+  const g = A82.reportGroups();
+  eq(g.length >= 2, true, 'A282: the report permissions are grouped, not one flat strip');
+  eq(g[0].id, 'puja', 'A282: the committee\'s own reports come first');
+  eq(g.map(function (x) { return x.id; }).join(','), 'puja,program',
+     'A282: …and the 🎭 ভাঁড়ার has its own group');
+  eq(g[1].keys.join(','), 'program', 'A282: …holding its own accounts');
+  eq(g[0].keys.includes('program'), false, 'A282: …which are NOT in the puja\'s');
+  // every report still has a home — the A222 property, checked rather than spelled
+  const all = g.reduce(function (a, x) { return a.concat(x.keys); }, []).sort().join(',');
+  eq(all, A82.REPORT_IDS.slice().sort().join(','),
+     'A282: every report is in exactly one group, and none was dropped on the way');
+
+  // the bulk buttons reach only their own group — which is the whole point
+  eq(A82.applyBulkReports(['program'], 'puja', true).includes('program'), true,
+     'A282: "সব দাও" on the puja does not disturb the programme');
+  eq(A82.applyBulkReports(A82.REPORT_IDS.slice(), 'puja', false).join(','), 'program',
+     'A282: …and "সব নাও" on the puja leaves the programme standing');
+  eq(A82.applyBulkReports(['inhand'], 'program', true).sort().join(','), 'inhand,program',
+     'A282: …while the programme\'s own button grants only its own');
+  eq(A82.applyBulkReports(['inhand', 'program'], 'program', false).join(','), 'inhand',
+     'A282: …and takes back only its own');
+
+  // derived, never listed: a report NAMED for a ভাঁড়ার belongs to it, so a third
+  // fund is grouped the day it is added rather than the day somebody notices.
+  eq(A82.SECTORS.filter(function (x) { return A82.REPORT_IDS.includes(x); }).join(','), 'program',
+     'A282: the grouping is derived from the fund names, not from a second list');
+}
 
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {

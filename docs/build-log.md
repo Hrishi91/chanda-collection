@@ -18547,3 +18547,65 @@ plainly that nothing on the server moved, so nobody later reads this rebake as
 evidence that something did.
 
 `js/config.js` rebaked. Phones still need ⚙️ → 🔄 for everything from A266 on.
+
+## A282 — the reports were never segregated
+
+Hrishi: *"you have not segregate the permissions."* He was right, and the harness
+found where.
+
+A253 split the ENTRY permissions per ভাঁড়ার, because one flat strip meant
+"সব দাও" handed a plain collector the programme along with the puja. **The
+REPORTS were left flat.** `program` — 🎭 অনুষ্ঠানের হিসাব, that fund's entire
+accounts — sat in the same 📊 group as the committee's seven, under one tap:
+
+```js
+else if (b.dataset.bulk === 'rep') admDraft.reports = on ? REPORT_IDS.slice() : [];
+```
+
+The same bug A253 was written to fix, standing in the group directly below the
+one A253 fixed. Drawing the screen is what showed it: seven groups, six scoped to
+their own keys and one — 📊 — holding two worlds.
+
+`Aggregate.reportGroups()` now, mirroring `permGroups()`, and **derived, never
+listed**: a report id that NAMES a ভাঁড়ার belongs to that ভাঁড়ার, so a third
+fund's report is grouped the day it is added rather than the day somebody notices
+this function never mentioned it. `applyBulkReports(list, groupId, on)` reaches
+only its own group. The screen shows **📊 রিপোর্ট permission · 🙏 পুজো** and
+**· 🎭 অনুষ্ঠান**, each with its own সব দাও / সব নাও.
+
+`permGroup` takes a resolved TITLE now rather than a key: a per-fund heading is
+two strings joined, not a key somebody must remember to add for every new fund.
+
+### The shim learned to press a button
+
+The first attempt at this test could not catch the bug. The bulk handler is
+wiring, and A277's shim captured `innerHTML` without parsing it — every RENDER
+survivor was held and no WIRING one, which is exactly where this bug lived.
+
+So the shim gained enough of a query engine to press a button: the painted HTML
+is scanned for tags and their attributes — no tree, no text nodes, no cascade,
+just "which elements are here and what are they marked with", which is what
+`[data-x]` wiring needs. Three things it had to learn on the way, each caught by
+watching it fail:
+
+1. **An unsupported selector THROWS.** A query engine that quietly answers
+   "nothing" to a selector it does not understand reports every wiring test as
+   passing.
+2. **A descendant selector SCOPES.** `#bottomnav button` means the buttons inside
+   #bottomnav; ignoring the prefix matched buttons from other screens, handed
+   `paintNav` one with no `<span>`, and threw.
+3. **The scan is MEMOISED per (owner, html).** Wiring attaches `onclick` to the
+   element a query returned, so a query that builds fresh stubs every time hands
+   the handler to an object nobody will see again — the buttons look wired and no
+   test can press one.
+
+Now the load-bearing line is held by a test that presses the button: open a
+person's permissions, tap the committee's **সব নাও**, and the programme's report
+is **still there**. Put the flat one-liner back and that assertion fails by name.
+
+One fixture note worth keeping: `admDraft` is seeded from `ownEntries` /
+`ownReports`, never the merged view — a chip a person's POST grants must not be
+written into their own grants and outlive their time in the post. A fixture that
+sets only `reports` opens on an empty screen and looks like a bug.
+
+Tests 3,904 → 3,930. CLIENT night.

@@ -2000,6 +2000,36 @@
   // so one tap on the entry section handed out guptview, sponsorview and the
   // entire programme. That is on Hrishi's own list of things to go back and
   // trim, which is how we know it happened.
+  // A282: the REPORTS get what the entries got in A253, and for the same reason.
+  // `program` is the 🎭 ভাঁড়ার's whole accounts, and it sat in one flat 📊 group
+  // beside the puja's seven under a single "সব দাও" — the exact tap A253 was
+  // written to stop, one group further down the same screen. Segregating the
+  // entries and leaving the reports flat means a plain collector still gets the
+  // programme's books in one press.
+  //
+  // Derived, never listed: a report id that NAMES a ভাঁড়ার belongs to that
+  // ভাঁড়ার. So the third fund's report is grouped the day it is added, rather
+  // than the day somebody notices this function never mentioned it.
+  function reportGroups() {
+    const owned = {};
+    SECTORS.forEach(function (sec) {
+      if (sec !== 'puja' && REPORT_IDS.includes(sec)) owned[sec] = 1;
+    });
+    const groups = [{ id: 'puja', titleKey: 'sector_puja',
+      keys: REPORT_IDS.filter(function (r) { return !owned[r]; }) }];
+    SECTORS.forEach(function (sec) {
+      if (!owned[sec]) return;
+      groups.push({ id: sec, titleKey: 'sector_' + sec,
+        keys: REPORT_IDS.filter(function (r) { return r === sec; }) });
+    });
+    return groups;
+  }
+  function applyBulkReports(reports, groupId, on) {
+    const g = reportGroups().filter(function (x) { return x.id === String(groupId); })[0];
+    const keys = g ? g.keys : [];
+    const rest = (reports || []).filter(function (k) { return !keys.includes(k); });
+    return on ? rest.concat(keys) : rest;
+  }
   function applyBulk(entries, groupId, on) {
     const g = permGroups().filter(function (x) { return x.id === String(groupId); })[0];
     const keys = g ? g.keys : [];
@@ -2375,7 +2405,7 @@
     return granted.filter(function (r) { return REPORT_IDS.includes(r); });
   }
 
-  const api = { isDue, moreThan, keyOfFund, canEditParty, canVoid, isMine, isOrdinaryMember, positionBlock, toggleKey, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
+  const api = { isDue, moreThan, keyOfFund, canEditParty, canVoid, isMine, isOrdinaryMember, positionBlock, toggleKey, reportGroups, applyBulkReports, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
                 inHandRows: inHandRows, personalSummary: personalSummary,
                 myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,

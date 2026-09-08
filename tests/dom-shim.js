@@ -23,6 +23,94 @@ const path = require('path');
 const vm = require('vm');
 const { fakeIndexedDB } = require('./idb-shim.js');
 
+// A282: enough of a query engine to press a button.
+//
+// The shim captures innerHTML rather than parsing it, which held every RENDER
+// survivor and no WIRING one — a bulk handler that went back to handing out
+// every report could not be caught, and that handler was the actual bug. So the
+// painted HTML is scanned for TAGS and their attributes: no tree, no text
+// nodes, no CSS cascade, just "which elements are in here and what are they
+// marked with", which is what `[data-x]` wiring needs.
+//
+// Unsupported selectors THROW. A query engine that quietly answers "nothing" to
+// a selector it does not understand is a harness that reports every wiring test
+// as passing.
+const VOID = { INPUT: 1, BR: 1, IMG: 1, HR: 1, META: 1, LINK: 1, OPTION: 0 };
+// The scan is MEMOISED per (owner, html). Wiring attaches `onclick` to the
+// element a query returned, so a query that builds fresh stubs every time hands
+// the handler to an object nobody will ever see again — the buttons look wired
+// and no test can press one. Same HTML, same objects; a repaint changes the HTML
+// and the memo falls away with it.
+function scanCached(owner, html, doc) {
+  if (owner && owner.__scanFor === html) return owner.__scan;
+  const list = scanTags(html, doc);
+  if (owner) { owner.__scanFor = html; owner.__scan = list; }
+  return list;
+}
+function scanTags(html, doc) {
+  const out = [];
+  const TAG = /<([a-zA-Z][\w-]*)((?:\s+[\w-]+(?:="[^"]*")?)*)\s*\/?>/g;
+  let m;
+  while ((m = TAG.exec(html))) {
+    const tag = m[1].toUpperCase(), attrs = {};
+    const A = /([\w-]+)(?:="([^"]*)")?/g;
+    let a;
+    while ((a = A.exec(m[2]))) { if (a[1]) attrs[a[1].toLowerCase()] = a[2] === undefined ? '' : a[2]; }
+    const e = el(attrs.id || '', doc);
+    e.tagName = tag;
+    e.className = attrs['class'] || '';
+    e.disabled = 'disabled' in attrs;
+    e.hidden = 'hidden' in attrs;
+    if ('value' in attrs) e.value = attrs.value;
+    e.__attrs = attrs;
+    // …and what is INSIDE it, so `b.querySelector('span')` finds the span the way
+    // it does in a browser. Matching close tag, counting same-name nesting; void
+    // elements have none. Without this, paintNav's
+    // `b.querySelector('span').textContent = …` threw on null and every screen
+    // test died — a query engine that finds an element but not its contents is
+    // worse than one that finds nothing, because the first looks like it works.
+    if (!VOID[tag] && m[0].charAt(m[0].length - 2) !== '/') {
+      const openRe = new RegExp('<' + m[1] + '(?=[\\s>/])', 'gi');
+      const closeRe = new RegExp('</' + m[1] + '\\s*>', 'gi');
+      let depth = 1, at = m.index + m[0].length, end = -1;
+      while (depth > 0) {
+        closeRe.lastIndex = at; openRe.lastIndex = at;
+        const c = closeRe.exec(html);
+        if (!c) break;
+        const o = openRe.exec(html);
+        if (o && o.index < c.index) { depth++; at = o.index + 1; continue; }
+        depth--; at = c.index + c[0].length;
+        if (depth === 0) end = c.index;
+      }
+      if (end >= 0) e.__html = html.slice(m.index + m[0].length, end);
+    }
+    Object.keys(attrs).forEach(function (k) {
+      if (k.indexOf('data-') !== 0) return;
+      const camel = k.slice(5).replace(/-([a-z])/g, function (_, c) { return c.toUpperCase(); });
+      e.dataset[camel] = attrs[k];
+    });
+    out.push(e);
+  }
+  return out;
+}
+function matchSel(e, sel) {
+  const s = String(sel).trim();
+  // "#id tag" / "#id [data-x]" — the descendant form this app uses for its nav
+  const sp = s.split(/\s+/);
+  const last = sp[sp.length - 1];
+  const bracket = last.match(/^\[([\w-]+)(?:="([^"]*)")?\]$/);
+  if (bracket) {
+    const v = e.__attrs ? e.__attrs[bracket[1].toLowerCase()] : undefined;
+    if (v === undefined) return false;
+    return bracket[2] === undefined ? true : v === bracket[2];
+  }
+  if (last.charAt(0) === '#') return e.id === last.slice(1);
+  if (last.charAt(0) === '.') return (' ' + e.className + ' ').indexOf(' ' + last.slice(1) + ' ') >= 0;
+  if (/^[a-zA-Z][\w-]*$/.test(last)) return e.tagName === last.toUpperCase();
+  throw new Error('dom-shim: selector not supported — ' + s +
+    ' (add it rather than letting a wiring test pass on an empty answer)');
+}
+
 function el(id, doc) {
   const e = {
     id: id || '', tagName: 'DIV', isConnected: true, hidden: false, disabled: false,
@@ -47,8 +135,10 @@ function el(id, doc) {
     get: function () { return e.__html; },
     set: function (v) { e.__html = String(v); if (doc) doc.__painted.push({ id: e.id, html: e.__html }); },
   });
-  e.querySelector = function () { return el('', doc); };
-  e.querySelectorAll = function () { return []; };
+  e.querySelectorAll = function (sel) {
+    return scanCached(e, e.__html || '', doc).filter(function (x) { return matchSel(x, sel); });
+  };
+  e.querySelector = function (sel) { return e.querySelectorAll(sel)[0] || null; };
   e.addEventListener = function () {};
   e.removeEventListener = function () {};
   e.setAttribute = function (k, v) { e[k] = v; };
@@ -78,8 +168,31 @@ function makeDocument() {
     addEventListener: function (name, fn) { if (name === 'DOMContentLoaded') doc.__ready.push(fn); },
     removeEventListener: function () {},
     getElementById: function (id) { return byId[id] || (byId[id] = el(id, doc)); },
-    querySelector: function () { return el('', doc); },
-    querySelectorAll: function () { return []; },
+    // the document searches everything painted so far, newest paint per element
+    querySelectorAll: function (sel) {
+      // A descendant selector SCOPES the search — `#bottomnav button` means the
+      // buttons inside #bottomnav, not every button on the phone. Ignoring the
+      // prefix matched buttons from other screens, handed paintNav one with no
+      // <span> in it, and threw. Honour the scope; a selector whose scope has
+      // painted nothing correctly answers nothing.
+      const parts = String(sel).trim().split(/\s+/);
+      const out = [];
+      if (parts.length > 1 && parts[0].charAt(0) === '#') {
+        const root = byId[parts[0].slice(1)];
+        if (!root) return out;
+        scanCached(root, root.__html || '', doc).forEach(function (x) {
+          if (matchSel(x, parts.slice(1).join(' '))) out.push(x);
+        });
+        return out;
+      }
+      Object.keys(byId).forEach(function (k) {
+        scanCached(byId[k], byId[k].__html || '', doc).forEach(function (x) {
+          if (matchSel(x, sel)) out.push(x);
+        });
+      });
+      return out;
+    },
+    querySelector: function (sel) { return doc.querySelectorAll(sel)[0] || null; },
     createElement: function (tag) {
       const e = el('', doc);
       e.tagName = String(tag || 'div').toUpperCase();
@@ -276,7 +389,7 @@ function loadApp(opts) {
                " newPartyFlow: newPartyFlow, paymentFlow: paymentFlow, dailyFlow: dailyFlow," +
                " expenseFlow: expenseFlow, collectionExpenseFlow: collectionExpenseFlow," +
                " handoverFlow: handoverFlow, transferFlow: transferFlow, dutyFlow: dutyFlow," +
-               " flow: function () { return flowState; } };\n";
+               " flow: function () { return flowState; }, admGo: admGo };\n";
   vm.runInContext(src.slice(0, cut) + hook + src.slice(cut), box);
   if (!box.__app) throw new Error('dom-shim: the hook did not land');
 
