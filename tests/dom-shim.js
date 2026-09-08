@@ -265,12 +265,16 @@ function loadApp(opts) {
     show: function (view, params) {
       box.__app.navigate(view, params);
       const turn = function () { return new Promise(function (r) { setImmediate(r); }); };
-      let n = 0;
-      const before = doc.__painted.length;
+      // Wait for painting to SETTLE, not for the first paint. A screen paints a
+      // shell and then fills its parts — the report writes "আসছে…" into
+      // #my-summary and replaces it a promise later — so stopping at the first
+      // repaint reads a loading state and calls it a screen.
+      let n = 0, quiet = 0, seen = doc.__painted.length;
       const wait = function () {
-        if (++n > 30) return Promise.resolve();
-        // stop as soon as the screen has painted again AND settled for a turn
-        if (doc.__painted.length > before && n > 3) return Promise.resolve();
+        if (++n > 60) return Promise.resolve();
+        if (doc.__painted.length !== seen) { seen = doc.__painted.length; quiet = 0; }
+        else if (n > 3) quiet++;
+        if (quiet >= 4) return Promise.resolve();
         return turn().then(wait);
       };
       return wait().then(function () { return doc.__byId.view ? doc.__byId.view.innerHTML : ''; });

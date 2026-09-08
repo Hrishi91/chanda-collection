@@ -18279,3 +18279,69 @@ fixture and a handful of assertions, and `docs/pending.md`'s open question — "
 a DOM harness worth it" — is answered by having one.
 
 Tests 3,767 → 3,791.
+
+## A278 — the 🤝 desk, the জমা-খাতা and the report, built and read
+
+A277 built the harness; these are what it was built for. They are the money
+screens: what a কোষাধ্যক্ষ presses ✅ on, and what a collector reads before
+deciding they are square.
+
+### The bug: a parcel from nobody
+
+```js
+'<div class="row" …><div><b>' + esc(h.from) + '</b>' +
+```
+
+`h.from` is `Settings.collectorName`. Its sibling `slotRowsHTML` has always read
+`esc(h.to || h.toId || h.from || '?')` — a fallback chain. This one had none, so
+a parcel whose `from` is blank draws an **empty bold above the ✅ and ❌
+buttons**: the কোষাধ্যক্ষ is asked to confirm money from nobody. Same question,
+two answers, one of them missing — the shape this repo keeps meeting, and this
+time on the screen where money changes hands.
+
+Fixed with the sibling's own fallback, and pinned both ways: no `<b></b>` is ever
+drawn, and a nameless parcel shows the id.
+
+### What is held now
+
+**The desk** — the waiting count in the heading; **both** answers offered side by
+side, because leaving only ✅ is what once forced a cashier to confirm money they
+had not received; a confirmed parcel cannot be answered again, nor a refused one;
+a refusal carries its REASON, which is the only thing the sender can act on;
+every parcel names its sender, broken down by pot and split cash/UPI so it can be
+counted against the notes in hand.
+
+**The জমা-খাতা** — money on its way out is its OWN line, not folded into "sent",
+and money that came back is another; "পাঠিয়েছি" reads ₹0 while nothing has
+actually landed.
+
+**The report** — the hero is what this collector is holding, split by how; the ⏳
+strip says what the figure BECOMES when the parcel lands (₹2,000 → ₹1,500) and
+the ❌ strip says the money never left, so nothing changed; the pots underneath.
+With nothing in transit, **no strip is drawn at all** — not one saying ₹0, which
+is A274 asserted on the screen instead of in the aggregation.
+
+And the crumb, end to end: a collector who hands over ₹300.30 in three parcels of
+₹100.10 reads **₹0** in hand, with no fraction of a rupee anywhere on the screen.
+
+### Two fixture mistakes worth writing down
+
+The first draft asserted on the glyphs ⏳ and ❌ — which also appear in the
+legend that explains what the colours mean, and that legend is always there. The
+assertion is on `class="strip"` now.
+
+The second built parcels carrying ₹100.10 whose breakdown still claimed ₹500 of
+the shop pot. The screen correctly showed a hand of **−₹1,199.7**, and it was
+right: three parcels claiming ₹500 against ₹300.30 collected IS a negative hand,
+and the 🩺 desk exists to say so. **A fixture that does not add up tests
+nothing** — except, that once, that the app noticed.
+
+### The measurement
+
+352 spots, **275 survive** (276 before), 73 named catches, 4 threw.
+
+One caveat about the tool, so nobody reads the attribution too hard: it records
+the FIRST failing assertion, so "caught by A277/A278" undercounts — a mutation
+those tests catch is credited to whichever assertion happens to run first.
+
+Tests 3,791 → 3,812.

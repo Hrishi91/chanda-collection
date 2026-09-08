@@ -6030,7 +6030,13 @@
       const refused = mine.filter(function (h) { return h.status === 'rejected'; })
         .sort(function (a, b) { return String(b.confirmedAt).localeCompare(String(a.confirmedAt)); }).slice(0, 15);
       function card(h, withBtn) {
-        return '<div class="row" style="flex-wrap:wrap;cursor:default"><div><b>' + esc(h.from) + '</b>' +
+        // A278: the name of whoever sent this money, with the same fallback its
+        // sibling slotRowsHTML already has — `esc(h.to || h.toId || h.from || '?')`.
+        // Here it was a bare esc(h.from), and `from` is Settings.collectorName,
+        // which a device that never completed a login does not have. A blank
+        // name above ✅/❌ asks the কোষাধ্যক্ষ to confirm money from nobody.
+        return '<div class="row" style="flex-wrap:wrap;cursor:default"><div><b>' +
+          esc(h.from || h.fromId || '?') + '</b>' +
           '<div class="row-sub">' + esc(fmtDate(h.date)) + (h.note ? ' • ' + esc(h.note) : '') +
           ' • ' + esc(t('cash')) + ' ' + fmtMoney(h.cashAmount) + ' + UPI ' + fmtMoney(h.upiAmount) +
           (h.rejectReason ? '</div><div class="row-sub">❌ “' + esc(h.rejectReason) + '”' : '') + '</div></div>' +

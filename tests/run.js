@@ -9953,6 +9953,128 @@ pending.push((async function () {
   }
 })());
 
+// A278 — the 🤝 desk, the জমা-খাতা and the report, built and read.
+//
+// These are the money screens: what a কোষাধ্যক্ষ presses ✅ on, and what a
+// collector reads before deciding they are square. A277 built the harness; this
+// is what it was built for.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const H = function (o) {
+    return Object.assign({ year: 2026, date: '2026-09-07', cashAmount: 0, upiAmount: 0,
+      from: 'রতন', fromId: 'ratan', toId: 'kali', to: 'কালী', status: 'pending',
+      breakdown: JSON.stringify({ shop: { cash: 500, upi: 0 } }) }, o);
+  };
+  const book = function (handovers, paid) {
+    return { parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'রাম', pledged: 5000, collectorId: 'ratan' }],
+      payments: [{ id: 'y1', year: 2026, partyId: 'p1', amount: paid === undefined ? 2000 : paid,
+                   date: '2026-09-07', collectorId: 'ratan', collector: 'রতন',
+                   cashAmount: paid === undefined ? 2000 : paid, upiAmount: 0 }],
+      daily: [], expenses: [], handovers: handovers, voids: [], corrections: [], messages: [] };
+  };
+  const RATAN = { username: 'ratan', name: 'রতন', role: 'collector', cashier: 0, entries: 'shop', reports: 'inhand' };
+  const KALI = { username: 'kali', name: 'কালী', role: 'collector', cashier: 1, entries: 'shop', reports: 'inhand' };
+
+  // ── the কোষাধ্যক্ষ's desk: three slots, and only ONE of them may be answered
+  {
+    const h = loadApp({ user: KALI, central: book([
+      H({ id: 'h1', amount: 500, cashAmount: 500 }),
+      H({ id: 'h2', amount: 200, cashAmount: 200, status: 'confirmed', confirmedAt: '2026-09-07T12:00:00Z',
+          breakdown: JSON.stringify({ shop: { cash: 200, upi: 0 } }) }),
+      H({ id: 'h3', amount: 100, cashAmount: 100, status: 'rejected', rejectReason: 'হাতে পাইনি',
+          confirmedAt: '2026-09-07T13:00:00Z', breakdown: JSON.stringify({ shop: { cash: 100, upi: 0 } }) })]) });
+    await h.ready;
+    const html = await h.show('cashier');
+    eq(/Confirm-এর অপেক্ষায় \(1\)/.test(html), true, 'A278: the desk counts what is waiting, in the heading');
+    eq(/data-hid="h1"/.test(html) && /data-hrej="h1"/.test(html), true,
+       'A278: …and offers BOTH answers side by side — leaving only ✅ is what forced a false confirm');
+    eq(/data-hid="h2"/.test(html) || /data-hrej="h2"/.test(html), false,
+       'A278: a parcel already confirmed cannot be answered again');
+    eq(/data-hid="h3"/.test(html) || /data-hrej="h3"/.test(html), false, 'A278: …nor one already refused');
+    eq(/হাতে পাইনি/.test(html), true, 'A278: a refusal carries the REASON, which is the only thing the sender can act on');
+    eq((html.match(/<b>রতন<\/b>/g) || []).length, 3, 'A278: every parcel says who sent it');
+    eq(/দোকান <b>₹500<\/b>/.test(html), true, 'A278: …broken down by pot, so it can be counted against notes');
+    eq(/💵₹500 · 📱₹0/.test(html), true, 'A278: …and split into cash and UPI');
+  }
+
+  // A278: `from` is Settings.collectorName, which a device that never finished a
+  // login does not have. Its sibling slotRowsHTML has always fallen back; this
+  // one did not, and a blank name above ✅/❌ asks somebody to confirm money
+  // from nobody.
+  {
+    const h = loadApp({ user: KALI, central: book([H({ id: 'h1', amount: 500, cashAmount: 500, from: '' })]) });
+    await h.ready;
+    const html = await h.show('cashier');
+    eq(/<b><\/b>/.test(html), false, 'A278: a parcel with no sender name is never drawn nameless');
+    eq(/<b>ratan<\/b>/.test(html), true, 'A278: …it falls back to the id, the way its sibling always has');
+  }
+
+  // ── the জমা-খাতা: four totals, and money in transit is its own line
+  {
+    const h = loadApp({ user: RATAN, central: book([
+      H({ id: 'h1', amount: 500, cashAmount: 500 }),
+      H({ id: 'h3', amount: 100, cashAmount: 100, status: 'rejected', rejectReason: 'হাতে পাইনি',
+          confirmedAt: '2026-09-07T13:00:00Z' })]) });
+    await h.ready;
+    const html = await h.show('hbook');
+    eq(/⏳ পাঠিয়েছি \(confirm বাকি\)[\s\S]{0,120}?₹500/.test(html), true,
+       'A278: money on its way out is its OWN line, not folded into "sent"');
+    eq(/❌ ফেরত এসেছে[\s\S]{0,120}?₹100/.test(html), true, 'A278: …and so is money that came back');
+    eq(/📤 পাঠিয়েছি<\/span>[\s\S]{0,120}?₹0/.test(html), true,
+       'A278: …because nothing has actually been handed over yet');
+  }
+
+  // ── the report: what a collector reads before deciding they are square
+  {
+    const h = loadApp({ user: RATAN, central: book([
+      H({ id: 'h1', amount: 500, cashAmount: 500 }),
+      H({ id: 'h3', amount: 100, cashAmount: 100, status: 'rejected', rejectReason: 'পাইনি',
+          confirmedAt: '2026-09-07T13:00:00Z' })]) });
+    await h.ready;
+    await h.show('report');
+    const sum = h.doc.__byId['my-summary'].innerHTML;
+    eq(/এখন আমার হিসাবে আছে[\s\S]{0,80}?₹2,000/.test(sum), true,
+       'A278: the hero is what this collector is holding');
+    eq(/💵 নগদ <b>₹2,000<\/b> · 📱 UPI <b>₹0<\/b>/.test(sum), true, 'A278: …split by how they are holding it');
+    // the two strips, and the ARITHMETIC each promises
+    eq(/⏳ <b>₹500<\/b>[\s\S]{0,200}?₹1,500/.test(sum), true,
+       'A278: a parcel awaiting approval says what the figure BECOMES when it lands');
+    eq(/❌ <b>₹100<\/b>[\s\S]{0,200}?₹2,000/.test(sum), true,
+       'A278: …and a refused one says the money never left, so nothing changed');
+    eq(/দোকান[\s\S]{0,80}?₹2,000/.test(sum), true, 'A278: …over the pots the money is actually sitting in');
+  }
+
+  // …and with nothing in transit, neither strip is drawn — A274, on the screen
+  {
+    const h = loadApp({ user: RATAN, central: book([]) });
+    await h.ready;
+    await h.show('report');
+    const sum = h.doc.__byId['my-summary'].innerHTML;
+    // on the STRIPS, not on the glyphs: ⏳ and ❌ also appear in the legend that
+    // explains what the colours mean, and that legend is always there.
+    eq(/class="strip/.test(sum), false,
+       'A278: nothing in transit draws no strip at all — not one saying ₹0');
+  }
+  // a crumb is nothing in transit. A274 said so in aggregate; this says it on the screen.
+  {
+    // The breakdown has to AGREE with the amount — a parcel claiming ₹500 of the
+    // shop pot while carrying ₹100.10 is not a crumb test, it is a broken
+    // fixture, and the screen correctly showed a negative hand when it was one.
+    const bd = JSON.stringify({ shop: { cash: 100.10, upi: 0 } });
+    const h = loadApp({ user: RATAN, central: book(
+      [H({ id: 'h1', amount: 100.10, cashAmount: 100.10, breakdown: bd, status: 'confirmed', confirmedAt: '2026-09-07T12:00:00Z' }),
+       H({ id: 'h2', amount: 100.10, cashAmount: 100.10, breakdown: bd, status: 'confirmed', confirmedAt: '2026-09-07T12:01:00Z' }),
+       H({ id: 'h3', amount: 100.10, cashAmount: 100.10, breakdown: bd, status: 'confirmed', confirmedAt: '2026-09-07T12:02:00Z' })],
+      300.30) });
+    await h.ready;
+    await h.show('report');
+    const sum = h.doc.__byId['my-summary'].innerHTML;
+    eq(/₹0\.0+[1-9]/.test(sum), false,
+       'A278: a collector who handed over every rupee is never shown a fraction of one');
+    eq(/এখন আমার হিসাবে আছে[\s\S]{0,80}?₹0/.test(sum), true, 'A278: …their hand reads empty, as it is');
+  }
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;
