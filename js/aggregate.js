@@ -1769,6 +1769,16 @@
   function fundRoleKeys(sector) {
     return String(sector) === 'puja' ? [] : FUND_ROLES.map(function (r) { return sector + ':' + r; });
   }
+  // A283: every ভাঁড়ার's কোষাধ্যক্ষ key, derived. The puja's is the bare
+  // 'cashier'; every other fund's is its own role key. BOTH halves of this repo
+  // asked only about the bare one, so the programme's money key could be handed
+  // out — and taken back — by anybody senior enough, while the committee's
+  // stayed admin-only. Proved before it was fixed: backend A283.
+  function isCashierKey(key) {
+    const k = String(key || '');
+    if (k === 'cashier') return true;
+    return SECTORS.some(function (sec) { return sec !== 'puja' && fundRoleKeys(sec).includes(k); });
+  }
   function fundRoleParts(key) {
     const k = String(key || ''), i = k.indexOf(':');
     if (i < 0) return null;
@@ -1874,7 +1884,7 @@
     if (p.iAmAdmin) return '';
     if (p.freeze) return 'pos_no_freeze';
     const want = p.want || null, cur = p.cur || null;
-    const holdsCash = function (x) { return !!x && (x.perms || []).includes('cashier'); };
+    const holdsCash = function (x) { return !!x && (x.perms || []).some(isCashierKey); };
     if (holdsCash(want)) return 'pos_no_cashier';
     if (holdsCash(cur)) return 'pos_no_cashier_off';
     if (!p.myLevel) return 'pos_no_level';
@@ -2405,7 +2415,7 @@
     return granted.filter(function (r) { return REPORT_IDS.includes(r); });
   }
 
-  const api = { isDue, moreThan, keyOfFund, canEditParty, canVoid, isMine, isOrdinaryMember, positionBlock, toggleKey, reportGroups, applyBulkReports, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
+  const api = { isDue, moreThan, keyOfFund, canEditParty, canVoid, isMine, isOrdinaryMember, positionBlock, toggleKey, reportGroups, applyBulkReports, isCashierKey, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
                 inHandRows: inHandRows, personalSummary: personalSummary,
                 myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,

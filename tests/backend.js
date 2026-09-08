@@ -1429,6 +1429,32 @@ module.exports = function runBackendTests(eq) {
     eq(b.rows('Users').filter(function (x) { return x.username === 'kali'; })[0].position, 'treasurer',
        'backend A115: …and the treasurer kept it');
   }
+
+  // A283: and the PROGRAMME's কোষাধ্যক্ষ is the same power over a different
+  // ভাঁড়ার. positionPerms_ set `cashier` only for the bare key, so
+  // `program:cashier` landed in `entries` and the admin-only guard never fired
+  // — a সম্পাদক could hand out, or take away, the 🎭 fund's one money key.
+  // Both ends, because a rule written for giving and unguarded for taking is
+  // not a rule (A115's own words, one fund over).
+  {
+    const { b, tok, id } = committee();
+    b.call('setPositionRules', { token: tok.admin, id: 'president', perms: ['program:cashier'] });
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: '' });
+    eq(denied(b, tok.ratan, { name: 'কালী', appUser: 'kali', position: 'president', year: 2026 }),
+       'position-denied:cashier-admin-only',
+       'backend A283: a post carrying the PROGRAMME\'s 💰 is admin-only too');
+  }
+  {
+    const { b, tok, id } = committee();
+    b.call('setPositionRules', { token: tok.admin, id: 'member', perms: ['program:cashier'] });
+    b.call('setUserPosition', { token: tok.admin, userId: id('kali'), position: 'member' });
+    eq(denied(b, tok.ratan, { name: 'কালী', appUser: 'kali', position: '', year: 2026 }),
+       'position-denied:cashier-admin-only',
+       'backend A283: …and a senior cannot STRIP one either');
+    eq(b.rows('Users').filter(function (x) { return x.username === 'kali'; })[0].position, 'member',
+       'backend A283: …the post stayed put');
+  }
+
   // blocked means blocked
   {
     const { b, tok, id } = committee();

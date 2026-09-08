@@ -208,7 +208,13 @@ function positionPerms_(positionId) {
       for (var i = 0; i < rows.length; i++) {
         if (String(rows[i][0]) !== id || String(rows[i][1]) !== 'position') continue;
         String(rows[i][pc - 1] || '').split(',').filter(String).forEach(function (k) {
-          if (k === 'cashier') out.cashier = 1;
+          // A283: ANY ভাঁড়ার's কোষাধ্যক্ষ key is the money flag, not just the
+          // puja's bare one. `program:cashier` used to fall through to
+          // `entries`, so canAssignPosition_'s admin-only guard never fired for
+          // a post carrying it — a সম্পাদক could hand out, or STRIP, the
+          // programme's one money key while the committee's stayed admin-only.
+          // Proved before it was fixed: backend A283.
+          if (isCashierKey_(k)) out.cashier = 1;
           else if (PERM_KEYS.indexOf(k) >= 0) out.entries.push(k);
           else if (REPORT_IDS.indexOf(k) >= 0) out.reports.push(k);
         });
@@ -1006,6 +1012,16 @@ function permKeyFor_(sector, kind) {
 // The puja's cashier stays the `cashier` COLUMN it has always been, so every
 // cashier already appointed stays one and no row is rewritten.
 var FUND_ROLES = ['cashier'];
+// A283: every fund's কোষাধ্যক্ষ key, derived — so a third ভাঁড়ার's money key is
+// admin-only the day the fund is added, not the day somebody notices.
+function isCashierKey_(k) {
+  var key = String(k || '');
+  if (key === 'cashier') return true;
+  for (var i = 0; i < SECTORS.length; i++) {
+    if (SECTORS[i] !== 'puja' && fundRoleKeys_(SECTORS[i]).indexOf(key) >= 0) return true;
+  }
+  return false;
+}
 function fundRoleKeys_(sector) {
   return String(sector) === 'puja' ? [] : FUND_ROLES.map(function (r) { return sector + ':' + r; });
 }
@@ -1376,7 +1392,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.109.0';
+var CODE_VERSION = 'chanda-v4.110.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually

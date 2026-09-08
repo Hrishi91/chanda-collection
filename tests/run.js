@@ -193,24 +193,21 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
   eq(/Aggregate\.reportGroups\(\)/.test(rc) && /g\.keys\.map\(/.test(rc), true,
      'A222: the per-person report chips are derived, not typed');
 
-  // the POST screen covers every permission the server will accept for a post
-  const pg = (app22.match(/const posEntryKeys = [\s\S]*?\n        \];/) || [''])[0];
-  eq(/Aggregate\.POSITION_PERM_KEYS\.filter\(/.test(pg), true,
-     'A222: the post screen derives its entry chips from POSITION_PERM_KEYS');
-  eq(/Aggregate\.REPORT_IDS\.map\(/.test(pg), true, 'A222: …and its report chips from REPORT_IDS');
-  // …and the coverage is checked by RUNNING the screen's own filter, not by
-  // rebuilding it here. Rebuilding it made the assertion tautological — the
-  // "covered" set was derived from POSITION_PERM_KEYS, so nothing could ever be
-  // missing from it, and a mutation that dropped a key sailed through.
-  const filterSrc = (pg.match(/Aggregate\.POSITION_PERM_KEYS\.filter\((function[\s\S]*?)\);/) || [])[1];
-  eq(!!filterSrc, true, 'A222: the post screen\'s filter can be read out of the source');
-  const posEntry = A22.POSITION_PERM_KEYS.filter(
-    new Function('Aggregate', 'return (' + filterSrc + ');')(A22));
-  const covered = posEntry.concat(A22.REPORT_IDS).concat(['cashier']);
-  eq(A22.POSITION_PERM_KEYS.filter(function (k) { return covered.indexOf(k) < 0; }).join(', '), '',
-     'A222: every permission a post may hold has a chip — narrowing that filter drops one silently');
-  eq(posEntry.filter(function (k) { return A22.REPORT_IDS.indexOf(k) >= 0 || k === 'cashier'; }).join(', '), '',
-     'A222: …and no key is drawn in two groups at once');
+  // the POST screen covers every permission the server will accept for a post.
+  //
+  // A283 replaced a cleverer version of this. It read the screen's filter OUT OF
+  // THE SOURCE with a regex and re-ran it with `new Function`, which broke the
+  // moment the screen was regrouped — and worse, it was never the property. The
+  // property is "every key a post may hold has a chip, and none has two", and
+  // A283 checks it by DRAWING the screen and counting the chips. What is left
+  // here is the cheap tripwire that the lists are still derived, not typed.
+  const pg = (app22.match(/const allowed = \{\};[\s\S]*?\}\)\]\]\);/) || [''])[0];
+  eq(/Aggregate\.POSITION_PERM_KEYS\.forEach\(/.test(pg), true,
+     'A222: the post screen derives its chips from POSITION_PERM_KEYS');
+  eq(/Aggregate\.permGroups\(\)/.test(pg) && /Aggregate\.reportGroups\(\)/.test(pg), true,
+     'A222: …grouped per ভাঁড়ার, the same way the per-person screen is');
+  eq(/Aggregate\.isCashierKey/.test(pg), true,
+     'A283: …with every fund\'s money key pulled into the ⚠️ group, not just the puja\'s');
 
   // one label map, read by both screens
   eq((app22.match(/const PERM_ONLY_LABELS = \{/g) || []).length, 1,
@@ -10686,6 +10683,96 @@ pending.push((async function () {
   eq(A82.SECTORS.filter(function (x) { return A82.REPORT_IDS.includes(x); }).join(','), 'program',
      'A282: the grouping is derived from the fund names, not from a second list');
 }
+
+// A283 — the committee POST, and the money key nobody guarded.
+//
+// Hrishi: *"now check the areas and position permissions too."* The post editor
+// was the last flat screen and the worst place for it — a post grants everybody
+// who holds it, at once — and inside that flat strip was a real hole.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const A83 = require('../js/aggregate.js');
+  const EMPTY = { parties: [], payments: [], daily: [], expenses: [], handovers: [],
+                  voids: [], corrections: [], messages: [] };
+
+  // ── the hole, stated as a property. Both halves of this repo asked only about
+  // the bare 'cashier', so the 🎭 ভাঁড়ার's one money key was NOT admin-only.
+  eq(A83.isCashierKey('cashier'), true, 'A283: the committee\'s money key is a money key');
+  eq(A83.isCashierKey('program:cashier'), true, 'A283: …and so is the programme\'s');
+  eq(A83.isCashierKey('program:shop'), false, 'A283: …while an ordinary fund key is not');
+  eq(A83.isCashierKey('progmoney'), false,
+     'A283: …nor the programme\'s purse VIEW, which is a different power');
+  eq(A83.isCashierKey(''), false, 'A283: …and nothing is not a money key');
+  // both ends of the pair, on the client's own guard
+  eq(A83.positionBlock({ myLevel: 99, want: { perms: ['program:cashier'], level: 10 } }),
+     'pos_no_cashier',
+     'A283: nobody but an admin GIVES a post carrying the programme\'s 💰, at any rank');
+  eq(A83.positionBlock({ myLevel: 99, cur: { perms: ['program:cashier'], level: 10 } }),
+     'pos_no_cashier_off',
+     'A283: …and nobody but an admin TAKES IT AWAY — the half that was open');
+
+  // ── the screen: every key a post may hold has exactly one chip
+  const items = [{ id: 'secretary', kind: 'position', nameBn: 'সম্পাদক', nameEn: 'Secretary',
+                   level: 30, maxCount: 0, perms: 'shop' }];
+  const h = loadApp({ user: { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' },
+    central: EMPTY,
+    reply: function (a) {
+      if (a === 'listUsers') return { ok: true, users: [] };
+      if (a === 'listSubjects') return { ok: true, subjects: [] };
+      if (a === 'listItems') return { ok: true, items: items };
+      return null;
+    } });
+  await h.ready;
+  await h.show('admin');
+  h.app.admGo('positions');
+  await new Promise(function (r) { setTimeout(r, 250); });
+  const row = h.doc.querySelectorAll('[data-adm-pos]')[0];
+  eq(!!(row && row.onclick), true, 'A283: a post row opens its editor');
+  row.onclick();
+  await new Promise(function (r) { setTimeout(r, 250); });
+  const html = h.html('view');
+
+  const chips = h.doc.querySelectorAll('[data-pp-key]').map(function (b) { return b.dataset.ppKey; });
+  const missing = A83.POSITION_PERM_KEYS.filter(function (k) { return chips.indexOf(k) < 0; });
+  eq(missing.join(', '), '',
+     'A283/A222: every permission a post may hold has a chip — checked by drawing it, not by rebuilding the filter');
+  const twice = chips.filter(function (k, i) { return chips.indexOf(k) !== i; });
+  eq(twice.join(', '), '', 'A283: …and none is drawn in two groups at once');
+
+  // grouped per ভাঁড়ার, like every other permission screen
+  const heads = (html.match(/perm-head">([^<]*)/g) || []).map(function (x) { return x.slice(11); });
+  eq(heads.filter(function (x) { return /পুজো/.test(x); }).length >= 2, true,
+     'A283: the committee has its own entry group and its own report group');
+  eq(heads.filter(function (x) { return /অনুষ্ঠান/.test(x); }).length >= 2, true,
+     'A283: …and so does the programme');
+
+  // ⚠️ the money group holds EVERY fund's key, named by its fund
+  const moneyGrp = html.split('perm-grp').filter(function (g) {
+    return g.indexOf('data-pp-key="cashier"') >= 0;
+  })[0] || '';
+  eq(/data-pp-key="program:cashier"/.test(moneyGrp), true,
+     'A283: the ⚠️ money group holds the programme\'s key too — same power, same warning');
+  eq((moneyGrp.match(/⚠️/g) || []).length >= 2, true, 'A283: …both marked, not just the committee\'s');
+  A83.POSITION_PERM_KEYS.filter(A83.isCashierKey).forEach(function (k) {
+    eq(moneyGrp.indexOf('data-pp-key="' + k + '"') >= 0, true,
+       'A283: …' + k + ' is in the money group and nowhere else');
+  });
+  const entryGrps = html.split('perm-grp').filter(function (g) {
+    return g.indexOf('data-pp-key="shop"') >= 0 || g.indexOf('data-pp-key="program:shop"') >= 0;
+  }).join('');
+  eq(/data-pp-key="program:cashier"/.test(entryGrps), false,
+     'A283: …and it is no longer sitting unmarked among the entry chips');
+
+  // ── 📍 areas: checked, and deliberately NOT segregated.
+  // An area is a ROAD, not a ভাঁড়ার — the same এলাকা list labels a puja shop and
+  // a programme donor alike (both carry `side`), and the per-person 📍 bulk
+  // reaches areas only. There is nothing here to split, and saying so is the
+  // answer rather than inventing a split to look thorough.
+  eq(A83.SECTORS.filter(function (sec) { return A83.PERM_KEYS.includes(sec + ':area'); }).join(','), '',
+     'A283: there is no per-ভাঁড়ার area permission, because an area is a road');
+  eq(A83.POSITION_PERM_KEYS.filter(function (k) { return /area/.test(k) && k !== 'areas'; }).join(','), '',
+     'A283: …and a post carries no area key either — areas are assigned per person');
+})());
 
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {

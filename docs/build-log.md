@@ -18609,3 +18609,77 @@ written into their own grants and outlive their time in the post. A fixture that
 sets only `reports` opens on an empty screen and looks like a bug.
 
 Tests 3,904 → 3,930. CLIENT night.
+
+## A283 — the committee POST, and the money key nobody guarded
+
+Hrishi: *"now check the areas and position permissions too."* The post editor was
+the last flat screen and the worst place for it — **a post grants everybody who
+holds it, at once** — and inside that flat strip was a real hole.
+
+### The hole
+
+```js
+// Code.gs positionPerms_
+if (k === 'cashier') out.cashier = 1;
+else if (PERM_KEYS.indexOf(k) >= 0) out.entries.push(k);
+```
+
+`program:cashier` is in `PERM_KEYS`, so it fell through to `entries` and the
+money flag never went up. Which means `canAssignPosition_`'s guard —
+
+```js
+if (want && positionPerms_(want).cashier === 1) return 'cashier-admin-only';
+if (have && positionPerms_(have).cashier === 1) return 'cashier-admin-only';
+```
+
+— **never fired for a post carrying the programme's কোষাধ্যক্ষ key.** The
+committee's 💰 was admin-only; the 🎭 ভাঁড়ার's was not.
+
+**Proved before it was fixed.** `backend A283`, red first: a সম্পাদক (level 30)
+STRIPPED a level-10 post carrying `program:cashier` from somebody and the server
+allowed it — returned `''`, and the post was gone. The giving half was covered
+only by accident, because the post used in that test happened to outrank them.
+
+And the client agreed: `positionBlock`'s `holdsCash` asked about the bare key
+too. **Both halves matched, and both were wrong the same way** — which is why
+neither screen nor server caught it.
+
+`isCashierKey` / `isCashierKey_` on both sides now, derived from `SECTORS` and
+`fundRoleKeys`, so a third ভাঁড়ার's money key is admin-only the day the fund is
+added rather than the day somebody notices.
+
+### The screen it was hiding in
+
+`entry_perms` was ONE strip of **24 chips** mixing the puja's nine, the
+programme's twelve and three others; `report_perms` carried 🎭's whole accounts
+beside the committee's seven (A282's bug again, on the other screen); and
+`perm_money` held one key. So `program:cashier` sat **unmarked among the entry
+chips**, while the puja's `cashier` sat alone under ⚠️ *"a wrong tick here lets
+somebody confirm money they never received."* Same power, one warned and one not.
+
+Now six groups, derived from `permGroups()` and `reportGroups()` exactly like the
+per-person screen — 🙏 পুজো (9), 🎭 অনুষ্ঠান (11), 🛠️ (3), 📊·🙏 (7), 📊·🎭 (1),
+and **💰 (2), both marked, each named by the fund it moves money in.**
+
+### 📍 Areas: checked, and deliberately NOT segregated
+
+An **area is a road, not a ভাঁড়ার.** The same এলাকা list labels a puja shop and a
+programme donor alike — both carry `side` — the 📍 bulk reaches areas only, and a
+post carries no area key at all (areas are assigned per person). There is nothing
+here to split, and **saying so is the answer** rather than inventing a split to
+look thorough. Asserted as an absence, so a future `program:area` would have to
+be a decision rather than a drift.
+
+### A222 got its property back
+
+The old check read the screen's filter **out of the source with a regex** and
+re-ran it through `new Function`. It broke the moment the screen was regrouped —
+and it was never the property anyway. The property is *"every key a post may hold
+has a chip, and none has two"*, and A283 checks it by **drawing the screen and
+counting the chips**, which the harness can now do because A282 taught it to
+click. What is left in A222 is the cheap tripwire that the lists are derived.
+
+Three mutations, three names: the server's flag back to the bare key; the
+client's guard back to the bare key; the money group back to `['cashier']`.
+
+Tests 3,930 → 3,950. **SERVER night** — `Code.gs` behaviour changed.

@@ -8450,16 +8450,34 @@
         // The hand-written nine left sponsor, gupt, ticket and all three 🎭 keys
         // with no chip, while setPositionRules filters against
         // POSITION_PERM_KEYS and would have taken every one of them.
-        const posEntryKeys = Aggregate.POSITION_PERM_KEYS.filter(function (k) {
-          return !Aggregate.REPORT_IDS.includes(k) && k !== 'cashier';
-        });
-        const groups = [
-          ['entry_perms', posEntryKeys.map(function (k) { return [k, permLabel(k)]; })],
-          ['report_perms', Aggregate.REPORT_IDS.map(function (r) { return [r, t('report_' + r)]; })],
-          // Money power, kept visible but marked: a wrong tick here lets somebody
-          // confirm money they never received.
-          ['perm_money', [['cashier', '⚠️ ' + t('cashier')]]],
-        ];
+        // A283: the POST editor was the last flat screen, and the worst place
+        // for it — a post grants everybody who holds it at once. `entry_perms`
+        // was ONE strip of twenty-four chips mixing the puja's nine, the
+        // programme's twelve and three others, and `report_perms` carried
+        // 🎭's whole accounts beside the committee's seven (A282's bug again).
+        //
+        // Worse: `program:cashier` sat among the ENTRY chips, unmarked, while
+        // the puja's `cashier` sat alone under ⚠️ "a wrong tick here lets
+        // somebody confirm money they never received". Same power, one warned
+        // and one not — and the server's admin-only guard did not see it either
+        // (backend A283).
+        const allowed = {};
+        Aggregate.POSITION_PERM_KEYS.forEach(function (k) { allowed[k] = 1; });
+        const moneyKeys = Aggregate.POSITION_PERM_KEYS.filter(Aggregate.isCashierKey);
+        const groups = Aggregate.permGroups().map(function (g) {
+          return [t(g.titleKey), g.keys
+            .filter(function (k) { return allowed[k] && !Aggregate.isCashierKey(k); })
+            .map(function (k) { return [k, permLabel(k)]; })];
+        }).concat(Aggregate.reportGroups().map(function (g) {
+          return [t('report_perms') + ' · ' + t(g.titleKey), g.keys
+            .filter(function (r) { return allowed[r]; })
+            .map(function (r) { return [r, t('report_' + r)]; })];
+        })).filter(function (g) { return g[1].length; })
+          // Money power last, kept visible but marked — EVERY ভাঁড়ার's, named
+          // by the fund it moves money in.
+          .concat([[t('perm_money'), moneyKeys.map(function (k) {
+            return [k, '⚠️ ' + permLabel(k, true)];
+          })]]);
         $view().innerHTML = backBar('admin') +
           '<div class="card"><div class="card-title">🎖️ ' + esc(it.nameBn) + '</div>' +
             '<div class="row-sub">' + esc(it.nameEn) + '</div>' +
@@ -8483,7 +8501,7 @@
               '<div class="perm-note">' + esc(t('pos_level_cashier')) + '</div>' : '') +
           '</div>' +
           groups.map(function (g) {
-            return '<div class="perm-grp"><div class="perm-head">' + esc(t(g[0])) + '</div>' +
+            return '<div class="perm-grp"><div class="perm-head">' + esc(g[0]) + '</div>' +
               '<div class="chips" style="margin:4px 0 0">' + g[1].map(function (k) {
                 return '<button class="chip' + (admPosDraft.perms.includes(k[0]) ? ' on' : '') +
                   '" data-pp-key="' + esc(k[0]) + '">' + esc(k[1]) + '</button>';
