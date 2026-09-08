@@ -18857,3 +18857,29 @@ first, so a local page cannot reach anybody's server. Written here so the next
 local UI check starts with it.
 
 Tests 3,955 → 3,955 (presentation; no assertion moved). CLIENT night.
+
+## A286 — the third double emoji, and the sweep that could not see it
+
+`📗 📗 জমা-খাতা` on the জমা-খাতা tile. `hb_title` is `📗 জমা-খাতা` and
+`TILE_ICON.hbook` prepended another. One of sixteen tiles.
+
+**This is the same rule as A279 (`🎖️ 🎖️`) and A280 (`✏️ ✏️`), and A280's sweep
+walked past it** — because the sweep only knew one SPELLING. It matched
+`'<emoji> ' + esc(t('key'))`; `TILE_ICON` is a MAP of `key → [icon, labelKey]`.
+So the rule was checked, the check was green, and the bug sat on a tile until a
+person looked at a phone.
+
+> **A sweep that can only see one spelling of a rule is a sweep that will be
+> walked past in the other.**
+
+The sweep reads the icon map too now — all sixteen tiles, and it asserts it found
+at least fifteen so it cannot quietly read an empty list. Both shapes
+mutation-proved: put `📗` back, or add a duplicate glyph to a different tile's
+label, and it fails by name and says which tile.
+
+The fix uses the map's own convention: `hbook: ['', 'hb_title']`, exactly like
+`handover: ['', 'handover']`, which was already sitting three entries away doing
+precisely this. The label keeps its 📗 because `hb_title` is also printed plain
+as the screen's heading.
+
+Tests 3,955 → 3,958. CLIENT night.

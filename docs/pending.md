@@ -767,6 +767,27 @@ kind that can lose data.
   If more is wanted, the cheapest next steps are the flows nobody has answered
   yet — payment, daily, expense, handover — each one a walk like A279's.
 
+## Cosmetic, from the pre-go-live phone review (A285, 2026-09-08)
+
+Measured on a real phone viewport, both languages. None of these lose money or
+block an entry; all were left deliberately on go-live day.
+
+- [ ] **🧾 receipt button is 50×43px** on the donor page's payment history — one
+  pixel under the 44 floor the rest of the app keeps.
+- [ ] **At 320px the payment history's date wraps** (`2026-` / `09-01`) with the
+  collector's name on two lines. Readable, cramped.
+- [ ] **At 320px the home hero's `›` chevron drops to its own line** under
+  "₹3,86,450".
+- [ ] **The admin panel's destructive buttons look like the harmless ones** —
+  🚫বন্ধ করো, 🚪বিদায়ী করুন, ✏️নাম বদলাও, 🔑পাসওয়ার্ড রিসেট are all the same grey
+  ghost pill. (Whether each has a confirm dialog was not tested — testing it
+  would have changed live data.)
+- [ ] **No dark palette.** `color-scheme: light` is declared now (A285), so the
+  phone cannot invert it on its own; a real dark palette is still a project.
+- [ ] **`css/style.css` is 616 lines, 516 `px`, zero `rem`**, and 29 of its 103
+  font-sizes are ≤12.5px — slightly WORSE than when A177 measured it. The px→rem
+  pass is not a puja-week job, but the number is moving the wrong way.
+
 ## AFTER THE PUJA — the PRODUCT question (Hrishi, 2026-08-17)
 
 Hrishi: *"I was thinking it as a product sale."* Recorded as the standing

@@ -5409,7 +5409,7 @@
                       bus: ['🚌', 'daily_bus'], road: ['🛣️', 'daily_road'], toto: ['🛺', 'daily_toto'],
                       ticket: ['🎟️', 'daily_ticket'],
                       expense: ['🧾', 'expense'], cashier: ['💰', 'confirm_handover'],
-                      review: ['🛠️', 'review_title'], handover: ['', 'handover'], hbook: ['📗', 'hb_title'],
+                      review: ['🛠️', 'review_title'], handover: ['', 'handover'], hbook: ['', 'hb_title'],
                       anomalies: ['🩺', 'anom_title'],
                       memberadmin: ['🎖️', 'member_admin_title'] };
   const PERM_ONLY_LABELS = {

@@ -10476,7 +10476,28 @@ pending.push((async function () {
     const label = (I80[key] && (I80[key].bn || I80[key].en)) || '';
     if (label.indexOf(glyph) === 0) dup.push(key + ' (' + glyph + ')');
   }
-  eq(dup.length, 0, 'A280: no label is given an emoji it already starts with → ' + dup.join(', '));
+  // A286: the SAME rule, in the other shape. `TILE_ICON` is a MAP of
+  // key → [icon, labelKey], and the regex above only ever saw the inline
+  // `'<emoji> ' + esc(t('key'))` form — so `📗 📗 জমা-খাতা` sat on a tile
+  // through A279 and A280, both of which were this exact rule, and was found by
+  // a person looking at a phone. A sweep that can only see one spelling of a
+  // rule is a sweep that will be walked past in the other.
+  const iconMap = app80.slice(app80.indexOf('const TILE_ICON'), app80.indexOf('const PERM_ONLY_LABELS'));
+  eq(iconMap.length > 0, true, 'A286: the tile icon map can be found');
+  const MAP80 = /(\w+):\s*\['([^']*)',\s*'([A-Za-z0-9_]+)'\]/g;
+  let mm, tiles = 0;
+  while ((mm = MAP80.exec(iconMap))) {
+    tiles++;
+    const icon = mm[2], key = mm[3];
+    const label = (I80[key] && (I80[key].bn || I80[key].en)) || '';
+    if (icon && label.indexOf(icon) === 0) dup.push(mm[1] + ' (' + icon + ', tile)');
+  }
+  eq(tiles >= 15, true, 'A286: …and every tile in it is read — ' + tiles + ' found');
+  eq(dup.length, 0, 'A280/A286: no label is given an emoji it already starts with → ' + dup.join(', '));
+  // the map already carries the empty-icon convention for exactly this case,
+  // so the check is looking at real data rather than an empty list
+  eq(/handover: \['', 'handover'\]/.test(iconMap), true,
+     'A286: …and a label that owns its icon takes an EMPTY one, which this map already does');
   // and the check can see one: these two labels DO carry their own glyph, so
   // the sweep is looking at real data rather than an empty list.
   eq(/^🎖️/.test((I80.list_position || {}).bn || ''), true,
