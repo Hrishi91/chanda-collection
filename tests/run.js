@@ -6650,7 +6650,7 @@ try {
   {
     eq(/return \(mineToday\[b\.id\] \|\| 0\) - \(mineToday\[a\.id\] \|\| 0\) \|\|\n\s+String\(lastAct\[b\.id\] \|\| ''\)\.localeCompare\(String\(lastAct\[a\.id\] \|\| ''\)\) \|\|\n\s+\(a\.name \|\| ''\)\.localeCompare\(b\.name \|\| ''\)/.test(app), true,
        'A130: ledger order = my-today first, then latest activity, then name');
-    eq(/if \(d === today && \(r\.collectorId \|\| r\.collector\) === meId\) mineToday\[r\.partyId\] = 1;/.test(app), true,
+    eq(/if \(d === today && Aggregate\.isMine\(r, meId\)\) mineToday\[r\.partyId\] = 1;/.test(app), true,
        'A130: "mine today" comes from payments I made today, not guesswork');
     eq(/esc\(t\(listQuery \? 'search_none' : 'no_entries'\)\)/.test(app), true,
        'A130: a failed SEARCH no longer claims "no entries yet"');
@@ -9662,6 +9662,91 @@ pending.push((async function () {
   eq(!!crumb, true, 'A274: …and the difference is TRUTHY, which is the whole bug');
   eq(A74.moreThan(crumb, 0), false, 'A274: …while the epsilon calls it nothing');
   eq(A74.moreThan(Math.abs(crumb), 0), false, 'A274: …whichever way round it fell');
+}
+
+// A275 — the permission survivors, and every one of them was written twice.
+//
+// Two copies of a rule are two chances to fix one of them. The survey found
+// "is this row mine" written SEVEN times in two spellings that DISAGREE, "an
+// ordinary approved member" written three times in two spellings, and the whole
+// committee-post rule living on a screen where nothing could run it.
+{
+  const A75 = require('../js/aggregate.js');
+
+  // ── is this row mine
+  eq(A75.isMine({ collectorId: 'ratan' }, 'ratan'), true, 'A275: my own row is mine');
+  eq(A75.isMine({ collectorId: 'pori' }, 'ratan'), false, 'A275: somebody else\'s is not');
+  eq(A75.isMine({ collector: 'ratan' }, 'ratan'), true,
+     'A275: an old row with only the NAME still finds its owner');
+  eq(A75.isMine({ collectorId: 'ratan', collector: 'pori' }, 'ratan'), true,
+     'A275: …and the id wins when a row carries both');
+  // the two spellings disagreed in exactly these two places, so both are pinned
+  eq(A75.isMine({}, ''), false,
+     'A275: an ownerless row is nobody\'s — the coerced spelling made it match an empty identity');
+  eq(A75.isMine({ collectorId: '' }, 'ratan'), false, 'A275: …however the emptiness is written');
+  eq(A75.isMine({ collectorId: 5 }, '5'), true,
+     'A275: a username that came back off Sheets as a NUMBER still matches — the raw spelling missed it');
+  eq(A75.isMine(null, 'ratan'), false, 'A275: no row belongs to anybody');
+  eq(A75.isMine({ collectorId: 'ratan' }, null), false, 'A275: …and nobody owns anything');
+
+  // ── an ordinary approved member: who a committee action applies to
+  eq(A75.isOrdinaryMember({ status: 'approved', role: 'collector' }), true, 'A275: an approved collector');
+  eq(A75.isOrdinaryMember({ status: 'approved', role: 'admin' }), false,
+     'A275: …but not an admin, who bypasses every gate the button pretends to apply');
+  eq(A75.isOrdinaryMember({ status: 'pending', role: 'collector' }), false, 'A275: nor somebody not yet let in');
+  eq(A75.isOrdinaryMember({ status: 'blocked', role: 'collector' }), false, 'A275: nor somebody shut out');
+  eq(A75.isOrdinaryMember(null), false, 'A275: nor nobody');
+
+  // ── why a committee post cannot be handed over: the client half of
+  // Code.gs canAssignPosition_, same shape, '' means it can
+  const cashPost = { perms: ['cashier'], level: 20 };
+  const plain20  = { perms: ['shop'], level: 20 };
+  const plain10  = { perms: ['shop'], level: 10 };
+  const pb = A75.positionBlock;
+  eq(pb({ myLevel: 30, want: plain10 }), '', 'A275: a সম্পাদক may appoint a সদস্য');
+  eq(pb({ iAmAdmin: true, want: cashPost }), '', 'A275: an admin may do all of it');
+  eq(pb({ iAmAdmin: true, freeze: true, want: cashPost }), '',
+     'A275: …and the admin check comes FIRST, before the freeze');
+  eq(pb({ myLevel: 30, freeze: true, want: plain10 }), 'pos_no_freeze',
+     'A275: a freeze stops handing out posts — 💰 rides on one of them');
+  // both ends of the money pair
+  eq(pb({ myLevel: 99, want: cashPost }), 'pos_no_cashier',
+     'A275: nobody but an admin GIVES the কোষাধ্যক্ষ\'s post, at any rank');
+  eq(pb({ myLevel: 99, cur: cashPost }), 'pos_no_cashier_off',
+     'A275: …and nobody but an admin TAKES IT AWAY, which is the same power');
+  eq(pb({ myLevel: 0, want: plain10 }), 'pos_no_level',
+     'A275: somebody with no rank of their own appoints nobody');
+  // both ends of the level pair
+  eq(pb({ myLevel: 30, want: plain20 }), '', 'A275: below your rank is yours to give');
+  eq(pb({ myLevel: 20, want: plain20 }), 'pos_no_higher',
+     'A275: your own rank is not — peers cannot appoint each other');
+  eq(pb({ myLevel: 10, want: plain20 }), 'pos_no_higher', 'A275: nor above it');
+  eq(pb({ myLevel: 20, cur: plain20 }), 'pos_no_target',
+     'A275: …and taking a post from a peer is the same rule, the other way round');
+  // THE trap the server comments about: removing a post sends an empty `want`
+  // whose level is 0, and 0 sails through the first check every single time.
+  eq(pb({ myLevel: 20, want: null, cur: { perms: ['shop'], level: 40 } }), 'pos_no_target',
+     'A275: a কোষাধ্যক্ষ cannot strip the সভাপতি by REMOVING the post rather than changing it');
+  eq(pb({}), 'pos_no_level', 'A275: nothing given, nobody with rank, nothing allowed');
+
+  // the two halves speak the same vocabulary
+  const gs75 = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  [['pos_no_freeze', "'freeze'"], ['pos_no_cashier', "'cashier-admin-only'"],
+   ['pos_no_level', "'no-level'"], ['pos_no_higher', "'level-want'"],
+   ['pos_no_target', "'level-target'"]].forEach(function (pair) {
+    eq(gs75.indexOf('return ' + pair[1]) >= 0, true,
+       'A275: the server refuses for the same reason the screen gives (' + pair[0] + ')');
+  });
+
+  // and the screen keeps no copy of any of the three
+  const app75 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/\(r\.collectorId \|\| r\.collector\) === meId/.test(app75), false,
+     'A275: no screen decides "is this mine" for itself any more');
+  eq(/status === 'approved' && u\.role !== 'admin'/.test(app75), false,
+     'A275: …nor "is this an ordinary member"');
+  eq(/Lists\.permsOf\([a-z]+\)\.indexOf\('cashier'\)/.test(app75), false,
+     'A275: …nor why a post cannot be handed over');
+  eq(/Aggregate\.positionBlock\(\{/.test(app75), true, 'A275: the dropdown asks instead');
 }
 
 Promise.all(pending.map(function (p) {

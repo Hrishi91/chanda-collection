@@ -1821,6 +1821,54 @@
   // `progmoney` is marked as belonging to it too. The comment above that very
   // line says the third ভাঁড়ার should be marked the day it is added rather than
   // the day somebody notices this line never mentioned it.
+  // A275: three more decisions the survey found unheld in js/app.js, and each
+  // one was written more than once — which is the failure mode this repo keeps
+  // meeting. Two copies of a rule are two chances to fix one of them.
+
+  // "is this row mine", written SEVEN times in js/app.js in TWO spellings —
+  // one wrapped in String(), six raw. They disagree in both degenerate cases:
+  // the coerced one made an ownerless row match an empty identity, the raw one
+  // missed a username that came back off Sheets as a number. This is safe in
+  // both directions, which is the same rule A273 pinned for canEditParty:
+  // nobody owns a row with no owner.
+  function isMine(row, ident) {
+    const who = String((row && (row.collectorId || row.collector)) || '');
+    const me = String(ident || '');
+    return !!who && !!me && who === me;
+  }
+  // "an ordinary approved member" — the person a committee-level action applies
+  // to. Written three times: the freeze count, the stand-down button, and the
+  // clear-grants victim list. An admin bypasses every gate, so the server
+  // refuses all three for them and the button would be a lie.
+  function isOrdinaryMember(u) {
+    return !!u && String(u.status) === 'approved' && String(u.role) !== 'admin';
+  }
+  // Why a committee post cannot be handed over — the client's half of
+  // Code.gs canAssignPosition_, in the same shape: '' means it can, anything
+  // else is the reason, said on the option itself. A dropdown that silently
+  // omits a post teaches people the post does not exist.
+  //
+  //   o = { iAmAdmin, freeze, myLevel,
+  //         want: { perms: [], level: n },   // the post being GIVEN
+  //         cur:  { perms: [], level: n } }  // the post being TAKEN AWAY
+  //
+  // BOTH ends of every pair, and this is the exact spot where such a rule gets
+  // written for one half and missed for the other: removing a post sends an
+  // empty `want` whose level is 0, and 0 sails through the first level check
+  // every single time.
+  function positionBlock(o) {
+    const p = o || {};
+    if (p.iAmAdmin) return '';
+    if (p.freeze) return 'pos_no_freeze';
+    const want = p.want || null, cur = p.cur || null;
+    const holdsCash = function (x) { return !!x && (x.perms || []).indexOf('cashier') >= 0; };
+    if (holdsCash(want)) return 'pos_no_cashier';
+    if (holdsCash(cur)) return 'pos_no_cashier_off';
+    if (!p.myLevel) return 'pos_no_level';
+    if (want && Number(want.level) >= Number(p.myLevel)) return 'pos_no_higher';
+    if (cur && Number(cur.level) >= Number(p.myLevel)) return 'pos_no_target';
+    return '';
+  }
   // A273: the two ownership rules, moved OUT of js/app.js so a test can run
   // them. The full survey of that file (411 mutations, 339 survived, 66 of the
   // 72 catches by a regex over its source text) said what a rate cannot: these
@@ -2314,7 +2362,7 @@
     return granted.filter(function (r) { return REPORT_IDS.indexOf(r) >= 0; });
   }
 
-  const api = { isDue, moreThan, keyOfFund, canEditParty, canVoid, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
+  const api = { isDue, moreThan, keyOfFund, canEditParty, canVoid, isMine, isOrdinaryMember, positionBlock, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
                 inHandRows: inHandRows, personalSummary: personalSummary,
                 myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,

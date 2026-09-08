@@ -18044,3 +18044,75 @@ truthiness fails by name and quotes the line, and turning a default into
 `|| 0.0` flags nothing.
 
 Tests 3,704 → 3,712. CLIENT night.
+
+## A275 — the permission survivors, and every one was written more than once
+
+Two copies of a rule are two chances to fix one of them. All three of these were
+already living in more than one place, and two of the three had copies that
+**disagreed**.
+
+### "is this row mine" — SEVEN times, in two spellings
+
+```js
+String(c.collectorId || c.collector || '') === String(ident)   // once
+(r.collectorId || r.collector) === meId                        // six times
+```
+
+They differ in exactly two places, and each is wrong in its own direction:
+
+- the **coerced** one makes an **ownerless row match an empty identity** — the
+  same hazard A273 pinned for `canEditParty` ("nobody owns a row with no owner")
+- the **raw** one **misses a username that came back off Sheets as a number**,
+  which is the trap already written down twice in this repo
+
+`Aggregate.isMine(row, ident)` is safe in both directions, and both cases are
+pinned so neither spelling can come back.
+
+### "an ordinary approved member" — three times, two spellings
+
+The freeze count, the stand-down button and the clear-grants victim list each
+asked `status === 'approved' && role !== 'admin'`, one of them through `String()`
+and two raw. An admin bypasses every gate these buttons pretend to apply, so the
+server refuses all three for them — one rule, `Aggregate.isOrdinaryMember`.
+
+### The committee-post rule — on a screen, where nothing could run it
+
+`posBlock` decided six things and lived inside a render function.
+`Aggregate.positionBlock(o)` now answers, in the same shape as its server half
+`canAssignPosition_`: `''` means it can, anything else is the reason, said on the
+option itself — because a dropdown that silently omits a post teaches people the
+post does not exist.
+
+Fourteen rows, **both ends of every pair**, including the trap the server
+comments about at length: **removing a post sends an empty `want` whose level is
+0, and 0 sails through the first level check every single time.** So a
+কোষাধ্যক্ষ (20) must not be able to strip the সভাপতি (40) by REMOVING the post
+rather than changing it — pinned. And the two halves are asserted to speak the
+same vocabulary: every reason the screen gives has its `return '…'` in Code.gs.
+
+### The numbers
+
+Money + permission spots in `js/app.js`, targeted re-survey:
+
+| | spots | survived |
+|---|---|---|
+| before A274/A275 | 66 | 50 |
+| after | 58 | 42 |
+
+Eight decisions left the file altogether. Where they went, **0 of 12 mutations
+survive** — every one caught by a named assertion.
+
+Five guards mutation-proved individually: drop the empty-matches-empty bar, drop
+the `String()`, drop the take-away half of the money pair, drop the take-away
+half of the level pair, or count an admin as an ordinary member — each fails by
+its own name.
+
+### A correction to the tool, mid-measurement
+
+`mutation-survey.js` was reading "SUITE ABORTED" as the whole story and reporting
+**four honest catches as crashes**. A run can fail by NAME and then throw; the
+name is what decides. `aborted = caught && !by`. A272's headline ("0 threw") is
+unaffected — every catch there carried a name — but the classifier was wrong and
+would have understated the next file it measured.
+
+Tests 3,712 → 3,748. CLIENT night.

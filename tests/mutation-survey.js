@@ -92,7 +92,11 @@ sample.forEach(function (c, n) {
   // only in the sense that something ran the line and it blew up — no assertion
   // held its behaviour, and everything after the throw never ran. Recording that
   // as an ordinary catch would flatter the coverage number badly.
-  const aborted = caught && (/SUITE ABORTED/.test(out) || !by);
+  // A275 fixed this: a run can fail by NAME and then throw, and reading
+  // "SUITE ABORTED" as the whole story reported four honest catches as crashes.
+  // The name is what decides — if an assertion said something, an assertion
+  // caught it, and the abort is a second-order effect of the same mutation.
+  const aborted = caught && !by;
   const tag = !ran ? '💥 no summary'
     : (caught ? (aborted ? '💥 threw' : '✅ caught') : '🚨 SURVIVED');
   if (JSONL) {

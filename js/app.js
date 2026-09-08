@@ -2597,7 +2597,7 @@
       // my own flagged rows: only the author can correct them, so this dot is
       // addressed to exactly the person looking at it
       const mineFlagged = (data.corrections || []).filter(function (c) {
-        return c.status !== 'rejected' && String(c.collectorId || c.collector || '') === String(ident);
+        return c.status !== 'rejected' && Aggregate.isMine(c, ident);
       });
       if (mineFlagged.length) d.entries = 1;
       if (Auth.isCashier()) {
@@ -2654,7 +2654,7 @@
       const today = todayISO();
       const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
       const myToday = data.payments.concat(data.daily).filter(function (r) {
-        return (r.collectorId || r.collector) === meId &&
+        return Aggregate.isMine(r, meId) &&
           (Aggregate.dayOf(r.date) === today || Aggregate.dayOf(r.createdAt) === today);
       }).reduce(function (a, r) { return a + Number(r.amount || 0); }, 0);
       // Aggregate.homeTiles decides WHAT appears (pure, and pinned by tests);
@@ -3163,13 +3163,13 @@
       const lastAct = {}, mineToday = {};
       liveParties(data).forEach(function (p) {
         lastAct[p.id] = Aggregate.dayOf(p.createdAt);
-        if (lastAct[p.id] === today && (p.collectorId || p.collector) === meId) mineToday[p.id] = 1;
+        if (lastAct[p.id] === today && Aggregate.isMine(p, meId)) mineToday[p.id] = 1;
       });
       (data.payments || []).forEach(function (r) {
         if (!r.partyId) return;
         const d = Aggregate.dayOf(r.date) || Aggregate.dayOf(r.createdAt);
         if (d > (lastAct[r.partyId] || '')) lastAct[r.partyId] = d;
-        if (d === today && (r.collectorId || r.collector) === meId) mineToday[r.partyId] = 1;
+        if (d === today && Aggregate.isMine(r, meId)) mineToday[r.partyId] = 1;
       });
       // A42: the search box lives OUTSIDE the part that gets redrawn.
       //
@@ -3482,18 +3482,18 @@
       // Why a post cannot be given, in the same order the server decides it —
       // '' means it can. Said on the option itself, because a dropdown that
       // silently omits a post teaches people the post does not exist.
+      // A275: the RULE is Aggregate.positionBlock — the client's half of Code.gs
+      // canAssignPosition_, in the same shape ('' means it can). This resolves
+      // the two posts and translates the reason; it decides nothing itself.
+      const postOf = function (pid) {
+        return pid ? { perms: Lists.permsOf(pid), level: Lists.levelOf(pid) } : null;
+      };
       const posBlock = function (pid) {
-        if (iAmAdmin) return '';
-        if (freezeOn()) return t('pos_no_freeze');
-        const cur = picked ? String(picked.position || '') : '';
-        // BOTH ends of every pair. Giving 💰 and taking it away are the same
-        // power; so are promoting past your level and demoting somebody above it.
-        if (pid && Lists.permsOf(pid).indexOf('cashier') >= 0) return t('pos_no_cashier');
-        if (cur && Lists.permsOf(cur).indexOf('cashier') >= 0) return t('pos_no_cashier_off');
-        if (!myLevel) return t('pos_no_level');
-        if (pid && Lists.levelOf(pid) >= myLevel) return t('pos_no_higher');
-        if (cur && Lists.levelOf(cur) >= myLevel) return t('pos_no_target');
-        return '';
+        const why = Aggregate.positionBlock({
+          iAmAdmin: iAmAdmin, freeze: freezeOn(), myLevel: myLevel,
+          want: postOf(pid), cur: postOf(picked ? String(picked.position || '') : ''),
+        });
+        return why ? t(why) : '';
       };
       const posts = Lists.get('position');
       $view().innerHTML = backBar('memberadmin') +
@@ -3894,7 +3894,7 @@
       // looking for.
       const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
       findParties = liveParties(data).filter(function (p) {
-        return (p.collectorId || p.collector) !== meId;
+        return !Aggregate.isMine(p, meId);
       }).map(function (p) {
         return { id: p.id, name: p.name, type: p.type, side: p.side, location: p.location, owner: p.owner,
                  phone: p.phone, collector: p.collector, pledged: Number(p.pledged) || 0, paid: paidBy[p.id] || 0 };
@@ -5111,7 +5111,7 @@
       const voided = {}; (data.voids || []).forEach(function (v) { voided[v.targetId] = 1; });
       const flagged = {}; (data.corrections || []).forEach(function (c) { if (c.status !== 'rejected') flagged[c.targetId] = 1; });
       const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
-      const mine = function (r) { return (r.collectorId || r.collector) === meId; };
+      const mine = function (r) { return Aggregate.isMine(r, meId); };
       const stores = all ? ['daily', 'expenses'] : ['payments', 'daily', 'expenses', 'handovers'];
       const list = [];
       stores.forEach(function (store) {
@@ -5130,7 +5130,7 @@
         // declared it wrong, and nobody knows better than you what it should
         // say. Only the person who made it, and only these three stores — a
         // handover has two sides and is settled by confirming, not editing.
-        const mineNow = (r.collectorId || r.collector) === meId;
+        const mineNow = Aggregate.isMine(r, meId);
         // A78d: …and not while standing down. `daily` and `expenses` are refused
         // outright for them, and a corrected `payments` row still has to pass
         // the own-donor test — so the ✏️ that appears on an old round is a form
@@ -7418,7 +7418,7 @@
     }
     if (!window.confirm(t('freeze_c1'))) return;
     const n = (users || []).filter(function (u) {
-      return String(u.status) === 'approved' && String(u.role) !== 'admin';
+      return Aggregate.isOrdinaryMember(u);
     }).length;
     if (!window.confirm(t('freeze_c2').replace('{n}', toBengaliDigits(String(n))))) return;
     adminAction('setFreeze', { on: '1', confirm: 'FREEZE' }, function () {
@@ -7969,7 +7969,7 @@
         // member — an admin bypasses every gate, so the server refuses it and
         // the button would be a lie. Coming back needs a post, so it is a
         // screen, not a chip.
-        if (u.status === 'approved' && u.role !== 'admin') {
+        if (Aggregate.isOrdinaryMember(u)) {
           btns += u.access === 'exiting'
             ? '<button class="chip" data-act="restore" data-id="' + u.id + '">' + esc(t('access_restore')) + '</button>'
             : '<button class="chip" data-act="exit" data-id="' + u.id + '">' + esc(t('access_exit')) + '</button>';
@@ -8892,7 +8892,7 @@
       const cg = document.getElementById('clear-grants');
       if (cg) cg.onclick = function () {
         const victims = (resp.users || []).filter(function (u) {
-          return u.status === 'approved' && u.role !== 'admin' &&
+          return Aggregate.isOrdinaryMember(u) &&
             (String(u.ownEntries || '') || String(u.ownReports || '') || Number(u.ownCashier) === 1);
         });
         if (!victims.length) { toast(t('clear_grants_none')); return; }
