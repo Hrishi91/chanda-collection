@@ -18993,3 +18993,64 @@ One new dictionary entry: `duty_payee_col` (কাকে / Payee).
 
 Tests 3,958 → 3,975. CLIENT night — `printReportHTML` lives entirely in
 `js/app.js`, so this needs no Apps Script deploy.
+
+## A288 — the reader's own rule, applied on the phone at last
+
+Hrishi: *"permission-wise ledger visibility — have you done this?"*
+
+**First, my own test lied, and that is worth recording before anything else.** I
+injected স্পনসর and গুপ্ত rows straight into `ck_central`, watched a plain
+collector read them, and nearly reported a hole. The server would never have sent
+those rows — `canSeeParty_` withholds them, and the comment above it says *"THIS
+side is the guard"*. I had walked around the guard and then said there was no
+guard. **Planted data proves nothing; it only proves the harness can plant.**
+
+### What was already right
+
+The server withholds whole parcels; a revoked view grant is **detected** by
+comparing a `viewGrantsOf` fingerprint — view keys **plus role**, because being
+made or unmade admin changes the visible book exactly as a view grant does —
+BEFORE adopting the new user, and forces one clean full pull, since *"REVOKED —
+they must LEAVE, and a delta has no way to say 'delete'."*
+
+### The one real gap
+
+`Aggregate.visibleData` was written for this, exported, and **never called from
+`js/app.js`**. The phone had no second line at all. Nothing is broken today —
+but anything that ever reached a phone by another road (a cached response, a
+future endpoint, the window between a revoke landing and the forced pull
+completing) would simply have been drawn, with the code to hide it sitting
+unused three files away.
+
+Applied at the ONE place local and central meet, on **both** returns — the
+merged one and the local-only one, because a phone that has never pulled is
+still a phone.
+
+### Read from four sides before believing it
+
+| reader | donors | parcels |
+|---|---|---|
+| collector, may WRITE sponsor, no view key | রাম + **their own** sponsor | their own |
+| কোষাধ্যক্ষ, no view keys | রাম only | **both addressed to her** |
+| কোষাধ্যক্ষ, both keys | all four | both |
+| admin | all four | both |
+
+The second row is A147 and it is the one that matters: **a parcel's two people
+always see it**, keys or not. It leaks nothing — an amount, a date and two names
+they both already know; the confidential fact is who GAVE, and that lives on the
+party row, which stays withheld. Without it she could not confirm money she is
+physically holding.
+
+**And the regression this family exists to prevent was measured, not assumed:**
+her hand reads **₹12,000 with the keys and ₹12,000 without**, and the sender's
+reads ₹0 either way. A147 is the day one phone said ₹44,700 and another said
+₹9,700 about the same money.
+
+The 🩺 desk stays clean for the reader who sees less — no `দাতাহীন জমা`, because
+a hidden donor's payments go with them. Half-filtering is this file's own named
+failure: *"not a smaller bug, a louder one."*
+
+Four mutations, four names: drop the filter from either return, break
+`isPartyTo`, or stop filtering payments and watch the orphan appear.
+
+Tests 3,975 → 3,988. CLIENT night.

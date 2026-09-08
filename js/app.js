@@ -662,7 +662,19 @@
           return !r || r.year === undefined || r.year === null || r.year === '' || Number(r.year) === year;
         });
       });
-      if (!centralData) return local;
+      // A288: the reader's own rule, applied at the ONE place local and central
+      // meet. The server is still the guard — a row a reader may not see never
+      // leaves it — and `Aggregate.visibleData` existed for this and was never
+      // called from here, so the phone had no second line at all: anything that
+      // ever reached it by another road (a cached response, a future endpoint,
+      // a snapshot held from before a grant was revoked and the forced full pull
+      // completed) would simply be drawn.
+      //
+      // Applied to BOTH returns, because "half-filtered" is this file's own
+      // named failure: a payment whose party is missing raises `orphan_payment`
+      // and fills the 🩺 desk with accusations about rows nobody can see.
+      const seen = function (d) { return Aggregate.visibleData(d, Auth.current()); };
+      if (!centralData) return seen(local);
       const merged = {};
       DB.STORES.forEach(function (s) {
         const byId = {};
@@ -690,7 +702,7 @@
         });
         merged[s] = Object.keys(byId).map(function (k) { return byId[k]; });
       });
-      return merged;
+      return seen(merged);
     });
     viewMemo = p; viewMemoKey = key;
     return p;

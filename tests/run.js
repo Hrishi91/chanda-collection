@@ -10894,6 +10894,112 @@ pending.push((async function () {
   eq(h.box.__printed >= 1, true, 'A287: …and it actually asks the phone to print');
 })());
 
+// A288 — the reader's own rule, applied on the phone at last.
+//
+// `Aggregate.visibleData` was written for this, exported, and never called from
+// js/app.js. The server is the guard and always was — a row a reader may not see
+// never leaves it — but the phone had NO second line: anything that reached it
+// by another road (a cached response, a future endpoint, a snapshot still held
+// between a grant being revoked and the forced full pull landing) would simply
+// be drawn. It is applied now at the ONE place local and central meet.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const EMPTY = { parties: [], payments: [], daily: [], expenses: [], handovers: [],
+                  voids: [], corrections: [], messages: [] };
+  const P = function (id, type, name, who) {
+    return { id: id, year: 2026, type: type, name: name, pledged: 20000,
+             side: 'main_malda', collectorId: who };
+  };
+  const book = Object.assign({}, EMPTY, {
+    parties: [P('p1', 'shop', 'রাম', 'pori'), P('p2', 'sponsor', 'অন্যের স্পনসর', 'pori'),
+              P('p3', 'gupt', 'অন্যের গুপ্ত', 'pori'), P('p4', 'sponsor', 'আমার স্পনসর', 'ratan')],
+    payments: [
+      { id: 'y1', year: 2026, partyId: 'p1', amount: 3000, date: '2026-09-07',
+        collectorId: 'pori', collector: 'পরী', cashAmount: 3000, upiAmount: 0 },
+      { id: 'y2', year: 2026, partyId: 'p2', amount: 9000, date: '2026-09-07',
+        collectorId: 'pori', collector: 'পরী', cashAmount: 9000, upiAmount: 0 },
+      { id: 'y4', year: 2026, partyId: 'p4', amount: 4000, date: '2026-09-07',
+        collectorId: 'ratan', collector: 'রতন', cashAmount: 4000, upiAmount: 0 }],
+    handovers: [
+      { id: 'h1', year: 2026, from: 'রতন', fromId: 'ratan', toId: 'kali', to: 'কালী',
+        amount: 4000, cashAmount: 4000, upiAmount: 0, date: '2026-09-07', status: 'pending',
+        breakdown: JSON.stringify({ sponsor: { cash: 4000, upi: 0 } }) },
+      { id: 'h2', year: 2026, from: 'পরী', fromId: 'pori', toId: 'kali', to: 'কালী',
+        amount: 12000, cashAmount: 12000, upiAmount: 0, date: '2026-09-07', status: 'confirmed',
+        confirmedAt: '2026-09-07T12:00:00Z',
+        breakdown: JSON.stringify({ shop: { cash: 3000, upi: 0 }, sponsor: { cash: 9000, upi: 0 } }) }]
+  });
+  const read = async function (user) {
+    const h = loadApp({ user: user, lists: { area: [] }, central: book });
+    await h.ready;
+    const d = await h.app.viewData();
+    return { h: h,
+      parties: (d.parties || []).map(function (p) { return p.name; }).sort().join(','),
+      payments: (d.payments || []).map(function (p) { return p.id; }).sort().join(','),
+      handovers: (d.handovers || []).map(function (x) { return x.id; }).sort().join(',') };
+  };
+
+  // ── a collector who may WRITE a sponsor but not read anybody else's
+  {
+    const r = await read({ username: 'ratan', name: 'রতন', role: 'collector', cashier: 0,
+                           entries: 'shop,person,sponsor', reports: 'inhand' });
+    eq(r.parties, 'আমার স্পনসর,রাম', 'A288: their OWN confidential donor stays; other people\'s go');
+    eq(/অন্যের/.test(r.parties), false, 'A288: …neither the sponsor nor the গুপ্ত');
+    // whole parcel: hiding a party takes its payments with it, or the 🩺 desk
+    // fills with accusations about rows the reader cannot see
+    eq(r.payments, 'y1,y4', 'A288: …and a hidden donor\'s payments go WITH them, never half');
+    eq(r.handovers, 'h1', 'A288: …and a parcel carrying a pot they cannot read is withheld');
+  }
+
+  // ── A147: the two people a parcel is ABOUT always see it, keys or no keys.
+  // It leaks nothing — an amount, a date and two names both already know. The
+  // confidential thing is who GAVE, and that lives on the party row.
+  {
+    const blind = await read({ username: 'kali', name: 'কালী', role: 'collector', cashier: 1,
+                               entries: 'shop', reports: 'inhand' });
+    eq(blind.parties, 'রাম', 'A288: a কোষাধ্যক্ষ without the view keys reads no confidential donor');
+    eq(blind.handovers, 'h1,h2',
+       'A288: …but keeps BOTH parcels addressed to her, or she cannot confirm money she is holding');
+
+    const seeing = await read({ username: 'kali', name: 'কালী', role: 'collector', cashier: 1,
+                                entries: 'shop,sponsorview,guptview', reports: 'inhand' });
+    eq(seeing.parties.split(',').length, 4, 'A288: …and with both keys she reads the whole book');
+
+    // THE regression this whole family exists to prevent: two phones disagreeing
+    // about the same money. A147 measured ₹44,700 on one and ₹9,700 on the other.
+    await blind.h.show('report');
+    await seeing.h.show('report');
+    const hero = function (x) {
+      const m = (x.h.doc.__byId['my-summary'].innerHTML
+        .match(/এখন আমার হিসাবে আছে[\s\S]{0,120}/) || [''])[0];
+      return (m.match(/₹[\d,]+/) || [''])[0];
+    };
+    eq(hero(blind), hero(seeing),
+       'A288: …and her hand reads the SAME with the keys and without — the money is hers either way');
+    eq(hero(blind), '₹12,000', 'A288: …and it is what she actually received');
+  }
+
+  // ── and the desk stays honest for the reader who sees less
+  {
+    const h = loadApp({ user: { username: 'kali', name: 'কালী', role: 'collector', cashier: 1,
+                                entries: 'shop', reports: 'inhand' }, lists: { area: [] }, central: book });
+    await h.ready;
+    const html = await h.show('anomalies');
+    eq(/দাতাহীন জমা/.test(html), false,
+       'A288: withholding a parcel raises no orphan — half-filtering is the louder bug, not the smaller one');
+  }
+
+  // ── an admin reads everything, and the filter is applied to BOTH returns
+  {
+    const r = await read({ username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' });
+    eq(r.parties.split(',').length, 4, 'A288: an admin reads the whole book');
+    const app88 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    eq(/if \(!centralData\) return seen\(local\);/.test(app88), true,
+       'A288: the local-only path is filtered too — a phone that has never pulled is still a phone');
+    eq(/return seen\(merged\);/.test(app88), true, 'A288: …and so is the merged one');
+  }
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;
