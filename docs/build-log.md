@@ -19054,3 +19054,36 @@ Four mutations, four names: drop the filter from either return, break
 `isPartyTo`, or stop filtering payments and watch the orphan appear.
 
 Tests 3,975 → 3,988. CLIENT night.
+
+---
+
+## rebake config.js for the v4.115.0 deployment — 2026-09-10
+
+Hrishi deployed on go-live day. New `/exec`, so the phones must be repointed.
+
+**Verified before baking, not after.** The deployment was asked what it runs,
+with a deliberately invalid token — the error envelope carries the version and
+the call reads and changes nothing:
+
+```
+ok=false   error=bad-token   codeVersion=chanda-v4.115.0   schema=5
+```
+
+Client and server now agree on both numbers, so the admin screen's amber
+"server behind" strip — cosmetic since e308d26, but visible only to Hrishi and
+alarming on the one night it must not be — goes out.
+
+**`curl -L` lied again first.** It answered with Google's HTML loading wrapper,
+exactly the shape that once reported eight healthy deployments as "Page not
+found": a redirected POST is downgraded to GET, and `--post301/302/303` did not
+save it either. `node -e` with plain `fetch` got the JSON on the first try.
+Third time this failure has cost a check in this repo; the rule stands —
+**before believing a negative result, prove the check can see a positive one.**
+
+**No version bump, and no ⚙️ → 🔄 for this.** `js/config.js` is deliberately not
+in `SHELL_FILES`, and A96 made the worker serve it network-first with
+`cache: 'no-store'` — a phone picks up the new backend address on its next load.
+Baking the URL into the cache-first shell is what would have needed a refresh,
+and is the reason it was taken out of the shell in the first place.
+
+Versions unchanged at chanda-v4.115.0 / schema 5. Tests unchanged.
