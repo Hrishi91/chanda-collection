@@ -19166,3 +19166,52 @@ by its **arity**, so adding the party-type argument made it report every store a
 unanswered. It reads the name now, which is what it was always about.
 
 Tests 3,988 → 4,028.
+
+---
+
+## A289b — the curtain and the PRINTED sheet; and why a receipt is not covered — v4.117.0
+
+> *"now check the report and receipt screens too"*
+
+### The report screens
+
+Eight reports. Seven of them carry **collector** names and category labels —
+📊 overview, 💰 কার হাতে কত, 🏆 কে কত তুলল, 📍 এলাকা, 🧾 খরচ, 🛣️ দিনের রোড, 🎭
+অনুষ্ঠান. The curtain is about DONORS, so those are correctly untouched; covering
+a collector's own name would hide who is holding the committee's cash.
+
+📋 বাকির তালিকা is the one that names donors, and A289 covered its screen. It did
+not cover **`printReportHTML`**, which is a second, independent renderer — and the
+printed table carries *more* than the screen does:
+
+```
+নাম · ধরন · এলাকা · মালিক · 📞 ফোন · কথা · দেওয়া · বাকি · শেষ দেওয়া · সংগ্রাহক
+```
+
+Printing opens a window in front of the same shoulder the curtain was drawn
+against. A covered screen that prints an uncovered sheet is the curtain failing
+at the exact moment it is being trusted. Name, owner and phone are covered there
+now, and the 🙈 stays visible in the cell so nobody files the sheet as complete.
+
+**The first version of this test passed on an empty fixture** — again. The sponsor
+in it had no phone, so "the phone is gone" was true before the fix existed. Third
+time in two days that a fresh assertion has been vacuous; the rule keeps earning
+its keep: **assert the thing is THERE before asserting it is gone.**
+
+### The receipt screens — deliberately NOT covered
+
+A receipt carries `partyDonorLine(p)`, the donor's own name, and it is the one
+document this whole system produces. It is addressed **to that donor**, who is
+standing in front of the collector when it is issued and whose own phone receives
+it. A receipt reading "🙈 নাম ঢাকা" is not a covered receipt, it is a broken one —
+and it would be sent by WhatsApp and SMS in that state, because `receiptMessage`
+is the single source for both.
+
+So receipts print the name, curtain or no curtain. This is a decision, not an
+oversight, and it is Hrishi's to overturn.
+
+Checked and clean while there: ⚙️ → receipt design previews a **fictional** donor
+(`শ্রী/শ্রীমতী রমেশ সাহা, কমল স্টোর্স`), never a real row, so the design screen
+leaks nothing.
+
+Tests 4,028 → 4,038.

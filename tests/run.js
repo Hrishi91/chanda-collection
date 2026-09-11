@@ -11042,7 +11042,8 @@ pending.push((async function () {
     // passes "the name is absent" without covering anything. Mutation 7 of this
     // change survived on exactly that, which is what mutation runs are for.
     { id: 'p4', year: 2026, type: 'sponsor', name: 'যদু কনস্ট্রাকশন', pledged: 20000,
-      side: 'main_malda', collectorId: 'pori', createdAt: '2026-09-01T10:07:00Z' },
+      side: 'main_malda', owner: 'যদুনাথ পাল', phone: '9800000004',
+      collectorId: 'pori', createdAt: '2026-09-01T10:07:00Z' },
   ], [
     { id: 'y1', year: 2026, partyId: 'p1', partyName: 'রাম স্টোর্স', amount: 400,
       cashAmount: 400, upiAmount: 0, date: '2026-09-07', collectorId: 'ratan' },
@@ -11200,6 +11201,39 @@ pending.push((async function () {
     eq(/গোপাল মিত্র/.test(after), false, 'A289: …nor the গুপ্ত দাতা');
     eq(/₹35,000/.test(after), true,
        'A289: …and the pot still totals ₹35,000 — this is money in their hand that must be handed over');
+  }
+
+  // ── 5d. 📄 the PRINTED dues sheet — a second renderer the curtain never saw.
+  //
+  // Hrishi: "now check the report and receipt screens too". printReportHTML is
+  // not the screen renderer; it builds its own table, and that table carries
+  // MORE than the screen does — the owner and the donor's PHONE NUMBER. And
+  // printing opens a window in front of the same shoulder the curtain was drawn
+  // against, so a covered screen that prints an uncovered sheet is the curtain
+  // failing at the exact moment it is being trusted.
+  {
+    const h = openBook();
+    await h.ready;
+    const sheet = function () {
+      return h.app.viewData().then(function (data) {
+        const rep = h.box.Aggregate.computeReport('dues', h.app.bookFor('dues', data));
+        return h.app.printReportHTML('dues', rep, data);
+      });
+    };
+    const before = await sheet();
+    eq(/যদু কনস্ট্রাকশন/.test(before), true, 'A289b: uncovered, the printed sheet names the sponsor who owes');
+    eq(/9800000004/.test(before), true,
+       'A289b: …and prints the SPONSOR\'s phone number — assert it is on the sheet before asserting it is gone, or the next line passes on an empty fixture');
+    eq(/যদুনাথ পাল/.test(before), true, 'A289b: …and their owner');
+    tap(h);
+    const after = await sheet();
+    eq(/যদু কনস্ট্রাকশন/.test(after), false, 'A289b: covered, the printed sheet does not name them');
+    eq(/9800000004/.test(after), false, 'A289b: …nor print their phone number');
+    eq(/যদুনাথ পাল/.test(after), false, 'A289b: …nor their owner');
+    eq(/🙈/.test(after), true, 'A289b: …and says so in the cell, so nobody files it as the complete list');
+    eq(/রাম স্টোর্স/.test(after), true, 'A289b: …while the ordinary donor is still printed');
+    eq(/9800000001/.test(after), true, 'A289b: …with their phone, because an ordinary donor is not covered');
+    eq(/₹20,000/.test(after), true, 'A289b: …and every figure on the sheet still stands');
   }
 
   // ── 6. it lifts. A curtain that only closes is a bug report waiting.

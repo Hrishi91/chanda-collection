@@ -5895,8 +5895,18 @@
                     t('party_f_phone'), t('pledged'), t('paid'), t('due'), t('last_paid_col'), t('collector_col')],
           (d.rows || []).map(function (r) {
             const p = byName[r.name] || {};
-            return [r.name, t('type_' + r.type), r.side ? Lists.labelOf('area', r.side) : '', r.owner || '',
-                    p.phone || '', money(r.pledged), money(r.paid), money(r.due),
+            // A289b: the printed sheet is a SECOND renderer, and the curtain had
+            // never reached it. This is the worst of the seven places it missed:
+            // the screen version shows a name, this one adds the OWNER and the
+            // PHONE NUMBER, and printing opens a window in front of the same
+            // shoulder the curtain was drawn against. Covered here too, and
+            // visibly — 🙈 in the cell says the sheet is redacted, so nobody
+            // files it as the complete list.
+            const hide = curtained(r.type);
+            return [shownName(r.name, r.type), t('type_' + r.type),
+                    r.side ? Lists.labelOf('area', r.side) : '',
+                    hide ? '' : (r.owner || ''), hide ? '' : (p.phone || ''),
+                    money(r.pledged), money(r.paid), money(r.due),
                     last[p.id] ? fmtDate(last[p.id]) : '', who[p.id] || ''];
           }));
     }
