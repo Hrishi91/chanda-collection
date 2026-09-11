@@ -11363,6 +11363,48 @@ pending.push((async function () {
        'A289d: …and the amount stays, because a 🪦 line is the only record of a row that must be typed in again by hand');
   }
 
+  // ── 5g. 🎤 voice and the guided flow.
+  //
+  // Hrishi: "now check the voice entry and guided flow screens too". js/voice.js
+  // is 32 lines of SpeechRecognition with no synthesis at all — it holds no name,
+  // says nothing, and only echoes what the user themselves spoke into an input
+  // box. Structurally incapable of leaking a stored name, so there is nothing to
+  // cover. (What it cannot help with is the collector saying the name OUT LOUD —
+  // a human channel, like the chat.)
+  //
+  // The flow's title DOES carry the donor's name, deliberately: you picked that
+  // donor and are entering their money, and a confirm you cannot read is worse
+  // than a visible name. What the sweep actually found here was not a leak.
+  {
+    const h = openBook();
+    await h.ready;
+    await h.show('list');
+    const party = { id: 'p2', name: 'হরি টেক্সটাইল', type: 'sponsor', pledged: 30000 };
+    h.app.startFlow(h.app.paymentFlow(party, 'list'));
+    const seen = h.painted().length;
+    h.app.toggleCurtain();
+    eq(h.painted().length, seen,
+       'A289e: tapping 👁️ during a guided flow does not repaint the flow — renderEntry rebuilds #flow-input from COMMITTED answers only, so a repaint throws away whatever is half-typed and not yet submitted');
+    eq(/হরি টেক্সটাইল/.test(h.html()), true,
+       'A289e: …and the flow still says whose payment this is, which is the point of a confirm');
+    // the guard is the same one the background paths already had
+    const app89e = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    eq(/if \(!flowState\) render\(\);/.test(app89e), true,
+       'A289e: the curtain is guarded with !flowState, like the 60-second poll and the delta handler already were');
+  }
+  // …and with no flow open it still repaints, or the guard has switched the whole
+  // feature off — which is the classic over-correction and needs its own harness,
+  // because startFlow(null) throws rather than closing a flow.
+  {
+    const h = openBook();
+    await h.ready;
+    await h.show('list');
+    const seen2 = h.painted().length;
+    h.app.toggleCurtain();
+    eq(h.painted().length > seen2, true,
+       'A289e: with no flow open the curtain still repaints — the guard must not switch the feature off');
+  }
+
   // ── 6. it lifts. A curtain that only closes is a bug report waiting.
   {
     const h = openBook();

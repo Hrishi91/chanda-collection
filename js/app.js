@@ -4311,7 +4311,23 @@
   // way to test the curtain was to reach around the button and set the flag,
   // and a test that reaches around the control is not testing the control.
   // Naming it lets the test call exactly what the thumb calls.
-  function toggleCurtain() { curtainOn = !curtainOn; paintCurtain(); render(); }
+  // A289e: never re-render over a flow. `renderEntry` repaints #flow-input with
+  // `value=prev`, and `prev` comes from COMMITTED answers only — so a repaint
+  // throws away whatever is half-typed and not yet submitted. The 60-second poll
+  // and the delta handler are both explicitly guarded with `!flowState` for this
+  // reason; A144's button was added later and was not, so one tap on 👁️ mid-
+  // question silently ate the number being typed.
+  //
+  // And there is nothing to repaint: the flow's title carries the donor's name
+  // DELIBERATELY — you picked that donor and are entering their money, and a
+  // confirm screen you cannot read is worse than a visible name. So the curtain
+  // has no work to do on a flow screen, and every other screen is painted with
+  // the new state the moment the user leaves this one.
+  function toggleCurtain() {
+    curtainOn = !curtainOn;
+    paintCurtain();
+    if (!flowState) render();
+  }
   function paintCurtain() {
     const b = document.getElementById('hdr-curtain');
     if (!b) return;

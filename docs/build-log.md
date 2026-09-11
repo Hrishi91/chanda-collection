@@ -19323,3 +19323,72 @@ routing that name through the curtain failed a test about whether the anomaly ge
 its own sentence. Second time in two days (A210 pinned an arity).
 
 Tests 4,047 → 4,055.
+
+---
+
+## A289e — 🎤 voice is clean by construction; the flow hid a data-loss bug — v4.120.0
+
+> *"now check the voice entry and guided flow screens too"*
+
+### 🎤 voice — nothing to cover, and it cannot be otherwise
+
+`js/voice.js` is 32 lines: `SpeechRecognition`, no synthesis anywhere. It holds no
+name, speaks nothing, and only puts the user's own transcript into an input box for
+them to confirm. **Structurally incapable of leaking a stored name.**
+
+What it cannot help with is the collector saying a confidential donor's name **out
+loud** to the microphone. That is a human channel, like the chat — worth saying to
+people, not something code can take back.
+
+### The flow's title keeps the name, deliberately
+
+`paymentFlow` titles itself `চাঁদা যোগ করো — <donor>`. That stays: you chose that
+donor and are entering their money, and **a confirm screen you cannot read is worse
+than a visible name** — a misattributed payment is a money bug, and the person
+beside you at that moment is usually the donor.
+
+Same reasoning as the receipt (A289b) and the entry-time duplicate warning (A289).
+
+### 📝 the draft offer — a mask here would have been DEAD code
+
+`resume: { label: party.name }` is stored, and `renderDraftOffer` prints it. It
+looks like a leak: the app opens and the first screen says *"you were adding a
+payment for হরি টেক্সটাইল"*.
+
+It is not reachable with the curtain drawn. `curtainOn` is **module state that
+never persists** — A144's deliberate choice, because *"reopening the app is the one
+moment we can be sure the shoulder has gone"* — and the only route to that screen
+is the boot router. `offerDraft()`, the one function that could surface it
+mid-session, is **defined and called by nobody**.
+
+So the curtain is always lifted when that screen exists. No mask was added, on this
+repo's own rule: *dead conditions are worse than no condition — they read like
+protection, so the next person trusts one that was never there.* Yesterday the same
+question had the opposite answer on the anomaly desk; **the point is to ask it, not
+to guess it.**
+
+(`offerDraft()` being dead is noted, not fixed — a different subject.)
+
+### The real find: one tap on 👁️ ate what you were typing
+
+`renderEntry` rebuilds `#flow-input` with `value=prev`, and `prev` is filled from
+**committed answers only** — never from the live DOM. So any `render()` during a
+flow discards whatever is half-typed and not yet submitted.
+
+Both background paths are explicitly guarded for exactly this:
+
+```js
+if (!changed || flowState) return;                  // the delta handler
+if (Auth.loggedIn() && !flowState && …) render();   // the 60-second poll
+```
+
+A144's curtain button came later and called `render()` unguarded. So tapping 👁️
+mid-question silently threw away the number being typed — **at precisely the moment
+the curtain exists for**: somebody walks up, you cover the screen by reflex, and the
+amount in your hand is gone.
+
+Guarded now, and there was nothing to repaint anyway. Both directions are mutation-
+tested: remove the guard and the flow repaints again; widen it to `if (false)` and
+the curtain stops working everywhere else.
+
+Tests 4,055 → 4,059.
