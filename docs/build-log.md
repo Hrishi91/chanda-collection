@@ -19392,3 +19392,48 @@ tested: remove the guard and the flow repaints again; widen it to `if (false)` a
 the curtain stops working everywhere else.
 
 Tests 4,055 → 4,059.
+
+---
+
+## A289f — the two screens every collector meets first, and the harness is worst at seeing — v4.121.0
+
+> *"now check the login and register screens too"*
+
+No donor data lives here, so there is nothing for the curtain to cover — and the
+button is correctly not offered either, because `permAllowed` refuses a null user.
+That is asserted now rather than assumed.
+
+**This screen family has a history, and it is the harness's fault.** A91: every
+browser check in this repo begins by writing a session into localStorage, so the
+logged-out app went unexamined until Hrishi asked — and it had five dead nav tabs
+and a meaningless sync badge. The same blind spot was still there today; both
+findings below are things no existing test could have seen.
+
+### 1. The Go key did nothing
+
+Every other input in this app tells the keyboard what it is for — flows ask for
+`next`, search for `search`, chat for `send`. **Login and register had no
+`enterkeyhint` and no Enter handler at all.** So on an Android keyboard a collector
+types their password, presses Go, and nothing happens; the only way in is to find
+the button.
+
+Wired now, and the handler **invokes the button's own `onclick`** rather than a copy
+of its body — so validation, the busy state and the error line cannot drift between
+"tapped" and "pressed Go". That is asserted by pressing Enter on empty fields and
+watching the same error appear.
+
+Twelve people type these two fields tonight, most of them for the first time in
+weeks.
+
+### 2. A phone that cannot log in could not say what it is running
+
+`#app-ver` lives in ⚙️, which needs a session. So the version — **the gate every
+release night turns on** ("everyone on the current version") — was unreachable from
+the one screen a phone can always get to. One muted line on the login card now.
+
+Reassuring, and checked rather than assumed while here: a logged-out phone still
+**updates itself**. `navigator.serviceWorker.register('sw.js')` runs at boot with no
+session test, so a new worker installs, claims the page and triggers the one capped
+automatic reload. The login screen is not a dead end for code.
+
+Tests 4,059 → 4,066.

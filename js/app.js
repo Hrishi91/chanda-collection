@@ -7386,6 +7386,19 @@
       '" data-l="bn">বাংলা</button><button class="chip' + (Settings.get('lang') === 'en' ? ' on' : '') +
       '" data-l="en">English</button></div>';
   }
+  // A289f: one Enter wiring, used by both auth screens. The button's own onclick
+  // is invoked rather than a copy of its body, so the validation, the busy state
+  // and the error line can never drift between "tapped" and "pressed Go".
+  function onEnter(id, fn) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.onkeydown = function (e) {
+      if (e && (e.key === 'Enter' || e.keyCode === 13)) {
+        if (e.preventDefault) e.preventDefault();
+        fn();
+      }
+    };
+  }
   function renderAuth() {
     if (authView === 'register') return renderRegister();
     if (authView === 'forgot' || authView === 'regdone') return renderAuthMsg();
@@ -7395,18 +7408,30 @@
     $view().innerHTML = '<div class="card center onboard">' +
       '<img src="icons/icon-192.png" alt="" width="104" height="104" style="border-radius:22px;margin:4px auto 10px;display:block">' +
       '<h2>🙏 ' + esc(pujaName()) + '</h2>' + langChips() +
+      // A289f: enterkeyhint + a real Enter handler. Every other input in this app
+      // has one — flows say "next", search says "search", chat says "send" — and
+      // the two screens EVERY collector meets first had none at all, so the Go
+      // key on an Android keyboard did nothing and the only way in was to find
+      // the button. Twelve people type these two fields tonight.
       '<div class="field"><label>' + esc(t('username')) + '</label>' +
-      '<input id="lg-user" autocapitalize="none" autocomplete="username"></div>' +
+      '<input id="lg-user" autocapitalize="none" autocomplete="username" enterkeyhint="next"></div>' +
       '<div class="field"><label>' + esc(t('password')) + '</label>' +
-      '<input id="lg-pw" type="password" autocomplete="current-password"></div>' +
+      '<input id="lg-pw" type="password" autocomplete="current-password" enterkeyhint="go"></div>' +
       '<div id="auth-err" class="auth-err" style="display:none"></div>' +
       '<button id="lg-btn" class="primary big block">' + esc(t('login_btn')) + '</button>' +
       '<button id="lg-reg" class="ghost block">' + esc(t('no_account_register')) + '</button>' +
       '<button id="lg-forgot" class="ghost block">' + esc(t('forgot_link')) + '</button>' +
       (navigator.onLine ? '' : '<div class="hint">' + esc(t('login_needs_net')) + '</div>') +
+      // A289f: the version, on the one screen a phone can always reach. It lived
+      // only in ⚙️, which needs a session — so a collector who cannot log in
+      // could not say what their phone is running, and "everyone on the current
+      // version" is the gate every release night turns on. One muted line.
+      '<div class="hint" id="lg-ver">' + esc(Auth.APP_VERSION) + '</div>' +
       '</div>';
     document.getElementById('lg-reg').onclick = function () { authView = 'register'; renderAuth(); };
     document.getElementById('lg-forgot').onclick = function () { authView = 'forgot'; renderAuth(); };
+    onEnter('lg-user', function () { const p = document.getElementById('lg-pw'); if (p) p.focus(); });
+    onEnter('lg-pw', function () { document.getElementById('lg-btn').onclick.call(document.getElementById('lg-btn')); });
     document.getElementById('lg-btn').onclick = function () {
       authError('');
       const user = document.getElementById('lg-user').value.trim();
@@ -7421,19 +7446,23 @@
   function renderRegister() {
     $view().innerHTML = '<div class="card center onboard"><h2>' + esc(t('register_title')) + '</h2>' +
       langChips() +
-      '<div class="field"><label>' + esc(t('full_name')) + '</label><input id="rg-name"></div>' +
+      '<div class="field"><label>' + esc(t('full_name')) + '</label><input id="rg-name" enterkeyhint="next"></div>' +
       '<div class="field"><label>' + esc(t('username')) + '</label>' +
-      '<input id="rg-user" autocapitalize="none" autocorrect="off" spellcheck="false">' +
+      '<input id="rg-user" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">' +
       '<div class="hint" id="rg-user-hint">' + esc(t('username_rule')) + '</div></div>' +
-      '<div class="field"><label>' + esc(t('q_phone')) + '</label><input id="rg-phone" inputmode="tel"></div>' +
-      '<div class="field"><label>✉️ ' + esc(t('member_f_email')) + '</label><input id="rg-email" inputmode="email" autocapitalize="none"></div>' +
-      '<div class="field"><label>' + esc(t('password')) + '</label><input id="rg-pw" type="password">' +
+      '<div class="field"><label>' + esc(t('q_phone')) + '</label><input id="rg-phone" inputmode="tel" enterkeyhint="next"></div>' +
+      '<div class="field"><label>✉️ ' + esc(t('member_f_email')) + '</label><input id="rg-email" inputmode="email" autocapitalize="none" enterkeyhint="next"></div>' +
+      '<div class="field"><label>' + esc(t('password')) + '</label><input id="rg-pw" type="password" enterkeyhint="next">' +
       '<div class="hint">' + esc(t('password_rule')) + '</div></div>' +
-      '<div class="field"><label>' + esc(t('confirm_password')) + '</label><input id="rg-pw2" type="password"></div>' +
+      '<div class="field"><label>' + esc(t('confirm_password')) + '</label><input id="rg-pw2" type="password" enterkeyhint="go"></div>' +
       '<div id="auth-err" class="auth-err" style="display:none"></div>' +
       '<button id="rg-btn" class="primary big block">' + esc(t('register_btn')) + '</button>' +
       '<button id="rg-back" class="ghost block">' + esc(t('back_to_login')) + '</button></div>';
     document.getElementById('rg-back').onclick = function () { authView = 'login'; renderAuth(); };
+    // A289f: Go on the last field submits, like every other screen in the app
+    onEnter('rg-pw2', function () {
+      const b = document.getElementById('rg-btn'); if (b) b.onclick.call(b);
+    });
     // live username feedback as they type
     const userEl = document.getElementById('rg-user'), hint = document.getElementById('rg-user-hint');
     userEl.oninput = function () {

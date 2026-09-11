@@ -11405,6 +11405,44 @@ pending.push((async function () {
        'A289e: with no flow open the curtain still repaints — the guard must not switch the feature off');
   }
 
+  // ── 5h. 🔐 login and register — the screens every collector meets FIRST,
+  // and the ones the harness is structurally worst at seeing (A91: every browser
+  // check here starts by writing a session, so the logged-out app went
+  // unexamined until Hrishi asked, and had five dead nav tabs).
+  //
+  // No donor data lives here, so there is nothing for the curtain to cover —
+  // and the button must not be offered either, since `permAllowed` refuses a
+  // null user. What the sweep found instead were two gaps that bite tonight.
+  {
+    const h = loadApp({ user: null });
+    await h.ready;
+    const html = await h.show('home');
+    eq(/id="lg-user"/.test(html) && /id="lg-pw"/.test(html), true, 'A289f: logged out, the login screen is what paints');
+    eq(h.doc.getElementById('hdr-curtain').hidden, true,
+       'A289f: …and no curtain button is offered to nobody — permAllowed refuses a null user');
+
+    // (1) Go/Enter did nothing. Every other input in the app carries a hint.
+    eq(/id="lg-pw"[^>]*enterkeyhint="go"/.test(html), true,
+       'A289f: the password field asks the keyboard for a Go key');
+    eq(/id="lg-user"[^>]*enterkeyhint="next"/.test(html), true, 'A289f: …and the username for Next');
+    eq(typeof h.doc.getElementById('lg-pw').onkeydown, 'function',
+       'A289f: …and Enter is actually wired, not just hinted at — a Go key that does nothing is worse than none');
+
+    // it calls the BUTTON, so validation and the error line cannot drift
+    let erred = '';
+    h.box.window.alert = function () {};
+    h.doc.getElementById('lg-user').value = '';
+    h.doc.getElementById('lg-pw').value = '';
+    h.doc.getElementById('lg-pw').onkeydown({ key: 'Enter', preventDefault: function () {} });
+    erred = h.doc.getElementById('auth-err').innerHTML || h.doc.getElementById('auth-err').textContent || '';
+    eq(/.+/.test(String(erred)), true,
+       'A289f: pressing Go with empty fields runs the same validation a tap does — the handler calls the button, never a copy of its body');
+
+    // (2) the version, on a screen a phone can always reach
+    eq(html.indexOf(h.box.Auth.APP_VERSION) >= 0, true,
+       'A289f: the login screen states the app version — it lived only in ⚙️, which needs a session, so a collector who cannot log in could not say what their phone runs');
+  }
+
   // ── 6. it lifts. A curtain that only closes is a bug report waiting.
   {
     const h = openBook();
