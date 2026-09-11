@@ -19267,3 +19267,59 @@ everybody is a warning nobody reads:
 confidential name and every phone in the committee is the person typing.
 
 Tests 4,038 → 4,047.
+
+---
+
+## A289d — the 🩺 desk named donors in six places; and 🪦 was only half a dead end — v4.119.0
+
+> *"now check the admin panel and settings screens too"*
+
+### The two screens themselves are clean
+
+👑 the admin panel and ⚙️ settings name **no donor at all** — users, permissions,
+posts, areas, expense subjects, lists. The access picture's `name` is a
+collector's. The receipt-design preview uses a fictional donor. Nothing to cover.
+
+Two screens reached **through** them were not clean.
+
+### 🩺 the anomaly desk — six sites, the curtain reached none
+
+Four anomaly kinds carry the donor's **name on the anomaly row itself**
+(`a.party`: overpaid, member_no_account, party_no_area) and the desk read it
+straight back off the row, which walks past the curtain by construction. Two more
+resolved a party and printed its `name` and `owner`. All six go through the
+curtain now; `anomWho()` looks the kind up from the party and treats the row's own
+copy as a fallback only.
+
+### 🪦 — yesterday's "unfixable gap" was half wrong, and I said so too quickly
+
+A289 wrote this off: *"a wiped row has no party to ask for a KIND"*. Half of that
+was false.
+
+- A wiped **party** row **is** the party and carries `type`.
+- Its wiped **payment** finds that type **in the same list** — a phone wiped
+  mid-round usually still holds both halves.
+
+Both are covered now. What genuinely remains is a payment whose party had already
+synced before the wipe, and that one keeps its name deliberately: a 🪦 line is the
+only record of a row **that has to be typed in again by hand**, and blanking it
+would destroy the recovery it exists for.
+
+### The mutation that nearly cost a live guard
+
+Masking the `possible_duplicate_payment` row survived, and the first explanation
+was attractive and wrong: *that branch is orphan_payment, where the party is
+missing by definition, so the mask is dead code — delete it.* Checking instead of
+deleting showed it is the **duplicate**-payment branch, where the party is present
+by definition, so `nm` really is a donor's name. A live guard with no test, one
+read away from being removed as dead.
+
+> **Before deleting a guard a mutation says nothing holds, find out WHICH of the
+> two truths it is telling.** The repo's own rule, and today it was the other one.
+
+One more brittle source-text assertion repointed: A143 pinned
+`.replace('{who}', a.party || '?')` — the spelling of where a name came from — so
+routing that name through the curtain failed a test about whether the anomaly gets
+its own sentence. Second time in two days (A210 pinned an arity).
+
+Tests 4,047 → 4,055.

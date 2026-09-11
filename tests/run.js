@@ -6222,7 +6222,11 @@ try {
     // and it says something a person can act on, in both languages
     eq(a25I18n.indexOf('  anom_party_no_area:') >= 0 && a25I18n.indexOf('  anom_party_no_area_t:') >= 0, true,
        'A143: the row has a title and a message');
-    eq(/a\.type === 'party_no_area' \? t\('anom_party_no_area'\)\.replace\('\{who\}', a\.party \|\| '\?'\)/.test(app), true,
+    // A289d: pinned `a.party || '?'` — the exact SPELLING of where the name came
+    // from — so routing that name through the curtain broke a test about
+    // something else entirely. What A143 is about is that this anomaly type gets
+    // its own sentence instead of a raw type string, and that is what it reads.
+    eq(/a\.type === 'party_no_area' \? t\('anom_party_no_area'\)\.replace\('\{who\}',/.test(app), true,
        'A143: …and the desk renders it rather than printing the raw type');
   }
 
@@ -11301,6 +11305,62 @@ pending.push((async function () {
     const chat = await h.show('messages');
     eq(/স্পনসর বা গুপ্ত দাতার নাম এখানে লিখো না/.test(chat), true,
        'A289c: the chat warns the keyholder, because no code can tell that a typed sentence names a sponsor');
+  }
+
+  // ── 5f. 🩺 the anomaly desk and 🪦 — reached through ⚙️ and 👑.
+  //
+  // Hrishi: "now check the admin panel and settings screens too". The admin
+  // panel and ⚙️ themselves name no donor at all — users, permissions, lists —
+  // and neither does the access picture (that `name` is a collector's). Two
+  // screens reached THROUGH them did.
+  {
+    const ANOM = Object.assign({}, CENTRAL, {
+      // p2 is a sponsor pledged ₹30,000 who has paid ₹30,000; push them over by
+      // paying again, which is the `overpaid` anomaly — one of the four kinds
+      // that carry the donor's NAME on the anomaly row itself.
+      payments: CENTRAL.payments.concat([
+        { id: 'y9', year: 2026, partyId: 'p2', partyName: 'হরি টেক্সটাইল', amount: 5000,
+          cashAmount: 5000, upiAmount: 0, date: '2026-09-08', collectorId: 'ratan' },
+        // …and a SECOND ₹5,000 on the same party on the same day, which is the
+        // `possible_duplicate_payment` rule. That branch resolves the party out
+        // of the live book rather than off the anomaly row, so it is a different
+        // code path from the four {who} ones — and its mask survived a mutation
+        // until this pair existed. It is not dead code: the party is present by
+        // definition here, so `nm` really is a donor's name.
+        { id: 'y10', year: 2026, partyId: 'p2', partyName: 'হরি টেক্সটাইল', amount: 5000,
+          cashAmount: 5000, upiAmount: 0, date: '2026-09-08', collectorId: 'ratan' }]) });
+    const DESK = Object.assign({}, KEEPER, { cashier: 1, entries: KEEPER.entries + ',review' });
+    const h = loadApp({ user: DESK, lists: { area: AREA }, central: ANOM,
+                        local: { parties: ANOM.parties, payments: ANOM.payments } });
+    await h.ready;
+    const before = await h.show('anomalies');
+    eq(/হরি টেক্সটাইল/.test(before), true, 'A289d: uncovered, the 🩺 desk names the over-paid sponsor');
+    tap(h);
+    const after = await h.show('anomalies');
+    eq(/হরি টেক্সটাইল/.test(after), false,
+       'A289d: covered, it does not — the anomaly row carries the name itself, so reading it back off the row walked straight past the curtain');
+    eq(/₹40,000/.test(after), true, 'A289d: …and the anomaly still states the figures, which is the whole point of the desk');
+    eq(/🙈/.test(after), true, 'A289d: …and says it is covered rather than going blank');
+  }
+
+  // 🪦 — yesterday this was written off as unfixable. Half of that was wrong.
+  {
+    const h = loadApp({ user: KEEPER, lists: { area: AREA }, central: CENTRAL,
+      settings: { wiped_entries: JSON.stringify([
+        { store: 'parties', row: { id: 'w1', type: 'sponsor', name: 'বিলুপ্ত স্পনসর', pledged: 5000 } },
+        { store: 'payments', row: { id: 'w2', partyId: 'w1', partyName: 'বিলুপ্ত স্পনসর', amount: 5000 } },
+        { store: 'parties', row: { id: 'w3', type: 'shop', name: 'সাধারণ দোকান', pledged: 1000 } },
+      ]) } });
+    await h.ready;
+    const before = await h.show('graveyard');
+    eq(/বিলুপ্ত স্পনসর/.test(before), true, 'A289d: uncovered, 🪦 lists the wiped sponsor');
+    tap(h);
+    const after = await h.show('graveyard');
+    eq(/বিলুপ্ত স্পনসর/.test(after), false,
+       'A289d: covered — a wiped PARTY row IS the party and carries its own kind, and its wiped PAYMENT finds that kind in the same list');
+    eq(/সাধারণ দোকান/.test(after), true, 'A289d: …while an ordinary wiped row keeps its name');
+    eq(/₹5,000/.test(after), true,
+       'A289d: …and the amount stays, because a 🪦 line is the only record of a row that must be typed in again by hand');
   }
 
   // ── 6. it lifts. A curtain that only closes is a bug report waiting.

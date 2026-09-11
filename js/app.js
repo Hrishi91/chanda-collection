@@ -4992,14 +4992,27 @@
   }
   function renderGraveyard() {
     const list = graveyardRead();
+    // A289d: yesterday this was written off as an unfixable gap — "a wiped row
+    // has no party to ask for a KIND". Half of that was wrong. A wiped PARTY
+    // row IS the party and carries its own type; and the parties in this same
+    // list give the wiped PAYMENTS a lookup, because a phone that was wiped
+    // mid-round usually still holds both halves. What is left over — a payment
+    // whose party had already synced — is the real gap, and it keeps its name
+    // rather than being blanked, since a 🪦 line is the only record of a row
+    // that must be typed in again by hand.
+    const gType = {};
+    list.forEach(function (x) {
+      const r = x.row || {};
+      if (x.store === 'parties' && r.id) gType[r.id] = r.type;
+    });
     $view().innerHTML = backBar('settings') +
       '<div class="flow-title">🪦 ' + esc(t('graveyard_title')) + '</div>' +
       '<div class="hint" style="margin-bottom:8px">' + esc(t('graveyard_hint')) + '</div>' +
       (list.length ? list.map(function (x) {
         const r = x.row || {};
         const head = x.store === 'parties'
-          ? '👥 ' + (r.name || '?') + (Number(r.pledged) ? ' · ' + fmtMoney(r.pledged) : '')
-          : entrySummary(x.store, r);
+          ? '👥 ' + shownName(r.name || '?', r.type) + (Number(r.pledged) ? ' · ' + fmtMoney(r.pledged) : '')
+          : entrySummary(x.store, r, gType[r.partyId]);
         return '<div class="row" style="cursor:default"><div><b>' + esc(head) + '</b>' +
           '<div class="row-sub">' + esc(fmtDate(r.date || r.createdAt)) +
           (r.note ? ' • ' + esc(r.note) : '') + '</div></div>' +
@@ -6404,12 +6417,25 @@
       const byId = {}; (data.payments || []).forEach(function (p) { byId[p.id] = p; });
       const dailyById = {}; (data.daily || []).forEach(function (r) { dailyById[r.id] = r; });
       const partyById = {}; liveParties(data).forEach(function (p) { partyById[p.id] = p; });
+      // A289d: four anomaly kinds carry the donor's NAME on the row itself
+      // (`a.party`) as well as the id. Reading the name back off the row would
+      // walk straight past the curtain, so the kind is looked up from the party
+      // and the row's own copy is only a fallback for a party that has gone.
+      const anomWho = function (a) {
+        const pr = partyById[a.partyId];
+        if (!pr) return curtainOn ? t('curtain_name') : (a.party || '?');
+        return shownName(a.party || pr.name || '?', pr.type);
+      };
       const canStamp = serverCanStoreAnswers();
       const stampNote = canStamp ? '' : '<div class="perm-note">' + esc(t('anom_needs_deploy')) + '</div>';
       const rows = r.anomalies.map(function (a) {
         if (a.type === 'possible_duplicate_payment') {
           const dup = byId[a.id], first = byId[a.firstId];
-          const nm = (partyById[a.partyId] || {}).name || a.partyId;
+          // A289d: every anomaly row carries a partyId, so the kind is always
+          // reachable here — the 🩺 desk named donors in six places and the
+          // curtain reached none of them.
+          const aParty = partyById[a.partyId] || {};
+          const nm = shownName(aParty.name || a.partyId, aParty.type);
           return '<div class="card"><div class="card-title">🔁 ' + esc(t('anom_dup')) + '</div>' +
             '<div class="row-sub">' + esc(nm) + ' · ' + fmtMoney(a.amount) + ' · ' + esc(fmtDate(a.date)) + '</div>' +
             '<div class="bd-line" style="display:block;margin-top:6px">' +
@@ -6459,7 +6485,8 @@
         if (a.type === 'possible_duplicate_party') {
           const dup = partyById[a.id], first = partyById[a.firstId];
           const line = function (p) {
-            return p ? '• ' + (p.name || '?') + (p.owner ? ' (' + p.owner + ')' : '') +
+            return p ? '• ' + shownName(p.name || '?', p.type) +
+              (p.owner && !curtained(p.type) ? ' (' + p.owner + ')' : '') +
               ' · ' + t('pledged') + ' ' + fmtMoney(p.pledged || 0) +
               ' · ' + (p.collector || p.collectorId || '?') : '';
           };
@@ -6481,7 +6508,7 @@
         // than they promised.
         if (a.type === 'overpaid') {
           return '<div class="card"><div class="card-title">⚠️ ' + esc(t('anom_overpaid_t')) + '</div>' +
-            '<div class="row-sub">' + esc(t('anom_overpaid').replace('{who}', a.party || '?')
+            '<div class="row-sub">' + esc(t('anom_overpaid').replace('{who}', anomWho(a))
               .replace('{n}', fmtMoney(a.paid || 0)).replace('{p}', fmtMoney(a.pledged || 0))) + '</div>' +
             '<div class="chips" style="margin-top:8px">' +
               (canStamp ? '<button class="chip on" data-pledgeok="' + esc(a.partyId) + '">' + esc(t('anom_overpaid_ok')) + '</button>' : '') +
@@ -6493,15 +6520,15 @@
         // these are data surgery, and a wrong "fix" here moves real money.
         const line = a.type === 'unbalanced'
             ? t('anom_unbalanced').replace('{diff}', fmtMoney(Math.abs(a.diff)))
-          : a.type === 'overpaid' ? t('anom_overpaid').replace('{who}', a.party || '?').replace('{n}', fmtMoney(a.paid || 0)).replace('{p}', fmtMoney(a.pledged || 0))
+          : a.type === 'overpaid' ? t('anom_overpaid').replace('{who}', anomWho(a)).replace('{n}', fmtMoney(a.paid || 0)).replace('{p}', fmtMoney(a.pledged || 0))
           : a.type === 'orphan_payment' ? t('anom_orphan').replace('{n}', fmtMoney(a.amount))
           : a.type === 'negative_inhand' ? t('anom_negative').replace('{who}', a.collector || a.id || '?').replace('{n}', fmtMoney(a.inHand || 0))
           : a.type === 'duplicate_id' ? t('anom_dupid').replace('{store}', a.store || '')
           : a.type === 'split_mismatch' ? t('anom_split').replace('{store}', a.store || '').replace('{n}', fmtMoney(a.amount || 0)).replace('{s}', fmtMoney(a.split || 0))
           : a.type === 'breakdown_mismatch' ? t('anom_breakdown').replace('{n}', fmtMoney(a.amount || 0)).replace('{s}', fmtMoney(a.breakdownSum || 0))
           : a.type === 'position_over_max' ? t('anom_position_over_max').replace('{pos}', Lists.labelOf('position', a.position)).replace('{n}', a.count).replace('{max}', a.max).replace('{names}', (a.who || []).join(', '))
-          : a.type === 'member_no_account' ? t('anom_member_no_account').replace('{who}', a.party || '?')
-          : a.type === 'party_no_area' ? t('anom_party_no_area').replace('{who}', a.party || '?')
+          : a.type === 'member_no_account' ? t('anom_member_no_account').replace('{who}', anomWho(a))
+          : a.type === 'party_no_area' ? t('anom_party_no_area').replace('{who}', anomWho(a))
           : a.type === 'bad_amount' ? t('anom_bad_amount').replace('{store}', a.store || '').replace('{raw}', a.raw || '')
           : a.type;
         return '<div class="card"><div class="card-title">⚠️ ' + esc(t('anom_' + a.type + '_t') || a.type) + '</div>' +
@@ -6633,7 +6660,7 @@
         b.onclick = function () {
           const p = partyById[b.dataset.pledgeok] || {};
           const paid = (r.anomalies.filter(function (a) { return a.type === 'overpaid' && a.partyId === b.dataset.pledgeok; })[0] || {});
-          if (!window.confirm(t('anom_overpaid_ok_confirm').replace('{who}', p.name || '?')
+          if (!window.confirm(t('anom_overpaid_ok_confirm').replace('{who}', shownName(p.name || '?', p.type))
                 .replace('{p}', fmtMoney(paid.pledged || 0)).replace('{n}', fmtMoney(paid.paid || 0)))) return;
           stampOk(b, 'parties', b.dataset.pledgeok, 'pledgeOk');
         };
