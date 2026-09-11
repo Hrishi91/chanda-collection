@@ -5288,9 +5288,26 @@
       const list = (data.corrections || []).filter(function (c) {
         return String(c.status || 'pending') === 'pending' && !done[c.targetId] && !resolvedFlags[c.id];
       });
+      // A289c: `targetSummary` is a string FROZEN at flag time, and for a payment
+      // it contains the donor's name — so the curtain could not reach it the way
+      // it reaches every other screen. The row still carries targetStore and
+      // targetId, so the live payment can be found and the line rebuilt with the
+      // party kind attached. If that payment is gone the kind is unknowable, and
+      // the stored line is dropped rather than printed: on a desk about
+      // confidential money, "I cannot tell" must not resolve to "show it".
+      const payById = {};
+      (data.payments || []).forEach(function (y) { if (y && y.id) payById[y.id] = y; });
+      const ptypeR = partyTypes(data);
+      const targetLine = function (c) {
+        const stored = c.targetSummary || c.targetStore;
+        if (!curtainOn || String(c.targetStore) !== 'payments') return stored;
+        const pay = payById[c.targetId];
+        if (!pay) return t('curtain_name');
+        return entrySummary('payments', pay, ptypeR[pay.partyId]);
+      };
       const html = list.length ? list.map(function (c) {
         return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 100%"><b>' +
-          esc(c.targetSummary || c.targetStore) + '</b><div class="row-sub">' + esc(c.collector || '') +
+          esc(targetLine(c)) + '</b><div class="row-sub">' + esc(c.collector || '') +
           ' • ' + esc(c.reason) + '</div></div><div class="chips" style="margin-top:8px">' +
           '<button class="chip" data-corr-ok="' + esc(c.id) + '">' + esc(t('corr_approve')) + '</button>' +
           '<button class="chip" data-corr-no="' + esc(c.id) + '">' + esc(t('corr_reject')) + '</button></div></div>';
@@ -7157,6 +7174,14 @@
       }).join('') : '<div class="empty">' + esc(t('msg_empty')) + '</div>';
       $view().innerHTML = '<div class="flow-title">' + esc(t('msg_title')) + '</div>' +
         '<div class="hint" style="margin-bottom:8px">' + esc(t('msg_hint')) + '</div>' +
+        // A289c: chat is the ONE store neither visibleData nor the server's
+        // visible_ filters, and its content is free text — no code can tell that
+        // "হরি টেক্সটাইল ৩০ দিল" names a sponsor. So the curtain cannot reach it
+        // and never will; the only control is the person typing. Shown to the
+        // people who actually hold confidential rows, because a warning printed
+        // for everybody is a warning nobody reads.
+        (curtainAvailable()
+          ? '<div class="perm-note">🙈 ' + esc(t('msg_confidential')) + '</div>' : '') +
         '<div id="msg-list" class="msg-list">' + body + '</div>' +
         '<div id="msg-picker" class="chips" hidden></div>' +
         // A78d: a stood-down member READS the chat — that is how they learn what

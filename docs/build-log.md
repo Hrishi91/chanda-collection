@@ -19215,3 +19215,55 @@ Checked and clean while there: ⚙️ → receipt design previews a **fictional*
 leaks nothing.
 
 Tests 4,028 → 4,038.
+
+---
+
+## A289c — handover (clean), the correction desk (not clean), and the one screen no curtain can ever reach — v4.118.0
+
+> *"now check the handover and chat screens too"*
+
+### 🤝 handover — clean, and it must STAY clean
+
+The handover book, the cashier desk and `breakdownLines` name the **other
+collector** and the **pot**, never a donor. `breakdown` is `CAT_LABEL_KEYS` and
+amounts; `x.who` is the person on the other end of the parcel.
+
+That is not an oversight to correct — it is A147's rule, and covering it would be
+a bug: *a parcel's two people always see it*, and hiding who you handed ₹30,000 to
+would take away the only line that says where the money went. There is now an
+assertion that the curtain does **not** reach it, so a future sweep cannot
+"fix" this by accident.
+
+### 🛠️ the correction desk — a leak, and an interesting one
+
+`targetSummary` is a string **frozen at flag time**, and for a payment it contains
+the donor's name. The curtain reaches every other screen by asking the party for
+its kind; a frozen string has nobody to ask.
+
+The row still carries `targetStore` and `targetId`, so the live payment is found
+and the line **rebuilt** with the kind attached. And when that payment is gone —
+voided, or never pulled — the kind is genuinely unknowable, and the stored line is
+**withheld** rather than printed. On a desk about confidential money, *"I cannot
+tell" must not resolve to "show it"*. The flag itself stays, with its reason, so
+the cashier can still act.
+
+That branch survived its first mutation because no fixture had a missing payment.
+It has one now.
+
+### 💬 chat — the curtain can never reach it, so say so
+
+`messages` is the **one store neither filter touches**: not `visibleData` on the
+phone, not `visible_` on the server. Both filter parties, payments, expenses and
+handovers; neither mentions messages. And its content is free text — no code can
+tell that "হরি টেক্সটাইল ৩০ দিল" names a sponsor.
+
+So the chat carries a line saying exactly that, shown only to people who actually
+hold confidential rows (`curtainAvailable()`), because a warning printed for
+everybody is a warning nobody reads:
+
+> স্পনসর বা গুপ্ত দাতার নাম এখানে লিখো না — চ্যাট সবাই পড়ে, চাবি থাকুক বা না থাকুক।
+
+**This is a policy, not a control.** The only thing standing between a
+confidential name and every phone in the committee is the person typing.
+
+Tests 4,038 → 4,047.

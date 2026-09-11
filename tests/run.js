@@ -11236,6 +11236,73 @@ pending.push((async function () {
     eq(/₹20,000/.test(after), true, 'A289b: …and every figure on the sheet still stands');
   }
 
+  // ── 5e. 🤝 handover + 💬 chat + 🛠️ the correction desk.
+  //
+  // Hrishi: "now check the handover and chat screens too". The handover book and
+  // the cashier desk turned out CLEAN and must stay that way — they name the
+  // other COLLECTOR, never a donor, and covering a collector would hide who is
+  // holding the committee's cash. So the assertion here is that the curtain does
+  // NOT reach them. The correction desk was not clean.
+  {
+    const CORR = Object.assign({}, CENTRAL, {
+      corrections: [{ id: 'c1', year: 2026, status: 'pending', targetStore: 'payments',
+                      targetId: 'y2', targetSummary: '💰 চাঁদা · হরি টেক্সটাইল — ₹30,000',
+                      collector: 'রতন', reason: 'ভুল অঙ্ক', createdAt: '2026-09-08T10:00:00Z' },
+                    // the flagged payment is NOT in the book — voided and gone,
+                    // or never pulled. The kind is then unknowable, and the whole
+                    // point of the rule is that "I cannot tell" must not resolve
+                    // to "show it". Without this row that branch survived a
+                    // mutation untouched.
+                    { id: 'c2', year: 2026, status: 'pending', targetStore: 'payments',
+                      targetId: 'y-gone', targetSummary: '💰 চাঁদা · লুকানো দাতা — ₹9,000',
+                      collector: 'রতন', reason: 'হারানো সারি', createdAt: '2026-09-08T10:30:00Z' }],
+      handovers: [{ id: 'h1', year: 2026, amount: 30000, cashAmount: 30000, upiAmount: 0,
+                    from: 'রতন', fromId: 'ratan', to: 'কোষাধ্যক্ষ', toId: 'kosha',
+                    status: 'pending', date: '2026-09-08',
+                    breakdown: JSON.stringify({ payment: { cash: 30000, upi: 0 } }),
+                    collectorId: 'ratan', createdAt: '2026-09-08T11:00:00Z' }] });
+    // 🛠️ is the cashier's desk and is gated on cashier + the `review` grant, so
+    // KEEPER alone opened the home screen and every assertion below would have
+    // been made against a screen that was never drawn.
+    const DESK = Object.assign({}, KEEPER, { cashier: 1,
+      entries: KEEPER.entries + ',review' });
+    const h = loadApp({ user: DESK, lists: { area: AREA }, central: CORR,
+                        local: { parties: CORR.parties, payments: CORR.payments,
+                                 handovers: CORR.handovers } });
+    await h.ready;
+
+    // 🤝 the handover book — the other collector's name, and it STAYS
+    const hbOpen = await h.show('hbook');
+    tap(h);
+    const hbShut = await h.show('hbook');
+    eq(/কোষাধ্যক্ষ/.test(hbOpen) && /কোষাধ্যক্ষ/.test(hbShut), true,
+       'A289c: the handover book names the person you gave the money to, curtain or no curtain — A147 says both sides of a parcel always see it');
+    eq(/হরি টেক্সটাইল/.test(hbOpen), false,
+       'A289c: …and it never named the DONOR in the first place — a parcel carries a pot and two committee names, never who gave');
+    tap(h); // back up
+
+    // 🛠️ the correction desk — a FROZEN summary string with a donor in it
+    const rvOpen = await h.show('review');
+    eq(/হরি টেক্সটাইল/.test(rvOpen), true, 'A289c: uncovered, the correction desk names the donor');
+    tap(h);
+    const rvShut = await h.show('review');
+    eq(/হরি টেক্সটাইল/.test(rvShut), false,
+       'A289c: covered, it does not — targetSummary is frozen text, so the line is rebuilt from the live payment');
+    eq(/ভুল অঙ্ক/.test(rvShut), true, 'A289c: …while the reason the collector gave is still readable, which is what the desk is FOR');
+    eq(/লুকানো দাতা/.test(rvOpen), true,
+       'A289c: uncovered, a flag whose payment is gone still shows its stored line');
+    eq(/লুকানো দাতা/.test(rvShut), false,
+       'A289c: covered, a flag whose payment is GONE is withheld — the kind is unknowable, and on a desk about confidential money "I cannot tell" must not resolve to "show it"');
+    eq(/হারানো সারি/.test(rvShut), true,
+       'A289c: …but the flag itself is still on the desk with its reason, so the cashier can still act on it');
+    tap(h);
+
+    // 💬 chat — the one store nothing filters, so say so to the people who can act
+    const chat = await h.show('messages');
+    eq(/স্পনসর বা গুপ্ত দাতার নাম এখানে লিখো না/.test(chat), true,
+       'A289c: the chat warns the keyholder, because no code can tell that a typed sentence names a sponsor');
+  }
+
   // ── 6. it lifts. A curtain that only closes is a bug report waiting.
   {
     const h = openBook();

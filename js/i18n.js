@@ -894,6 +894,11 @@ const I18N = {
   // holds no names at all — the labels there are CATEGORIES. This is the string
   // the seven real name sites print instead.
   curtain_name: { bn: '🙈 নাম ঢাকা', en: '🙈 Name hidden' },
+  // A289c: the chat is the one store no permission filters, and its content is
+  // free text — the curtain cannot reach a name somebody typed. Only the person
+  // typing can, so tell them, and only them.
+  msg_confidential: { bn: 'স্পনসর বা গুপ্ত দাতার নাম এখানে লিখো না — চ্যাট সবাই পড়ে, চাবি থাকুক বা না থাকুক।',
+                      en: 'Do not type a sponsor or anonymous donor\'s name here — everyone reads the chat, keys or no keys.' },
   // A144: no amount, no count, no kind — only "this is not the whole book", so
   // nobody quotes an honestly partial figure as the committee's total.
   report_partial: { bn: 'ℹ️ এই হিসাবে সব ধরনের entry ধরা নেই — সম্পূর্ণ হিসাব কোষাধ্যক্ষ / admin-এর কাছে।',
