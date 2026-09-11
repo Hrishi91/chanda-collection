@@ -392,6 +392,10 @@ function loadApp(opts) {
                " handoverFlow: handoverFlow, transferFlow: transferFlow, dutyFlow: dutyFlow," +
                " flow: function () { return flowState; }, admGo: admGo," +
                " printReport: printReport, printReportHTML: printReportHTML," +
+               // A289: the curtain's tap. The button is wired inside
+               // DOMContentLoaded, which this shim never fires, so this is the
+               // same function the header calls — not a copy of its body.
+               " toggleCurtain: toggleCurtain," +
                " bookFor: bookFor };\n";
   vm.runInContext(src.slice(0, cut) + hook + src.slice(cut), box);
   if (!box.__app) throw new Error('dom-shim: the hook did not land');

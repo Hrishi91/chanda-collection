@@ -3054,7 +3054,7 @@
     if (!shown.length) return head + '<div class="empty">' + esc(t('search_none')) + '</div>';
     return head + shown.map(function (p) {
       const pd = paid[p.id] || 0, due = (Number(p.pledged) || 0) - pd;
-      return '<div class="row" data-pid="' + esc(p.id) + '"><div><b>' + esc(p.name) + '</b>' +
+      return '<div class="row" data-pid="' + esc(p.id) + '"><div><b>' + esc(shownName(p.name, p.type)) + '</b>' +
         '<div class="row-sub">' + esc(t('type_' + p.type)) + '</div></div>' +
         '<div class="row-right">' + fmtMoney(pd) +
         (Number(p.pledged) ? '/' + fmtMoney(p.pledged) : '') +
@@ -3237,10 +3237,12 @@
         return rows.map(function (p) {
           const paid = paidBy[p.id] || 0, due = (Number(p.pledged) || 0) - paid;
           return '<div class="row" data-id="' + p.id + '">' +
-            '<div><b>' + esc(p.name) + '</b><div class="row-sub">' +
+            '<div><b>' + esc(shownName(p.name, p.type)) + '</b><div class="row-sub">' +
             esc(t('type_' + p.type)) + (p.side ? ' • ' + esc(Lists.labelOf('area', p.side)) : '') +
             (p.location ? ' • ' + esc(Lists.labelOf('location', p.location)) : '') +
-            (p.owner ? ' • ' + esc(p.owner) : '') + '</div></div>' +
+            // A289: the OWNER is a person's name too — covering the shop and
+            // leaving "• রমেশ সাহা" beside it covers nothing.
+            (p.owner && !curtained(p.type) ? ' • ' + esc(p.owner) : '') + '</div></div>' +
             '<div class="row-right">' + fmtMoney(paid) + '/' + fmtMoney(p.pledged) +
             (Aggregate.isDue(due) ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
                      : '<span class="ok-chip">✅</span>') + '</div></div>';
@@ -3940,7 +3942,7 @@
     }).sort(function (a, b) { return ((b.pledged - b.paid) || 0) - ((a.pledged - a.paid) || 0); });
     el.innerHTML = rows.length ? rows.map(function (p) {
       const due = (p.pledged || 0) - (p.paid || 0);
-      return '<div class="row" data-fp="' + esc(p.id) + '"><div><b>' + esc(p.name) + '</b><div class="row-sub">' +
+      return '<div class="row" data-fp="' + esc(p.id) + '"><div><b>' + esc(shownName(p.name, p.type)) + '</b><div class="row-sub">' +
         esc(t('type_' + p.type)) + (p.side ? ' • ' + esc(Lists.labelOf('area', p.side)) : '') +
         (p.collector ? ' • ' + esc(p.collector) : '') + '</div></div>' +
         '<div class="row-right">' + fmtMoney(p.paid) + '/' + fmtMoney(p.pledged) +
@@ -4034,12 +4036,15 @@
     const keys = Object.keys(byC).sort(function (a, b) { return byC[b] - byC[a]; });
     const sorted = pays.slice().sort(function (a, b) { return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
     $view().innerHTML = backBar(from || 'list') +
-      '<div class="card"><div class="card-title">' + esc(p.name) + '</div>' +
+      '<div class="card"><div class="card-title">' + esc(shownName(p.name, p.type)) + '</div>' +
       '<div class="row-sub">' + esc(t('type_' + p.type)) +
       (p.side ? ' • ' + esc(Lists.labelOf('area', p.side)) : '') +
       (p.location ? ' • ' + esc(Lists.labelOf('location', p.location)) : '') +
-      (p.owner ? ' • ' + esc(p.owner) : '') +
-      (p.phone ? ' • 📞 ' + esc(p.phone) : '') + '</div>' +
+      // A289: owner and PHONE go with the name. A covered donor beside their own
+      // 📞 number is not covered — a number identifies a person in a village
+      // faster than a spelling does.
+      (p.owner && !curtained(p.type) ? ' • ' + esc(p.owner) : '') +
+      (p.phone && !curtained(p.type) ? ' • 📞 ' + esc(p.phone) : '') + '</div>' +
       // A145: a donor who promised NOTHING gets no কথা/বাকি pair. গুপ্ত দান is
       // asked no pledge by design, and committee members never were either — so
       // this card read "কথা ₹0 · বাকি −₹2,000" over somebody who owes nobody
@@ -4274,6 +4279,39 @@
   function curtainAvailable() {
     return Aggregate.RESTRICTED_TYPES.some(function (ty) { return canSeeKind(ty); });
   }
+  // A289: the curtain's ONE rule about a name, and the only place that decides.
+  //
+  // A144 built the button and then covered the wrong thing: `potKidsHTML` draws
+  // CATEGORY labels and amounts, not names, so "নাম ঢাকো" hid no name anywhere —
+  // and it acted inside #sum-body, which is collapsed by default, so a tap on a
+  // fresh screen changed literally nothing. Hrishi found it by tapping it.
+  //
+  // RENDER-ONLY, deliberately. The obvious shortcut is to mask the field in
+  // `data` the way visibleData filters rows — and it is a trap: the edit form
+  // reads party.name straight into its input, so one ✏️ with the curtain drawn
+  // would SAVE "🙈 নাম ঢাকা" as the donor's real name. visibleData removes rows
+  // and never rewrites one, for exactly this reason. The curtain is paint.
+  // "is this row's identity covered right now" — asked by every site, so a shop's
+  // owner never disappears just because the curtain is drawn on a sponsor.
+  function curtained(type) {
+    return curtainOn && Aggregate.isRestrictedType(type);
+  }
+  function shownName(name, type) {
+    return curtained(type) ? t('curtain_name') : String(name || '');
+  }
+  // Payments carry partyName but NOT the party's type, so whoever holds the book
+  // builds the lookup once per paint rather than per row.
+  function partyTypes(data) {
+    const m = {};
+    ((data && data.parties) || []).forEach(function (p) { if (p && p.id) m[p.id] = p.type; });
+    return m;
+  }
+  // A289: the tap, as a NAME. It was an anonymous function inside the
+  // DOMContentLoaded handler, which the DOM harness never fires — so the only
+  // way to test the curtain was to reach around the button and set the flag,
+  // and a test that reaches around the control is not testing the control.
+  // Naming it lets the test call exactly what the thumb calls.
+  function toggleCurtain() { curtainOn = !curtainOn; paintCurtain(); render(); }
   function paintCurtain() {
     const b = document.getElementById('hdr-curtain');
     if (!b) return;
@@ -4839,9 +4877,15 @@
   // payment, the other an expense, and only the reader's memory could tell.
   // One helper feeds ✏️ rows, the 🛠️ desk (via the stored targetSummary) and
   // the flag screen, so the word travels everywhere at once.
-  function entrySummary(store, r) {
+  // A289: `ptype` is the party's type for a payment row, looked up by the caller
+  // that holds the book — a payment stores partyName but never the KIND, so this
+  // function cannot know on its own whether the name it is about to print is a
+  // covered one. Callers without a book (the stored flag summary, 🪦) pass
+  // nothing and get the name, which is the honest answer for them: see the
+  // build log's named exemption rather than a silent half-cover.
+  function entrySummary(store, r, ptype) {
     const amt = fmtMoney(r.amount);
-    if (store === 'payments') return '💰 ' + t('es_payment') + ' · ' + (r.partyName || '?') + ' — ' + amt;
+    if (store === 'payments') return '💰 ' + t('es_payment') + ' · ' + shownName(r.partyName || '?', ptype) + ' — ' + amt;
     if (store === 'daily') {
       const em = { road: '🛣️', toto: '🛺', bus: '🚌' }[r.type] || '';
       return (em ? em + ' ' : '') + t('type_' + r.type) +
@@ -4893,13 +4937,14 @@
     viewData().then(function (data) {
       const p = Aggregate.potDetail(data, ident, cat);
       const name = t(CAT_LABEL_KEYS[cat] || 'cat_other');
+      const ptype = partyTypes(data); // A289
       const rowsOf = function (b, negative) {
         return b.rows.map(function (x) {
           const head = x.store === 'handovers'
             ? '🤝 ' + (String(x.r.fromId || x.r.from) === String(ident)
                 ? t('my_handed') + ' → ' + (x.r.to || '?')
                 : t('my_received') + ' ← ' + (x.r.from || '?'))
-            : entrySummary(x.store, x.r);
+            : entrySummary(x.store, x.r, ptype[x.r.partyId]);
           return '<div class="row" style="cursor:default"><div><b>' + esc(head) + '</b>' +
             '<div class="row-sub">' + esc(fmtDate(x.r.date || x.r.createdAt)) + '</div></div>' +
             '<div class="row-right">' + (negative ? '−' : '') + fmtMoney(x.amount) + '</div></div>';
@@ -5141,6 +5186,7 @@
       const flagged = {}; (data.corrections || []).forEach(function (c) { if (c.status !== 'rejected') flagged[c.targetId] = 1; });
       const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
       const mine = function (r) { return Aggregate.isMine(r, meId); };
+      const ptype = partyTypes(data); // A289: the curtain needs each payment's KIND
       const stores = all ? ['daily', 'expenses'] : ['payments', 'daily', 'expenses', 'handovers'];
       const list = [];
       stores.forEach(function (store) {
@@ -5177,7 +5223,7 @@
           (canVoid(r) ? '<button class="chip void-btn" data-vd="' + it.store + '|' + esc(r.id) + '">' + esc(t('void_btn')) + '</button>'
                       : '<button class="chip void-btn" data-fl="' + it.store + '|' + esc(r.id) + '">' + esc(t('flag_btn')) + '</button>'));
         return '<div class="row' + (isVoid ? ' voided' : '') + '" style="cursor:default"><div style="flex:1 1 60%"><b>' +
-          esc(entrySummary(it.store, r)) + '</b><div class="row-sub">' + esc(fmtDate(r.date || r.createdAt)) + who + tag + '</div>' +
+          esc(entrySummary(it.store, r, ptype[r.partyId])) + '</b><div class="row-sub">' + esc(fmtDate(r.date || r.createdAt)) + who + tag + '</div>' +
           (it.store === 'handovers' ? breakdownLines(r) : '') + '</div>' +
           action + '</div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>';
@@ -5356,9 +5402,9 @@
     return '<div class="card"><div class="card-title">' + esc(t('report_dues')) +
       ' — ' + esc(t('total_due')) + ': ' + fmtMoney(d.totalDue) + '</div>' +
       (rows.length ? rows.map(function (r) {
-        return '<div class="row" style="cursor:default"><div><b>' + esc(r.name) + '</b><div class="row-sub">' +
+        return '<div class="row" style="cursor:default"><div><b>' + esc(shownName(r.name, r.type)) + '</b><div class="row-sub">' +
           esc(t('type_' + r.type)) + (r.side ? ' • ' + esc(Lists.labelOf('area', r.side)) : '') +
-          (r.owner ? ' • ' + esc(r.owner) : '') + '</div></div>' +
+          (r.owner && !curtained(r.type) ? ' • ' + esc(r.owner) : '') + '</div></div>' +
           '<div class="row-right">' + fmtMoney(r.paid) + '/' + fmtMoney(r.pledged) +
           '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(r.due) + '</span></div></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
@@ -9243,9 +9289,7 @@
       hdrRefresh.setAttribute('aria-label', t('refresh'));
     }
     const hdrCurtain = document.getElementById('hdr-curtain');
-    if (hdrCurtain) {
-      hdrCurtain.onclick = function () { curtainOn = !curtainOn; paintCurtain(); render(); };
-    }
+    if (hdrCurtain) { hdrCurtain.onclick = toggleCurtain; }
     paintCurtain();
     document.getElementById('sync-badge').onclick = function () {
       Sync.syncNow().then(function (r) {

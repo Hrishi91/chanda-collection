@@ -712,7 +712,12 @@ eq(Number.isNaN(parseAmount('/-')), true, 'A169: …and the marks alone are not 
   const stores = ((dbSrc.match(/const STORES = \[([^\]]*)\]/) || [])[1] || '')
     .split(',').map(function (x) { return x.trim().replace(/'/g, ''); }).filter(Boolean);
   eq(stores.length >= 8, true, 'A210: DB.STORES read from db.js, not typed out here');
-  const es = (A10.match(/function entrySummary\(store, r\)[\s\S]*?\n  \}/) || [''])[0];
+  // A289: match the NAME, not the arity. This regex pinned `(store, r)` exactly,
+  // so adding the curtain's party-type argument made it match nothing and A210
+  // reported every store as unanswered — a green test turning red for a change
+  // that did not touch what it is about. What this test is about is which
+  // stores get a line, and that is what it reads now.
+  const es = (A10.match(/function entrySummary\(store, r[^)]*\)[\s\S]*?\n  \}/) || [''])[0];
   const grave = (A10.match(/function renderGraveyard\(\)[\s\S]*?\n  \}/) || [''])[0];
   const answered = (es.match(/store === '([a-z]+)'/g) || [])
     .map(function (m) { return m.replace(/store === '|'/g, ''); })
@@ -10997,6 +11002,244 @@ pending.push((async function () {
     eq(/if \(!centralData\) return seen\(local\);/.test(app88), true,
        'A288: the local-only path is filtered too — a phone that has never pulled is still a phone');
     eq(/return seen\(merged\);/.test(app88), true, 'A288: …and so is the merged one');
+  }
+})());
+
+
+// A289 — the 👁️ curtain, DRAWN and then read for a name.
+//
+// Hrishi tapped it on go-live day and reported "I am not getting anything".
+// He was right. A144 built the button and covered `potKidsHTML`, which draws
+// CATEGORY labels and amounts — not one name — inside #sum-body, which is
+// collapsed by default. So the honest description of the feature until today
+// is: a button that hid nothing, on a panel you had to open first.
+//
+// Every A144 test that passed the whole time was a `.test(app)` regex over the
+// source. They pinned how the curtain is SPELLED. Not one of them drew a screen
+// with a sponsor on it and looked for the sponsor's name — which is the only
+// question the feature exists to answer. These do.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন রোড', nameEn: 'Main Rd' }];
+  const book = function (parties, payments) {
+    return { parties: parties, payments: payments || [], daily: [], expenses: [],
+             handovers: [], voids: [], corrections: [], messages: [] };
+  };
+  // One book, four donors: a shop nobody is hiding, a sponsor, a গুপ্ত দান, and
+  // a shop whose OWNER is a person's name.
+  const CENTRAL = book([
+    { id: 'p1', year: 2026, type: 'shop', name: 'রাম স্টোর্স', pledged: 1000,
+      side: 'main_malda', owner: 'রাম সাহা', phone: '9800000001',
+      collectorId: 'ratan', createdAt: '2026-09-01T10:00:00Z' },
+    { id: 'p2', year: 2026, type: 'sponsor', name: 'হরি টেক্সটাইল', pledged: 30000,
+      side: 'main_malda', owner: 'হরিপদ বসু', phone: '9800000002',
+      collectorId: 'ratan', createdAt: '2026-09-01T10:05:00Z' },
+    { id: 'p3', year: 2026, type: 'gupt', name: 'গোপাল মিত্র', pledged: 0,
+      side: 'main_malda', phone: '9800000003',
+      collectorId: 'ratan', createdAt: '2026-09-01T10:06:00Z' },
+    // 🔍 দাতা খোঁজো lists OTHER people's donors only, so a fixture where every
+    // row is the reader's own makes that screen empty — and an empty screen
+    // passes "the name is absent" without covering anything. Mutation 7 of this
+    // change survived on exactly that, which is what mutation runs are for.
+    { id: 'p4', year: 2026, type: 'sponsor', name: 'যদু কনস্ট্রাকশন', pledged: 20000,
+      side: 'main_malda', collectorId: 'pori', createdAt: '2026-09-01T10:07:00Z' },
+  ], [
+    { id: 'y1', year: 2026, partyId: 'p1', partyName: 'রাম স্টোর্স', amount: 400,
+      cashAmount: 400, upiAmount: 0, date: '2026-09-07', collectorId: 'ratan' },
+    { id: 'y2', year: 2026, partyId: 'p2', partyName: 'হরি টেক্সটাইল', amount: 30000,
+      cashAmount: 30000, upiAmount: 0, date: '2026-09-07', collectorId: 'ratan' },
+    { id: 'y3', year: 2026, partyId: 'p3', partyName: 'গোপাল মিত্র', amount: 5000,
+      cashAmount: 5000, upiAmount: 0, date: '2026-09-07', collectorId: 'ratan' },
+  ]);
+  // He may WRITE both confidential kinds and VIEW both, which is the only user
+  // for whom the curtain is offered at all.
+  const KEEPER = { username: 'ratan', name: 'রতন', role: 'collector', cashier: 0,
+                   entries: 'shop,person,road,sponsor,gupt,sponsorview,guptview,otherdonor',
+                   reports: 'dues' };
+
+  const openBook = function () {
+    return loadApp({ user: KEEPER, lists: { area: AREA }, central: CENTRAL });
+  };
+  // Drive the REAL button, exactly as a thumb does — not a flag reached around
+  // the side. If the header wiring ever comes loose these go red with it.
+  const tap = function (h) { h.app.toggleCurtain(); };
+
+  // ── 1. 📋 তালিকা — the screen with the most names on it
+  {
+    const h = openBook();
+    await h.ready;
+    const before = await h.show('list');
+    eq(/হরি টেক্সটাইল/.test(before), true, 'A289: uncovered, the list names the sponsor');
+    eq(/গোপাল মিত্র/.test(before), true, 'A289: …and the গুপ্ত দাতা');
+    tap(h);
+    const after = await h.show('list');
+    eq(/হরি টেক্সটাইল/.test(after), false,
+       'A289: COVERED — the sponsor\'s name is gone from the list. This is the assertion that did not exist');
+    eq(/গোপাল মিত্র/.test(after), false, 'A289: …and so is the গুপ্ত দাতার নাম');
+    eq(/🙈/.test(after), true, 'A289: …something says so, rather than a blank');
+    eq(/রাম স্টোর্স/.test(after), true,
+       'A289: …while an ordinary shop is untouched — the curtain covers two kinds, not the book');
+    eq(/হরিপদ বসু/.test(after), false,
+       'A289: the sponsor\'s OWNER goes too — a covered shop beside its owner\'s name is not covered');
+    eq(/রাম সাহা/.test(after), true, 'A289: …but an ordinary shop keeps its owner');
+  }
+
+  // ── 2. the amounts do NOT move. A144's one real rule, and it still holds.
+  {
+    const h = openBook();
+    await h.ready;
+    const before = await h.show('list');
+    tap(h);
+    const after = await h.show('list');
+    const money = function (s) { return (s.match(/₹[\d,]+/g) || []).join('|'); };
+    eq(money(after), money(before),
+       'A289: every figure on the screen is identical covered and uncovered — a curtain that changed the arithmetic would have them hand over short');
+  }
+
+  // ── 3. 📝 আমার entry — the screen Hrishi named
+  //
+  // It reads DB.allData(), this PHONE's own book, not the central snapshot —
+  // seeding only `central` painted an empty screen and the first version of
+  // this test asserted against nothing. A harness that can plant is not a
+  // harness that has proved anything.
+  {
+    const h = loadApp({ user: KEEPER, lists: { area: AREA }, central: CENTRAL,
+                        local: { parties: CENTRAL.parties, payments: CENTRAL.payments } });
+    await h.ready;
+    const before = await h.show('entries');
+    eq(/হরি টেক্সটাইল/.test(before), true, 'A289: uncovered, the entry list names the sponsor');
+    tap(h);
+    const after = await h.show('entries');
+    eq(/হরি টেক্সটাইল/.test(after), false,
+       'A289: the ENTRY list covers it too — this is the one he asked for by name');
+    eq(/গোপাল মিত্র/.test(after), false, 'A289: …both kinds, not just the first one written');
+    eq(/রাম স্টোর্স/.test(after), true, 'A289: …and an ordinary payment still reads normally');
+    eq(/₹30,000/.test(after), true, 'A289: …with the sponsor\'s amount still standing');
+  }
+
+  // ── 4. দাতার পাতা — name, owner and the PHONE NUMBER
+  {
+    const h = openBook();
+    await h.ready;
+    const before = await h.show('party', { id: 'p2' });
+    eq(/হরি টেক্সটাইল/.test(before), true, 'A289: uncovered, the donor page names them');
+    eq(/9800000002/.test(before), true, 'A289: …and prints their phone');
+    tap(h);
+    const after = await h.show('party', { id: 'p2' });
+    eq(/হরি টেক্সটাইল/.test(after), false, 'A289: covered, the donor page does not');
+    eq(/9800000002/.test(after), false,
+       'A289: …and the PHONE goes with it — a number names a person in a village faster than a spelling does');
+    const open2 = await h.show('party', { id: 'p1' });
+    eq(/9800000001/.test(open2), true, 'A289: …while an ordinary donor keeps their phone');
+  }
+
+  // ── 5. 🔍 দাতা খোঁজো — results land in #fp-results, not #view
+  {
+    const h = openBook();
+    await h.ready;
+    await h.show('findparty');
+    const before = h.html('fp-results');
+    eq(/যদু কনস্ট্রাকশন/.test(before), true,
+       'A289: uncovered, the search screen names another collector\'s sponsor — assert the row is THERE before asserting it is gone');
+    tap(h);
+    await h.show('findparty');
+    const after = h.html('fp-results');
+    eq(/যদু কনস্ট্রাকশন/.test(after), false, 'A289: the search screen is covered as well');
+    eq(/₹20,000/.test(after), true, 'A289: …and its pledge still stands');
+  }
+
+  // ── 5b. 📋 বাকির তালিকা — a central report, computed on the phone.
+  //
+  // This block exists because mutation 8 of this change SURVIVED: dropping the
+  // mask from the dues report broke nothing, since no test opened that report.
+  // A report is the one screen built to be read ACROSS the table from you.
+  {
+    const h = openBook();
+    await h.ready;
+    await h.show('report');
+    const chip = h.doc.querySelectorAll('#report-picker [data-rep]')
+      .filter(function (b) { return b.dataset.rep === 'dues'; })[0];
+    eq(!!chip, true, 'A289: the দues report is offered to a reader who has been granted it');
+    chip.onclick();
+    await new Promise(function (r) { setImmediate(r); });
+    await new Promise(function (r) { setImmediate(r); });
+    const before = h.html('report-body');
+    // হরি টেক্সটাইল paid their whole ₹30,000, so they are not IN a dues list —
+    // the assertion has to name a donor who actually owes, or it passes on an
+    // absence that has nothing to do with the curtain.
+    eq(/যদু কনস্ট্রাকশন/.test(before), true, 'A289: uncovered, the dues report names the sponsor who still owes');
+    tap(h);
+    chip.onclick();
+    await new Promise(function (r) { setImmediate(r); });
+    await new Promise(function (r) { setImmediate(r); });
+    const after = h.html('report-body');
+    eq(/যদু কনস্ট্রাকশন/.test(after), false, 'A289: covered, the dues report does not');
+    eq(/রাম স্টোর্স/.test(after), true, 'A289: …and the ordinary donor is still listed');
+    eq(/₹20,000/.test(after), true, 'A289: …and what they owe is still on the page');
+  }
+
+  // ── 5c. 🍯 ভাঁড়ার খোলা — the screen A144 was reaching for and missed.
+  //
+  // This is where "where did my ₹30,000 come from" is actually asked, and the
+  // answer is a list of donor names. It shares entrySummary with the entry list,
+  // and sharing a function is not the same as being tested: dropping the party
+  // kind HERE survived the whole suite until this block existed.
+  {
+    const h = openBook();
+    await h.ready;
+    // potDetail buckets a payment by its party kind, and only shop/person/member
+    // get a pot of their own (aggregate.js) — sponsor and গুপ্ত instalments land
+    // in the general 'payment' pot. Asking for a 'sponsor' pot paints an empty
+    // screen, which would have passed "the name is absent" while covering nothing.
+    const before = await h.show('pot', { cat: 'payment' });
+    eq(/হরি টেক্সটাইল/.test(before), true, 'A289: uncovered, opening the pot names who gave');
+    eq(/গোপাল মিত্র/.test(before), true, 'A289: …both confidential donors');
+    tap(h);
+    const after = await h.show('pot', { cat: 'payment' });
+    eq(/হরি টেক্সটাইল/.test(after), false, 'A289: covered, the pot no longer names them');
+    eq(/গোপাল মিত্র/.test(after), false, 'A289: …nor the গুপ্ত দাতা');
+    eq(/₹35,000/.test(after), true,
+       'A289: …and the pot still totals ₹35,000 — this is money in their hand that must be handed over');
+  }
+
+  // ── 6. it lifts. A curtain that only closes is a bug report waiting.
+  {
+    const h = openBook();
+    await h.ready;
+    tap(h);
+    eq(/হরি টেক্সটাইল/.test(await h.show('list')), false, 'A289: down');
+    tap(h);
+    eq(/হরি টেক্সটাইল/.test(await h.show('list')), true, 'A289: …and up again');
+  }
+
+  // ── 7. NOT a permission, and never was. Somebody with no view keys sees no
+  // button at all, because the rows never reached their phone in the first
+  // place — that is visibleData's job and the curtain must not pretend to it.
+  {
+    const h = loadApp({ user: { username: 'pori', name: 'পরী', role: 'collector',
+                                cashier: 0, entries: 'shop,person,road' },
+                        lists: { area: AREA }, central: CENTRAL });
+    await h.ready;
+    const html = await h.show('list');
+    eq(/হরি টেক্সটাইল/.test(html), false,
+       'A289: a collector without the keys never had the sponsor row — withheld, not covered');
+    eq(h.doc.getElementById('hdr-curtain').hidden, true,
+       'A289: …and is offered no curtain button, because there is nothing of theirs to cover');
+  }
+
+  // ── 8. the source rules the sweep was written from, so a NEW name site is
+  // caught by a failing test rather than by Hrishi tapping the screen again.
+  {
+    const app89 = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+    eq(/hdrCurtain\.onclick = toggleCurtain;/.test(app89), true,
+       'A289: the header button calls the very function these tests call — the shim cannot fire DOMContentLoaded, so this is the seam and it is asserted rather than assumed');
+    eq(/function shownName\(name, type\)/.test(app89), true,
+       'A289: one definition of a covered name');
+    eq(/return curtained\(type\) \? t\('curtain_name'\) : String\(name \|\| ''\);/.test(app89), true,
+       'A289: …and it answers with the string, never by rewriting the row');
+    // the trap this design exists to avoid
+    eq(/curtainOn[\s\S]{0,200}?data\.parties[\s\S]{0,80}?name =/.test(app89), false,
+       'A289: the curtain never assigns a name into the data — the edit form reads party.name straight into its input, and one ✏️ with the curtain drawn would SAVE the mask as the donor');
   }
 })());
 

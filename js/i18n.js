@@ -889,6 +889,11 @@ const I18N = {
                      en: 'Names are covered now (🙈) — tap again to show them' },
   curtain_covered: { bn: '🙈 ঢাকা আছে — টাকার অঙ্ক উপরে ঠিকই আছে, শুধু নামগুলো লুকানো',
                      en: '🙈 Covered — the amount above is unchanged, only the names are hidden' },
+  // A289: what stands where a covered donor's name would be. Hrishi tapped the
+  // curtain and saw nothing change, because A144 covered the one panel that
+  // holds no names at all — the labels there are CATEGORIES. This is the string
+  // the seven real name sites print instead.
+  curtain_name: { bn: '🙈 নাম ঢাকা', en: '🙈 Name hidden' },
   // A144: no amount, no count, no kind — only "this is not the whole book", so
   // nobody quotes an honestly partial figure as the committee's total.
   report_partial: { bn: 'ℹ️ এই হিসাবে সব ধরনের entry ধরা নেই — সম্পূর্ণ হিসাব কোষাধ্যক্ষ / admin-এর কাছে।',

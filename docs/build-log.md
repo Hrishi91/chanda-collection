@@ -19087,3 +19087,82 @@ Baking the URL into the cache-first shell is what would have needed a refresh,
 and is the reason it was taken out of the shell in the first place.
 
 Versions unchanged at chanda-v4.115.0 / schema 5. Tests unchanged.
+
+---
+
+## A289 — the 👁️ curtain covered nothing. Hrishi found it by tapping it. — v4.116.0
+
+> *"Names are covered now (🙈) — tap again to show them / what is use of it i am
+> not getting anything / and what i said to you, you have not done for it"*
+
+He was right on every count.
+
+### What A144 actually shipped
+
+The button existed, the state existed, the hint said "নাম ঢাকো", and the thing it
+covered was `potKidsHTML` — which draws **category labels and amounts**:
+
+```js
+esc(t(CAT_LABEL_KEYS[p.key] || 'cat_other'))   // খাতের নাম
+fmtMoney(p.total)
+```
+
+Not one donor name. And it acted inside `#sum-body`, which is `hidden` unless the
+"কোথায় আছে" panel has been opened — so a tap on a fresh screen changed **literally
+nothing visible**. That is exactly what he saw, and the honest description of the
+feature for its whole life is: *a button that hid nothing, on a panel you had to
+open first.*
+
+### Why a year of green tests never said so
+
+Every A144 assertion was a `.test(app)` **regex over the source**. They pinned how
+the curtain is SPELLED. Not one drew a screen with a sponsor on it and looked for
+the sponsor's name — the only question the feature exists to answer.
+
+### The sweep, not a spot-fix
+
+The same emoji rule was broken three times in this repo (A279, A280, A286) because
+each was fixed where it was found. So the names were swept for, and there were
+**seven** sites — the 📋 ledger, the 🎭 programme list, 🔍 দাতা খোঁজো, the donor
+page, `entrySummary` (which serves **📝 আমার entry** *and* 🍯 pot detail), and the
+📋 dues report. The curtain covered zero of them.
+
+Two sites are **deliberately exempt**, named here so the gap is declared:
+- the duplicate warning during entry (`hit.name`, `dup.name`) — you are typing
+  that name yourself; covering it produces a double entry
+- **🪦**, and the stored flag summary — a wiped row has no party to ask for a
+  KIND, so masking there is not possible to decide. It keeps the name.
+
+And one field was nearly missed: **the phone number**. A covered donor beside
+their own 📞 is not covered — a number names a person in a village faster than a
+spelling does. Owner goes too, and only for the restricted kinds, so an ordinary
+shop never loses its owner.
+
+### Paint, never data
+
+The tempting shortcut is to mask the field in `data` the way `visibleData` filters
+rows. It is a trap: the edit form reads `party.name` straight into its `<input>`,
+so one ✏️ with the curtain drawn would **save "🙈 নাম ঢাকা" as the donor's real
+name**. `visibleData` removes rows and never rewrites one, for exactly this
+reason. `shownName()` returns a string to a template and touches nothing else.
+
+### Three things the mutation run caught that the green suite had not
+
+1. **The findparty test passed against an empty screen.** That screen lists only
+   *other people's* donors and paints into `#fp-results`, not `#view` — so "the
+   name is absent" was true because nothing was there. A vacuous assertion.
+2. **The dues report had no test at all**, so dropping its mask broke nothing.
+3. **The pot screen shares `entrySummary`** with the entry list — and sharing a
+   function is not being tested. Dropping the party kind there survived
+   everything until a block existed for it. Its pot is `payment`, not `sponsor`:
+   only shop/person/member get a pot of their own.
+
+Eleven mutations, eleven named catches. `toggleCurtain` was given a name so the
+test calls what the thumb calls — the shim cannot fire `DOMContentLoaded`, and a
+test that reaches around the control is not testing the control.
+
+One brittle assertion repointed: A210 matched `function entrySummary(store, r)`
+by its **arity**, so adding the party-type argument made it report every store as
+unanswered. It reads the name now, which is what it was always about.
+
+Tests 3,988 → 4,028.
