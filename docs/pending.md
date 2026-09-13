@@ -798,7 +798,8 @@ block an entry; all were left deliberately on go-live day.
 
 ### Batched UI, from the live collection (Hrishi, 2026-09-14) — do in ONE refresh round
 
-- [ ] **Per-row 💵 cash / 📱 UPI split in two list screens.** Hrishi, live:
+- [x] ~~**Per-row 💵 cash / 📱 UPI split in two list screens.**~~ DONE A291,
+  v4.123.0 (Hrishi asked to ship it now — display-only, no data effect). Hrishi, live:
   *"the list data after clicking the category … we should give upi and cash of
   both part details with amount, otherwise data finding is a bit problem."*
   Both these rows show only the TOTAL today; the split is available on every row

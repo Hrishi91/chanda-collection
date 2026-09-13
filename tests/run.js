@@ -11443,6 +11443,44 @@ pending.push((async function () {
        'A289f: the login screen states the app version — it lived only in ⚙️, which needs a session, so a collector who cannot log in could not say what their phone runs');
   }
 
+  // ── 5i. A291 — the 💵/📱 split, per row, in the two lists Hrishi named.
+  //
+  // "the list data after clicking the category … we should give upi and cash of
+  // both part details with amount, otherwise data finding is a bit problem."
+  // Display only, but verified by RENDERING — the split has to actually appear
+  // beside the row and carry the row's own two figures, not the total.
+  {
+    // a payment split ₹300 cash + ₹200 UPI = ₹500, so the split cannot be
+    // mistaken for the total, and an all-cash row to prove the zero side shows.
+    const SPLIT = book(
+      [{ id: 'p1', year: 2026, type: 'shop', name: 'রাম স্টোর্স', pledged: 5000,
+         side: 'main_malda', collectorId: 'ratan', createdAt: '2026-09-01T10:00:00Z' }],
+      [{ id: 'y1', year: 2026, partyId: 'p1', partyName: 'রাম স্টোর্স', amount: 500,
+         cashAmount: 300, upiAmount: 200, date: '2026-09-13', collectorId: 'ratan' },
+       { id: 'y2', year: 2026, partyId: 'p1', partyName: 'রাম স্টোর্স', amount: 700,
+         cashAmount: 700, upiAmount: 0, date: '2026-09-13', collectorId: 'ratan' },
+       // a legacy row that carries only a total, no split — it must show NO
+       // "💵₹0 · 📱₹0", which would be a lie about how it was taken
+       { id: 'y3', year: 2026, partyId: 'p1', partyName: 'রাম স্টোর্স', amount: 400,
+         date: '2026-09-13', collectorId: 'ratan' }]);
+    const h = loadApp({ user: KEEPER, lists: { area: AREA }, central: SPLIT,
+                        local: { parties: SPLIT.parties, payments: SPLIT.payments } });
+    await h.ready;
+
+    // 1. "এই ভাগের হিসাব" — the pot opened from the report
+    const pot = await h.show('pot', { cat: 'shop' });
+    eq(/💵₹300 · 📱₹200/.test(pot), true,
+       'A291: the pot-detail row shows the ₹300/₹200 split, not just the ₹500 total');
+    eq(/💵₹700 · 📱₹0/.test(pot), true,
+       'A291: an all-cash row shows 💵₹700 · 📱₹0 — the zero side is honest, not hidden');
+    eq(/💵₹0 · 📱₹0/.test(pot), false,
+       'A291: the legacy row with no cash/upi shows NO "💵₹0 · 📱₹0" — a both-zero split would be a lie about how it was taken (an all-cash 💵₹700 · 📱₹0 is fine, that IS how it was taken)');
+
+    // 2. "আমার লেখা entry"
+    const ent = await h.show('entries');
+    eq(/💵₹300 · 📱₹200/.test(ent), true, 'A291: the my-entries row carries the same split');
+  }
+
   // ── 6. it lifts. A curtain that only closes is a bug report waiting.
   {
     const h = openBook();

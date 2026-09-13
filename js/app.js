@@ -4899,6 +4899,17 @@
   // covered one. Callers without a book (the stored flag summary, 🪦) pass
   // nothing and get the name, which is the honest answer for them: see the
   // build log's named exemption rather than a silent half-cover.
+  // A291: the 💵 cash / 📱 UPI split for one row, for the two lists that showed
+  // only the total ("এই ভাগের হিসাব" and "আমার লেখা entry"). Display only — the
+  // amounts are already on the row and total = cash + upi (A21 enforces it), so
+  // this reveals what was there, never a new figure. Blank when the row carries
+  // no split (a void, a chat line, an old row with neither), so nothing ever
+  // reads a false "💵0 · 📱0". fmtMoney output is digits/₹ only, safe unescaped.
+  function cashUpiSub(r) {
+    const c = Number(r && r.cashAmount) || 0, u = Number(r && r.upiAmount) || 0;
+    if (!c && !u) return '';
+    return ' · 💵' + fmtMoney(c) + ' · 📱' + fmtMoney(u);
+  }
   function entrySummary(store, r, ptype) {
     const amt = fmtMoney(r.amount);
     if (store === 'payments') return '💰 ' + t('es_payment') + ' · ' + shownName(r.partyName || '?', ptype) + ' — ' + amt;
@@ -4962,7 +4973,7 @@
                 : t('my_received') + ' ← ' + (x.r.from || '?'))
             : entrySummary(x.store, x.r, ptype[x.r.partyId]);
           return '<div class="row" style="cursor:default"><div><b>' + esc(head) + '</b>' +
-            '<div class="row-sub">' + esc(fmtDate(x.r.date || x.r.createdAt)) + '</div></div>' +
+            '<div class="row-sub">' + esc(fmtDate(x.r.date || x.r.createdAt)) + cashUpiSub(x.r) + '</div></div>' +
             '<div class="row-right">' + (negative ? '−' : '') + fmtMoney(x.amount) + '</div></div>';
         }).join('');
       };
@@ -5252,7 +5263,11 @@
           (canVoid(r) ? '<button class="chip void-btn" data-vd="' + it.store + '|' + esc(r.id) + '">' + esc(t('void_btn')) + '</button>'
                       : '<button class="chip void-btn" data-fl="' + it.store + '|' + esc(r.id) + '">' + esc(t('flag_btn')) + '</button>'));
         return '<div class="row' + (isVoid ? ' voided' : '') + '" style="cursor:default"><div style="flex:1 1 60%"><b>' +
-          esc(entrySummary(it.store, r, ptype[r.partyId])) + '</b><div class="row-sub">' + esc(fmtDate(r.date || r.createdAt)) + who + tag + '</div>' +
+          esc(entrySummary(it.store, r, ptype[r.partyId])) + '</b><div class="row-sub">' + esc(fmtDate(r.date || r.createdAt)) +
+          // A291: the split, EXCEPT for handovers — those already show it, per
+          // category, in breakdownLines just below, and a second copy would only
+          // crowd the row.
+          (it.store === 'handovers' ? '' : cashUpiSub(r)) + who + tag + '</div>' +
           (it.store === 'handovers' ? breakdownLines(r) : '') + '</div>' +
           action + '</div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>';

@@ -19515,3 +19515,34 @@ No `setup()` needed — the diff adds no sheet, column or config key; the four
 columns the settle writes already exist and go through `ensureCol_`. No phone
 refresh needed — `config.js` is network-first, both strips run on the unchanged
 schema, and the stuck 🔔 clears at each phone's next poll.
+
+---
+
+## A291 — the 💵/📱 split, per row, in the two lists Hrishi named — v4.123.0
+
+> From the live collection: *"the list data after clicking the category … we
+> should give upi and cash of both part details with amount, otherwise data
+> finding is a bit problem."*
+
+Two list rows showed only the total. Now each carries `💵<cash> · 📱<upi>` beside
+the date:
+
+1. **"এই ভাগের হিসাব"** — the pot opened from 💰 "এখন আমার হিসাবে আছে" → "এই টাকাটা
+   কোথায় আছে" → tap a category. `renderPotDetail` `rowsOf`.
+2. **"আমার লেখা entry"** — `renderMyEntries`, except handovers, which already
+   print the split per category in `breakdownLines` just below.
+
+**One helper, `cashUpiSub(r)`.** Display only — the amounts are already on every
+row and total = cash + upi (A21 enforces it), so this reveals what was there and
+invents no figure. It returns **blank when the row carries neither** (a void, a
+chat line, a legacy row with only a total), so nothing ever reads a false
+`💵₹0 · 📱₹0` — while an all-cash row honestly shows `💵₹700 · 📱₹0`, because that
+is how it was taken. Hrishi's call to ship it mid-collection: **no data effect**,
+and a phone that does not refresh simply keeps the old total-only view.
+
+Verified by RENDERING both screens (not a source grep): the ₹300/₹200 split
+appears, the all-cash zero side shows, and the legacy no-split row shows nothing.
+Three mutations, three names — including the both-zero guard, which survived
+until a legacy-row fixture existed.
+
+Tests 4,078 → 4,082. Client-only → everyone 🔄.
