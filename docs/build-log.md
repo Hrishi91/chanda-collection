@@ -19500,3 +19500,18 @@ no already-decided flag (a void could re-decide it), and no flag arriving after
 its void (the count filter was never exercised).
 
 Tests 4,066 → 4,078. **SERVER night.**
+
+---
+
+## rebake config.js for the v4.122.0 deployment — 2026-09-14
+
+A290 deployed. Probed with an invalid token before baking:
+
+```
+ok=false   error=bad-token   codeVersion=chanda-v4.122.0   schema=5
+```
+
+No `setup()` needed — the diff adds no sheet, column or config key; the four
+columns the settle writes already exist and go through `ensureCol_`. No phone
+refresh needed — `config.js` is network-first, both strips run on the unchanged
+schema, and the stuck 🔔 clears at each phone's next poll.
