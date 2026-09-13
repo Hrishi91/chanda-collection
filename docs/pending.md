@@ -892,6 +892,27 @@ The third is defensible. Recording it so the choice is made on purpose.
 
 ## AFTER THE COLLECTION — Hrishi's own list
 
+- **🚀 should keep member rows too — DECIDED, deferred** (Hrishi, 2026-09-14,
+  reported from the LIVE app). `goLive` clears the whole Parties sheet
+  ([Code.gs](../apps-script/Code.gs) `goLive`), so committee **member rows are
+  wiped** — while their **accounts keep their post + permissions** (Users
+  survives 🚀). Hrishi spotted the inconsistency: a member is "removed" but
+  their permission stays. **Decision: keep BOTH** — member rows should survive
+  🚀 the way positions already do, because committee members are *setup*, not
+  donation transactions; 🚀's job is to zero the money, not forget who the
+  committee is. Rejected alternative (wipe positions too): it would destroy the
+  pre-go-live post/permission setup and reintroduce A194 ("returns unable to
+  work"). **Shape when built:** in `goLive`, when clearing Parties keep
+  `type==='member'` rows (and their `appUser` link); their **payments still get
+  wiped** (subscriptions are transactions → a member starts the live season
+  owing their pledge, paid nothing). Most sensitive server function — **red test
+  first** (member survives · their payment does not · a donor party does not),
+  then the change, then mutation. **NOT now — the app is already live; do it
+  when we build the final reports** (Hrishi: *"dont do any change now, will do
+  later when we make the final reports"*). Tonight's/current go-lives use the
+  working path: re-add members after 🚀 — picking the account auto-carries the
+  post ([app.js](../js/app.js) `renderMemberForm`), so no permission is lost.
+
 - **ব্যাঙ্ক অ্যাকাউন্টের ব্যালান্স** (Hrishi, 2026-09-05: *"bank account
   balance handling"* — "keep it in pending").
   What the book does today, so the discussion starts from facts:
