@@ -19546,3 +19546,23 @@ Three mutations, three names — including the both-zero guard, which survived
 until a legacy-row fixture existed.
 
 Tests 4,078 → 4,082. Client-only → everyone 🔄.
+
+---
+
+## A292 — the comment on the spent list — v4.124.0
+
+> From the live collection: *"in spent show the comments also — spent list."*
+
+The expense comment already showed in the 🧾 reports (via `expenseNote`), but the
+**spent list** — "আমার লেখা entry" and "এই ভাগের হিসাব" — renders each row through
+`entrySummary`, which printed only the subject and dropped the comment. So a
+cashier scanning what was spent saw "🧾 খরচ · প্যান্ডেল — ₹5,000" with no idea it
+was রাজু ডেকরেটর্স.
+
+`entrySummary`'s expense branch now appends `expenseNote(r)`. That helper is
+blank when the title already IS the comment (an "অন্য কিছু" expense), so no row
+prints the words twice — verified by rendering both a named subject with a
+comment and an "Other" expense. Display only, same as A291; reports are
+unaffected (they call `expenseTitle`/`expenseNote` directly, not `entrySummary`).
+
+Two mutations, two names. Tests 4,082 → 4,085. CLIENT night — everyone 🔄.

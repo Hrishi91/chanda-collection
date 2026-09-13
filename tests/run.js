@@ -11481,6 +11481,31 @@ pending.push((async function () {
     eq(/💵₹300 · 📱₹200/.test(ent), true, 'A291: the my-entries row carries the same split');
   }
 
+  // ── 5j. A292 — the comment on the spent list (আমার লেখা entry / এই ভাগের হিসাব).
+  //
+  // "in spent show the comments also." It already showed in the 🧾 reports; the
+  // spent LIST went through entrySummary, which dropped it. Verified by rendering.
+  {
+    const EXP = book([{ id: 'p1', year: 2026, type: 'shop', name: 'রাম স্টোর্স',
+      pledged: 1000, side: 'main_malda', collectorId: 'ratan', createdAt: '2026-09-01T10:00:00Z' }]);
+    // a NAMED subject with a comment, and an "অন্য কিছু" whose title IS the comment
+    EXP.expenses = [
+      { id: 'e1', year: 2026, subject: 'প্যান্ডেল', desc: 'রাজু ডেকরেটর্স', amount: 5000,
+        cashAmount: 5000, upiAmount: 0, date: '2026-09-13', collectorId: 'ratan' },
+      { id: 'e2', year: 2026, subject: 'Other', desc: 'চা-জলখাবার', amount: 300,
+        cashAmount: 300, upiAmount: 0, date: '2026-09-13', collectorId: 'ratan' }];
+    const CASH = Object.assign({}, KEEPER, { cashier: 1 });
+    const h = loadApp({ user: CASH, lists: { area: AREA }, central: EXP,
+                        local: { parties: EXP.parties, expenses: EXP.expenses } });
+    await h.ready;
+    const ent = await h.show('entries');
+    eq(/প্যান্ডেল · রাজু ডেকরেটর্স/.test(ent), true,
+       'A292: a named subject shows its comment on the spent list — প্যান্ডেল · রাজু ডেকরেটর্স');
+    eq(/চা-জলখাবার/.test(ent), true, 'A292: an "অন্য কিছু" expense shows its typed comment');
+    eq(/চা-জলখাবার · চা-জলখাবার/.test(ent), false,
+       'A292: …but only ONCE — when the title already IS the comment, expenseNote is blank');
+  }
+
   // ── 6. it lifts. A curtain that only closes is a bug report waiting.
   {
     const h = openBook();

@@ -4918,7 +4918,15 @@
       return (em ? em + ' ' : '') + t('type_' + r.type) +
         (r.type === 'bus' && r.busName ? ' ' + r.busName : '') + ' — ' + amt;
     }
-    if (store === 'expenses') return '🧾 ' + t('es_expense') + ' · ' + expenseTitle(r) + ' — ' + amt;
+    // A292: the comment too, on the spent list. It already showed in the 🧾
+    // reports (via expenseNote there); the "spent list" — আমার লেখা entry and এই
+    // ভাগের হিসাব — went through here and dropped it. expenseNote is blank when
+    // the title already IS the comment ("অন্য কিছু"), so no row prints it twice.
+    if (store === 'expenses') {
+      const note = expenseNote(r);
+      return '🧾 ' + t('es_expense') + ' · ' + expenseTitle(r) +
+        (note ? ' · ' + note : '') + ' — ' + amt;
+    }
     // A210: t('handover') is ALREADY '🤝 জমা দিলাম'. This line prepended a
     // second 🤝, so every handover row in the ledger, in 🍯 pot detail and now
     // in 🪦 read "🤝 🤝 জমা দিলাম". One emoji, from the label that owns it.
