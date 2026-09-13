@@ -796,6 +796,24 @@ block an entry; all were left deliberately on go-live day.
   font-sizes are ≤12.5px — slightly WORSE than when A177 measured it. The px→rem
   pass is not a puja-week job, but the number is moving the wrong way.
 
+### Batched UI, from the live collection (Hrishi, 2026-09-14) — do in ONE refresh round
+
+- [ ] **Per-row 💵 cash / 📱 UPI split in two list screens.** Hrishi, live:
+  *"the list data after clicking the category … we should give upi and cash of
+  both part details with amount, otherwise data finding is a bit problem."*
+  Both these rows show only the TOTAL today; the split is available on every row
+  (`cashAmount`/`upiAmount`) and the `.cat-split` `💵… · 📱…` pattern already
+  exists — pure display, no arithmetic risk (total = cash + upi):
+  1. **"এই ভাগের হিসাব"** — the pot detail opened from 💰 "এখন আমার হিসাবে আছে" →
+     "এই টাকাটা কোথায় আছে" → tap a category. `renderPotDetail` `rowsOf`
+     ([js/app.js](../js/app.js) ~L4957), row-sub beside the date.
+  2. **"আমার লেখা entry"** — `renderMyEntries` ([js/app.js](../js/app.js)), the
+     row that prints `entrySummary`.
+  NOT the donor ledger (📒 তালিকা) — it is donor-based, not per-transaction. 🤝
+  handover / জমা-খাতা already show the split. Client-only → sw.js bump → everyone
+  🔄, which is why it is batched here rather than shipped alone mid-collection.
+  Verify with a render check (the split actually lands), not just a source grep.
+
 ## AFTER THE PUJA — the PRODUCT question (Hrishi, 2026-08-17)
 
 Hrishi: *"I was thinking it as a product sale."* Recorded as the standing
