@@ -915,8 +915,13 @@ function notifData_(u, d) {
     out.handovers = items.handovers.length;
     // correction flags only reach whoever actually mans the desk
     if (canReview_(u)) {
+      // A290: the desk hides a flag whose target is already voided (the row is
+      // settled, and showing it invites a second void). Count what the desk
+      // shows, or the bell rings for a card nobody can open — and it did.
+      var voidedT = {};
+      (d.voids || []).forEach(function (v) { if (v && v.targetId) voidedT[String(v.targetId)] = 1; });
       (d.corrections || []).forEach(function (c) {
-        if (c.status === 'pending') {
+        if (c.status === 'pending' && !voidedT[String(c.targetId)]) {
           items.corrections.push({ id: c.id, targetStore: c.targetStore, targetId: c.targetId, reason: c.reason, by: c.collector, date: c.createdAt });
         }
       });
@@ -1392,7 +1397,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.121.0';
+var CODE_VERSION = 'chanda-v4.122.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1509,6 +1514,7 @@ var ACTIONS = {
       var savedIds = [];
       var rejectedIds = []; // permission-blocked rows (UI never sends these; tampering does)
       var heldIds = [];     // A110: frozen — neither saved nor refused, so they stay queued
+      var voidedNow = [];   // A290: new void rows in THIS push — each may settle a pending flag
       var reassigned = {};  // username → rows an admin filed under someone else
       var receipts = {}; // paymentId → assigned serial, so the client can adopt it
       // server-side mirror of the client's gating — the UI hides what a user may
@@ -1996,6 +2002,7 @@ var ACTIONS = {
           else {
             pending.push(values);
             if (store === 'voids') logAudit_(user.row, 'void', row.targetStore + '/' + row.targetId + (row.reason ? ' — ' + row.reason : ''));
+            if (store === 'voids') voidedNow.push(row);
           }
           savedIds.push(row.id);
         });
@@ -2008,6 +2015,11 @@ var ACTIONS = {
       Object.keys(reassigned).forEach(function (u2) {
         logAudit_(user.row, 'restore:attribute', reassigned[u2] + ' rows → @' + u2);
       });
+      // A290: a void on a flagged row IS the flag being acted on. Approve writes
+      // exactly this void; when the void arrives first (the author fixed their
+      // own entry, A78d) the flag used to stay 'pending' for ever — counted by
+      // the notification, hidden by the desk, resolvable by nobody.
+      if (voidedNow.length) settleFlagsByVoid_(voidedNow, user.row);
       if (savedIds.length) touchData_(); // AFTER the rows, so the stamp is never behind them
       return { ok: true, savedIds: savedIds, receipts: receipts, rejectedIds: rejectedIds,
                heldIds: heldIds, frozen: !!freezeAt,
@@ -3713,6 +3725,35 @@ function maxReceivedAt_(data) {
 
 // Drop voided (corrected) records everywhere reports are computed, mirroring
 // js/aggregate.js. Void rows stay in the sheet (dump) for audit.
+// A290: settle every pending flag whose target one of these voids cancels.
+// Written on the existing correction row, the way resolveCorrection writes it —
+// status, who, when, and receivedAt so the delta pull carries it to every phone.
+// No second void: the void that got us here is the one approve would have written.
+function settleFlagsByVoid_(voidRows, actor) {
+  var targets = {};
+  voidRows.forEach(function (v) {
+    if (v && v.targetStore && v.targetId) targets[String(v.targetStore) + '/' + String(v.targetId)] = 1;
+  });
+  if (!Object.keys(targets).length) return;
+  var ss = SpreadsheetApp.getActive();
+  var csh = ss.getSheetByName(SHEET_TITLES.corrections);
+  if (!csh || csh.getLastRow() < 2) return;
+  var values = csh.getDataRange().getValues();
+  var chead = values[0].map(String);
+  var iStatus = chead.indexOf('status'), iStore = chead.indexOf('targetStore'), iId = chead.indexOf('targetId');
+  if (iStatus < 0 || iStore < 0 || iId < 0) return;
+  var now = new Date().toISOString();
+  for (var i = 1; i < values.length; i++) {
+    if (String(values[i][iStatus]) !== 'pending') continue;
+    if (!targets[String(values[i][iStore]) + '/' + String(values[i][iId])]) continue;
+    csh.getRange(i + 1, ensureCol_(csh, 'status')).setValue('approved');
+    csh.getRange(i + 1, ensureCol_(csh, 'resolvedBy')).setValue(actor.name);
+    csh.getRange(i + 1, ensureCol_(csh, 'resolvedAt')).setValue(now);
+    csh.getRange(i + 1, ensureCol_(csh, 'receivedAt')).setValue(now);
+    logAudit_(actor, 'correction:settled-by-void',
+      String(values[i][iStore]) + '/' + String(values[i][iId]));
+  }
+}
 function activeData_(d) {
   var voided = {};
   (d.voids || []).forEach(function (v) { if (v && v.targetId) voided[String(v.targetId)] = 1; });

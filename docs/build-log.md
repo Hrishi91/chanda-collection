@@ -19437,3 +19437,66 @@ session test, so a new worker installs, claims the page and triggers the one cap
 automatic reload. The login screen is not a dead end for code.
 
 Tests 4,059 → 4,066.
+
+---
+
+## A290 — a self-fixed flag stayed pending for ever — v4.122.0 (SERVER)
+
+> Go-live day, from a phone: *"ভুল হয়ে গেছে — got notification but after entering
+> no details, and the notification also not removing."*
+
+### What happened
+
+A collector flagged their own entry, then fixed it themselves (A78d allows this).
+`finishFlow` saved the replacement and wrote a **void** on the original — and never
+touched the correction row. Nothing on the server did either: the only thing that
+moves a flag off `pending` was `resolveCorrection`, which is cashier-only.
+
+So the flag sat at `pending` with a voided target, and the two sides read that one
+fact differently:
+
+| side | rule | result |
+|---|---|---|
+| server `notifData_` | count every `pending` flag | 🔔 rings |
+| phone's 🛠️ desk | hide any flag whose target is voided | desk empty |
+
+The cashier gets a bell for a card that does not exist, and nobody has a button.
+**A deadlock between two sides filtering the same fact differently** — the exact
+rule this repo already states for permissions, broken for a count.
+
+And one more the phone could not show: `resolveCorrection` on that stuck flag
+*succeeded*, and wrote a **second void** on the already-voided row.
+
+### The fix, both halves, on the server
+
+1. **A void on a flagged row IS the flag being acted on.** Approve writes exactly
+   this void; when the void arrives first, `settleFlagsByVoid_` marks every
+   pending flag on that target `approved`, with `resolvedBy`, `resolvedAt` and
+   `receivedAt` so the delta pull carries it. No second void — the one that got us
+   here is the one approve would have written. Only `pending` rows, only that
+   target: a flag the cashier already **rejected** stays rejected when its row is
+   voided later.
+2. **`notifData_` counts what the desk shows** — pending AND target not voided.
+   This is what makes the rows already stuck **before today** go quiet: no data
+   migration, the next poll simply returns 0. It also covers the order the settle
+   cannot — a flag that lands *after* the void on the same row.
+
+### Client-only was impossible, checked
+
+The push handler forces any arriving correction back to `pending` (A116-era: the
+phone must not decide its own flag's fate), and `resolveCorrection` needs the
+cashier. So the phone had no lawful way out. Server night.
+
+### What this deploy costs the phones: nothing
+
+Both version strips run on `schemaCmp()` and the schema stays 5. A phone on
+v4.121.0 against a v4.122.0 server shows no strip at all; its existing desk already
+hides voided-target flags and already trusts the server's count. **No refresh
+needed** — the bell goes out on every phone at its next poll.
+
+Nine mutations, nine names. Three survived the first fixture and each named a state
+it never built: only one flag in the book (a sweep looked like a target test),
+no already-decided flag (a void could re-decide it), and no flag arriving after
+its void (the count filter was never exercised).
+
+Tests 4,066 → 4,078. **SERVER night.**

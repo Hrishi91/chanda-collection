@@ -5209,4 +5209,115 @@ module.exports = function runBackendTests(eq) {
     eq(opened('progdonor').join(','), '',
        'backend A252: the retired progdonor blanket opens no cell of the matrix');
   }
+
+  // --- A290: a self-fixed flag stays pending for ever ------------------------
+  // Go-live day, reported from a phone: "ভুল হয়ে গেছে — got notification but
+  // after entering no details, and the notification also not removing".
+  //
+  // A collector flags their own entry, then fixes it themselves (A78d). The fix
+  // VOIDS the original and writes a replacement — and never touches the
+  // correction row. The server counts every pending correction for the
+  // notification; the desk hides any whose target is voided. So the 🔔 stays,
+  // the desk is empty, and nobody has a button that resolves it. A deadlock
+  // between two sides that filter the same fact differently.
+  {
+    const b = loadBackend(); b.api.setup();
+    ['adm290', 'ratan290', 'kali290'].forEach(function (u, i) {
+      b.post('register', { username: u, name: u, password: 'secret' + i, phone: '9822000' + i });
+    });
+    let adm = b.call('login', { username: 'adm290', password: 'secret0', year: 2026 }).token;
+    const uid = function (u) { return b.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+    ['ratan290', 'kali290'].forEach(function (u) {
+      b.call('setStatus', { token: adm, userId: uid(u), status: 'approved' });
+      b.call('approveYear', { token: adm, userId: uid(u), year: 2026 });
+    });
+    b.call('addItem', { token: adm, kind: 'area', nameBn: 'মেন রোড', nameEn: 'Main Rd', id: 'main_malda' });
+    b.call('setEntries', { token: adm, userId: uid('ratan290'), entries: ['shop', 'person', 'road'] });
+    b.call('setCashier', { token: adm, userId: uid('kali290'), cashier: 1 });
+    b.call('setEntries', { token: adm, userId: uid('kali290'), entries: ['review'] });
+    const tk = {};
+    ['ratan290', 'kali290'].forEach(function (u, i) {
+      tk[u] = b.call('login', { username: u, password: 'secret' + (i + 1), year: 2026 }).token;
+    });
+    const push = function (who, store, row) {
+      return b.call('push', { token: tk[who], records: [{ store: store, row: row }] });
+    };
+    push('ratan290', 'parties', { id: 'p1', year: 2026, type: 'shop', name: 'রাম স্টোর্স',
+      pledged: 1000, side: 'main_malda' });
+    push('ratan290', 'payments', { id: 'y1', year: 2026, partyId: 'p1', partyName: 'রাম স্টোর্স',
+      amount: 5000, cashAmount: 5000, upiAmount: 0, date: '2026-09-13' });
+    // 1. the flag
+    push('ratan290', 'corrections', { id: 'c1', year: 2026, targetStore: 'payments', targetId: 'y1',
+      targetSummary: '💰 চাঁদা · রাম স্টোর্স — ₹5,000', reason: 'ভুল অঙ্ক — ₹500 হবে', status: 'pending' });
+    const n0 = b.call('notifications', { token: tk.kali290, year: 2026 });
+    eq(n0.notifications.corrections, 1, 'backend A290: the cashier is told about the flag');
+    // 2. the collector fixes it THEMSELVES — replacement, then a void on the original
+    push('ratan290', 'payments', { id: 'y2', year: 2026, partyId: 'p1', partyName: 'রাম স্টোর্স',
+      amount: 500, cashAmount: 500, upiAmount: 0, date: '2026-09-13' });
+    push('ratan290', 'voids', { id: 'v1', year: 2026, targetStore: 'payments', targetId: 'y1',
+      reason: 'edit — ভুল অঙ্ক — ₹500 হবে' });
+    // 3. what the cashier's phone now sees
+    const n1 = b.call('notifications', { token: tk.kali290, year: 2026 });
+    eq(n1.notifications.corrections, 0,
+       'backend A290: once the flagged row is voided the notification is GONE — the server filters what the desk filters');
+    const corr = b.rows('Corrections').filter(function (c) { return c.id === 'c1'; })[0] || {};
+    eq(String(corr.status), 'approved',
+       'backend A290: …and the correction row itself is settled as approved — a void IS what approve writes, so the flag has been acted on');
+    eq(String(corr.resolvedBy), 'ratan290',
+       'backend A290: …by the person whose void settled it, so the audit trail says who');
+    eq(!!corr.resolvedAt, true, 'backend A290: …with a time');
+    // 4. the delta pull carries the settled row to every phone, or the desk keeps its own stale copy
+    const pulled = b.call('pull', { token: tk.kali290, year: 2026, since: 0 });
+    const pc = ((pulled.data || {}).corrections || []).filter(function (c) { return c.id === 'c1'; })[0] || {};
+    eq(String(pc.status), 'approved',
+       'backend A290: …and the pull carries the settled status, so the phone that flagged it and the phone that mans the desk agree');
+    // 5. a void on an UNFLAGGED row settles nothing and breaks nothing
+    push('ratan290', 'voids', { id: 'v2', year: 2026, targetStore: 'payments', targetId: 'y2', reason: 'test' });
+    eq(b.rows('Corrections').length, 1, 'backend A290: a void with no flag on its target writes no correction row');
+    // 6. …and the cashier cannot resolve a settled one twice
+    let twice = '';
+    try { b.call('resolveCorrection', { token: tk.kali290, id: 'c1', decision: 'approve' }); }
+    catch (e) { twice = e.message; }
+    eq(twice, 'already-resolved', 'backend A290: a flag settled by a void refuses a second resolution, like any other settled flag');
+
+    // 7. a void settles ONLY the flags on its own target. Mutation: dropping the
+    // target test settled every pending flag in the book and nothing noticed,
+    // because the fixture had exactly one.
+    push('ratan290', 'payments', { id: 'y3', year: 2026, partyId: 'p1', partyName: 'রাম স্টোর্স',
+      amount: 700, cashAmount: 700, upiAmount: 0, date: '2026-09-13' });
+    push('ratan290', 'corrections', { id: 'c3', year: 2026, targetStore: 'payments', targetId: 'y3',
+      targetSummary: '💰 চাঁদা · রাম স্টোর্স — ₹700', reason: 'অন্য ভুল', status: 'pending' });
+    push('ratan290', 'payments', { id: 'y4', year: 2026, partyId: 'p1', partyName: 'রাম স্টোর্স',
+      amount: 800, cashAmount: 800, upiAmount: 0, date: '2026-09-13' });
+    push('ratan290', 'voids', { id: 'v4', year: 2026, targetStore: 'payments', targetId: 'y4', reason: 'unrelated' });
+    const c3 = b.rows('Corrections').filter(function (c) { return c.id === 'c3'; })[0] || {};
+    eq(String(c3.status), 'pending',
+       'backend A290: a void on a DIFFERENT row leaves an open flag open — the settle is by target, not a sweep');
+
+    // 8. a flag the cashier already REJECTED stays rejected when its row is later
+    // voided — the cashier's decision is not overwritten by a bookkeeping event.
+    b.call('resolveCorrection', { token: tk.kali290, id: 'c3', decision: 'reject' });
+    push('ratan290', 'voids', { id: 'v3', year: 2026, targetStore: 'payments', targetId: 'y3', reason: 'later' });
+    const c3b = b.rows('Corrections').filter(function (c) { return c.id === 'c3'; })[0] || {};
+    eq(String(c3b.status), 'rejected',
+       'backend A290: a flag already decided is not re-decided by a void — only PENDING ones settle');
+
+    // 9. the stuck state itself — a pending flag whose target is ALREADY voided.
+    // This is what every phone that hit the bug before today is holding, and it
+    // is reachable through the API too: the void and the flag on the same row
+    // can arrive in either order across two pushes. The settle-on-void cannot
+    // help a flag that arrives AFTER the void; only the count filter can, and
+    // without this block that filter was untested (mutation 2 survived).
+    push('ratan290', 'payments', { id: 'y5', year: 2026, partyId: 'p1', partyName: 'রাম স্টোর্স',
+      amount: 900, cashAmount: 900, upiAmount: 0, date: '2026-09-13' });
+    push('ratan290', 'voids', { id: 'v5', year: 2026, targetStore: 'payments', targetId: 'y5', reason: 'first' });
+    push('ratan290', 'corrections', { id: 'c5', year: 2026, targetStore: 'payments', targetId: 'y5',
+      targetSummary: '💰 চাঁদা · রাম স্টোর্স — ₹900', reason: 'flag after the void', status: 'pending' });
+    const c5 = b.rows('Corrections').filter(function (c) { return c.id === 'c5'; })[0] || {};
+    eq(String(c5.status), 'pending', 'backend A290: a flag that lands after the void is still pending in the sheet (the stuck shape)');
+    const n2 = b.call('notifications', { token: tk.kali290, year: 2026 });
+    eq(n2.notifications.corrections, 0,
+       'backend A290: …and the bell does NOT ring for it — the server counts what the desk shows, so the rows stuck before today go quiet without a data migration');
+  }
+
 };
