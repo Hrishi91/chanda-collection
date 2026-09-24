@@ -19735,3 +19735,19 @@ Client-only (the report computes on the phone); no Code.gs change of its own —
 ships alongside A295's pending server deploy.
 
 Tests 4,132 → 4,147.
+
+---
+
+## rebake config.js for the v4.128.0 deployment + closing runbook — 2026-09-25
+
+A295 (🏁 close-year) + A296 (per-collector detail) deployed. Probed before baking:
+
+```
+reportList  → ok=false error=bad-token codeVersion=chanda-v4.128.0 schema=5
+closeYear   → ok=false error=bad-token   (the action exists on the live runtime;
+                                          auth fired first, nothing changed)
+```
+
+Added `docs/closing-runbook.md` — the sibling of the go-live runbook, read out of
+the code: what closing is (a reversible flag, not a wipe), the 🏁 readiness gate,
+the documents it produces, the ordered sequence, and how to reopen.
