@@ -839,6 +839,36 @@ supports 12×N phones in October, seasonality (income one month a year?). The
 twelve trial users are the first customer interviews — collect what confused
 them and what they'd pay for. No revenue promises; decision after the puja.
 
+### Super-admin / three-tier model — clarified by Hrishi 2026-09-24 (DEFERRED, "do later, not now")
+
+Hrishi, from the live app: *"super admin is the application owner; I give the
+club/committee the admin access; [super admin] gives the access of modules,
+reports and all features; then the admin gives this to the users."* And: *"we
+can sell to others, not only for Ganesh Puja."*
+
+- **Three tiers:** super-admin (app owner, Hrishi) → tenant admin (club/committee)
+  → users. Super-admin **provisions tenants and sets each tenant's ENTITLEMENT**
+  (which modules / reports / features that club may use); the tenant admin then
+  distributes permissions **within that entitlement** using the screens that
+  already exist.
+- **This is the Kit model (path 1) above**, and it is the recommended path —
+  each tenant keeps its own Sheet+Apps Script, so data isolation is free and
+  "super-admin" is a **registry + provisioning + entitlement** layer, NOT a
+  data-isolation rewrite (path 2 / SaaS).
+- **Reuse:** the entitlement layer sits one step above the existing
+  `PERM_KEYS` / `REPORT_IDS` / module toggles — a per-TENANT super-set gate that
+  caps what the admin's permission screen can offer.
+- **Three decisions that shape it:** (1) entitlement must be **server-enforced**
+  and set only by a super-admin identity the tenant admin cannot override (a
+  Config value per book + a super-admin credential); (2) provisioning a new book
+  — automate via Apps Script API/template copy, or manual per sale at first;
+  (3) how far to generalize the domain (Ganesh Puja → a template; "চাঁদা" →
+  "collection"; audience = puja committees only, or schools/clubs too).
+- **How to start when the time comes:** a separate worktree, a brainstorming/
+  design pass FIRST (the requirements are still wide open), live `main` untouched;
+  the current committee migrates in as **tenant #1 at a season boundary**, never
+  hot-swapped. NOT to be started mid-collection.
+
 ## The UI pass, measured (A177, 2026-09-05)
 
 Driven at 320 px — the narrowest phone anybody on this committee carries —
