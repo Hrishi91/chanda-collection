@@ -257,6 +257,9 @@ function loadApp(opts) {
     store.ck_central = JSON.stringify(o.central);
     store.ck_central_year = String(plain.year);
   }
+  // A295: the central CONFIG the phone holds (centralConfig ← ck_config), for
+  // screens that read config flags like closed_<year> / program_on.
+  if (o.config) store.ck_config = JSON.stringify(o.config);
   const doc = makeDocument();
   const calls = [];
   const box = {

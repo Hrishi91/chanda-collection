@@ -5320,4 +5320,64 @@ module.exports = function runBackendTests(eq) {
        'backend A290: …and the bell does NOT ring for it — the server counts what the desk shows, so the rows stuck before today go quiet without a data migration');
   }
 
+
+  // --- A295: closing a season — the lock, and that it loses nothing ----------
+  {
+    const b = loadBackend(); b.api.setup();
+    ['adm295', 'ram295'].forEach(function (u, i) {
+      b.post('register', { username: u, name: u, password: 'secret' + i, phone: '9833000' + i });
+    });
+    let adm = b.call('login', { username: 'adm295', password: 'secret0', year: 2026 }).token;
+    const uid = function (u) { return b.rows('Users').filter(function (x) { return x.username === u; })[0].id; };
+    b.call('setStatus', { token: adm, userId: uid('ram295'), status: 'approved' });
+    b.call('approveYear', { token: adm, userId: uid('ram295'), year: 2026 });
+    b.call('addItem', { token: adm, kind: 'area', nameBn: 'মেন রোড', nameEn: 'Main Rd', id: 'main_malda' });
+    b.call('setEntries', { token: adm, userId: uid('ram295'), entries: ['shop', 'person', 'road'] });
+    const tk = b.call('login', { username: 'ram295', password: 'secret1', year: 2026 }).token;
+    const push = function (row) {
+      return b.call('push', { token: tk, records: [{ store: 'parties', row: row }] });
+    };
+    const party = function (id) {
+      return { id: id, year: 2026, type: 'shop', name: id, pledged: 1000, side: 'main_malda' };
+    };
+
+    // before closing: a normal write lands
+    eq((push(party('p1')).savedIds || []).indexOf('p1') >= 0, true,
+       'backend A295: before closing, a write is saved');
+
+    // only an admin may close, and only with the typed confirm
+    let e1 = ''; try { b.call('closeYear', { token: tk, year: 2026, confirm: 'CLOSE' }); } catch (e) { e1 = e.message; }
+    eq(e1, 'not-admin', 'backend A295: a collector cannot close the year');
+    let e2 = ''; try { b.call('closeYear', { token: adm, year: 2026 }); } catch (e) { e2 = e.message; }
+    eq(e2, 'confirm-required', 'backend A295: closing needs the typed confirm');
+
+    // close it
+    const c = b.call('closeYear', { token: adm, year: 2026, confirm: 'CLOSE' });
+    eq(c.ok && c.year === 2026, true, 'backend A295: the admin closes 2026');
+
+    // closing twice is refused
+    let e3 = ''; try { b.call('closeYear', { token: adm, year: 2026, confirm: 'CLOSE' }); } catch (e) { e3 = e.message; }
+    eq(e3, 'already-closed', 'backend A295: a closed year cannot be closed again');
+
+    // a write for the closed year is HELD, not lost, and not saved
+    const r2 = push(party('p2'));
+    eq((r2.savedIds || []).indexOf('p2') >= 0, false, 'backend A295: a write for a closed year does NOT save');
+    eq((r2.heldIds || []).indexOf('p2') >= 0, true, 'backend A295: …it is HELD, so the phone keeps it and nothing is lost');
+    eq(b.rows('Parties').filter(function (x) { return x.id === 'p2'; }).length, 0,
+       'backend A295: …and it never reached the book');
+
+    // the closed year is still fully READABLE — closure locks writes, not reads
+    const rep = b.call('report', { token: adm, id: 'overview', year: 2026 });
+    eq(rep.ok, true, 'backend A295: a closed year still answers its reports — reading is never locked');
+
+    // reopen, and the held row now lands
+    let e4 = ''; try { b.call('reopenYear', { token: tk, year: 2026, confirm: 'REOPEN' }); } catch (e) { e4 = e.message; }
+    eq(e4, 'not-admin', 'backend A295: a collector cannot reopen either');
+    b.call('reopenYear', { token: adm, year: 2026, confirm: 'REOPEN' });
+    eq((push(party('p2')).savedIds || []).indexOf('p2') >= 0, true,
+       'backend A295: after reopen, the held write lands — closure lost nothing');
+    let e5 = ''; try { b.call('reopenYear', { token: adm, year: 2026, confirm: 'REOPEN' }); } catch (e) { e5 = e.message; }
+    eq(e5, 'not-closed', 'backend A295: reopening an open year is refused');
+  }
+
 };

@@ -7956,6 +7956,69 @@
       fr.readAsDataURL(file);
     });
   }
+  // A295: 🏁 close the year. Reads the season's readiness from the SAME numbers
+  // the audit report uses (computeReport('audit')), so the screen and the report
+  // can never disagree about whether the book is clean. The Close button is dead
+  // while any money check is red — the readiness gate the design note asked for.
+  function renderCloseYear() {
+    const year = Number(Settings.get('year')) || new Date().getFullYear();
+    const closed = String((centralConfig || {})['closed_' + year] || '') === '1';
+    $view().innerHTML = backBar('admin') + '<div class="empty">' + esc(t('loading')) + '</div>';
+    viewData().then(function (data) {
+      const aud = Aggregate.computeReport('audit', data);
+      const pending = (data.handovers || []).filter(function (h) {
+        return String(h.status || '') !== 'confirmed' && String(h.status || '') !== 'rejected';
+      }).length;
+      const anomN = (aud.anomalies || []).length;
+      // NB: "the books balance" is NOT a separate check — `aud.balances` is exactly
+      // `anomalies.length === 0` (see computeReport('audit'): the Σ-in-hand identity
+      // is a tautology, so the honest verdict IS "reconcile found nothing"). Listing
+      // both would tell the admin the same fact twice, so Q3 carries both meanings.
+      // Q1 is a human check (the server cannot see a phone's queue), so it never
+      // blocks the button — it is a reminder. Q2/Q3 are money checks and do.
+      const checks = [
+        { ok: null, label: t('cy_q1'), sub: t('cy_q1_sub') },
+        { ok: pending === 0, label: t('cy_q2') + (pending ? ' (' + pending + ')' : '') },
+        { ok: anomN === 0, label: t('cy_q3') + (anomN ? ' (' + anomN + ')' : '') },
+      ];
+      const blockers = checks.filter(function (c) { return c.ok === false; }).length;
+      const mark = function (c) {
+        const icon = c.ok === null ? 'ℹ️' : c.ok ? '✅' : '⚠️';
+        return '<div class="row" style="cursor:default"><div><b>' + icon + ' ' + esc(c.label) + '</b>' +
+          (c.sub ? '<div class="row-sub">' + esc(c.sub) + '</div>' : '') + '</div></div>';
+      };
+      $view().innerHTML = backBar('admin') +
+        '<div class="flow-title">' + esc(t('closeyear_title')) + ' — ' + esc(String(year)) + '</div>' +
+        (closed ? '<div class="perm-note" style="display:block">' + esc(t('cy_closed_banner')) + '</div>' : '') +
+        '<div class="hint" style="margin-bottom:10px">' + esc(t('closeyear_hint')) + '</div>' +
+        checks.map(mark).join('') +
+        (closed
+          ? '<button id="cy-reopen" class="ghost big block" style="margin-top:10px">' + esc(t('cy_reopen_btn')) + '</button>'
+          : '<div class="' + (blockers ? 'red' : 'green') + '" style="font-weight:700;margin:10px 4px">' +
+              (blockers ? '⚠️ ' + esc(t('cy_blocked')) : '✅ ' + esc(t('cy_ready'))) + '</div>' +
+            '<button id="cy-close" class="primary big block"' + (blockers ? ' disabled' : '') + '>' +
+              esc(t('closeyear_btn')) + '</button>');
+      const cb = document.getElementById('cy-close');
+      if (cb) cb.onclick = function () {
+        if (blockers) return;
+        if (!window.confirm(t('cy_confirm'))) return;
+        cb.disabled = true;
+        Auth.call('closeYear', { token: Auth.token(), year: year, confirm: 'CLOSE' })
+          .then(function () { toast(t('cy_close_done')); return pullCentral({ force: true }); })
+          .then(function () { navigate('closeyear'); })
+          .catch(function (e) { cb.disabled = false; toast(errMsg(e)); });
+      };
+      const rb = document.getElementById('cy-reopen');
+      if (rb) rb.onclick = function () {
+        if (!window.confirm(t('cy_reopen_confirm'))) return;
+        rb.disabled = true;
+        Auth.call('reopenYear', { token: Auth.token(), year: year, confirm: 'REOPEN' })
+          .then(function () { toast(t('cy_reopen_done')); return pullCentral({ force: true }); })
+          .then(function () { navigate('closeyear'); })
+          .catch(function (e) { rb.disabled = false; toast(errMsg(e)); });
+      };
+    });
+  }
   function renderReceiptConfig() {
     const form = {
       receipt_layout: centralConfig.receipt_layout || 'classic',
@@ -8642,6 +8705,16 @@
       // reverse those. So it is NAMED here, where the decision to go live is
       // being made, and left to the admin.
       const stillOut = resp.users.filter(function (u) { return u.access === 'exiting'; });
+      // A295: once live, the season can be closed. A row into the 🏁 screen,
+      // which runs the readiness checks — shown only when live (a training book
+      // has nothing to close) and flagged when the year is already closed.
+      const yearNow = Number(Settings.get('year')) || new Date().getFullYear();
+      const yearIsClosed = String((centralConfig || {})['closed_' + yearNow] || '') === '1';
+      const closeCard = !isLive() ? '' :
+        '<button class="row" id="adm-closeyear" style="width:100%;text-align:left">' +
+          '<div style="flex:1"><b>' + esc(t('closeyear_btn')) + '</b>' +
+          (yearIsClosed ? ' <span class="badge warn">' + esc(t('cy_close_done')) + '</span>' : '') +
+          '<div class="row-sub">' + esc(String(yearNow)) + '</div></div><span class="adm-caret">›</span></button>';
       const trainCard = isLive() ? '' :
         '<div class="card" style="border:1.5px solid #d9a441;background:#fff8e8">' +
           '<b>🟡 ' + esc(t('training_mode')) + '</b><div class="row-sub">' + esc(t('training_admin_hint')) + '</div>' +
@@ -8693,7 +8766,7 @@
         // A129: the panel's own 🔄 button is gone — sitting directly under the
         // training card it read as a STEP of go-live ("refresh after live"),
         // and its whole job is now done by the header 🔄 on every screen.
-        $view().innerHTML = head('admin_panel') + trainCard +
+        $view().innerHTML = head('admin_panel') + trainCard + closeCard +
           menuRow('users', '👥', 'adm_users',
             t('adm_sub_users').replace('{n}', groups.approved.length)
               .replace('{p}', groups.pending.length).replace('{s}', staleN),
@@ -9006,6 +9079,8 @@
           .then(function () { updateBadge(); navigate('home'); })
           .catch(function (e) { undoClear(); toast(errMsg(e)); });
       };
+      const cyBtn = document.getElementById('adm-closeyear');
+      if (cyBtn) cyBtn.onclick = function () { navigate('closeyear'); };
       const goLiveBtn = document.getElementById('golive-btn');
       if (goLiveBtn) goLiveBtn.onclick = function () {
         // destructive + one-way → three gates: confirm, type LIVE, final confirm
@@ -9435,6 +9510,7 @@
     else if (current.view === 'audit') { Auth.isAdmin() ? renderAuditLog() : renderHome(); }
     else if (current.view === 'usersnap') { Auth.isAdmin() ? renderUserSnapshot(current.params) : renderHome(); }
     else if (current.view === 'receiptcfg') { Auth.isAdmin() ? renderReceiptConfig() : renderHome(); }
+    else if (current.view === 'closeyear') { Auth.isAdmin() ? renderCloseYear() : renderHome(); }
     else if (current.view === 'receipt') renderReceiptShare(current.params);
     else if (current.view === 'help') renderHelp(current.params);
     else if (current.view === 'graveyard') renderGraveyard();

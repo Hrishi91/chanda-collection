@@ -1281,6 +1281,15 @@ function yearAllowed_(u, year) {
   if (u.row.role === 'admin') return true;
   return hasYear_(u.row.years, Number(year) || new Date().getFullYear());
 }
+// A295: a closed season. Config carries `closed_<year>=1`. Read-only actions do
+// NOT consult this — a closed year must stay fully readable (reports, the final
+// statement, the audit). Only WRITES are stopped, and they are HELD, not refused,
+// so nothing is lost: an admin reopens and the held rows sync. Same reasoning as
+// A175's year-not-approved hold — a write for a shut year is either a late
+// straggler (real money, wait for it) or noise (loses nothing by waiting).
+function yearClosed_(year) {
+  return String(readConfig_()['closed_' + (Number(year) || new Date().getFullYear())] || '') === '1';
+}
 function entryAllowed_(u, key) {
   if (u.row.role === 'admin') return true;
   if (!key) return true;
@@ -1397,7 +1406,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.126.0';
+var CODE_VERSION = 'chanda-v4.127.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1572,6 +1581,11 @@ var ACTIONS = {
         // year is either tampering — which loses nothing by waiting — or a
         // clock that rolled over, where the money is real and the year is not.
         if (r.store !== 'messages' && !yearAllowed_(user, r.row.year)) {
+          heldIds.push(r.row.id); return;
+        }
+        // A295: the season is closed. Hold the write (never lose it); an admin
+        // reopens to let the backlog through. Chat stays open, like under freeze.
+        if (r.store !== 'messages' && yearClosed_(r.row.year)) {
           heldIds.push(r.row.id); return;
         }
         // A199: no `createdAt` means "held", not "let it through".
@@ -2280,6 +2294,32 @@ var ACTIONS = {
     applied.forEach(function (k) { setConfig_(k, String(patch[k] == null ? '' : patch[k])); });
     logAudit_(me.row, 'config', applied.join(','));
     return { ok: true, applied: applied };
+  },
+
+  // A295: close a season. NOT destructive — sets `closed_<year>=1`, which the
+  // push handler reads to HOLD (never refuse) later writes; nothing is deleted,
+  // and reopenYear lifts it. The client 🏁 screen gates it behind the five
+  // readiness questions; here the guard is admin + a typed confirm, mirroring
+  // goLive. touchData_ so every phone learns the season is shut on its next poll.
+  closeYear: function (b) {
+    var me = requireAdmin_(b.token);
+    var year = Number(b.year) || new Date().getFullYear();
+    if (String(b.confirm) !== 'CLOSE') throw new Error('confirm-required');
+    if (yearClosed_(year)) throw new Error('already-closed');
+    setConfig_('closed_' + year, '1');
+    logAudit_(me.row, 'year-closed', String(year));
+    touchData_();
+    return { ok: true, year: year };
+  },
+  reopenYear: function (b) {
+    var me = requireAdmin_(b.token);
+    var year = Number(b.year) || new Date().getFullYear();
+    if (String(b.confirm) !== 'REOPEN') throw new Error('confirm-required');
+    if (!yearClosed_(year)) throw new Error('not-closed');
+    setConfig_('closed_' + year, '');
+    logAudit_(me.row, 'year-reopened', String(year));
+    touchData_();
+    return { ok: true, year: year };
   },
 
   // Go live: discard all training entries, keep the essentials (users, config,

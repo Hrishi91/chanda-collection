@@ -19660,3 +19660,44 @@ ok=false   error=bad-token   codeVersion=chanda-v4.126.0   schema=5
 
 Server and client agree. Phones need ⚙️ → 🔄 to see the two new reports (app-shell
 changed); config.js is network-first so the new /exec reaches them on next load.
+
+---
+
+## A295 — 🏁 close the year: a readiness-gated season lock — v4.127.0 (SERVER)
+
+> Hrishi: *"so we can close the puja this time … do all the steps to closure."*
+
+The closing-year design note (2026-07-29) becomes real. A 🏁 screen that verifies
+the season is finished, then a reversible lock — no data destroyed.
+
+**Server (the lock):**
+- `closeYear(confirm:'CLOSE', year)` / `reopenYear(confirm:'REOPEN', year)` — admin
+  only, mirroring goLive's guard shape; set/clear `Config.closed_<year>=1`; audit;
+  `touchData_` so phones learn on their next poll. `already-closed` / `not-closed`
+  guard the repeats.
+- `push` HOLDS (never refuses) a write for a closed year — the same choice A175
+  made for an unapproved year: a late straggler is real money that waits, noise
+  loses nothing by waiting. Reopen and the held rows sync. **Reads are never
+  locked** — a closed year still answers every report and the final statement.
+- `APP_SCHEMA` stays 5: the client computes the readiness locally and the held
+  path is additive, so no phone is locked out by the bump.
+
+**Client (the readiness gate):** a 🏁 screen (admin, offered once live) that reads
+the SAME `computeReport('audit')` numbers as the audit report, so screen and report
+never disagree. Three checks: Q1 every phone synced (a human reminder — the server
+cannot see a phone's queue — so it never blocks), Q2 no handover awaiting confirm,
+Q3 no anomalies. **The Close button is dead while Q2 or Q3 is red.** A closed year
+shows the banner and a Reopen button instead.
+
+**Two decorative checks caught by mutation and removed.** The first cut listed Q4
+"the books balance" as a separate check — but `aud.balances` IS
+`anomalies.length === 0` (A294's finding: the Σ-in-hand identity is a tautology),
+so Q4 was the same fact as Q3, told twice. Mutating Q3 to always-green left the
+button correctly disabled via Q4, proving Q3 did nothing on its own. Merged into
+one honest check.
+
+Freeze already stops writes operationally; this adds the *year-specific*,
+reversible lock the design asked for, so a stray 2026 entry in December is held
+rather than silently landing in a closed book.
+
+Tests 4,123 → 4,132. **SERVER night.**

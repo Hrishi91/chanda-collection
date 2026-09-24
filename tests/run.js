@@ -11655,6 +11655,54 @@ pending.push((async function () {
   }
 })());
 
+// A295 — the 🏁 close-the-year screen, driven on the real admin view.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন রোড', nameEn: 'Main Rd' }];
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const cleanBook = {
+    parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'পাল', pledged: 5000, side: 'main_malda',
+                collector: 'ram', collectorId: 'ram', createdAt: '2026-09-01T10:00:00Z' }],
+    payments: [{ id: 'y1', year: 2026, partyId: 'p1', partyName: 'পাল', amount: 2000,
+                 cashAmount: 2000, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' }],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  // ── a clean book: every money check green, Close offered and ENABLED
+  {
+    const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: cleanBook,
+                        settings: { live_mode: 'on' } });
+    await h.ready;
+    const html = await h.show('closeyear');
+    eq(/🏁/.test(html), true, 'A295: the close-year screen paints');
+    eq(/id="cy-close"/.test(html), true, 'A295: …and offers the Close button on a clean book');
+    eq(/id="cy-close"[^>]*disabled/.test(html), false, 'A295: …ENABLED, because every money check is green');
+    eq(/✅/.test(html), true, 'A295: …with green checks shown');
+  }
+  // ── a dirty book (a payment whose cash+UPI ≠ amount): Close DISABLED
+  {
+    const dirty = JSON.parse(JSON.stringify(cleanBook));
+    dirty.payments.push({ id: 'y2', year: 2026, partyId: 'p1', partyName: 'পাল', amount: 2000,
+      cashAmount: 1500, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' });
+    const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: dirty,
+                        settings: { live_mode: 'on' } });
+    await h.ready;
+    const html = await h.show('closeyear');
+    eq(/id="cy-close"[^>]*disabled/.test(html), true,
+       'A295: a book with a money anomaly disables Close — the readiness gate holds');
+    eq(/⚠️/.test(html), true, 'A295: …and the red check is shown');
+  }
+  // ── an already-closed year: the banner and the Reopen button, no Close
+  {
+    const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: cleanBook,
+                        settings: { live_mode: 'on' }, config: { closed_2026: '1' } });
+    await h.ready;
+    const html = await h.show('closeyear');
+    eq(/এই বছর বন্ধ আছে/.test(html), true, 'A295: a closed year shows the closed banner');
+    eq(/id="cy-reopen"/.test(html), true, 'A295: a closed year offers Reopen');
+    eq(/id="cy-close"/.test(html), false, 'A295: …and not Close');
+  }
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;
