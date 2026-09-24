@@ -166,7 +166,7 @@ var ANOMALY_FLAGS = { payments: ['dupOk'], daily: ['dupOk'], parties: ['pledgeOk
 var MENTION_GROUPS = ['all', 'admin', 'cashiers'];
 // A148: 'program' — the অনুষ্ঠান ভাঁড়ার's own account. Listing it here also
 // makes it a grantable permission (REPORT_IDS feeds POSITION_PERM_KEYS).
-var REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily', 'program'];
+var REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily', 'program', 'final', 'audit'];
 // A208: which of those this FILE can actually compute.
 //
 // Reports are drawn on the phone, from the snapshot it already holds
@@ -1397,7 +1397,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.125.0';
+var CODE_VERSION = 'chanda-v4.126.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually

@@ -962,6 +962,17 @@ const I18N = {
   parties_n: { bn: 'টি দাতা', en: 'parties' },
   report_expenses: { bn: '🧾 খরচের হিসাব', en: '🧾 Expenses' },
   report_daily: { bn: '🛣️ দিনের রোড/টোটো', en: '🛣️ Daily road/toto' },
+  // A294: the two consolidated reports — the whole season on one page, and the
+  // financial audit that proves the books balance.
+  report_final: { bn: '🧾 চূড়ান্ত হিসাব', en: '🧾 Final statement' },
+  report_audit: { bn: '🔎 আর্থিক নিরীক্ষা', en: '🔎 Financial audit' },
+  // A294: the audit report's own words
+  audit_balanced: { bn: 'হিসাব মিলেছে — প্রতিটা টাকা ধরা আছে', en: 'The books balance — every rupee accounted for' },
+  audit_mismatch: { bn: 'হিসাব মেলেনি — নিচে দেখো, 🩺 ডেস্কে বিস্তারিত', en: 'The books do not balance — see below and the 🩺 desk' },
+  audit_no_anomalies: { bn: '✅ কোনো অসংগতি নেই', en: '✅ No anomalies' },
+  audit_anomalies_n: { bn: '⚠️ {n}টি অসংগতি — বিস্তারিত 🩺 ডেস্কে', en: '⚠️ {n} anomalies — detail on the 🩺 desk' },
+  audit_voids: { bn: '✖️ বাতিল entry', en: '✖️ Voided entries' },
+  audit_held_note: { bn: 'তোলা − খরচ = হাতে + পথে (মেলা উচিত)', en: 'collected − spent = in hand + in transit (must match)' },
   no_reports_msg: { bn: 'কেন্দ্রীয় রিপোর্ট দেখার permission নেই — দরকার হলে admin-কে বলো', en: 'No central-report permission — ask the admin if needed' },
   report_pdf_btn: { bn: 'PDF বানাও / প্রিন্ট', en: 'Save as PDF / print' },
   printed_on: { bn: 'তৈরি', en: 'Generated' },

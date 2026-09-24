@@ -6087,9 +6087,101 @@
            [t('total_expense'), money(pj.expense || 0)],
            [t('prog_balance'), money(pj.balance || 0)]]);
     }
+    if (id === 'final') {
+      // A294: each section printed from its own report's print layout, so the
+      // paper matches the standalone sheets column-for-column.
+      return printReportHTML('overview', d.overview, data) +
+        printReportHTML('areas', d.areas, data) +
+        printReportHTML('collectors', d.collectors, data) +
+        printReportHTML('expenses', d.expenses, data) +
+        printReportHTML('daily', d.daily, data);
+    }
+    if (id === 'audit') {
+      const T = d.totals || {};
+      const ok = !(d.anomalies && d.anomalies.length);
+      const tally = {};
+      (d.anomalies || []).forEach(function (a) { tally[a.type] = (tally[a.type] || 0) + 1; });
+      return '<h3>🔎 ' + esc(t('report_audit')) + '</h3>' +
+        printTable([t('report_audit'), ''], [
+          [t('audit_held_note'), ok ? '✅' : '⚠️'],
+          [t('collected_col'), money(T.collected)],
+          [t('spent_col'), money(T.spent)],
+          [t('inhand_col'), money(T.inHand)],
+          [t('my_pending'), money(T.pending)]]) +
+        '<h3>' + esc(t('report_inhand')) + '</h3>' +
+        printTable([t('collector_col'), t('collected_col'), t('handed_col'), t('spent_col'), t('inhand_col')],
+          (d.rows || []).map(function (r) {
+            return [r.collector, money(r.collected), money(r.handedOver), money(r.spent), money(r.inHand)];
+          })) +
+        (Object.keys(tally).length ? '<h3>' + esc(t('audit_anomalies_n').replace('{n}', String((d.anomalies || []).length))) + '</h3>' +
+          printTable([t('type_col'), t('count_col')],
+            Object.keys(tally).map(function (ty) { return [t('anom_' + ty + '_t'), tally[ty]]; })) : '') +
+        ((d.voids || []).length ? '<h3>' + esc(t('audit_voids')) + '</h3>' +
+          printTable([t('date_col'), t('collector_col'), t('comment_col')],
+            d.voids.map(function (v) { return [fmtDate(v.createdAt || v.date), v.collector || '', v.reason || '']; })) : '');
+    }
     return reportHTML(id, d); // overview is already a full statement
   }
+  // A294: the season's whole statement — every existing section, one screen. It
+  // composes the sub-reports computeReport('final') already bundled, so there is
+  // no second arithmetic to keep in step with the standalone reports.
+  function reportFinalHTML(d) {
+    return totalsHTML(d.overview, t('report_overview')) +
+      reportAreasHTML(d.areas) +
+      reportCollectorsHTML(d.collectors) +
+      reportExpensesHTML(d.expenses) +
+      reportDailyHTML(d.daily);
+  }
+  // A294: the financial audit. Leads with the one thing no other screen states —
+  // does the book balance — then the per-collector reconciliation (reusing the
+  // in-hand card), an anomaly tally that points at the 🩺 desk for detail, and
+  // the void log.
+  function reportAuditHTML(d) {
+    // derive the verdict from the anomalies actually shown (the app overrides
+    // them with live-rule reconcile), so the headline can never contradict the
+    // list below it.
+    const ok = !(d.anomalies && d.anomalies.length);
+    const T = d.totals || {};
+    const banner = '<div class="card"><div class="card-title">🔎 ' + esc(t('report_audit')) + '</div>' +
+      '<div class="' + (ok ? 'green' : 'red') + '" style="font-weight:700;padding:2px 4px">' +
+        (ok ? '✅ ' + esc(t('audit_balanced')) : '⚠️ ' + esc(t('audit_mismatch'))) + '</div>' +
+      '<div class="row-sub" style="margin:6px 4px 0">' +
+        esc(t('collected_col')) + ' ' + fmtMoney(T.collected) +
+        ' • ' + esc(t('spent_col')) + ' ' + fmtMoney(T.spent) +
+        ' • ' + esc(t('inhand_col')) + ' ' + fmtMoney(T.inHand) +
+        (T.pending ? ' • ⏳ ' + fmtMoney(T.pending) : '') + '</div>' +
+      '<div class="row-sub" style="margin:2px 4px">' + esc(t('audit_held_note')) + '</div></div>';
+    const perColl = reportInhandHTML({ rows: d.rows });
+    const anom = (d.anomalies && d.anomalies.length)
+      ? '<div class="card"><div class="card-title">' +
+          esc(t('audit_anomalies_n').replace('{n}', String(d.anomalies.length))) + '</div>' +
+          auditAnomTally(d.anomalies) + '</div>'
+      : '<div class="card"><div class="card-title">' + esc(t('audit_no_anomalies')) + '</div></div>';
+    const voids = (d.voids && d.voids.length)
+      ? '<div class="card"><div class="card-title">' + esc(t('audit_voids')) +
+          ' (' + d.voids.length + ')</div>' +
+          d.voids.map(function (v) {
+            return '<div class="row-sub" style="padding:2px 4px">' +
+              esc(fmtDate(v.createdAt || v.date)) + ' • ' + esc(v.collector || '') +
+              (v.reason ? ' — ' + esc(v.reason) : '') + '</div>';
+          }).join('') + '</div>'
+      : '';
+    return banner + perColl + anom + voids;
+  }
+  // A294: anomalies grouped by kind with a count each, using the SAME title keys
+  // the 🩺 desk uses (anom_<type>_t) so the two never disagree on what a kind is
+  // called. The desk stays the place to ACT; this is the audit's tally.
+  function auditAnomTally(list) {
+    const by = {};
+    (list || []).forEach(function (a) { by[a.type] = (by[a.type] || 0) + 1; });
+    return Object.keys(by).map(function (ty) {
+      return '<div class="row-sub" style="padding:2px 4px">• ' +
+        esc(t('anom_' + ty + '_t')) + ' × ' + by[ty] + '</div>';
+    }).join('');
+  }
   function reportHTML(id, d) {
+    if (id === 'final') return reportFinalHTML(d);
+    if (id === 'audit') return reportAuditHTML(d);
     if (id === 'overview') return totalsHTML(d, t('report_overview'));
     if (id === 'dues') return reportDuesHTML(d);
     if (id === 'inhand') return reportInhandHTML(d);
@@ -6750,7 +6842,8 @@
   // and "কে কত তুলল" are about people, not books, and splitting them would
   // invent a fact that does not exist — nobody can say which ₹500 of the ₹3,000
   // in Ramesh's pocket is programme money, because it is not true of the notes.
-  const WHOLE_BOOK_REPORTS = ['inhand', 'collectors'];
+  // A294: final and audit are committee-wide — the whole book, both sectors.
+  const WHOLE_BOOK_REPORTS = ['inhand', 'collectors', 'final', 'audit'];
   function bookFor(id, data) {
     if (WHOLE_BOOK_REPORTS.includes(id)) return data;
     if (id === 'program') return data; // computeReport('program') filters itself

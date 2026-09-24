@@ -7876,7 +7876,9 @@ try {
   });
   eq(/program_on: 1 \}/.test(gs), true,
      'A148: setConfig accepts program_on — without it the admin toggle would answer ok and do nothing');
-  eq(/var REPORT_IDS = \[[^\]]*'program'\]/.test(gs), true, 'A148 mirror: the server knows the report too');
+  // A294: was pinned to 'program' being the LAST id; final/audit now follow it.
+  // The property is that the server's REPORT_IDS knows 'program', not its position.
+  eq(/var REPORT_IDS = \[[^\]]*'program'[^\]]*\]/.test(gs), true, 'A148 mirror: the server knows the report too');
   // OFF by default: no programme, no question on any entry screen
   // A153 removed the question entirely, so what programOn() now gates is the
   // TAB — which is the same property one level up: a committee with no programme
@@ -8314,7 +8316,9 @@ try {
   const fs = require('fs');
   const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
 
-  eq(/const WHOLE_BOOK_REPORTS = \['inhand', 'collectors'\];/.test(app), true,
+  // A294: was pinned to the exact two-element list; final/audit are also
+  // whole-book now. The property is that inhand and collectors are in it.
+  eq(/const WHOLE_BOOK_REPORTS = \[[^\]]*'inhand'[^\]]*'collectors'[^\]]*\];/.test(app), true,
      'A154: two reports stay WHOLE — a note in a pocket has no ভাঁড়ার…');
   eq(/return Aggregate\.ofSector\(data, 'puja'\);/.test(app), true,
      'A154: …and every other one is the puja\'s book');
@@ -9838,6 +9842,60 @@ pending.push((async function () {
      'A276: the four chip lists all go through it');
 }
 
+// A294 — the final statement and the financial audit, at the aggregate level
+// where the money logic lives. Both are CLIENT-ONLY consolidations.
+{
+  const A = require('../js/aggregate.js');
+  // ram collects, hands ₹2,000 to the cashier (kali, confirmed); kali spends
+  // ₹500. So after the dust: ram holds 3000−2000=1000, kali holds 2000−500=1500,
+  // total held 2500 = collected 3000 − spent 500. The books must say so.
+  const book = {
+    parties: [{ id: 'p1', type: 'shop', name: 'পাল', pledged: 5000, collectorId: 'ram', side: 'main_malda' }],
+    payments: [{ id: 'y1', partyId: 'p1', amount: 2000, cashAmount: 2000, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' }],
+    daily: [{ id: 'd1', type: 'road', amount: 1000, cashAmount: 1000, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' }],
+    expenses: [{ id: 'e1', subject: 'প্যান্ডেল', desc: 'রাজু', amount: 500, cashAmount: 500, upiAmount: 0, collector: 'kali', collectorId: 'kali', date: '2026-09-05' }],
+    handovers: [{ id: 'h1', amount: 2000, cashAmount: 2000, upiAmount: 0, from: 'ram', fromId: 'ram', to: 'kali', toId: 'kali', status: 'confirmed', confirmedBy: 'kali', date: '2026-09-05' }],
+    voids: [{ id: 'v1', targetStore: 'payments', targetId: 'yX', reason: 'ভুল অঙ্ক', collector: 'ram', createdAt: '2026-09-05T10:00:00Z' }],
+    corrections: [],
+  };
+
+  // ── final: a bundle of the existing reports, no new arithmetic
+  const fin = A.computeReport('final', book);
+  eq(!!(fin.overview && fin.areas && fin.collectors && fin.expenses && fin.daily), true,
+     'A294: final bundles overview + areas + collectors + expenses + daily');
+  eq(fin.overview.totalCollection, 3000, 'A294: final.overview totals the whole book (₹2000 + ₹1000)');
+  eq(fin.overview.totalExpense, 500, 'A294: …and its expenses');
+  eq(fin.overview.inHand, 2500, 'A294: …and in-hand = collected − spent');
+  eq(fin.collectors.rows.length >= 1, true, 'A294: final carries the by-collector rows');
+
+  // ── audit: the balancing identity, per-collector, voids
+  const aud = A.computeReport('audit', book);
+  eq(aud.totals.collected, 3000, 'A294: audit totals what was collected');
+  eq(aud.totals.spent, 500, 'A294: …and spent');
+  eq(aud.totals.inHand, 2500, 'A294: …and what is still held nets to collected − spent');
+  eq(aud.balances, true, 'A294: a clean book BALANCES — reconcile finds nothing');
+  eq(aud.anomalies.length, 0, 'A294: …and lists no anomalies');
+  const byName = {}; aud.rows.forEach(function (r) { byName[r.collector] = r; });
+  eq(byName.ram.inHand, 1000, 'A294: ram holds 3000 collected − 2000 handed = 1000');
+  eq(byName.kali.inHand, 1500, 'A294: kali holds 2000 received − 500 spent = 1500');
+  eq(aud.voids.length, 1, 'A294: the audit lists voided entries');
+  eq(aud.voids[0].reason, 'ভুল অঙ্ক', 'A294: …with the reason, which is what an audit reads');
+
+  // ── a BROKEN book must NOT balance — the whole point of the report. A payment
+  // whose cash+UPI does not add up to its amount is the classic one (A21
+  // breakdown_mismatch): ₹2,000 recorded but only ₹1,500 accounted for.
+  const broken = JSON.parse(JSON.stringify(book));
+  broken.payments.push({ id: 'y9', partyId: 'p1', amount: 2000, cashAmount: 1500, upiAmount: 0,
+    collector: 'ram', collectorId: 'ram', date: '2026-09-05' });
+  const audB = A.computeReport('audit', broken);
+  eq(audB.balances, false, 'A294: a payment whose cash+UPI ≠ amount breaks the audit — it does NOT balance');
+  eq(audB.anomalies.length >= 1, true, 'A294: …and the discrepancy is listed');
+
+  // ── client-only: the aggregate builds them, and REPORT_IDS carries them
+  eq(A.REPORT_IDS.indexOf('final') >= 0 && A.REPORT_IDS.indexOf('audit') >= 0, true,
+     'A294: both are grantable reports');
+}
+
 // A277 — js/app.js, BUILT and read, not grepped.
 //
 // 288 of 352 mutations of that file survive and 66 of the 72 catches were a
@@ -10365,7 +10423,7 @@ pending.push((async function () {
     await press('rep:puja', '1');
     eq(ticked().includes('program'), true,
        'A282: "সব দাও" on the committee\'s reports LEAVES the programme\'s where it was');
-    eq(ticked().length, 8, 'A282: …and grants the committee\'s seven');
+    eq(ticked().length, 10, 'A282: …and grants the committee\'s nine (A294 added final + audit)');
     await press('rep:puja', '0');
     eq(ticked().join(','), 'program',
        'A282: …and "সব নাও" takes back only the committee\'s — this is the tap the bug was in');
@@ -11548,6 +11606,52 @@ pending.push((async function () {
     // the trap this design exists to avoid
     eq(/curtainOn[\s\S]{0,200}?data\.parties[\s\S]{0,80}?name =/.test(app89), false,
        'A289: the curtain never assigns a name into the data — the edit form reads party.name straight into its input, and one ✏️ with the curtain drawn would SAVE the mask as the donor');
+  }
+})());
+
+// A294 — the two reports RENDERED on the real report screen, driven through the
+// picker the way a thumb does, not just computed.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন রোড', nameEn: 'Main Rd' }];
+  const CENTRAL = {
+    parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'পাল স্টোর্স', pledged: 5000,
+                side: 'main_malda', collector: 'ram', collectorId: 'ram', createdAt: '2026-09-01T10:00:00Z' }],
+    payments: [{ id: 'y1', year: 2026, partyId: 'p1', partyName: 'পাল স্টোর্স', amount: 2000,
+                 cashAmount: 2000, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' }],
+    daily: [{ id: 'd1', year: 2026, type: 'road', amount: 1000, cashAmount: 1000, upiAmount: 0,
+              collector: 'ram', collectorId: 'ram', date: '2026-09-04' }],
+    expenses: [{ id: 'e1', year: 2026, subject: 'প্যান্ডেল', desc: 'রাজু ডেকরেটর্স', amount: 500,
+                 cashAmount: 500, upiAmount: 0, collector: 'kali', collectorId: 'kali', date: '2026-09-05' }],
+    handovers: [{ id: 'h1', year: 2026, amount: 2000, cashAmount: 2000, upiAmount: 0, from: 'ram',
+                  fromId: 'ram', to: 'kali', toId: 'kali', status: 'confirmed', confirmedBy: 'kali', date: '2026-09-05' }],
+    voids: [{ id: 'v1', year: 2026, targetStore: 'payments', targetId: 'yX', reason: 'ভুল অঙ্ক',
+              collector: 'ram', createdAt: '2026-09-05T10:00:00Z' }],
+    corrections: [], messages: [],
+  };
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const openReport = async function (h, rep) {
+    await h.show('report');
+    const chip = h.doc.querySelectorAll('#report-picker [data-rep]')
+      .filter(function (b) { return b.dataset.rep === rep; })[0];
+    eq(!!chip, true, 'A294: the ' + rep + ' report is offered to the admin');
+    chip.onclick();
+    await new Promise(function (r) { setImmediate(r); });
+    await new Promise(function (r) { setImmediate(r); });
+    return h.html('report-body');
+  };
+  {
+    const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: CENTRAL });
+    await h.ready;
+    const fin = await openReport(h, 'final');
+    eq(/পাল স্টোর্স|রাম|ram/.test(fin) || /৩,০০০|3,000/.test(fin) || fin.length > 200, true,
+       'A294: the final statement renders content');
+    eq(/রাজু ডেকরেটর্স/.test(fin), true, 'A294: …including the expense with its comment');
+
+    const aud = await openReport(h, 'audit');
+    eq(/✅/.test(aud), true, 'A294: a clean book shows the ✅ balanced verdict');
+    eq(/ভুল অঙ্ক/.test(aud), true, 'A294: …and the audit lists the voided entry with its reason');
+    eq(/report-pdf/.test(aud), true, 'A294: …and offers a PDF button');
   }
 })());
 

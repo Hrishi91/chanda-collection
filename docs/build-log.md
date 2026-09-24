@@ -19597,3 +19597,53 @@ repoint in this stretch (A210 arity, A143 spelling) — the pattern is a standin
 cost of source-text assertions, logged each time.
 
 Tests 4,084 → 4,085. CLIENT night — everyone 🔄.
+
+---
+
+## A294 — the final statement and the financial audit, two consolidated reports — v4.126.0 (SERVER)
+
+> Hrishi, from the live app: *"we need final report and audit report … build both
+> now, everything."*
+
+Two new CLIENT-ONLY reports, joining the eight — both are consolidations of what
+`computeReport` and `reconcile` already produce, so no new money arithmetic exists
+to drift from the standalone screens.
+
+- **🧾 চূড়ান্ত হিসাব (final):** `computeReport('final')` bundles overview + areas +
+  collectors + expenses + daily; `reportFinalHTML` / the print branch lay each out
+  from its own report's renderer, so the paper matches the standalone sheets
+  column-for-column. Whole-book (both sectors).
+- **🔎 আর্থিক নিরীক্ষা (audit):** per-collector reconciliation (reuses the in-hand
+  card), the void log with reasons, an anomaly tally that names each kind with the
+  SAME `anom_<type>_t` key the 🩺 desk uses, and the headline verdict.
+
+**The verdict is honest, not a tautology — this was the real design catch.** The
+first cut computed "Σ in-hand == collected − spent" and declared the book balanced.
+That can NEVER be false: `inHandRows` nets every row consistently, so the sum
+always equals itself. `handoverGap` (Σreceived vs Σhanded) was tautological too —
+both sides of a confirmed parcel are always counted. Caught by trying to write a
+failing-book test and finding it stayed green. The real verdict is
+`reconcile(...).anomalies.length === 0` — a payment whose cash+UPI ≠ its amount, a
+payment with no donor, an over-spent collector, a donor paid past their pledge.
+Proved by a broken-book test (a ₹2,000 payment with only ₹1,500 accounted) going
+red.
+
+Rules are `{}` on purpose: a *financial* audit reports money faults; the one
+rule-driven anomaly (`position_over_max`) is committee governance, not money, and
+stays on the 🩺 desk. An earlier version overrode the audit's anomalies with live
+rules in `loadReport`; it survived mutation (no test needed it) and was the wrong
+scope, so it was removed rather than left as an untested guard.
+
+Wiring: `final`/`audit` added to `REPORT_IDS` (both files — A238) but NOT
+`SERVER_REPORT_IDS`, so the older `report` action answers `report-client-only`
+(A208); `WHOLE_BOOK_REPORTS` gained both; `report_final`/`report_audit` labels.
+Three brittle source-text assertions repointed (A148/A154/A277 pinned exact list
+contents or the last element) — the standing cost of source-text tests, logged
+each time.
+
+Server changed (REPORT_IDS mirror), so this is a SERVER night — but `APP_SCHEMA`
+stays 5: the client computes both reports locally and never calls the server for
+them, so nothing in the contract the phones speak has changed, and no phone is
+locked out by the version bump.
+
+Tests 4,087 → 4,111. **SERVER night.**

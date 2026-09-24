@@ -1670,7 +1670,12 @@
   // A148: 'program' is the অনুষ্ঠান ভাঁড়ার's own report. Adding the id here gives
   // it a grantable permission for free — REPORT_IDS feeds POSITION_PERM_KEYS —
   // so the committee can hand the programme's accounts to whoever runs it.
-  const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily', 'program'];
+  // A294: 'final' (the season's whole statement) and 'audit' (the financial
+  // audit) are CLIENT-ONLY, like 'program' — both bundle other reports and the
+  // 🩺 reconcile, which live on the phone. Not in SERVER_REPORT_IDS (Code.gs),
+  // so the older `report` action answers 'report-client-only' rather than
+  // 'unknown'. tests/backend.js checks both directions of that pair.
+  const REPORT_IDS = ['overview', 'dues', 'inhand', 'collectors', 'areas', 'expenses', 'daily', 'program', 'final', 'audit'];
 
   // ---- permissions -------------------------------------------------------
   // What an admin can grant per user, stored as a CSV in the Users sheet's
@@ -2403,6 +2408,53 @@
       const byType = { road: 0, toto: 0 };
       (d.daily || []).filter(isRound).forEach(function (r) { byType[r.type] += Number(r.amount) || 0; });
       return { rows: rows, byType: byType };
+    }
+    // A294: the season's whole statement, on one page. It INVENTS no arithmetic —
+    // every part is an existing report, bundled, so the final sheet and the live
+    // screens can never disagree. Bank balance is not here yet (deferred to the
+    // super-admin build); when it lands it is one more section, not a rewrite.
+    if (id === 'final') {
+      return {
+        overview: computeReport('overview', data),
+        areas: computeReport('areas', data),
+        collectors: computeReport('collectors', data),
+        expenses: computeReport('expenses', data),
+        daily: computeReport('daily', data),
+      };
+    }
+    // A294: the financial audit — "do the books prove correct?" Again a bundle of
+    // what already exists, plus the one thing an audit needs that no screen shows
+    // as a report: the balancing identity, computed here so it is testable.
+    if (id === 'audit') {
+      const rows = inHandRows(data); // per-collector: collected/received/handed/pending/spent/inHand
+      const totalCollected = sum(rows, function (r) { return r.collected; });
+      const totalReceived = sum(rows, function (r) { return r.received; });
+      const totalHanded = sum(rows, function (r) { return r.handedOver; });
+      const totalSpent = sum(rows, function (r) { return r.spent; });
+      const totalInHand = sum(rows, function (r) { return r.inHand; });
+      const totalPending = sum(rows, function (r) { return r.pending; });
+      // The honest verdict is NOT "does Σ in-hand equal collected − spent" — that
+      // is a TAUTOLOGY, because inHandRows nets every row consistently, so it can
+      // never disagree with itself. The real audit is: does `reconcile` find any
+      // money discrepancy — a payment whose cash+UPI does not match its amount, a
+      // payment pointing at no donor, a collector who has spent more than they
+      // hold, a donor paid over their pledge. Zero anomalies = the books balance.
+      // Rules are {} on purpose: a FINANCIAL audit reports money faults, and the
+      // rule-driven anomaly (position_over_max) is committee GOVERNANCE, not
+      // money — it stays on the 🩺 desk, which runs the live rules.
+      const anomalies = reconcile(data, {}).anomalies;
+      const balances = anomalies.length === 0;
+      const voids = (data.voids || []).slice().sort(function (a, b) {
+        return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+      });
+      return {
+        rows: rows,
+        totals: { collected: totalCollected, received: totalReceived, handedOver: totalHanded,
+                  spent: totalSpent, inHand: totalInHand, pending: totalPending },
+        balances: balances,
+        anomalies: anomalies,
+        voids: voids,
+      };
     }
     throw new Error('unknown report');
   }
