@@ -2784,7 +2784,7 @@
       // is how people learn the figure is decorative.
       const inHandNow = (avail.cash + avail.upi);
       const holdLine = Aggregate.moreThan(inHandNow, 0)
-        ? '<button class="hero-hold" data-go="report">' + esc(t('sum_hero')) + ': <b>' + fmtMoney(inHandNow) + '</b> ›</button>'
+        ? '<button class="hero-hold" data-go="report">' + esc(t('sum_hero')) + ': <span class="nowrap"><b>' + fmtMoney(inHandNow) + '</b> ›</span></button>'
         : '<div class="hero-sub">' + esc(t('sum_hero')) + ': <b>' + fmtMoney(0) + '</b></div>';
       $view().innerHTML =
         '<div id="notif-banner"></div>' +
@@ -4076,11 +4076,11 @@
         const who = isVoid && (vd.by || vd.at)
           ? ' — ' + esc([vd.by, vd.at ? agoText(vd.at) : ''].filter(Boolean).join(', ')) : '';
         const reason = isVoid && vd.reason && vd.reason !== 'undo' ? ': ' + esc(vd.reason) : '';
-        return '<div class="row' + (isVoid ? ' voided' : '') + '"><div>' + esc(fmtDate(x.date || x.createdAt)) +
+        return '<div class="row' + (isVoid ? ' voided' : '') + '"><div class="hist-main"><span class="d">' + esc(fmtDate(x.date || x.createdAt)) + '</span>' +
           '<div class="row-sub">' + esc(x.collector || '') + (x.note ? ' • ' + esc(x.note) : '') +
           (isVoid ? ' • <span class="void-tag">' + esc(t('voided_label')) + who + reason + '</span>' : '') + '</div></div>' +
           '<b>' + fmtMoney(x.amount) + '</b>' +
-          (isVoid ? '' : '<button class="chip" data-receipt="' + esc(x.id) + '">🧾</button>') +
+          (isVoid ? '' : '<button class="chip icon" data-receipt="' + esc(x.id) + '">🧾</button>') +
           (isVoid || !canVoid(x) ? '' : '<button class="chip void-btn" data-void="' + esc(x.id) + '">' + esc(t('void_btn')) + '</button>') + '</div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
     const payBtn = document.getElementById('pay-btn');
@@ -5248,7 +5248,7 @@
           : isFlag ? ' • <span class="void-tag">⚠️ ' + esc(t('flag_pending')) + '</span>'
           : r.rejected ? ' • <span class="void-tag">' + esc(t('rejected_label')) + '</span>' : '';
         const busReceipt = (!isVoid && it.store === 'daily' && r.type === 'bus')
-          ? '<button class="chip" data-drcp="' + esc(r.id) + '">🧾</button>' : '';
+          ? '<button class="chip icon" data-drcp="' + esc(r.id) + '">🧾</button>' : '';
         // Once you have flagged your OWN entry you may fix it yourself: you have
         // declared it wrong, and nobody knows better than you what it should
         // say. Only the person who made it, and only these three stores — a
@@ -8228,9 +8228,9 @@
                     esc(u.role === 'admin' ? t('remove_admin') : t('make_admin')) + '</button>';
           }
           btns += '<button class="chip" data-act="editinfo" data-id="' + u.id + '" data-u="' + esc(u.username) + '">✏️ ' + esc(t('profile_btn')) + '</button>' +
-                  '<button class="chip" data-act="reset" data-id="' + u.id + '">' + esc(t('reset_pw')) + '</button>' +
+                  '<button class="chip danger" data-act="reset" data-id="' + u.id + '">' + esc(t('reset_pw')) + '</button>' +
                   '<button class="chip" data-act="release" data-id="' + u.id + '">' + esc(t('release_session')) + '</button>' +
-                  (u.role === 'admin' ? '' : '<button class="chip" data-act="block" data-id="' + u.id + '">' + esc(t('block')) + '</button>');
+                  (u.role === 'admin' ? '' : '<button class="chip danger" data-act="block" data-id="' + u.id + '">' + esc(t('block')) + '</button>');
         } else {
           btns = '<button class="chip" data-act="unblock" data-id="' + u.id + '">' + esc(t('unblock')) + '</button>';
         }
@@ -8242,7 +8242,7 @@
         if (Aggregate.isOrdinaryMember(u)) {
           btns += u.access === 'exiting'
             ? '<button class="chip" data-act="restore" data-id="' + u.id + '">' + esc(t('access_restore')) + '</button>'
-            : '<button class="chip" data-act="exit" data-id="' + u.id + '">' + esc(t('access_exit')) + '</button>';
+            : '<button class="chip danger" data-act="exit" data-id="' + u.id + '">' + esc(t('access_exit')) + '</button>';
         }
         // A99: the account picture, for anyone who could be holding something.
         //

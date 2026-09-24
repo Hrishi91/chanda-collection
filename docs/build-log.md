@@ -19566,3 +19566,34 @@ comment and an "Other" expense. Display only, same as A291; reports are
 unaffected (they call `expenseTitle`/`expenseNote` directly, not `entrySummary`).
 
 Two mutations, two names. Tests 4,082 → 4,085. CLIENT night — everyone 🔄.
+
+---
+
+## A293 — the A285 cosmetic batch, applied and measured at 320px — v4.125.0
+
+Hrishi asked to do the batched UI now. Four of the six A285 items — the two
+"projects" (dark palette, px→rem) stay deferred. All four measured live at 320px
+in a CSS harness before shipping (A285's own rule: measure, don't assume):
+
+1. **🧾 receipt chip** on the donor payment history was 50×43 — under the 44 tap
+   floor. New `.chip.icon` gives an icon-only chip a square 44×44 target without
+   touching text chips. **Measured 44×44.**
+2. **The payment-history date broke mid-token at 320px** (`2026-` / `09-01`). The
+   left column now flexes and shrinks (`.hist-main`), the date is kept whole
+   (`.d { white-space: nowrap }`), and the collector line ellipsises instead.
+   **Measured: date one line, 19px.**
+3. **The home hero's `›` dropped to its own line at 320px.** The figure and its
+   chevron are wrapped in one `.nowrap` span. **Measured: one 16px line.**
+4. **The admin panel's destructive buttons read as the same grey ghost** as
+   ✏️ rename. `block` / stand-down / `reset` now carry `.chip.danger` — the same
+   red-on-white as void-btn — so "this one is different" is visible before the
+   tap. ✏️ rename and 🔓 release stay neutral. **Measured: danger #c62828 vs
+   neutral --ink.**
+
+One brittle test repointed: A277 pinned the hero's exact spelling `: <b>₹400</b>`;
+the `.nowrap` wrapper is display-only and keeps the `<b>`, so the assertion now
+matches the property (label + tappable figure), not the punctuation. Third such
+repoint in this stretch (A210 arity, A143 spelling) — the pattern is a standing
+cost of source-text assertions, logged each time.
+
+Tests 4,084 → 4,085. CLIENT night — everyone 🔄.

@@ -118,6 +118,9 @@ nav#bottomnav {
   color: var(--ink); text-align: left; cursor: pointer;
 }
 .hero-hold b { font-size: 16px; }
+/* A293: keep the figure and its › one unit, so at 320px the chevron never drops
+   to a line of its own under the amount. */
+.nowrap { white-space: nowrap; }
 
 /* A77: the offline strip. Its own element, not a fourth state of the training
    bar — a collector can be offline AND in training mode at once, and one slot
@@ -264,6 +267,21 @@ select.chip { appearance: none; -webkit-appearance: none; max-width: 52vw; }
   border-radius: 99px; padding: 10px 16px; font-size: 15px; font-weight: 600; cursor: pointer;
 }
 .chip.on { background: var(--saffron-ontext); border-color: var(--saffron-ontext); color: #fff; }
+/* A293: an icon-only chip (🧾) is a single glyph, so .chip's text padding left it
+   50×43 — under the 44 tap floor the rest of the app keeps (A84, void-btn). A
+   square 44×44 target, centred, without touching text chips. */
+.chip.icon { min-width: 44px; min-height: 44px; padding: 6px; display: inline-flex;
+  align-items: center; justify-content: center; }
+/* A293: the destructive admin actions (block / stand-down / reset password) read
+   as the same grey ghost as ✏️ rename. Same red-on-white as void-btn, so "this
+   one is different" is visible before the tap, not only in the confirm dialog. */
+.chip.danger { border-color: var(--red); color: var(--red); }
+/* A293: the payment-history row at 320px — the date "2026-09-01" broke mid-token
+   because the left column had no room to shrink into. Let it take the slack and
+   keep the date whole; the collector line ellipsises instead of wrapping. */
+.hist-main { flex: 1 1 auto; min-width: 0; }
+.hist-main .d { white-space: nowrap; }
+.hist-main .row-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .flow-actions { display: flex; gap: 10px; margin-top: 10px; }
 .flow-actions .primary { flex: 1; }
 .search {

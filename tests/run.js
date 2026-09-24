@@ -9949,7 +9949,11 @@ pending.push((async function () {
        'A277: every granted kind gets a tile');
     eq(/data-go="bus"/.test(html) || /data-go="member"/.test(html), false,
        'A277: …and nothing that was not granted, because a dead tile is worse than a missing one');
-    eq(/এখন আমার হিসাবে আছে: <b>₹400<\/b>/.test(html), true,
+    // A293: was pinned to the exact spelling `: <b>₹400</b>`; A293 wrapped the
+    // figure and its › in a .nowrap span (so the chevron can't drop to its own
+    // line at 320px), which is display-only and keeps the <b>₹400</b>. Match the
+    // property — the label and the tappable figure — not the punctuation between.
+    eq(/এখন আমার হিসাবে আছে:[\s\S]{0,40}?<b>₹400<\/b>/.test(html), true,
        'A277: …and the money this collector is holding, as a figure they can tap into');
   }
 
