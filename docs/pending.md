@@ -981,6 +981,43 @@ The third is defensible. Recording it so the choice is made on purpose.
   store — the first schema bump since 5 — so it is a season-boundary change,
   not a mid-trial one.
 
+  ### Agreed design — DECIDED 2026-09-24/25, DEFERRED to the super-admin build
+
+  Brainstormed with Hrishi from the live app. **Both** functionalities are in
+  scope: (ক) a running account ledger AND (খ) full reconciliation. **Not to be
+  built now** — Hrishi: *"it depends on features taken from super admin after
+  discussion … wait, don't do this implementation, document it, will do at the
+  time of super-admin implementation."* The super-admin **entitlement** decides
+  which of these a given tenant gets, so this is built as part of that phase, not
+  before. Shape agreed:
+
+  - **Three additive sheets (collectors' path untouched):**
+    - `Accounts` — id · name · type (bank / cash-box) · openingBalance · active.
+      **Multiple accounts** allowed.
+    - `QRs` — id · label · accountId · UPI VPA/image · active. **Multiple QRs,
+      exactly one active at a time, admin toggles which** ("as of now"); the
+      active QR is what the payment/receipt screen shows, and it routes UPI to
+      its account.
+    - `AccountTxns` — the per-account ledger: জমা / তোলা / transfer · amount ·
+      date · by · source-link (which handover was deposited, which expense was
+      paid from the account).
+  - **Extended invariant:** Σ(all hands) + Σ(account balances) = collected −
+    spent. Money lives in three places — collector's hand, cashier's hand,
+    accounts. The 🩺 desk gains an account-reconciliation check.
+  - **UPI destination is admin-decided, via a config flag `upi_mode`** (Hrishi:
+    *"admin will decide this all"*):
+    - `collector` (default, today's behaviour) — UPI is "in hand" like cash
+      until handed over;
+    - `committee` — UPI paid via the active committee QR lands **directly in that
+      QR's account** and is never "in hand".
+    Default OFF, so turning it on is opt-in and reversible.
+  - **Safe-now core vs behind-the-flag:** the sheets, QR management, deposits/
+    withdrawals, the balance report and showing the active QR are all additive
+    (no schema bump, no change to what collectors' phones speak). The one deep
+    part — "UPI stops being in hand" — rides `upi_mode` and only flips when
+    everyone has refreshed. (All of this still waits for the super-admin phase
+    per Hrishi's instruction above; recorded here so nothing is re-derived then.)
+
 - **Audit** (Hrishi, same message). What exists today, measured:
   - an `Audit` sheet (`id, ts, actor, actorId, action, detail`), an
     `auditLog` action, and 📜 কার্যকলাপ in the admin panel;
