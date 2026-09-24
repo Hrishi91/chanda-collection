@@ -19647,3 +19647,16 @@ them, so nothing in the contract the phones speak has changed, and no phone is
 locked out by the version bump.
 
 Tests 4,087 → 4,111. **SERVER night.**
+
+---
+
+## rebake config.js for the v4.126.0 deployment — 2026-09-25
+
+A294 (final + audit reports) deployed. Probed with an invalid token before baking:
+
+```
+ok=false   error=bad-token   codeVersion=chanda-v4.126.0   schema=5
+```
+
+Server and client agree. Phones need ⚙️ → 🔄 to see the two new reports (app-shell
+changed); config.js is network-first so the new /exec reaches them on next load.
