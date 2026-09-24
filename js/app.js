@@ -6090,9 +6090,24 @@
     if (id === 'final') {
       // A294: each section printed from its own report's print layout, so the
       // paper matches the standalone sheets column-for-column.
+      // A296: …and the per-collector detail, every collector open on paper.
+      const dailyName = function (r) { return t('type_' + r.type) + (r.type === 'bus' && r.busName ? ' ' + r.busName : ''); };
+      const detail = (d.collectorDetail || []).map(function (gr) {
+        const rows = [];
+        gr.payments.forEach(function (r) { rows.push([t('cd_payments'), r.anon ? t('cd_anon') : (r.name || '?'), money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]); });
+        gr.daily.forEach(function (r) { rows.push([t('cd_daily'), dailyName(r), money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]); });
+        gr.expenses.forEach(function (r) { rows.push([t('cd_expenses'), expenseTitle(r) + (expenseNote(r) ? ' · ' + expenseNote(r) : ''), money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]); });
+        gr.handovers.forEach(function (h) { rows.push([t('cd_handovers'), (h.dir === 'out' ? '→ ' : '← ') + h.who, money(h.amount), '', '', fmtDate(h.date)]); });
+        const tot = gr.totals || {};
+        return '<h3>👥 ' + esc(gr.collector) + ' — ' + esc(t('inhand_col')) + ': ' + money(tot.inHand) + '</h3>' +
+          (rows.length ? printTable(['', '', t('amount_col'), '💵', '📱', t('date_col')], rows) : '') +
+          printTable([t('collected_col'), t('handed_col'), t('spent_col'), t('inhand_col')],
+            [[money(tot.collected), money(tot.handedOver), money(tot.spent), money(tot.inHand)]]);
+      }).join('');
       return printReportHTML('overview', d.overview, data) +
         printReportHTML('areas', d.areas, data) +
         printReportHTML('collectors', d.collectors, data) +
+        '<h2>' + esc(t('cd_title')) + '</h2>' + detail +
         printReportHTML('expenses', d.expenses, data) +
         printReportHTML('daily', d.daily, data);
     }
@@ -6129,8 +6144,50 @@
     return totalsHTML(d.overview, t('report_overview')) +
       reportAreasHTML(d.areas) +
       reportCollectorsHTML(d.collectors) +
+      collectorDetailHTML(d.collectorDetail) +
       reportExpensesHTML(d.expenses) +
       reportDailyHTML(d.daily);
+  }
+  // A296: every collector's itemised ledger, one collapsible card each. A গুপ্ত
+  // donor is already nameless in the data (aggregate suppresses it), so this only
+  // has to print what it is given — it CANNOT reveal a name it never received.
+  function collectorDetailHTML(list) {
+    const dailyName = function (r) {
+      return t('type_' + r.type) + (r.type === 'bus' && r.busName ? ' ' + r.busName : '');
+    };
+    const line = function (label, r) {
+      return '<div class="row-sub" style="padding:2px 4px">' + esc(label) +
+        ' — ' + fmtMoney(r.amount) + cashUpiSub(r) +
+        (r.date ? ' · ' + esc(fmtDate(r.date)) : '') + '</div>';
+    };
+    const card = function (gr) {
+      const body =
+        (gr.payments.length ? '<div class="secttl">' + esc(t('cd_payments')) + '</div>' +
+          gr.payments.map(function (r) { return line(r.anon ? t('cd_anon') : (r.name || '?'), r); }).join('') : '') +
+        (gr.daily.length ? '<div class="secttl">' + esc(t('cd_daily')) + '</div>' +
+          gr.daily.map(function (r) { return line(dailyName(r), r); }).join('') : '') +
+        (gr.expenses.length ? '<div class="secttl">' + esc(t('cd_expenses')) + '</div>' +
+          gr.expenses.map(function (r) { return line(expenseTitle(r) + (expenseNote(r) ? ' · ' + expenseNote(r) : ''), r); }).join('') : '') +
+        (gr.handovers.length ? '<div class="secttl">' + esc(t('cd_handovers')) + '</div>' +
+          gr.handovers.map(function (h) {
+            return '<div class="row-sub" style="padding:2px 4px">' +
+              (h.dir === 'out' ? esc(t('my_handed')) + ' → ' : esc(t('my_received')) + ' ← ') + esc(h.who) +
+              ' — ' + fmtMoney(h.amount) + (h.date ? ' · ' + esc(fmtDate(h.date)) : '') + '</div>';
+          }).join('') : '');
+      const tot = gr.totals || {};
+      return '<details class="perm-grp"><summary><b>' + esc(gr.collector) + '</b>' +
+        ' <span class="row-sub">' + esc(t('collected_col')) + ' ' + fmtMoney(tot.collected) +
+        ' · ' + esc(t('inhand_col')) + ' ' + fmtMoney(tot.inHand) + '</span></summary>' +
+        body +
+        '<div class="row-sub" style="padding:4px;font-weight:700">' +
+          esc(t('collected_col')) + ' ' + fmtMoney(tot.collected) +
+          ' · ' + esc(t('handed_col')) + ' ' + fmtMoney(tot.handedOver) +
+          ' · ' + esc(t('spent_col')) + ' ' + fmtMoney(tot.spent) +
+          ' · ' + esc(t('inhand_col')) + ' ' + fmtMoney(tot.inHand) + '</div></details>';
+    };
+    return '<div class="card"><div class="card-title">' + esc(t('cd_title')) + '</div>' +
+      ((list && list.length) ? list.map(card).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') +
+      '</div>';
   }
   // A294: the financial audit. Leads with the one thing no other screen states —
   // does the book balance — then the per-collector reconciliation (reusing the

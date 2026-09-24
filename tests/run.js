@@ -9896,6 +9896,46 @@ pending.push((async function () {
      'A294: both are grantable reports');
 }
 
+// A296 — the closing report's per-collector detail, and the ANONYMOUS rule.
+{
+  const A = require('../js/aggregate.js');
+  const book = {
+    parties: [
+      { id: 'p1', type: 'shop', name: 'পাল স্টোর্স', pledged: 5000, collector: 'ram', collectorId: 'ram', side: 'main_malda' },
+      { id: 'p2', type: 'sponsor', name: 'হরি টেক্সটাইল', pledged: 30000, collector: 'ram', collectorId: 'ram' },
+      { id: 'p3', type: 'gupt', name: 'গোপন লোক', pledged: 0, collector: 'ram', collectorId: 'ram' },
+    ],
+    payments: [
+      { id: 'y1', partyId: 'p1', partyName: 'পাল স্টোর্স', amount: 2000, cashAmount: 2000, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' },
+      { id: 'y2', partyId: 'p2', partyName: 'হরি টেক্সটাইল', amount: 30000, cashAmount: 0, upiAmount: 30000, collector: 'ram', collectorId: 'ram', date: '2026-09-04' },
+      { id: 'y3', partyId: 'p3', partyName: 'গোপন লোক', amount: 5000, cashAmount: 5000, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' },
+    ],
+    daily: [{ id: 'd1', type: 'road', amount: 1000, cashAmount: 1000, upiAmount: 0, collector: 'kali', collectorId: 'kali', date: '2026-09-04' }],
+    expenses: [], handovers: [], voids: [], corrections: [],
+  };
+  const det = A.collectorDetail(book);
+  const ram = det.filter(function (g) { return g.collector === 'ram'; })[0];
+  eq(!!ram, true, 'A296: the detail groups by collector');
+  eq(ram.payments.length, 3, 'A296: ram\'s three donations are all itemised');
+  // the anonymous rule, at the SOURCE
+  const gupt = ram.payments.filter(function (p) { return p.anon; })[0];
+  eq(!!gupt, true, 'A296: the গুপ্ত payment is marked anonymous');
+  eq(gupt.name, '', 'A296: …and its donor NAME is dropped from the data entirely — not merely hidden');
+  eq(gupt.amount, 5000, 'A296: …while its amount stays, because a closing statement still counts the money');
+  // sponsor name STAYS (public by definition)
+  const spon = ram.payments.filter(function (p) { return p.name === 'হরি টেক্সটাইল'; })[0];
+  eq(!!spon, true, 'A296: a sponsor keeps their name — sponsors are public');
+  // the whole returned structure must not contain the anonymous name anywhere
+  eq(JSON.stringify(det).indexOf('গোপন লোক') < 0, true,
+     'A296: the anonymous donor\'s name appears NOWHERE in the detail — filed and published, it can never leak');
+  // totals mirror inHandRows
+  eq(ram.totals.collected, 37000, 'A296: ram collected 2000 + 30000 + 5000');
+  // and it rides the final report
+  const fin = A.computeReport('final', book);
+  eq(Array.isArray(fin.collectorDetail) && fin.collectorDetail.length >= 1, true,
+     'A296: the final (closing) report carries the per-collector detail');
+}
+
 // A277 — js/app.js, BUILT and read, not grepped.
 //
 // 288 of 352 mutations of that file survive and 66 of the 72 catches were a
@@ -11647,12 +11687,49 @@ pending.push((async function () {
     eq(/পাল স্টোর্স|রাম|ram/.test(fin) || /৩,০০০|3,000/.test(fin) || fin.length > 200, true,
        'A294: the final statement renders content');
     eq(/রাজু ডেকরেটর্স/.test(fin), true, 'A294: …including the expense with its comment');
+    // A296: the per-collector detail section, and the anonymous rule on screen
+    eq(/প্রতি সংগ্রাহকের বিস্তারিত/.test(fin), true, 'A296: the closing report shows the per-collector detail section');
 
     const aud = await openReport(h, 'audit');
     eq(/✅/.test(aud), true, 'A294: a clean book shows the ✅ balanced verdict');
     eq(/ভুল অঙ্ক/.test(aud), true, 'A294: …and the audit lists the voided entry with its reason');
     eq(/report-pdf/.test(aud), true, 'A294: …and offers a PDF button');
   }
+})());
+
+// A296 — the closing report's per-collector detail RENDERED, and the anonymous
+// donor's name proven absent from the screen (not just the data).
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন রোড', nameEn: 'Main Rd' }];
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const CENTRAL = {
+    parties: [
+      { id: 'p1', year: 2026, type: 'shop', name: 'পাল স্টোর্স', pledged: 5000, side: 'main_malda',
+        collector: 'ram', collectorId: 'ram', createdAt: '2026-09-01T10:00:00Z' },
+      { id: 'p3', year: 2026, type: 'gupt', name: 'গোপন ব্যক্তি', pledged: 0, side: 'main_malda',
+        collector: 'ram', collectorId: 'ram', createdAt: '2026-09-01T10:06:00Z' },
+    ],
+    payments: [
+      { id: 'y1', year: 2026, partyId: 'p1', partyName: 'পাল স্টোর্স', amount: 2000, cashAmount: 2000, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' },
+      { id: 'y3', year: 2026, partyId: 'p3', partyName: 'গোপন ব্যক্তি', amount: 5000, cashAmount: 5000, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' },
+    ],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: CENTRAL });
+  await h.ready;
+  await h.show('report');
+  const chip = h.doc.querySelectorAll('#report-picker [data-rep]').filter(function (b) { return b.dataset.rep === 'final'; })[0];
+  chip.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const html = h.html('report-body');
+  eq(/প্রতি সংগ্রাহকের বিস্তারিত/.test(html), true, 'A296: the detail section renders');
+  eq(/পাল স্টোর্স/.test(html), true, 'A296: an ordinary donor is named in the detail');
+  eq(/গোপন ব্যক্তি/.test(html), false,
+     'A296: the গুপ্ত donor\'s name is ABSENT from the rendered closing report — the whole point');
+  eq(/গুপ্ত দান/.test(html), true, 'A296: …shown as "গুপ্ত দান" with its amount instead');
+  eq(/৫,০০০|5,000/.test(html), true, 'A296: …and the ₹5,000 is still counted');
 })());
 
 // A295 — the 🏁 close-the-year screen, driven on the real admin view.

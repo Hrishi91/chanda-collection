@@ -986,6 +986,13 @@ const I18N = {
   // A294: the two consolidated reports — the whole season on one page, and the
   // financial audit that proves the books balance.
   report_final: { bn: '🧾 চূড়ান্ত হিসাব', en: '🧾 Final statement' },
+  // A296: the per-collector detailed section of the closing report
+  cd_title: { bn: '👥 প্রতি সংগ্রাহকের বিস্তারিত', en: '👥 Each collector, in detail' },
+  cd_anon: { bn: 'গুপ্ত দান', en: 'Anonymous' },
+  cd_payments: { bn: '💰 চাঁদা', en: '💰 Donations' },
+  cd_daily: { bn: '🛣️ দৈনিক', en: '🛣️ Daily' },
+  cd_expenses: { bn: '🧾 খরচ', en: '🧾 Expenses' },
+  cd_handovers: { bn: '🤝 হস্তান্তর', en: '🤝 Handovers' },
   report_audit: { bn: '🔎 আর্থিক নিরীক্ষা', en: '🔎 Financial audit' },
   // A294: the audit report's own words
   audit_balanced: { bn: 'হিসাব মিলেছে — প্রতিটা টাকা ধরা আছে', en: 'The books balance — every rupee accounted for' },

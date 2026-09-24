@@ -304,6 +304,62 @@
     }).sort(function (a, b) { return b.inHand - a.inHand; });
   }
 
+  // A296: every collector's WHOLE ledger, itemised — the "প্রতি সংগ্রাহকের হিসাব"
+  // that settles arguments at the closing meeting. Grouped by collector, each with
+  // their payments (per donor), daily rounds, expenses and handovers, plus the same
+  // netting inHandRows uses so the detail and the summary agree.
+  //
+  // THE ANONYMOUS RULE: a গুপ্ত (gupt) donor's NAME never appears here. This report
+  // is filed and published, so — unlike the screen curtain (a toggle) or
+  // visibleData (which shows a keyholder) — the name is suppressed for EVERYONE,
+  // always, at the source, so it cannot leak downstream. It is dropped from the
+  // returned structure entirely (anon:true, no name), not just hidden by the
+  // renderer. Sponsor names stay: a sponsor is public by definition (A144).
+  function collectorDetail(data) {
+    const d = activeData(data);
+    const partyType = {}, partyName = {};
+    (d.parties || []).forEach(function (p) { if (p && p.id) { partyType[p.id] = p.type; partyName[p.id] = p.name; } });
+    const groups = {};
+    const g = function (k, nm) {
+      if (!groups[k]) groups[k] = { collector: nm || k, payments: [], daily: [], expenses: [], handovers: [] };
+      else if (nm) groups[k].collector = nm;
+      return groups[k];
+    };
+    (d.payments || []).forEach(function (r) {
+      const anon = String(partyType[r.partyId]) === 'gupt';
+      g(ck(r), r.collector).payments.push({
+        name: anon ? '' : (r.partyName || partyName[r.partyId] || ''), anon: anon,
+        amount: Number(r.amount) || 0, cash: Number(r.cashAmount) || 0, upi: Number(r.upiAmount) || 0,
+        date: r.date || r.createdAt,
+      });
+    });
+    (d.daily || []).forEach(function (r) {
+      g(ck(r), r.collector).daily.push({ type: r.type, busName: r.busName,
+        amount: Number(r.amount) || 0, cash: Number(r.cashAmount) || 0, upi: Number(r.upiAmount) || 0, date: r.date || r.createdAt });
+    });
+    (d.expenses || []).forEach(function (r) {
+      g(ck(r), r.collector).expenses.push({ subject: r.subject, desc: r.desc,
+        amount: Number(r.amount) || 0, cash: Number(r.cashAmount) || 0, upi: Number(r.upiAmount) || 0, date: r.date || r.createdAt });
+    });
+    (d.handovers || []).forEach(function (h) {
+      const amt = Number(h.amount) || 0;
+      const fromK = String(h.fromId || h.from || '?'), toK = String(h.toId || h.to || '?');
+      if (hoConfirmed(h)) {
+        g(fromK, h.from).handovers.push({ dir: 'out', who: h.to || '?', amount: amt, date: h.date || h.createdAt });
+        g(toK, h.to).handovers.push({ dir: 'in', who: h.from || '?', amount: amt, date: h.date || h.createdAt });
+      }
+    });
+    // net each collector the SAME way inHandRows does, so the detail's totals and
+    // the audit's per-collector line are the identical numbers.
+    const nets = {}; inHandRows(data).forEach(function (r) { nets[String(r.collector)] = r; });
+    return Object.keys(groups).map(function (k) {
+      const gr = groups[k];
+      const net = nets[gr.collector] || {};
+      gr.totals = { collected: net.collected || 0, handedOver: net.handedOver || 0,
+                    spent: net.spent || 0, inHand: net.inHand || 0 };
+      return gr;
+    }).sort(function (a, b) { return (b.totals.collected) - (a.totals.collected); });
+  }
   // One person's own summary (always-visible "My summary" report). `ident` is
   // the caller's identity — username (preferred) or, for legacy rows, name.
   //
@@ -2418,6 +2474,7 @@
         overview: computeReport('overview', data),
         areas: computeReport('areas', data),
         collectors: computeReport('collectors', data),
+        collectorDetail: collectorDetail(data), // A296: every collector, itemised
         expenses: computeReport('expenses', data),
         daily: computeReport('daily', data),
       };
@@ -2468,7 +2525,7 @@
   }
 
   const api = { isDue, moreThan, keyOfFund, canEditParty, canVoid, isMine, isOrdinaryMember, positionBlock, toggleKey, reportGroups, applyBulkReports, isCashierKey, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
-                inHandRows: inHandRows, personalSummary: personalSummary,
+                inHandRows: inHandRows, collectorDetail: collectorDetail, personalSummary: personalSummary,
                 myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,
                 roleOf: roleOf, rowRole: rowRole,

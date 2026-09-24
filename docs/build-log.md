@@ -19701,3 +19701,37 @@ reversible lock the design asked for, so a stray 2026 entry in December is held
 rather than silently landing in a closed book.
 
 Tests 4,123 → 4,132. **SERVER night.**
+
+---
+
+## A296 — the closing report gains every collector, in detail — v4.128.0
+
+> Hrishi: *"we need all user's report with all detailing … closing report i am
+> saying … yes all but not with the anonymous name."*
+
+The 🧾 চূড়ান্ত হিসাব (final/closing report) had per-collector TOTALS only. It now
+carries a **👥 প্রতি সংগ্রাহকের বিস্তারিত** section — every collector's whole ledger
+itemised: each donation (donor · amount · 💵/📱 · date), each daily round, each
+expense (with its comment), each handover in/out, and that collector's totals
+(collected · handed · spent · in-hand), netted the SAME way `inHandRows` does so
+the detail and the audit agree. Collapsible per collector on screen, all open in
+the PDF.
+
+**The anonymous rule, enforced at the source.** A গুপ্ত (anonymous) donor's NAME
+never appears in this report. Unlike the screen curtain (a toggle) or `visibleData`
+(which shows a keyholder), the closing report is FILED and PUBLISHED, so the name
+is dropped for everyone, always — and it is dropped in `collectorDetail` itself
+(`anon:true`, `name:''`), not by the renderer, so it cannot leak downstream. A test
+asserts the anonymous name appears NOWHERE in the returned structure, and a DOM
+test proves it is absent from the rendered report; both go red if the source stops
+suppressing. Sponsor names stay — a sponsor is public by definition (A144).
+
+One surviving mutation, noted honestly: the renderer's `r.anon ? 'গুপ্ত দান' : name`
+is a cosmetic belt (it only chooses the label, since `name` is already '' from the
+source), so removing it degrades the label to "?" but leaks nothing — the real
+guard is the source suppression, which is mutation-caught twice.
+
+Client-only (the report computes on the phone); no Code.gs change of its own — it
+ships alongside A295's pending server deploy.
+
+Tests 4,132 → 4,147.
