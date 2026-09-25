@@ -20037,3 +20037,23 @@ follow-up, open in pending), so a per-collector dues column in the audit could
 split one person. Season-total only for now — safe, and correct.
 
 Client-only. v4.139.0 → v4.140.0. Tests 4,201 → 4,204.
+
+---
+
+## A308 — verified the final report's dues, locked it against the A306 leak
+
+Checked the closing/final report after A306. It was already correct: it does NOT
+use `computeTotals` (the one that had the leak). Its season-total বাকি comes from
+`computeReport('overview')` (summed over all donor kinds since A147/A148), its
+area dues from `computeReport('areas')` (pledged − paid per party), and its
+per-collector dues from `collectorDetail` (canonical identity, A305).
+
+Proved with the A306 sponsor scenario (sponsor 5000/5000 + গুপ্ত 2000/2000 +
+shop 1000/400): final.overview.totalDue = 600, not 7600; areas Σdue = 600 (sponsor
+excluded from এলাকা by design); collectorDetail ram due = 600. All three agree.
+
+No behaviour change — added one regression test (A308) through the report the
+closing statement actually prints, because this exact leak has recurred six times
+and the final report is the one Hrishi hands over. Test-only; no version bump.
+
+Tests 4,204 → 4,206.

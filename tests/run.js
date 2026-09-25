@@ -931,6 +931,29 @@ const sponsorDue = computeTotals({
 eq(sponsorDue.totalPledged, 8000, 'A306: pledge counts sponsor+gupt+shop');
 eq(sponsorDue.totalDue, 600, 'A306: only the shop 600 is due — sponsor/gupt paid credited');
 
+// A308: the FINAL report's season-total বাকি must credit sponsor/গুপ্ত too. It
+// does not use computeTotals — it bundles computeReport('overview') — so this
+// guards the OTHER path against the same leak (the bug has recurred 6×). Same
+// fixture, this time through the report the closing statement actually prints.
+{
+  const finBook = {
+    parties: [
+      { id: 's1', type: 'sponsor', name: 'Sp', pledged: 5000, collectorId: 'ram' },
+      { id: 'g1', type: 'gupt', name: 'Gp', pledged: 2000, collectorId: 'ram' },
+      { id: 'h1', type: 'shop', name: 'Sh', pledged: 1000, collectorId: 'ram', side: 'main_malda' },
+    ],
+    payments: [
+      { id: 'y1', partyId: 's1', amount: 5000, collector: 'ram', collectorId: 'ram' },
+      { id: 'y2', partyId: 'g1', amount: 2000, collector: 'ram', collectorId: 'ram' },
+      { id: 'y3', partyId: 'h1', amount: 400, collector: 'ram', collectorId: 'ram' },
+    ],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [],
+  };
+  const fin = computeReport('final', finBook);
+  eq(fin.overview.totalPledged, 8000, 'A308: final.overview pledges all kinds');
+  eq(fin.overview.totalDue, 600, 'A308: final.overview বাকি credits sponsor/গুপ্ত payments');
+}
+
 // ---- cash/UPI split ----
 const splitData = {
   parties: [], expenses: [],
