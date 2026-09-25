@@ -19834,3 +19834,23 @@ record to add the number. Reconcile stays "the book disagrees with itself."
 
 Two brittle source-text assertions repointed (A112's empty-suppression guard, A276's
 includes-not-indexOf). Client-only. Tests 4,162 → 4,174.
+
+---
+
+## A299b — the "no phone" list gains a toggle: owing-only vs every phoneless donor — v4.132.0
+
+> Hrishi: *"what about paid but no phone … try to solve it best of the best."*
+
+The chase-list defaulted to donors who OWE (a number is needed to chase them). Paid
+donors with no phone are useful too — for the contact register / next year / receipts
+— but showing all of them by default is the flood the desk must avoid. So: a toggle.
+
+`chaseNoPhone(data, {includePaid})` — default owes-only (unchanged); `includePaid:true`
+returns every phoneless chased-kind donor, each carrying its `due` (0 = settled). The
+🩺 desk's section now has two chips — **শুধু বাকি** (default) / **সব ফোন-বিহীন** —
+and marks owing rows with the 🔴 due-chip, settled ones with ✅, all collector-wise,
+all a tap into the record to add a number. The section shows even when nothing owes,
+as long as the toggle would reveal paid phoneless donors, so the register list is
+always reachable.
+
+Client-only. Tests 4,174 → 4,182.

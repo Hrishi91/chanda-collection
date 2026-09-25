@@ -260,8 +260,11 @@ const I18N = {
   // A299: a donor who owes but has no phone — needed to chase the due
   // A299: the "owes but no phone" chase-list section on the 🩺 desk
   chase_nophone_t: { bn: '📞 বাকি আছে, ফোন নেই', en: '📞 Owes, no phone' },
-  chase_nophone_sub: { bn: 'এদের বাকি আছে কিন্তু ফোন নম্বর নেই — তাগাদা দিতে হলে নম্বর দরকার। সারিতে চাপো → ✏️ তথ্য সংশোধন-এ নম্বর বসাও।',
-                       en: 'These donors still owe but have no phone number — a number is needed to chase them. Tap a row → ✏️ Edit and add one.' },
+  chase_nophone_sub: { bn: 'ফোন নম্বর নেই এমন দাতা। সারিতে চাপো → ✏️ তথ্য সংশোধন-এ নম্বর বসাও।',
+                       en: 'Donors with no phone number. Tap a row → ✏️ Edit and add one.' },
+  chase_owe_only: { bn: 'শুধু বাকি', en: 'Owing only' },
+  chase_all: { bn: 'সব ফোন-বিহীন', en: 'All without phone' },
+  chase_none_owe: { bn: 'বাকি আছে এমন কারো ফোন-নম্বর অনুপস্থিত নেই — "সব ফোন-বিহীন" চাপলে বাকিরা দেখবে', en: 'No one who owes is missing a number — tap "All without phone" to see the rest' },
   // A299: the anomaly desk grouped by collector
   anom_committee: { bn: '🏛️ কমিটি-ব্যাপী', en: '🏛️ Committee-wide' },
   // The duplicate-payment anomaly draws its own card with its own heading, so

@@ -319,7 +319,13 @@
   // reconcile anomaly (see the note in reconcile). Only owes-only and only the
   // chased donor kinds, so it stays actionable, not a flood. Returned already
   // grouped by collector, since that is the one way the 🩺 desk asks for it.
-  function chaseNoPhone(data) {
+  // opts.includePaid (default FALSE): by default only donors who still OWE (the
+  // urgent ones — a number is needed to chase). With it TRUE, every phoneless donor
+  // of a chased kind, paid ones too — for building the contact register / next
+  // year. Each row carries its `due` (0 = settled) so the renderer can mark the
+  // ones that still owe. Grouped by collector, owing-first within each.
+  function chaseNoPhone(data, opts) {
+    const includePaid = !!(opts && opts.includePaid);
     const d = activeData(data);
     const paid = {};
     (d.payments || []).forEach(function (p) { paid[p.partyId] = (paid[p.partyId] || 0) + (Number(p.amount) || 0); });
@@ -328,11 +334,12 @@
       if (!['shop', 'person', 'sponsor'].includes(String(p.type))) return;
       if (String(p.phone || '').replace(/\D/g, '')) return;
       const due = (Number(p.pledged) || 0) - (paid[p.id] || 0);
-      if (!moreThan(due, 0)) return;
+      if (!includePaid && !moreThan(due, 0)) return;
       const c = String(p.collector || p.collectorId || '?');
-      (groups[c] = groups[c] || []).push({ id: p.id, name: p.name || p.id, type: p.type, due: due });
+      (groups[c] = groups[c] || []).push({ id: p.id, name: p.name || p.id, type: p.type, due: moreThan(due, 0) ? due : 0 });
     });
     return Object.keys(groups).map(function (c) {
+      // owing first (biggest due), then settled
       return { collector: c, rows: groups[c].sort(function (a, b) { return b.due - a.due; }) };
     }).sort(function (a, b) { return b.rows.length - a.rows.length; });
   }

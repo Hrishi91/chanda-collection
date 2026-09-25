@@ -11739,6 +11739,17 @@ pending.push((async function () {
   eq(flat.indexOf('গোপন') < 0, true, 'A299: …and a গুপ্ত donor is not (anonymous, no phone expected)');
   eq(chase[0].collector, 'ram', 'A299: grouped by collector');
   eq(chase[0].rows[0].due, 1000, 'A299: …with the amount still owed, to chase');
+
+  // A299b: includePaid — the register view. Now PAID phoneless donors appear too,
+  // marked due:0; the ones with a phone still never show.
+  const all = A.chaseNoPhone(book, { includePaid: true });
+  const allNames = []; all.forEach(function (g) { g.rows.forEach(function (r) { allNames.push(r.name); }); });
+  eq(allNames.indexOf('ফোনহীন দোকান') >= 0, true, 'A299b: includePaid still lists the owing phoneless donor');
+  eq(allNames.indexOf('মিটিয়ে দিয়েছে') >= 0, true, 'A299b: …and now the SETTLED phoneless donor too (register view)');
+  eq(allNames.indexOf('নম্বরওয়ালা') < 0, true, 'A299b: …but never one that has a phone');
+  const settled = [];
+  all.forEach(function (g) { g.rows.forEach(function (r) { if (r.name === 'মিটিয়ে দিয়েছে') settled.push(r.due); }); });
+  eq(settled[0], 0, 'A299b: a settled donor carries due:0, so the renderer can mark them ✅ not 🔴');
 }
 
 // A299 — the chase-list rendered on the 🩺 desk, collector-wise, tap → record.
@@ -11761,6 +11772,24 @@ pending.push((async function () {
   eq(/ফোনহীন দোকান/.test(html), true, 'A299: …listing the phoneless owing donor');
   eq(/নম্বরওয়ালা/.test(html), false, 'A299: …but not the one with a number');
   eq(/data-goparty="p1"/.test(html), true, 'A299: …and tapping the row goes to the donor record (to add a number)');
+
+  // A299b: the toggle. p2 (has phone) never appears. Add a SETTLED phoneless donor
+  // and prove "সব ফোন-বিহীন" reveals them while "শুধু বাকি" hides them.
+  const CENTRAL2 = JSON.parse(JSON.stringify(CENTRAL));
+  CENTRAL2.parties.push({ id: 'p3', year: 2026, type: 'person', name: 'মিটিয়ে ফোনহীন', pledged: 500, side: 'main_malda', collector: 'রতন', collectorId: 'ratan', createdAt: '2026-09-01T10:02:00Z' });
+  CENTRAL2.payments.push({ id: 'y3', year: 2026, partyId: 'p3', partyName: 'মিটিয়ে ফোনহীন', amount: 500, cashAmount: 500, upiAmount: 0, collector: 'রতন', collectorId: 'ratan', date: '2026-09-04' });
+  const h2 = loadApp({ user: ADMIN, lists: { area: AREA }, central: CENTRAL2 });
+  await h2.ready;
+  const owe = await h2.show('anomalies');
+  eq(/মিটিয়ে ফোনহীন/.test(owe), false, 'A299b: default (owing only) hides the settled phoneless donor');
+  eq(/data-chase="all"/.test(owe), true, 'A299b: …and offers the "all without phone" toggle');
+  const allBtn = h2.doc.querySelectorAll('[data-chase]').filter(function (b) { return b.dataset.chase === 'all'; })[0];
+  allBtn.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const allHtml = h2.html();
+  eq(/মিটিয়ে ফোনহীন/.test(allHtml), true, 'A299b: tapping "all without phone" reveals the settled phoneless donor');
+  eq(/ফোনহীন দোকান/.test(allHtml), true, 'A299b: …the owing one still there');
 })());
 
 // A298 — the 🏆 কে কত তুলল report drills into each collector's records.

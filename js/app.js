@@ -5256,6 +5256,7 @@
   // "My entries" — the device's own entries, each voidable (if permitted) or
   // flaggable (if it's your own and you can't self-void).
   let entriesScope = 'mine'; // 'mine' = this device's own | 'all' = everyone's daily/expense (from the snapshot)
+  let chaseAllPhone = false; // A299: 🩺 desk — false = owes-only (urgent), true = every phoneless donor (register)
   function renderMyEntries() {
     const all = entriesScope === 'all';
     // "all" spans every collector, so it must read the central snapshot, not
@@ -6840,26 +6841,39 @@
       // A299: the "owes but no phone" chase-list — its own section (NOT a reconcile
       // anomaly), grouped by collector, each donor a tap into their record to add
       // the number. Nameless donors it never reaches (গুপ্ত has no phone anyway).
-      const chase = Aggregate.chaseNoPhone(data);
-      const chaseCard = !chase.length ? '' :
+      const chase = Aggregate.chaseNoPhone(data, { includePaid: chaseAllPhone });
+      // when NOTHING owes and the toggle is off, the section is empty — but if
+      // turning the toggle on WOULD reveal paid phoneless donors, still show the
+      // section (with the toggle) rather than hiding it, so the register list is
+      // reachable. Cheap probe: does an includePaid pass find anyone?
+      const anyPhoneless = chase.length || Aggregate.chaseNoPhone(data, { includePaid: true }).length;
+      const chaseCard = !anyPhoneless ? '' :
         '<div class="card"><div class="card-title">' + esc(t('chase_nophone_t')) + '</div>' +
         '<div class="row-sub" style="margin:-4px 4px 8px">' + esc(t('chase_nophone_sub')) + '</div>' +
-        chase.map(function (g) {
+        '<div class="chips" style="margin-bottom:8px">' +
+          '<button class="chip' + (chaseAllPhone ? '' : ' on') + '" data-chase="owe">' + esc(t('chase_owe_only')) + '</button>' +
+          '<button class="chip' + (chaseAllPhone ? ' on' : '') + '" data-chase="all">' + esc(t('chase_all')) + '</button></div>' +
+        (chase.length ? chase.map(function (g) {
           return '<details class="perm-grp" open><summary><b>' + esc(g.collector) + '</b> ' +
             '<span class="badge warn">' + toBengaliDigits(String(g.rows.length)) + '</span></summary>' +
             g.rows.map(function (p) {
               return '<button class="row" data-goparty="' + esc(p.id) + '" style="width:100%;text-align:left">' +
                 '<div style="flex:1"><b>' + esc(shownName(p.name, p.type)) + '</b>' +
                 '<div class="row-sub">' + esc(t('type_' + p.type)) + '</div></div>' +
-                '<div class="row-right"><span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(p.due) + '</span></div></button>';
+                '<div class="row-right">' +
+                (Aggregate.moreThan(p.due, 0) ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(p.due) + '</span>'
+                                              : '<span class="ok-chip">✅</span>') + '</div></button>';
             }).join('') + '</details>';
-        }).join('') + '</div>';
+        }).join('') : '<div class="empty">' + esc(t('chase_none_owe')) + '</div>') + '</div>';
       $view().innerHTML = backBar(anomBack) + '<div class="flow-title">🩺 ' + esc(t('anom_title')) + '</div>' +
         '<div class="hint" style="margin-bottom:10px">' + esc(t('anom_hint')) + guideDoor('anom') + '</div>' +
         heavyCard + voidCard + chaseCard +
         (rows.length ? grouped : (heavyCard || voidCard || chaseCard ? '' : '<div class="empty">' + esc(t('anom_none')) + '</div>'));
       wireNav();
       wireGuideDoors();
+      document.querySelectorAll('[data-chase]').forEach(function (b) {
+        b.onclick = function () { chaseAllPhone = (b.dataset.chase === 'all'); renderAnomalies(params); };
+      });
       document.querySelectorAll('[data-goparty]').forEach(function (b) {
         b.onclick = function () { navigate('party', { id: b.dataset.goparty, from: 'anomalies' }); };
       });
