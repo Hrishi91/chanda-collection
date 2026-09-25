@@ -351,50 +351,102 @@
   function collectorDetail(data, opts) {
     const suppress = !opts || opts.anon !== false;
     const d = activeData(data);
-    const partyType = {}, partyName = {};
-    const partyPhone = {};
-    (d.parties || []).forEach(function (p) { if (p && p.id) { partyType[p.id] = p.type; partyName[p.id] = p.name; partyPhone[p.id] = p.phone; } });
+    const partyType = {}, partyName = {}, partyPhone = {}, partyPledged = {};
+    (d.parties || []).forEach(function (p) { if (p && p.id) { partyType[p.id] = p.type; partyName[p.id] = p.name; partyPhone[p.id] = p.phone; partyPledged[p.id] = Number(p.pledged) || 0; } });
+    const paidByParty = {};
+    (d.payments || []).forEach(function (p) { paidByParty[p.partyId] = (paidByParty[p.partyId] || 0) + (Number(p.amount) || 0); });
+    const dueOf = function (pid) { const x = (partyPledged[pid] || 0) - (paidByParty[pid] || 0); return moreThan(x, 0) ? x : 0; };
+
+    // A305: ONE canonical identity per collector. A person's rows disagree on
+    // which handle they carry — a party may hold collectorId, a payment on it only
+    // the name — and keying on `collectorId || name` then splits the same person
+    // into two groups (the A304 bug: collections in one, dues in the other). So
+    // learn name→id from every row that carries BOTH, and resolve every handle
+    // through it, so all of one person's rows land in a single group.
+    const idOfName = {};
+    const learn = function (id, nm) {
+      id = String(id || ''); nm = String(nm || '').trim().toLowerCase();
+      if (id && nm && !idOfName[nm]) idOfName[nm] = id;
+    };
+    (d.parties || []).forEach(function (p) { learn(p.collectorId, p.collector); });
+    ['payments', 'daily', 'expenses'].forEach(function (s) {
+      (d[s] || []).forEach(function (r) { learn(r.collectorId, r.collector); });
+    });
+    (d.handovers || []).forEach(function (h) { learn(h.fromId, h.from); learn(h.toId, h.to); });
+    // canonical key from an (id, name) pair: the id if present, else the id we
+    // learned for that name, else the name itself.
+    const canon = function (id, nm) {
+      id = String(id || '');
+      if (id) return id;
+      const key = String(nm || '').trim().toLowerCase();
+      return idOfName[key] || String(nm || '?');
+    };
+    const nameSeen = {}; // canonical key → a human name to show
+    const noteName = function (k, nm) { if (nm && !nameSeen[k]) nameSeen[k] = nm; };
+
     const groups = {};
     const g = function (k, nm) {
-      if (!groups[k]) groups[k] = { collector: nm || k, payments: [], daily: [], expenses: [], handovers: [] };
-      else if (nm) groups[k].collector = nm;
+      if (!groups[k]) groups[k] = { key: k, collector: nm || nameSeen[k] || k,
+        payments: [], daily: [], expenses: [], handovers: [],
+        _collected: 0, _received: 0, _handed: 0, _spent: 0 };
+      if (nm) groups[k].collector = nm;
       return groups[k];
     };
     (d.payments || []).forEach(function (r) {
+      const k = canon(r.collectorId, r.collector); noteName(k, r.collector);
       const anon = suppress && String(partyType[r.partyId]) === 'gupt';
-      g(ck(r), r.collector).payments.push({
+      const gr = g(k, r.collector);
+      gr._collected += Number(r.amount) || 0;
+      gr.payments.push({
         name: anon ? '' : (r.partyName || partyName[r.partyId] || ''), anon: anon,
-        // A300: the donor's phone for the closing statement. Suppressed with the
-        // name for a গুপ্ত donor (anonymous — no contact belongs on the sheet).
         phone: anon ? '' : String(partyPhone[r.partyId] || ''),
         amount: Number(r.amount) || 0, cash: Number(r.cashAmount) || 0, upi: Number(r.upiAmount) || 0,
+        pledged: Number(partyPledged[r.partyId]) || 0, due: dueOf(r.partyId),
         date: r.date || r.createdAt,
       });
     });
     (d.daily || []).forEach(function (r) {
-      g(ck(r), r.collector).daily.push({ type: r.type, busName: r.busName,
+      const k = canon(r.collectorId, r.collector); noteName(k, r.collector);
+      const gr = g(k, r.collector);
+      gr._collected += Number(r.amount) || 0;
+      gr.daily.push({ type: r.type, busName: r.busName,
         amount: Number(r.amount) || 0, cash: Number(r.cashAmount) || 0, upi: Number(r.upiAmount) || 0, date: r.date || r.createdAt });
     });
     (d.expenses || []).forEach(function (r) {
-      g(ck(r), r.collector).expenses.push({ subject: r.subject, desc: r.desc,
+      const k = canon(r.collectorId, r.collector); noteName(k, r.collector);
+      const gr = g(k, r.collector);
+      gr._spent += Number(r.amount) || 0;
+      gr.expenses.push({ subject: r.subject, desc: r.desc,
         amount: Number(r.amount) || 0, cash: Number(r.cashAmount) || 0, upi: Number(r.upiAmount) || 0, date: r.date || r.createdAt });
     });
     (d.handovers || []).forEach(function (h) {
       const amt = Number(h.amount) || 0;
-      const fromK = String(h.fromId || h.from || '?'), toK = String(h.toId || h.to || '?');
+      const fromK = canon(h.fromId, h.from), toK = canon(h.toId, h.to);
+      noteName(fromK, h.from); noteName(toK, h.to);
       if (hoConfirmed(h)) {
         g(fromK, h.from).handovers.push({ dir: 'out', who: h.to || '?', amount: amt, date: h.date || h.createdAt });
         g(toK, h.to).handovers.push({ dir: 'in', who: h.from || '?', amount: amt, date: h.date || h.createdAt });
+        g(fromK)._handed += amt;
+        g(toK)._received += amt;
       }
     });
-    // net each collector the SAME way inHandRows does, so the detail's totals and
-    // the audit's per-collector line are the identical numbers.
-    const nets = {}; inHandRows(data).forEach(function (r) { nets[String(r.collector)] = r; });
+    // A302/A303: per collector, over the donors THEY registered — Σ pledged (কথা),
+    // Σ paid (দেওয়া) and the বাকি between them. Keyed by the SAME canonical id, so a
+    // donor's dues land on the same row as that collector's collections.
+    (d.parties || []).forEach(function (p) {
+      if (!(Number(p.pledged) || 0)) return;
+      const k = canon(p.collectorId, p.collector); noteName(k, p.collector);
+      const gr = g(k, p.collector);
+      gr._pledged = (gr._pledged || 0) + (Number(p.pledged) || 0);
+      gr._paidReg = (gr._paidReg || 0) + (paidByParty[p.id] || 0);
+      gr._due = (gr._due || 0) + dueOf(p.id);
+    });
     return Object.keys(groups).map(function (k) {
       const gr = groups[k];
-      const net = nets[gr.collector] || {};
-      gr.totals = { collected: net.collected || 0, handedOver: net.handedOver || 0,
-                    spent: net.spent || 0, inHand: net.inHand || 0 };
+      gr.collector = nameSeen[k] || gr.collector;
+      gr.totals = { collected: gr._collected, handedOver: gr._handed, spent: gr._spent,
+                    inHand: gr._collected + gr._received - gr._handed - gr._spent,
+                    pledged: gr._pledged || 0, paidReg: gr._paidReg || 0, due: gr._due || 0 };
       return gr;
     }).sort(function (a, b) { return (b.totals.collected) - (a.totals.collected); });
   }

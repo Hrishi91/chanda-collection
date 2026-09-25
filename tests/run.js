@@ -9935,10 +9935,35 @@ pending.push((async function () {
      'A296: the anonymous donor\'s name appears NOWHERE in the detail — filed and published, it can never leak');
   // totals mirror inHandRows
   eq(ram.totals.collected, 37000, 'A296: ram collected 2000 + 30000 + 5000');
+  // A301/A302/A303 (re-added on the A305 canonical base): dues per collector and
+  // per donor, with the pledged−paid=due arithmetic. পাল owes 5000−2000; ram's
+  // registered donors: pledged 5000+30000, paid 2000+30000.
+  eq(ram.totals.due, 3000, 'A301: collector totals their donors\' outstanding (পাল owes 3000)');
+  eq(ram.totals.pledged, 35000, 'A302: Σ pledged over ram\'s registered donors');
+  eq(ram.totals.paidReg, 32000, 'A302: Σ paid by those donors');
+  eq(ram.totals.pledged - ram.totals.paidReg, ram.totals.due, 'A302: pledged − paid = due (checkable)');
+  const pal = ram.payments.filter(function (p) { return p.name === 'পাল স্টোর্স'; })[0];
+  eq(pal.due, 3000, 'A301: each donation line carries that donor\'s remaining due');
+  eq(pal.pledged, 5000, 'A303: …and the donor\'s pledge (কথা)');
+  eq(spon.due, 0, 'A301: a fully-paid donor shows no due');
   // and it rides the final report
   const fin = A.computeReport('final', book);
   eq(Array.isArray(fin.collectorDetail) && fin.collectorDetail.length >= 1, true,
      'A296: the final (closing) report carries the per-collector detail');
+
+  // A305: the identity fix — a donor carrying collectorId (+name) with a payment
+  // that carries only the NAME must NOT split the collector into two rows (the
+  // A304 bug). One group, collections AND dues together.
+  const mixed = {
+    parties: [{ id: 'q1', type: 'shop', name: 'দোকান', pledged: 2000, collectorId: 'ratan', collector: 'রতন', side: 'main_malda' }],
+    payments: [{ id: 'z1', partyId: 'q1', amount: 500, cashAmount: 500, upiAmount: 0, collector: 'রতন', date: '2026-09-04' }],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [],
+  };
+  const md = A.collectorDetail(mixed, { anon: false });
+  eq(md.length, 1, 'A305: collectorId-on-party + name-only-payment resolve to ONE collector, not two');
+  eq(md[0].totals.collected, 500, 'A305: …their collection is on that one row');
+  eq(md[0].totals.due, 1500, 'A305: …and the due (2000−500) on the SAME row, not a phantom twin');
+  eq(md[0].payments.length, 1, 'A305: …with the donation itemised there');
 
   // A298: {anon:false} — the 🏆 live drill KEEPS the গুপ্ত name (permission, not
   // suppression, guards it there: visibleData already removed rows a non-keyholder
@@ -11825,6 +11850,10 @@ pending.push((async function () {
   eq(/রাম স্টোর্স/.test(html), true, 'A298: রতন\'s collected record (রাম স্টোর্স) is shown in the drill');
   eq(/শ্যাম টেলার্স/.test(html), true, 'A298: পরী\'s record too — the records collected THROUGH each collector');
   eq(/৭০০|700/.test(html) && /৯০০|900/.test(html), true, 'A298: …with amounts');
+  // A301/A302: dues shown in the 🏆 drill with their arithmetic — রাম pledged 1000,
+  // paid 700 → owes 300, under রতন (who registered রাম), on ONE row (A305 fix).
+  eq(/নথিভুক্ত দাতা/.test(html), true, 'A302: the dues line is shown, labelled "registered donors"');
+  eq(/বাকি[\s\S]{0,14}?(৩০০|300)/.test(html), true, 'A301: …and রাম\'s ৩০০ due appears (not split onto a phantom collector — A305)');
 })());
 
 // A297 — voice on the search boxes: the 🎤 renders, and dictating filters the

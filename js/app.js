@@ -6128,9 +6128,13 @@
       const detail = (d.collectorDetail || []).map(function (gr) {
         const rows = [];
         gr.payments.forEach(function (r) {
-          // A300: phone folded into the name cell (keeps the shared 6-column table)
+          // A300/A303/A301: phone, pledge and due folded into the name cell (keeps
+          // the shared 6-column table)
           const who = r.anon ? t('cd_anon')
-            : (r.name || '?') + (r.phone ? ' · 📞 ' + r.phone : ' · ' + t('nophone_mark'));
+            : (r.name || '?')
+              + (Aggregate.moreThan(r.pledged, 0) ? ' · ' + t('pledged') + ' ' + money(r.pledged) : '')
+              + (Aggregate.moreThan(r.due, 0) ? ' · ' + t('due') + ' ' + money(r.due) : '')
+              + (r.phone ? ' · 📞 ' + r.phone : ' · ' + t('nophone_mark'));
           rows.push([t('cd_payments'), who, money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]);
         });
         gr.daily.forEach(function (r) { rows.push([t('cd_daily'), dailyName(r), money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]); });
@@ -6140,7 +6144,11 @@
         return '<h3>👥 ' + esc(gr.collector) + ' — ' + esc(t('inhand_col')) + ': ' + money(tot.inHand) + '</h3>' +
           (rows.length ? printTable(['', '', t('amount_col'), '💵', '📱', t('date_col')], rows) : '') +
           printTable([t('collected_col'), t('handed_col'), t('spent_col'), t('inhand_col')],
-            [[money(tot.collected), money(tot.handedOver), money(tot.spent), money(tot.inHand)]]);
+            [[money(tot.collected), money(tot.handedOver), money(tot.spent), money(tot.inHand)]]) +
+          // A302: dues with their arithmetic — over the donors this collector registered
+          (Aggregate.moreThan(tot.pledged, 0)
+            ? printTable([t('cd_registered'), t('pledged'), t('paid'), t('due')],
+                [['', money(tot.pledged), money(tot.paidReg), money(tot.due)]]) : '');
       }).join('');
       return printReportHTML('overview', d.overview, data) +
         printReportHTML('areas', d.areas, data) +
@@ -6203,8 +6211,11 @@
     // for a named donor (গুপ্ত is nameless, so no contact).
     const payLine = function (r) {
       const ph = r.anon ? '' : (r.phone ? ' · 📞 ' + esc(r.phone) : ' · ' + esc(t('nophone_mark')));
+      // A303: the donor's pledge (কথা) and A301: their remaining বাকি, on the line
+      const pl = Aggregate.moreThan(r.pledged, 0) ? ' · ' + esc(t('pledged')) + ' ' + fmtMoney(r.pledged) : '';
+      const due = Aggregate.moreThan(r.due, 0) ? ' · <b class="warn">' + esc(t('due')) + ' ' + fmtMoney(r.due) + '</b>' : '';
       return '<div class="row-sub" style="padding:2px 4px">' + esc(r.anon ? t('cd_anon') : (r.name || '?')) +
-        ' — ' + fmtMoney(r.amount) + cashUpiSub(r) + ph +
+        ' — ' + fmtMoney(r.amount) + cashUpiSub(r) + pl + due + ph +
         (r.date ? ' · ' + esc(fmtDate(r.date)) : '') + '</div>';
     };
     const card = function (gr) {
@@ -6222,15 +6233,26 @@
               ' — ' + fmtMoney(h.amount) + (h.date ? ' · ' + esc(fmtDate(h.date)) : '') + '</div>';
           }).join('') : '');
       const tot = gr.totals || {};
+      // A302: the due WITH its arithmetic — নথিভুক্ত দাতা: কথা X − দেওয়া Y = বাকি Z,
+      // labelled "registered donors" and distinct from "collected", so the number
+      // is self-explaining and never conflated with what they took.
+      const dueLine = Aggregate.moreThan(tot.pledged, 0)
+        ? '<div class="row-sub" style="padding:2px 4px">' + esc(t('cd_registered')) + ': ' +
+            esc(t('pledged')) + ' ' + fmtMoney(tot.pledged) + ' − ' + esc(t('paid')) + ' ' + fmtMoney(tot.paidReg) +
+            ' = <b class="warn">' + esc(t('due')) + ' ' + fmtMoney(tot.due) + '</b></div>'
+        : '';
+      const dueBit = Aggregate.moreThan(tot.due, 0)
+        ? ' · <b class="warn">' + esc(t('due')) + ' ' + fmtMoney(tot.due) + '</b>' : '';
       return '<details class="perm-grp"><summary><b>' + esc(gr.collector) + '</b>' +
         ' <span class="row-sub">' + esc(t('collected_col')) + ' ' + fmtMoney(tot.collected) +
-        ' · ' + esc(t('inhand_col')) + ' ' + fmtMoney(tot.inHand) + '</span></summary>' +
+        ' · ' + esc(t('inhand_col')) + ' ' + fmtMoney(tot.inHand) + dueBit + '</span></summary>' +
         body +
         '<div class="row-sub" style="padding:4px;font-weight:700">' +
           esc(t('collected_col')) + ' ' + fmtMoney(tot.collected) +
           ' · ' + esc(t('handed_col')) + ' ' + fmtMoney(tot.handedOver) +
           ' · ' + esc(t('spent_col')) + ' ' + fmtMoney(tot.spent) +
-          ' · ' + esc(t('inhand_col')) + ' ' + fmtMoney(tot.inHand) + '</div></details>';
+          ' · ' + esc(t('inhand_col')) + ' ' + fmtMoney(tot.inHand) + '</div>' +
+        dueLine + '</details>';
     };
     return '<div class="card"><div class="card-title">' + esc(title || t('cd_title')) + '</div>' +
       ((list && list.length) ? list.map(card).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') +

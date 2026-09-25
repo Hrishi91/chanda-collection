@@ -941,8 +941,8 @@ The third is defensible. Recording it so the choice is made on purpose.
 
 ## AFTER THE COLLECTION — Hrishi's own list
 
-- **Re-add per-collector dues, once collector identity is normalised** (A304,
-  2026-09-25). A301–A303 added dues/pledge to the 🏆 and 🧾 per-collector reports,
+- [x] ~~**Re-add per-collector dues, once collector identity is normalised**~~ DONE A305
+  (2026-09-25). A301–A303 added dues/pledge to the 🏆 and 🧾 per-collector reports,
   then were reverted: when a donor row carries `collectorId` (+name) but a payment
   on it carries only the collector NAME, `ck()` keys them differently and the same
   collector renders TWICE (collections in one row, dues in another) — the "record

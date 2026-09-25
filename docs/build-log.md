@@ -19952,3 +19952,34 @@ id-vs-name mismatch. It touches `inHandRows` too (same latent split), so it is d
 carefully off the live path, not in a hurry.
 
 Tests 4,197 → 4,186 (the A301–A303 tests came out with the feature).
+
+---
+
+## A305 — per-collector dues, back and CORRECT: one canonical collector identity — v4.138.0
+
+> Hrishi: *"you bypass the due amount, it should not be done."* Right — the revert
+> was only the safe stop, not the answer. This is the answer.
+
+The A304 bug was that a collector's rows disagree on their handle — a party may hold
+`collectorId`, a payment on it only the name — and keying on `collectorId || name`
+split one person into two rows (collections on one, dues on the other). Fixed at the
+root: `collectorDetail` now learns `name → collectorId` from every row that carries
+BOTH, and resolves every handle through that map, so all of one person's rows land in
+a single group. Its per-collector totals (collected / handed / spent / in-hand) are
+now computed IN `collectorDetail` under that one key, not looked up from `inHandRows`
+by name (which had the same latent split).
+
+With identity unified, the per-collector dues are re-added — and shown WITH their
+arithmetic (A302): 📋 **নথিভুক্ত দাতা: কথা (pledged) − দেওয়া (paid) = বাকি (due)**,
+labelled "registered donors" so it never reads as "collected"; plus each donation
+line carries that donor's own কথা and বাকি (A303/A301). Screen and PDF, 🏆 and 🧾.
+
+Proved by a mismatch fixture (party has collectorId+name, payment name-only) that now
+yields ONE group with collected AND dues together — the mutation that disables the
+resolver brings the split straight back.
+
+`inHandRows` still carries the same latent split for its own consumers (💰 কার হাতে
+কত, audit); noted in pending as the next tidy, lower-risk now that the reports Hrishi
+uses are correct.
+
+Client-only. Tests 4,186 → 4,199.
