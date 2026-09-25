@@ -351,9 +351,13 @@
   function collectorDetail(data, opts) {
     const suppress = !opts || opts.anon !== false;
     const d = activeData(data);
-    const partyType = {}, partyName = {};
-    const partyPhone = {};
-    (d.parties || []).forEach(function (p) { if (p && p.id) { partyType[p.id] = p.type; partyName[p.id] = p.name; partyPhone[p.id] = p.phone; } });
+    const partyType = {}, partyName = {}, partyPhone = {}, partyPledged = {};
+    (d.parties || []).forEach(function (p) { if (p && p.id) { partyType[p.id] = p.type; partyName[p.id] = p.name; partyPhone[p.id] = p.phone; partyPledged[p.id] = Number(p.pledged) || 0; } });
+    // A301: paid-per-party, so each donation line can show that donor's remaining
+    // due and each collector a running total of what their donors still owe.
+    const paidByParty = {};
+    (d.payments || []).forEach(function (p) { paidByParty[p.partyId] = (paidByParty[p.partyId] || 0) + (Number(p.amount) || 0); });
+    const dueOf = function (pid) { const x = (partyPledged[pid] || 0) - (paidByParty[pid] || 0); return moreThan(x, 0) ? x : 0; };
     const groups = {};
     const g = function (k, nm) {
       if (!groups[k]) groups[k] = { collector: nm || k, payments: [], daily: [], expenses: [], handovers: [] };
@@ -368,6 +372,7 @@
         // name for a গুপ্ত donor (anonymous — no contact belongs on the sheet).
         phone: anon ? '' : String(partyPhone[r.partyId] || ''),
         amount: Number(r.amount) || 0, cash: Number(r.cashAmount) || 0, upi: Number(r.upiAmount) || 0,
+        due: dueOf(r.partyId), // A301: this donor's remaining due
         date: r.date || r.createdAt,
       });
     });
@@ -387,6 +392,17 @@
         g(toK, h.to).handovers.push({ dir: 'in', who: h.from || '?', amount: amt, date: h.date || h.createdAt });
       }
     });
+    // A301: each collector's total OUTSTANDING — summed over the donors THEY
+    // registered (by the party's own collector key), so a donor with a pledge and
+    // no payment still counts, and a collector who has only dues still gets a group.
+    const dueByColl = {};
+    (d.parties || []).forEach(function (p) {
+      const due = dueOf(p.id);
+      if (!due) return;
+      const k = ck(p);
+      dueByColl[k] = (dueByColl[k] || 0) + due;
+      g(k, p.collector); // ensure the group exists even if they collected nothing yet
+    });
     // net each collector the SAME way inHandRows does, so the detail's totals and
     // the audit's per-collector line are the identical numbers.
     const nets = {}; inHandRows(data).forEach(function (r) { nets[String(r.collector)] = r; });
@@ -394,7 +410,7 @@
       const gr = groups[k];
       const net = nets[gr.collector] || {};
       gr.totals = { collected: net.collected || 0, handedOver: net.handedOver || 0,
-                    spent: net.spent || 0, inHand: net.inHand || 0 };
+                    spent: net.spent || 0, inHand: net.inHand || 0, due: dueByColl[k] || 0 };
       return gr;
     }).sort(function (a, b) { return (b.totals.collected) - (a.totals.collected); });
   }

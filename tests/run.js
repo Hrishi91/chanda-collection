@@ -9930,6 +9930,12 @@ pending.push((async function () {
   // A300: the donor's phone rides the detail row; a গুপ্ত row carries none
   eq(spon.phone, '9800000002', 'A300: a named donor carries their phone for the closing statement');
   eq(gupt.phone, '', 'A300: …a গুপ্ত donor carries no phone (nameless, no contact on the sheet)');
+
+  // A301: dues — per collector and per donor
+  eq(ram.totals.due, 3000, 'A301: the collector totals their donors\' outstanding (পাল owes 5000−2000)');
+  const pal = ram.payments.filter(function (p) { return p.name === 'পাল স্টোর্স'; })[0];
+  eq(pal.due, 3000, 'A301: …and each donation line carries that donor\'s remaining due');
+  eq(spon.due, 0, 'A301: …a fully-paid donor shows no due');
   // the whole returned structure must not contain the anonymous name anywhere
   eq(JSON.stringify(det).indexOf('গোপন লোক') < 0, true,
      'A296: the anonymous donor\'s name appears NOWHERE in the detail — filed and published, it can never leak');
@@ -11825,6 +11831,8 @@ pending.push((async function () {
   eq(/রাম স্টোর্স/.test(html), true, 'A298: রতন\'s collected record (রাম স্টোর্স) is shown in the drill');
   eq(/শ্যাম টেলার্স/.test(html), true, 'A298: পরী\'s record too — the records collected THROUGH each collector');
   eq(/৭০০|700/.test(html) && /৯০০|900/.test(html), true, 'A298: …with amounts');
+  // A301: dues shown in the 🏆 drill — রাম স্টোর্স pledged 1000, paid 700 → owes 300
+  eq(/বাকি[\s\S]{0,12}?(৩০০|300)/.test(html), true, 'A301: the 🏆 drill shows the dues (রাম owes 300)');
 })());
 
 // A297 — voice on the search boxes: the 🎤 renders, and dictating filters the

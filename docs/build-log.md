@@ -19872,3 +19872,22 @@ Noted: a shared closing report now carries donor phone numbers — fine for the
 committee's internal accountability copy, worth knowing before it is published wide.
 
 Client-only. Tests 4,182 → 4,186.
+
+---
+
+## A301 — dues in the per-collector reports (🏆 and closing) — v4.134.0
+
+> Hrishi: *"in the reports i can't see the dues amount."*
+
+Dues showed in 📋 বাকির তালিকা and 📊 মোট হিসাব, but the per-collector reports — 🏆
+কে কত তুলল (the A298 drill) and the 🧾 closing 👥 detail — showed collected/handed/
+spent/in-hand and no dues. Now each collector's summary and footer carry their
+donors' total **বাকি**, and every donation line shows that donor's remaining due.
+
+`collectorDetail` computes it: `totals.due` per collector, summed over the donors
+THEY registered (by the party's own collector key, so a donor with a pledge and no
+payment still counts and a collector with only dues still gets a group); and `due`
+on each payment row (that donor's pledged − paid). Screen and PDF; the PDF footer
+gains a বাকি column.
+
+Client-only. Tests 4,186 → 4,190.
