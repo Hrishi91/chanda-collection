@@ -2604,10 +2604,16 @@
       const voids = (data.voids || []).slice().sort(function (a, b) {
         return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
       });
+      // A307: কত বাকি — money pledged but not yet collected. It is CONTEXT for the
+      // auditor, deliberately OUTSIDE `balances`: uncollected money is not a book
+      // fault (the box can be perfect while donors still owe). Same positive-dues
+      // sum the dues report uses, so the two মোট বাকি figures agree.
+      const totalDue = computeReport('dues', data).totalDue;
       return {
         rows: rows,
         totals: { collected: totalCollected, received: totalReceived, handedOver: totalHanded,
                   spent: totalSpent, inHand: totalInHand, pending: totalPending },
+        totalDue: totalDue,
         balances: balances,
         anomalies: anomalies,
         voids: voids,

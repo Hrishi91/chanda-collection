@@ -954,6 +954,13 @@ The third is defensible. Recording it so the choice is made on purpose.
   differ when a donor overpays — left as-is so an overpay stays visible; decide at
   closing whether to unify.
 
+- [x] ~~**Add কত বাকি to the financial audit**~~ DONE A307 (2026-09-25). The audit
+  reconciled the box but never stated outstanding pledges. Added `totalDue` (positive
+  per-donor sum, agrees with the dues report), shown on screen and PDF as CONTEXT
+  below the balance verdict — kept out of `balances` because uncollected money is not
+  a book fault. Season-total only; per-collector dues in the audit waits on the
+  `inHandRows` identity normalisation (split risk).
+
 - **Apply the same collector-identity normalisation to `inHandRows`** (A305
   follow-up). `inHandRows` still keys by `collectorId || name`, so 💰 কার হাতে কত and
   the audit's per-collector line can split one person the way the reports did before

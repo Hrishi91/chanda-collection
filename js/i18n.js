@@ -1015,6 +1015,7 @@ const I18N = {
   audit_anomalies_n: { bn: '⚠️ {n}টি অসংগতি — বিস্তারিত 🩺 ডেস্কে', en: '⚠️ {n} anomalies — detail on the 🩺 desk' },
   audit_voids: { bn: '✖️ বাতিল entry', en: '✖️ Voided entries' },
   audit_held_note: { bn: 'তোলা − খরচ = হাতে + পথে (মেলা উচিত)', en: 'collected − spent = in hand + in transit (must match)' },
+  audit_due_ctx: { bn: 'বাকি (এখনও তোলা হয়নি — হিসাব মেলানোর বাইরে)', en: 'Outstanding (not yet collected — outside the balance)' },
   no_reports_msg: { bn: 'কেন্দ্রীয় রিপোর্ট দেখার permission নেই — দরকার হলে admin-কে বলো', en: 'No central-report permission — ask the admin if needed' },
   report_pdf_btn: { bn: 'PDF বানাও / প্রিন্ট', en: 'Save as PDF / print' },
   printed_on: { bn: 'তৈরি', en: 'Generated' },

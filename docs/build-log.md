@@ -20010,3 +20010,30 @@ total that drifted. Left as-is by design: the overview total nets overpayments
 Hrishi rather than silently changed, since an overpay is a signal worth seeing.
 
 Client-only. Tests 4,199 → 4,201.
+
+---
+
+## A307 — the audit now states কত বাকি, as context outside the balance (v4.140.0)
+
+The financial audit answered "does the box balance?" (collected − spent = in
+hand + in transit) but never said how much was still OWED. An auditor reads both:
+what is in the box, and what has not yet come in.
+
+Added `totalDue` to `computeReport('audit')` — the same positive-per-donor-dues
+sum the dues report uses, so the two মোট বাকি figures agree. It is returned and
+shown, but deliberately kept OUT of the `balances` verdict: uncollected pledges
+are not a book fault (the box can be perfect while donors still owe), so folding
+them into ✅/⚠️ would make a clean book look broken. The line sits below the
+balance note, labelled "বাকি (এখনও তোলা হয়নি — হিসাব মেলানোর বাইরে)".
+
+Both renderers carry it: the on-screen `reportAuditHTML` banner and the print
+`printReportHTML('audit')` table. Proved at both levels — an aggregate test
+(পাল 5000 pledged, 2000 paid → totalDue 3000, balances still true) and a DOM
+test asserting the label is on the rendered screen. The mutation that drops
+`totalDue` fails by name (A307).
+
+Not per-collector: `inHandRows` still carries the collector-identity split (A305
+follow-up, open in pending), so a per-collector dues column in the audit could
+split one person. Season-total only for now — safe, and correct.
+
+Client-only. v4.139.0 → v4.140.0. Tests 4,201 → 4,204.

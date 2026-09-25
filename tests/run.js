@@ -9903,6 +9903,13 @@ pending.push((async function () {
   eq(aud.voids.length, 1, 'A294: the audit lists voided entries');
   eq(aud.voids[0].reason, 'ভুল অঙ্ক', 'A294: …with the reason, which is what an audit reads');
 
+  // A307: an audit must also state কত বাকি — money still owed but not yet in the
+  // box. পাল pledged 5000, paid 2000 → 3000 outstanding. It is CONTEXT, not part
+  // of the balance verdict: uncollected money is not a book fault, so a clean
+  // book with dues outstanding still balances.
+  eq(aud.totalDue, 3000, 'A307: audit reports total outstanding (5000 pledged − 2000 paid)');
+  eq(aud.balances, true, 'A307: …and dues do NOT touch the balance verdict — still balances');
+
   // ── a BROKEN book must NOT balance — the whole point of the report. A payment
   // whose cash+UPI does not add up to its amount is the classic one (A21
   // breakdown_mismatch): ₹2,000 recorded but only ₹1,500 accounted for.
@@ -11753,6 +11760,8 @@ pending.push((async function () {
     eq(/✅/.test(aud), true, 'A294: a clean book shows the ✅ balanced verdict');
     eq(/ভুল অঙ্ক/.test(aud), true, 'A294: …and the audit lists the voided entry with its reason');
     eq(/report-pdf/.test(aud), true, 'A294: …and offers a PDF button');
+    // A307: the outstanding-context line is on the rendered audit summary
+    eq(/এখনও তোলা হয়নি/.test(aud), true, 'A307: the audit shows কত বাকি as a labelled context line');
   }
 })());
 

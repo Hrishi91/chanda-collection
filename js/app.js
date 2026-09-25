@@ -6168,7 +6168,8 @@
           [t('collected_col'), money(T.collected)],
           [t('spent_col'), money(T.spent)],
           [t('inhand_col'), money(T.inHand)],
-          [t('my_pending'), money(T.pending)]]) +
+          [t('my_pending'), money(T.pending)],
+          [t('audit_due_ctx'), money(d.totalDue)]]) +
         '<h3>' + esc(t('report_inhand')) + '</h3>' +
         printTable([t('collector_col'), t('collected_col'), t('handed_col'), t('spent_col'), t('inhand_col')],
           (d.rows || []).map(function (r) {
@@ -6276,7 +6277,10 @@
         ' • ' + esc(t('spent_col')) + ' ' + fmtMoney(T.spent) +
         ' • ' + esc(t('inhand_col')) + ' ' + fmtMoney(T.inHand) +
         (T.pending ? ' • ⏳ ' + fmtMoney(T.pending) : '') + '</div>' +
-      '<div class="row-sub" style="margin:2px 4px">' + esc(t('audit_held_note')) + '</div></div>';
+      '<div class="row-sub" style="margin:2px 4px">' + esc(t('audit_held_note')) + '</div>' +
+      // A307: কত বাকি — context, deliberately below the balance verdict and its
+      // note, so it never reads as part of "the box must match".
+      '<div class="row-sub" style="margin:2px 4px">📌 ' + esc(t('audit_due_ctx')) + ' ' + fmtMoney(d.totalDue) + '</div></div>';
     const perColl = reportInhandHTML({ rows: d.rows });
     const anom = (d.anomalies && d.anomalies.length)
       ? '<div class="card"><div class="card-title">' +
