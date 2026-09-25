@@ -16,6 +16,9 @@
   // set when the user taps 🔄 আপডেট খুঁজি — a reload they asked for is never
   // capped, only the ones that happen behind their back (A31)
   let userReload = false;
+  // A310: an automatic service-worker reload deferred because the user was
+  // mid-entry when a new worker took control. Fired the moment it is safe.
+  let pendingSwReload = false;
 
   // offline fallback; the server's reportList is the authority when online
   function esc(s) {
@@ -921,7 +924,10 @@
   function startNotifPolling() {
     if (!notifWired) {
       notifWired = true;
-      document.addEventListener('visibilitychange', function () { if (!document.hidden) onAppFocus(); });
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) onAppFocus();
+        else maybePendingReload(); // A310: backgrounding is a safe moment to run a deferred SW reload
+      });
       window.addEventListener('focus', onAppFocus);
       wirePullToRefresh();
     }
@@ -9648,7 +9654,38 @@
     try { history.pushState({ v: view, p: current.params }, ''); } catch (e) {}
     render();
     window.scrollTo(0, 0); // a user navigation starts at the top of the new screen
+    maybePendingReload(); // A310: a deferred SW reload waits for a safe screen
   }
+  // A310: is the user in the middle of writing something a reload would discard?
+  // The background pull already refuses to re-render mid-flow / mid-typing (the
+  // flowState + activeElement guards in pullCentral); the automatic
+  // service-worker reload has to obey the SAME rule, or a new worker taking
+  // control while someone enters money throws them off the screen and loses what
+  // they typed. Report of exactly that: "doing entry, the page refreshed and
+  // threw me out." Guided/voice entries persist a draft per step and survive a
+  // reload; forms and the live inputs do not — so both are protected here.
+  function midEntry() {
+    if (flowState) return true;                       // guided / voice entry in progress
+    const el = document.activeElement;
+    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return true; // typing
+    return ['partyform', 'memberform', 'profile'].includes(current.view); // unsaved form
+  }
+  // Reload for a new service worker — but only when it will not throw the user
+  // out of an entry. Mid-entry it is remembered and run later by
+  // maybePendingReload; the once-per-tab cap (A31) and the manual-🔄 exemption
+  // are preserved.
+  function requestSwReload() {
+    if (midEntry()) { pendingSwReload = true; return; }
+    if (!userReload) {
+      let done = false;
+      try { done = sessionStorage.getItem('ck_swReload') === '1'; } catch (e) {}
+      if (done) { pendingSwReload = false; return; }
+      try { sessionStorage.setItem('ck_swReload', '1'); } catch (e) {}
+    }
+    pendingSwReload = false;
+    location.reload();
+  }
+  function maybePendingReload() { if (pendingSwReload && !midEntry()) requestSwReload(); }
   // A157: the bottom nav is CHROME, and chrome has to keep up even when no
   // screen is rebuilt.
   //
@@ -9845,17 +9882,11 @@
         // automatic reload happens per tab session; anything further needs the
         // user's own 🔄 আপডেট খুঁজি. A missed reload costs one stale screen; a
         // reload loop costs the whole app.
-        // A31: the cap is for AUTOMATIC reloads only. When the user tapped 🔄
-        // the reload is the thing they asked for, and refusing it turned the
-        // documented escape hatch into a dead button. (The manual path also
-        // reloads itself now; this stays as the belt to that braces.)
-        if (!userReload) {
-          let done = false;
-          try { done = sessionStorage.getItem('ck_swReload') === '1'; } catch (e) {}
-          if (done) return;
-          try { sessionStorage.setItem('ck_swReload', '1'); } catch (e) {}
-        }
-        location.reload();
+        // A31: the cap is for AUTOMATIC reloads only — handled inside
+        // requestSwReload, along with the manual-🔄 exemption.
+        // A310: and NEVER out from under an in-progress entry — requestSwReload
+        // defers to the next safe screen rather than throwing the user off theirs.
+        requestSwReload();
       });
       // A55: nobody ever asked whether the shell actually cached. Registration
       // resolving means the worker script downloaded, not that install

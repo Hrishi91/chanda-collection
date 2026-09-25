@@ -402,6 +402,9 @@ function loadApp(opts) {
                // DOMContentLoaded, which this shim never fires, so this is the
                // same function the header calls — not a copy of its body.
                " toggleCurtain: toggleCurtain," +
+               // A310: the deferred service-worker reload — the decision, not the reload
+               " requestSwReload: requestSwReload, midEntry: midEntry," +
+               " swReloadPending: function () { return pendingSwReload; }," +
                " bookFor: bookFor };\n";
   vm.runInContext(src.slice(0, cut) + hook + src.slice(cut), box);
   if (!box.__app) throw new Error('dom-shim: the hook did not land');

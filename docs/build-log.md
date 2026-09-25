@@ -20085,3 +20085,39 @@ donor's name render on the real closing-report screen.
 Diagnosed entirely from Hrishi's pasted numbers — the live sheet was never touched.
 
 Client-only. v4.140.0 → v4.141.0. Tests 4,206 → 4,216.
+
+---
+
+## A310 — a service-worker update reloaded the page mid-entry and threw the user out (v4.142.0)
+
+Field report: "doing entry, in between the page got refreshed and it threw me out."
+Root cause, found by tracing the reload paths (live system never touched):
+
+sw.js uses skipWaiting() + clients.claim(), so a newly-installed worker seizes the
+open tab. The page's `controllerchange` handler then called `location.reload()`
+UNCONDITIONALLY (bar a once-per-tab cap) — with no check for an in-progress entry.
+The background pull already refuses to re-render mid-flow / mid-typing (the
+flowState + activeElement guards in pullCentral); the automatic reload never
+learned the same manners. We shipped three versions today (v4.139→141), so a phone
+that re-checked sw.js on focus/navigation installed+activated the new worker and
+force-reloaded — on top of whatever entry was open.
+
+Fix: the automatic reload now obeys the same rule as the pull. `requestSwReload`
+defers when `midEntry()` is true — a guided/voice flow in progress, an INPUT/
+TEXTAREA focused, or an unsaved form (partyform/memberform/profile) — setting a
+pending flag instead of reloading. `maybePendingReload` then runs it at the next
+safe moment: a navigation that lands on a non-entry screen, or the app being
+backgrounded. skipWaiting/clients.claim, the manual 🔄 path, and the once-per-tab
+cap are all unchanged; the manual reload (runUpdate) still reloads at once, since
+the user asked and is on the settings screen, not mid-entry.
+
+Proved by a DOM test: on a resting screen requestSwReload reloads immediately; in a
+guided entry it does NOT (reload count unchanged) and is remembered pending; leaving
+to a safe screen runs the deferred reload; an unsaved form defers too. Mutation
+removing the flowState guard fails by name A310.
+
+NOTE the update that DELIVERS this fix still reloads once — it runs the old
+(unguarded) v4.141 code at the moment the new worker takes over. From v4.142 on,
+entries are protected. Best to take it via ⚙️ → 🔄 while not mid-entry.
+
+Client-only. v4.141.0 → v4.142.0. Tests 4,216 → 4,224.

@@ -12080,6 +12080,45 @@ pending.push((async function () {
   }
 })());
 
+// A310 — an automatic service-worker reload must never fire while the user is
+// mid-entry. Report from the field: "doing entry, in between the page got
+// refreshed and it threw me out." The background pull already refuses to
+// re-render mid-flow/mid-typing; the SW takeover reload must obey the same rule.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const USER = { username: 'ram', name: 'রাম', role: 'collector', cashier: 0, entries: 'shop,person,road' };
+  const h = loadApp({ user: USER, lists: { area: AREA } });
+  await h.ready;
+  const reloads = function () { return h.calls.filter(function (c) { return c[0] === 'reload'; }).length; };
+
+  // 1. on a resting screen a worker takeover reloads at once (the intended update)
+  h.app.navigate('home');
+  const base = reloads();
+  h.app.requestSwReload();
+  eq(reloads(), base + 1, 'A310: on a safe resting screen the SW reload happens immediately');
+
+  // 2. mid guided-entry the reload is DEFERRED, never performed under the finger
+  h.app.startFlow(h.app.dailyFlow('road'));
+  eq(!!h.app.flow(), true, 'A310: a guided entry is now in progress');
+  const before = reloads();
+  h.app.requestSwReload();
+  eq(reloads(), before, 'A310: mid-entry the page is NOT reloaded — the user is not thrown out');
+  eq(h.app.swReloadPending(), true, 'A310: …the pending reload is remembered');
+
+  // 3. leaving the entry to a safe screen runs the deferred reload
+  h.app.navigate('home');
+  eq(reloads(), before + 1, 'A310: once the entry is left, the deferred reload runs');
+  eq(h.app.swReloadPending(), false, 'A310: …and the pending flag is cleared');
+
+  // 4. a form screen with unsaved fields is also protected
+  h.app.navigate('partyform', {});
+  const f0 = reloads();
+  h.app.requestSwReload();
+  eq(reloads(), f0, 'A310: on an unsaved form the reload is deferred too');
+  eq(h.app.swReloadPending(), true, 'A310: …pending again');
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;
