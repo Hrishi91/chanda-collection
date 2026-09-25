@@ -6145,6 +6145,15 @@
           (rows.length ? printTable(['', '', t('amount_col'), '💵', '📱', t('date_col')], rows) : '') +
           printTable([t('collected_col'), t('handed_col'), t('spent_col'), t('inhand_col')],
             [[money(tot.collected), money(tot.handedOver), money(tot.spent), money(tot.inHand)]]) +
+          // A309: the owing donors that make up the বাকি — every registered donor
+          // still owing, including those with no payment line above.
+          ((gr.dues && gr.dues.length)
+            ? '<h4>📌 ' + esc(t('cd_owes_title')) + '</h4>' +
+              printTable([t('cd_owes_name'), t('pledged'), t('paid'), t('due'), '📞'],
+                gr.dues.map(function (r) {
+                  return [r.anon ? t('cd_anon') : (r.name || '?'), money(r.pledged), money(r.paid), money(r.due),
+                          r.anon ? '' : (r.phone || t('nophone_mark'))];
+                })) : '') +
           // A302: dues with their arithmetic — over the donors this collector registered
           (Aggregate.moreThan(tot.pledged, 0)
             ? printTable([t('cd_registered'), t('pledged'), t('paid'), t('due')],
@@ -6219,6 +6228,14 @@
         ' — ' + fmtMoney(r.amount) + cashUpiSub(r) + pl + due + ph +
         (r.date ? ' · ' + esc(fmtDate(r.date)) : '') + '</div>';
     };
+    // A309: one owing donor — কথা − দেওয়া = বাকি, with phone. Listed even when the
+    // donor has no payment line at all, so the বাকি total is auditable row by row.
+    const owesLine = function (r) {
+      const ph = r.anon ? '' : (r.phone ? ' · 📞 ' + esc(r.phone) : ' · ' + esc(t('nophone_mark')));
+      return '<div class="row-sub" style="padding:2px 4px">' + esc(r.anon ? t('cd_anon') : (r.name || '?')) +
+        ' — ' + esc(t('pledged')) + ' ' + fmtMoney(r.pledged) + ' − ' + esc(t('paid')) + ' ' + fmtMoney(r.paid) +
+        ' = <b class="warn">' + esc(t('due')) + ' ' + fmtMoney(r.due) + '</b>' + ph + '</div>';
+    };
     const card = function (gr) {
       const body =
         (gr.payments.length ? '<div class="secttl">' + esc(t('cd_payments')) + '</div>' +
@@ -6253,6 +6270,9 @@
           ' · ' + esc(t('handed_col')) + ' ' + fmtMoney(tot.handedOver) +
           ' · ' + esc(t('spent_col')) + ' ' + fmtMoney(tot.spent) +
           ' · ' + esc(t('inhand_col')) + ' ' + fmtMoney(tot.inHand) + '</div>' +
+        // A309: the donors who make up the বাকি, so the due below is explained
+        ((gr.dues && gr.dues.length) ? '<div class="secttl">📌 ' + esc(t('cd_owes_title')) +
+          ' (' + gr.dues.length + ')</div>' + gr.dues.map(owesLine).join('') : '') +
         dueLine + '</details>';
     };
     return '<div class="card"><div class="card-title">' + esc(title || t('cd_title')) + '</div>' +

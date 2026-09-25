@@ -9996,6 +9996,40 @@ pending.push((async function () {
   eq(pal.due, 3000, 'A301: each donation line carries that donor\'s remaining due');
   eq(pal.pledged, 5000, 'A303: …and the donor\'s pledge (কথা)');
   eq(spon.due, 0, 'A301: a fully-paid donor shows no due');
+
+  // A309: the owing-donor list makes the বাকি total auditable — every registered
+  // donor still owing, INCLUDING those with no payment line (otherwise the due
+  // looks like it comes from nowhere, which is exactly what Hrishi hit).
+  {
+    const owe = {
+      parties: [
+        { id: 'a1', type: 'shop', name: 'আংশিক', pledged: 1000, collectorId: 'ram', collector: 'ram', side: 'main_malda' },
+        { id: 'a2', type: 'shop', name: 'দেয়নি', pledged: 700, collectorId: 'ram', collector: 'ram', side: 'main_malda' },
+        { id: 'a3', type: 'shop', name: 'পুরো', pledged: 300, collectorId: 'ram', collector: 'ram', side: 'main_malda' },
+        { id: 'a4', type: 'gupt', name: 'গোপন বাকি', pledged: 500, collectorId: 'ram', collector: 'ram' },
+      ],
+      payments: [
+        { id: 'w1', partyId: 'a1', amount: 400, collector: 'ram', collectorId: 'ram', date: '2026-09-04' },
+        { id: 'w3', partyId: 'a3', amount: 300, collector: 'ram', collectorId: 'ram', date: '2026-09-04' },
+      ],
+      daily: [], expenses: [], handovers: [], voids: [], corrections: [],
+    };
+    const od = A.collectorDetail(owe, { anon: false })[0];
+    eq(od.totals.due, 600 + 700 + 500, 'A309: due = partial(600) + never-paid(700) + gupt(500)');
+    eq(od.dues.length, 3, 'A309: all three owing donors listed — including the one with NO payment line');
+    eq(od.dues[0].name, 'দেয়নি', 'A309: biggest বাকি first (700)');
+    eq(od.dues[0].paid, 0, 'A309: …the never-paid donor shows দেওয়া 0 (it has no payment line at all)');
+    eq(od.dues.reduce(function (s, r) { return s + r.due; }, 0), od.totals.due,
+       'A309: the owing list sums EXACTLY to the due total — auditable row by row');
+    eq(od.dues.filter(function (r) { return r.name === 'পুরো'; }).length, 0,
+       'A309: a fully-paid donor is NOT in the owing list');
+    // গুপ্ত stays nameless even when owing, in the default (suppressed) report
+    const odS = A.collectorDetail(owe)[0];
+    const g = odS.dues.filter(function (r) { return r.due === 500; })[0];
+    eq(!!g && g.anon === true && g.name === '', true, 'A309: an owing গুপ্ত donor is listed but nameless');
+    eq(JSON.stringify(odS.dues).indexOf('গোপন বাকি') < 0, true, 'A309: …the গুপ্ত name never appears in the owing list');
+  }
+
   // and it rides the final report
   const fin = A.computeReport('final', book);
   eq(Array.isArray(fin.collectorDetail) && fin.collectorDetail.length >= 1, true,
@@ -11778,6 +11812,10 @@ pending.push((async function () {
     eq(/রাজু ডেকরেটর্স/.test(fin), true, 'A294: …including the expense with its comment');
     // A296: the per-collector detail section, and the anonymous rule on screen
     eq(/প্রতি সংগ্রাহকের বিস্তারিত/.test(fin), true, 'A296: the closing report shows the per-collector detail section');
+    // A309: the owing-donor list renders — পাল owes 5000−2000=3000, so it must be
+    // named under "বাকি আছে যাদের", making the due auditable on the printed sheet
+    eq(/বাকি আছে যাদের/.test(fin), true, 'A309: the closing report lists who still owes');
+    eq(/পাল স্টোর্স/.test(fin), true, 'A309: …the owing donor is named there');
 
     const aud = await openReport(h, 'audit');
     eq(/✅/.test(aud), true, 'A294: a clean book shows the ✅ balanced verdict');

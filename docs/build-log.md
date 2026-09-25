@@ -20057,3 +20057,31 @@ closing statement actually prints, because this exact leak has recurred six time
 and the final report is the one Hrishi hands over. Test-only; no version bump.
 
 Tests 4,204 → 4,206.
+
+---
+
+## A309 — the বাকি was invisible: list every owing donor per collector (v4.141.0)
+
+Hrishi opened his own collector detail and could not see where his Due ₹4,583 came
+from. His pasted data proved the cause exactly: of ₹4,583 due, only ₹299 was visible
+(4 partial-payment lines); ₹4,284 was invisible. The detail lists PAYMENTS, so a
+donor he registered who pledged but never paid (₹4,183 of pledge) had NO line at all
+— the due looked like it came from nowhere.
+
+Fix: `collectorDetail` now returns `gr.dues` — every registered donor still owing,
+INCLUDING those with no payment, each carrying {name, pledged, paid, due, phone},
+biggest বাকি first. গুপ্ত stays nameless. The list sums EXACTLY to `totals.due`
+(asserted), so the due total is auditable row by row.
+
+Rendered in both the on-screen collector card and the printed closing report, as a
+"📌 বাকি আছে যাদের" section directly above the existing কথা − দেওয়া = বাকি summary,
+so the arithmetic and the donors that make it up sit together.
+
+Proved: an aggregate test with a partial-payer, a never-payer (no payment line) and
+an owing গুপ্ত — dues.length 3, sums to the due total, নever-payer shows দেওয়া 0,
+গুপ্ত nameless; plus a DOM test that the "বাকি আছে যাদের" section and the owing
+donor's name render on the real closing-report screen.
+
+Diagnosed entirely from Hrishi's pasted numbers — the live sheet was never touched.
+
+Client-only. v4.140.0 → v4.141.0. Tests 4,206 → 4,216.

@@ -443,7 +443,19 @@
       const gr = g(k, p.collector);
       gr._pledged = (gr._pledged || 0) + (Number(p.pledged) || 0);
       gr._paidReg = (gr._paidReg || 0) + (paidByParty[p.id] || 0);
-      gr._due = (gr._due || 0) + dueOf(p.id);
+      const due = dueOf(p.id);
+      gr._due = (gr._due || 0) + due;
+      // A309: the donors who make up that বাকি total — every registered donor still
+      // owing, INCLUDING those with no payment at all (they have no payment line, so
+      // without this the due looks like it comes from nowhere). গুপ্ত stays nameless.
+      if (moreThan(due, 0)) {
+        const anon = suppress && String(p.type) === 'gupt';
+        (gr._dues = gr._dues || []).push({
+          name: anon ? '' : (p.name || ''), anon: anon,
+          phone: anon ? '' : String(p.phone || ''),
+          pledged: Number(p.pledged) || 0, paid: paidByParty[p.id] || 0, due: due,
+        });
+      }
     });
     return Object.keys(groups).map(function (k) {
       const gr = groups[k];
@@ -451,6 +463,8 @@
       gr.totals = { collected: gr._collected, handedOver: gr._handed, spent: gr._spent,
                     inHand: gr._collected + gr._received - gr._handed - gr._spent,
                     pledged: gr._pledged || 0, paidReg: gr._paidReg || 0, due: gr._due || 0 };
+      // A309: owing donors, biggest বাকি first — so the due total is auditable row by row.
+      gr.dues = (gr._dues || []).sort(function (a, b) { return b.due - a.due; });
       return gr;
     }).sort(function (a, b) { return (b.totals.collected) - (a.totals.collected); });
   }
