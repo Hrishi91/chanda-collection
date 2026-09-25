@@ -19983,3 +19983,30 @@ resolver brings the split straight back.
 uses are correct.
 
 Client-only. Tests 4,186 → 4,199.
+
+---
+
+## A306 — মোট বাকি was inflated by every fully-paid sponsor/গুপ্ত (v4.139.0)
+
+`computeTotals().totalDue` computed `totalPledged − (shop.paid + person.paid +
+member.paid)`. But `totalPledged` sums pledges over ALL donor kinds
+(`PARTY_KINDS` = shop/person/member/**sponsor/gupt**). So a sponsor who pledged
+₹5,000 and paid ₹5,000 had the pledge counted but the payment never subtracted —
+মোট বাকি read ₹5,000 too high per fully-paid sponsor.
+
+Fix: subtract paid summed over the same keys as pledged —
+`totalPledged − Σ byType[k].paid` — exactly the rule `computeReport('overview')`
+already followed (its own comment warned against naming the kinds one by one).
+
+Caught the bug in the harness, not on Hrishi's live sheet: a fixture with a
+sponsor (5000/5000) + গুপ্ত (2000/2000) + shop (1000/400) now yields totalDue
+₹600, not ₹7,600. The mutation that reverts to the hand-named sum brings ₹7,600
+straight back (fails by name A306).
+
+Per-donor dues (dues report, areas, chaseNoPhone, collectorDetail) were already
+correct — each does `pledged − paid` per party — so this was the one aggregate
+total that drifted. Left as-is by design: the overview total nets overpayments
+(can dip below the dues-report total, which sums positive dues only); flagged for
+Hrishi rather than silently changed, since an overpay is a signal worth seeing.
+
+Client-only. Tests 4,199 → 4,201.

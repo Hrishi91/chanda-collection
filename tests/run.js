@@ -911,6 +911,26 @@ eq(tt.dailyByType.road, 700, 'road total');
 eq(tt.byCollector.X, 200 + 400 + 700, 'collector X');
 eq(tt.byCollector.Y, 300 + 250 + 150, 'collector Y');
 
+// A306: computeTotals().totalDue must credit EVERY donor kind's payment, not
+// only shop/person/member. A sponsor (or গুপ্ত) who pledged and paid was having
+// the pledge counted but the payment never subtracted — inflating মোট বাকি by
+// the full sponsor amount. Mirror of the overview report's summed-over-keys fix.
+const sponsorDue = computeTotals({
+  parties: [
+    { id: 's1', type: 'sponsor', name: 'Sp', pledged: 5000 },
+    { id: 'g1', type: 'gupt', name: 'Gp', pledged: 2000 },
+    { id: 'h1', type: 'shop', name: 'Sh', pledged: 1000 },
+  ],
+  payments: [
+    { partyId: 's1', amount: 5000, collector: 'X' }, // sponsor fully paid
+    { partyId: 'g1', amount: 2000, collector: 'X' }, // gupt fully paid
+    { partyId: 'h1', amount: 400, collector: 'X' },  // shop 600 still due
+  ],
+  daily: [], expenses: [],
+});
+eq(sponsorDue.totalPledged, 8000, 'A306: pledge counts sponsor+gupt+shop');
+eq(sponsorDue.totalDue, 600, 'A306: only the shop 600 is due — sponsor/gupt paid credited');
+
 // ---- cash/UPI split ----
 const splitData = {
   parties: [], expenses: [],

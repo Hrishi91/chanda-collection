@@ -232,7 +232,11 @@
       totalExpense: totalExpense,
       inHand: totalPayments + totalDaily - totalExpense,
       totalPledged: totalPledged,
-      totalDue: totalPledged - (byType.shop.paid + byType.person.paid + byType.member.paid),
+      // A306: summed over the keys, not named one by one — same rule the
+      // overview report already follows. Naming shop/person/member here meant a
+      // sponsor's (or গুপ্ত's) pledge was counted but their payment never
+      // subtracted, inflating মোট বাকি by the full sponsor amount.
+      totalDue: totalPledged - Object.keys(byType).reduce(function (a, k) { return a + byType[k].paid; }, 0),
       byCollector: byCollector,
       paidByParty: paidByParty,
       totalCash: totalCash,

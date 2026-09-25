@@ -944,6 +944,16 @@ The third is defensible. Recording it so the choice is made on purpose.
 - [x] ~~**Re-add per-collector dues, once collector identity is normalised**~~ DONE A305
   (2026-09-25).
 
+- [x] ~~**Audit the other dues calculations for the sponsor/গুপ্ত leak**~~ DONE A306
+  (2026-09-25). `computeTotals().totalDue` subtracted paid for shop+person+member
+  only while pledge summed all kinds → মোট বাকি inflated by every fully-paid
+  sponsor/গুপ্ত. Fixed to sum paid over all `byType` keys (mirrors overview).
+  Per-donor dues (dues report, areas, chaseNoPhone, collectorDetail) were already
+  correct. **Open design note (not a bug):** the overview total nets overpayments
+  while the dues report sums positive dues only, so the two মোট বাকি figures can
+  differ when a donor overpays — left as-is so an overpay stays visible; decide at
+  closing whether to unify.
+
 - **Apply the same collector-identity normalisation to `inHandRows`** (A305
   follow-up). `inHandRows` still keys by `collectorId || name`, so 💰 কার হাতে কত and
   the audit's per-collector line can split one person the way the reports did before
