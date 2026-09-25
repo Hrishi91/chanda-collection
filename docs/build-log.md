@@ -19891,3 +19891,25 @@ on each payment row (that donor's pledged − paid). Screen and PDF; the PDF foo
 gains a বাকি column.
 
 Client-only. Tests 4,186 → 4,190.
+
+---
+
+## A302 — show the dues ARITHMETIC, so the number is not a mystery — v4.135.0
+
+> Hrishi: *"I am [not] getting how you are calculating the dues, it will confuse the
+> user … show the calculation for all users, then it will be resolved."*
+
+He was right to flag it. In A301 the per-collector "collected" is keyed by who TOOK
+each payment, while the "due" was keyed by who REGISTERED the donor — and a later
+instalment can be taken by anyone (otherdonor). So the two numbers in one row could
+be about different people: confusing, exactly as he said.
+
+Fix, his way — show the working instead of hiding it. Each collector's section now
+prints, on its own line, labelled 📋 **নথিভুক্ত দাতা** (registered donors, distinct
+from "collected"): **কথা (pledged) − দেওয়া (paid) = বাকি (due)**. Three numbers the
+reader can check against each other, so the due explains itself and is visibly about
+the donors that collector registered, not the money they collected. `collectorDetail`
+now carries `totals.pledged` and `totals.paidReg` alongside `due`; a test pins
+`pledged − paidReg === due`. Screen and PDF.
+
+Client-only. Tests 4,190 → 4,195.

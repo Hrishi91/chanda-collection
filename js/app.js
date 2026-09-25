@@ -6138,11 +6138,14 @@
         gr.expenses.forEach(function (r) { rows.push([t('cd_expenses'), expenseTitle(r) + (expenseNote(r) ? ' · ' + expenseNote(r) : ''), money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]); });
         gr.handovers.forEach(function (h) { rows.push([t('cd_handovers'), (h.dir === 'out' ? '→ ' : '← ') + h.who, money(h.amount), '', '', fmtDate(h.date)]); });
         const tot = gr.totals || {};
-        return '<h3>👥 ' + esc(gr.collector) + ' — ' + esc(t('inhand_col')) + ': ' + money(tot.inHand) +
-          (Aggregate.moreThan(tot.due, 0) ? ' · ' + esc(t('due')) + ' ' + money(tot.due) : '') + '</h3>' +
+        return '<h3>👥 ' + esc(gr.collector) + ' — ' + esc(t('inhand_col')) + ': ' + money(tot.inHand) + '</h3>' +
           (rows.length ? printTable(['', '', t('amount_col'), '💵', '📱', t('date_col')], rows) : '') +
-          printTable([t('collected_col'), t('handed_col'), t('spent_col'), t('inhand_col'), t('due')],
-            [[money(tot.collected), money(tot.handedOver), money(tot.spent), money(tot.inHand), money(tot.due)]]);
+          printTable([t('collected_col'), t('handed_col'), t('spent_col'), t('inhand_col')],
+            [[money(tot.collected), money(tot.handedOver), money(tot.spent), money(tot.inHand)]]) +
+          // A302: the due with its arithmetic — over the donors this collector registered
+          (Aggregate.moreThan(tot.pledged, 0)
+            ? printTable([t('cd_registered'), t('pledged'), t('paid'), t('due')],
+                [['', money(tot.pledged), money(tot.paidReg), money(tot.due)]]) : '');
       }).join('');
       return printReportHTML('overview', d.overview, data) +
         printReportHTML('areas', d.areas, data) +
@@ -6226,7 +6229,15 @@
               ' — ' + fmtMoney(h.amount) + (h.date ? ' · ' + esc(fmtDate(h.date)) : '') + '</div>';
           }).join('') : '');
       const tot = gr.totals || {};
-      // A301: this collector's donors' outstanding, in the summary and the footer
+      // A302: the due, WITH the arithmetic it comes from, so it never reads as a
+      // mystery number — "নথিভুক্ত দাতা: কথা X − দেওয়া Y = বাকি Z". Labelled
+      // "registered donors" and on its own line, so it is not confused with the
+      // "collected" figure (which is keyed by who took each payment).
+      const dueLine = Aggregate.moreThan(tot.pledged, 0)
+        ? '<div class="row-sub" style="padding:2px 4px">' + esc(t('cd_registered')) + ': ' +
+            esc(t('pledged')) + ' ' + fmtMoney(tot.pledged) + ' − ' + esc(t('paid')) + ' ' + fmtMoney(tot.paidReg) +
+            ' = <b class="warn">' + esc(t('due')) + ' ' + fmtMoney(tot.due) + '</b></div>'
+        : '';
       const dueBit = Aggregate.moreThan(tot.due, 0)
         ? ' · <b class="warn">' + esc(t('due')) + ' ' + fmtMoney(tot.due) + '</b>' : '';
       return '<details class="perm-grp"><summary><b>' + esc(gr.collector) + '</b>' +
@@ -6237,7 +6248,8 @@
           esc(t('collected_col')) + ' ' + fmtMoney(tot.collected) +
           ' · ' + esc(t('handed_col')) + ' ' + fmtMoney(tot.handedOver) +
           ' · ' + esc(t('spent_col')) + ' ' + fmtMoney(tot.spent) +
-          ' · ' + esc(t('inhand_col')) + ' ' + fmtMoney(tot.inHand) + dueBit + '</div></details>';
+          ' · ' + esc(t('inhand_col')) + ' ' + fmtMoney(tot.inHand) + '</div>' +
+        dueLine + '</details>';
     };
     return '<div class="card"><div class="card-title">' + esc(title || t('cd_title')) + '</div>' +
       ((list && list.length) ? list.map(card).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') +

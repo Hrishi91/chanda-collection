@@ -1004,6 +1004,7 @@ const I18N = {
   cd_expenses: { bn: '🧾 খরচ', en: '🧾 Expenses' },
   cd_handovers: { bn: '🤝 হস্তান্তর', en: '🤝 Handovers' },
   nophone_mark: { bn: '⚠️ ফোন নেই', en: '⚠️ no phone' },
+  cd_registered: { bn: '📋 নথিভুক্ত দাতা', en: '📋 Registered donors' },
   // A297: voice search
   voice_search: { bn: '🎤 বলে খোঁজো', en: '🎤 Search by voice' },
   report_audit: { bn: '🔎 আর্থিক নিরীক্ষা', en: '🔎 Financial audit' },

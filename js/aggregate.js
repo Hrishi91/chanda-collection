@@ -395,12 +395,18 @@
     // A301: each collector's total OUTSTANDING — summed over the donors THEY
     // registered (by the party's own collector key), so a donor with a pledge and
     // no payment still counts, and a collector who has only dues still gets a group.
-    const dueByColl = {};
+    // A302: show the SUM the due comes from, not just the answer — per collector,
+    // over the donors they registered: Σ pledged (কথা) and Σ paid (দেওয়া), whose
+    // difference IS the বাকি. Displaying all three makes the number self-explaining
+    // and, labelled "registered donors", keeps it distinct from "collected" (which
+    // is keyed by who took each payment, not who registered the donor).
+    const dueByColl = {}, pledgedByColl = {}, paidRegByColl = {};
     (d.parties || []).forEach(function (p) {
-      const due = dueOf(p.id);
-      if (!due) return;
+      if (!(Number(p.pledged) || 0)) return;
       const k = ck(p);
-      dueByColl[k] = (dueByColl[k] || 0) + due;
+      pledgedByColl[k] = (pledgedByColl[k] || 0) + (Number(p.pledged) || 0);
+      paidRegByColl[k] = (paidRegByColl[k] || 0) + (paidByParty[p.id] || 0);
+      dueByColl[k] = (dueByColl[k] || 0) + dueOf(p.id);
       g(k, p.collector); // ensure the group exists even if they collected nothing yet
     });
     // net each collector the SAME way inHandRows does, so the detail's totals and
@@ -410,7 +416,9 @@
       const gr = groups[k];
       const net = nets[gr.collector] || {};
       gr.totals = { collected: net.collected || 0, handedOver: net.handedOver || 0,
-                    spent: net.spent || 0, inHand: net.inHand || 0, due: dueByColl[k] || 0 };
+                    spent: net.spent || 0, inHand: net.inHand || 0,
+                    // A302: the due and the two numbers it is computed from
+                    pledged: pledgedByColl[k] || 0, paidReg: paidRegByColl[k] || 0, due: dueByColl[k] || 0 };
       return gr;
     }).sort(function (a, b) { return (b.totals.collected) - (a.totals.collected); });
   }
