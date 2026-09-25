@@ -2916,6 +2916,34 @@
   // bought nothing, because the area and location steps read their options
   // through optionsFn when the user REACHES them, several taps later.
   function freshThen(fn) { Lists.refresh().catch(function () {}); fn(); }
+  // A297: voice on every search box. One HTML snippet + one wiring, reused at each
+  // search site, so a 🎤 sits beside the box and dictating into it runs the SAME
+  // filter typing does — the voice result is written into the input and its own
+  // `oninput` is fired, so no screen's search logic is touched or duplicated.
+  function searchMic(id) {
+    return Voice.supported()
+      ? '<button class="mic mic-search" id="mic-' + esc(id) + '" aria-label="' + esc(t('voice_search')) + '">🎤</button>'
+      : '';
+  }
+  // wrap an <input> string into a flex row carrying its mic, so the box and the
+  // 🎤 sit side by side; call wireSearchMic(id) after the input's oninput is set.
+  function searchRow(inputHTML, id) {
+    return '<div class="search-row">' + inputHTML + searchMic(id) + '</div>';
+  }
+  function wireSearchMic(id) {
+    const mic = document.getElementById('mic-' + id);
+    const input = document.getElementById(id);
+    if (!mic || !input) return;
+    mic.onclick = function () {
+      mic.classList.add('rec');
+      Voice.start(function (txt) {
+        input.value = txt;
+        // run the box's own filter — the same path typing takes
+        if (typeof input.oninput === 'function') input.oninput({ target: input });
+      }, function () { mic.classList.remove('rec'); },
+      function () { mic.classList.remove('rec'); });
+    };
+  }
   function wireNav() {
     document.querySelectorAll('[data-go]').forEach(function (b) {
       b.onclick = function () {
@@ -3048,8 +3076,8 @@
         '<div class="row-right"><b>' + fmtMoney(totalPaid) + '</b>' +
         (Aggregate.isDue(totalDue) ? '<div class="row-sub red">' + esc(t('due')) + ' ' + fmtMoney(totalDue) + '</div>' : '') +
         '</div></div>' +
-      (all.length >= 8 ? '<input id="prog-search" class="search" enterkeyhint="search" placeholder="' +
-        esc(t('search_party_ph')) + '" value="' + esc(progQuery) + '">' : '') +
+      (all.length >= 8 ? searchRow('<input id="prog-search" class="search" enterkeyhint="search" placeholder="' +
+        esc(t('search_party_ph')) + '" value="' + esc(progQuery) + '">', 'prog-search') : '') +
       '<div class="chips">' + dueChip(progDueOnly) + '</div>';
     if (!shown.length) return head + '<div class="empty">' + esc(t('search_none')) + '</div>';
     return head + shown.map(function (p) {
@@ -3074,6 +3102,7 @@
     const sb = document.getElementById('prog-search');
     if (sb) {
       sb.oninput = function () { progQuery = sb.value; renderProgram(); };
+      wireSearchMic('prog-search');
       // keep the caret where the finger left it — a re-render on every keystroke
       // otherwise sends it to the start, which is the search box that fights back
       setTimeout(function () {
@@ -3259,8 +3288,8 @@
           }).join('') + '</select>';
       $view().innerHTML =
         (canEntry('otherdonor') ? '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' : '') +
-        '<input id="search" class="search" enterkeyhint="search" placeholder="' +
-          esc(t(busRows ? 'search_bus_ph' : 'search_party_ph')) + '" value="' + esc(listQuery) + '">' +
+        searchRow('<input id="search" class="search" enterkeyhint="search" placeholder="' +
+          esc(t(busRows ? 'search_bus_ph' : 'search_party_ph')) + '" value="' + esc(listQuery) + '">', 'search') +
         filterBar(chips.buttons + (busRows ? '' : dueChip(listDueOnly)) + areaSel) +
         // A164: the same sentence the report screen has carried since A144, on
         // the screen that needed it just as much. canSeeKind opens a 🤫 / 🎪 tab
@@ -3301,6 +3330,7 @@
           wireRows();
         }, 120);
       };
+      wireSearchMic('search');
       document.querySelectorAll('[data-f]').forEach(function (c) {
         c.onclick = function () { listFilter = c.dataset.f; renderList(); };
       });
@@ -3319,11 +3349,12 @@
     if (!canEntry('member')) { navigate('home'); return; }
     $view().innerHTML = backBar('home') + '<div class="flow-title">🤝 ' + esc(t('member_pay_title')) + '</div>' +
       '<div class="hint" style="margin-bottom:8px">' + esc(t('member_pay_hint')) + guideDoor('register') + '</div>' +
-      '<input id="mp-search" class="search" enterkeyhint="search" placeholder="' + esc(t('search_member_ph')) + '" value="' + esc(memberQuery) + '">' +
+      searchRow('<input id="mp-search" class="search" enterkeyhint="search" placeholder="' + esc(t('search_member_ph')) + '" value="' + esc(memberQuery) + '">', 'mp-search') +
       '<div id="mp-results"><div class="empty">' + esc(t('loading')) + '</div></div>';
     const box = document.getElementById('mp-search');
     box.oninput = function (e) { memberQuery = e.target.value; wireGuideDoors();
     paintMembers(); };
+    wireSearchMic('mp-search');
     paintMembers();
   }
   function paintMembers() {
@@ -3901,11 +3932,12 @@
     findFilter = chips.valid;
     $view().innerHTML = backBar('list') + '<div class="flow-title">' + esc(t('find_party_title')) + '</div>' +
       '<div class="hint" style="margin-bottom:8px">' + esc(t('find_party_hint')) + '</div>' +
-      '<input id="fp-search" class="search" enterkeyhint="search" placeholder="' + esc(t('search_party_ph')) + '" value="' + esc(findQuery) + '">' +
+      searchRow('<input id="fp-search" class="search" enterkeyhint="search" placeholder="' + esc(t('search_party_ph')) + '" value="' + esc(findQuery) + '">', 'fp-search') +
       filterBar(chips.buttons + dueChip(findDueOnly)) +
       '<div id="fp-results"><div class="empty">' + esc(t('loading')) + '</div></div>';
     wireTabsCue();
     document.getElementById('fp-search').oninput = function (e) { findQuery = e.target.value; renderFPResults(); };
+    wireSearchMic('fp-search');
     document.querySelectorAll('[data-f]').forEach(function (c) {
       c.onclick = function () { findFilter = c.dataset.f; renderFindParty(); };
     });
@@ -8329,12 +8361,13 @@
   const ADM_FILTER_MIN = 8;   // below this a box is just clutter
   function admFilterBox(id, n) {
     return n < ADM_FILTER_MIN ? '' :
-      '<input id="' + id + '" class="search" enterkeyhint="search" autocomplete="off" placeholder="' +
-      esc(t('adm_filter_ph').replace('{n}', n)) + '">';
+      searchRow('<input id="' + id + '" class="search" enterkeyhint="search" autocomplete="off" placeholder="' +
+        esc(t('adm_filter_ph').replace('{n}', n)) + '">', id);
   }
   function admWireFilter(id, rowSel) {
     const box = document.getElementById(id);
     if (!box) return;
+    wireSearchMic(id);
     box.oninput = function () {
       const q = normText(box.value);
       let shown = 0;

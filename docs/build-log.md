@@ -19751,3 +19751,31 @@ closeYear   → ok=false error=bad-token   (the action exists on the live runtim
 Added `docs/closing-runbook.md` — the sibling of the go-live runbook, read out of
 the code: what closing is (a reversible flag, not a wipe), the 🏁 readiness gate,
 the documents it produces, the ordered sequence, and how to reopen.
+
+---
+
+## A297 — voice on every search box — v4.129.0
+
+> Hrishi: *"add voice assistance in all search."*
+
+The 🎤 that guided entry has had since the start now sits beside every search box:
+📒 তালিকা, 🔍 দাতা খোঁজো, 🧑 সদস্যের চাঁদা, 🎭 অনুষ্ঠান, and the admin list filters.
+
+One snippet + one wiring, reused at each site: `searchRow(inputHTML, id)` wraps the
+box and a `searchMic(id)` 🎤 in a flex row; `wireSearchMic(id)` starts recognition
+on tap and, on a result, writes the transcript into the input and **fires the box's
+own `oninput`** — so dictating runs the exact same filter typing does, and no
+screen's search logic is touched or duplicated. Every search already filtered on
+`oninput`, which is what made one wiring cover all five.
+
+The mic only renders where `Voice.supported()` (as guided entry already does), so a
+device without speech shows a plain box, unchanged.
+
+The DOM harness's Voice stub gained an opt-in (`o.voice`) so a test can supply a
+scripted transcript; the test drives the find-party mic and asserts the spoken word
+lands in the box and narrows the list, the mic is drawn only when supported, and —
+after a mutation hit the wrong (flow) copy of `input.value = txt` and a harness stub
+made `!!mic` pass vacuously — that both the value-set and the render are caught by
+name.
+
+Client-only. Tests 4,147 → 4,155.

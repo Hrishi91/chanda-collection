@@ -372,7 +372,10 @@ function loadApp(opts) {
     maxMap: function () { return {}; },
     refresh: function () { return Promise.resolve(); },
   };
-  box.Voice = { supported: function () { return false; }, start: function () { return null; }, stop: function () {} };
+  // A297: voice is off by default (most screen tests do not want a mic), but a
+  // test can pass o.voice to supply a working stub — supported:true and a start()
+  // that fires onResult with a scripted transcript — to drive the search mics.
+  box.Voice = o.voice || { supported: function () { return false; }, start: function () { return null; }, stop: function () {} };
   box.Help = { sectionFor: function () { return ''; }, html: function () { return ''; } };
 
   // The shim reaches INTO the IIFE, because js/app.js exports nothing: the hook

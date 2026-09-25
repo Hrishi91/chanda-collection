@@ -288,6 +288,11 @@ select.chip { appearance: none; -webkit-appearance: none; max-width: 52vw; }
   width: 100%; padding: 12px 14px; font-size: 16px; border: 1.5px solid var(--line);
   border-radius: 12px; margin-bottom: 10px; background: var(--card);
 }
+/* A297: a search box with its voice 🎤 beside it — the box takes the slack, the
+   mic is a fixed 44-wide tap target that lines up with the box's height. */
+.search-row { display: flex; gap: 8px; align-items: stretch; }
+.search-row .search { flex: 1; margin-bottom: 10px; }
+.mic-search { flex: 0 0 auto; margin-bottom: 10px; min-width: 44px; }
 .tabs { margin-bottom: 12px; }
 .row {
   display: flex; justify-content: space-between; align-items: center; gap: 10px;

@@ -11697,6 +11697,51 @@ pending.push((async function () {
   }
 })());
 
+// A297 — voice on the search boxes: the 🎤 renders, and dictating filters the
+// list exactly as typing would (the voice result runs the box's own oninput).
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন রোড', nameEn: 'Main Rd' }];
+  const RATAN = { username: 'ratan', name: 'রতন', role: 'collector', cashier: 0,
+                  entries: 'shop,person,road,otherdonor' };
+  const book = function (parties) {
+    return { parties: parties, payments: [], daily: [], expenses: [], handovers: [],
+             voids: [], corrections: [], messages: [] };
+  };
+  // two OTHER collectors' donors (find-party lists other people's), so a spoken
+  // query can narrow them.
+  const CENTRAL = book([
+    { id: 'p1', year: 2026, type: 'shop', name: 'রাম স্টোর্স', pledged: 1000, side: 'main_malda', collectorId: 'x', createdAt: '2026-09-01T10:00:00Z' },
+    { id: 'p2', year: 2026, type: 'shop', name: 'শ্যাম টেলার্স', pledged: 1000, side: 'main_malda', collectorId: 'x', createdAt: '2026-09-01T10:01:00Z' },
+  ]);
+  // a Voice stub that, on start, speaks "রাম"
+  let started = false;
+  const voice = {
+    supported: function () { return true; },
+    start: function (onResult) { started = true; onResult('রাম'); },
+    stop: function () {},
+  };
+  const h = loadApp({ user: RATAN, lists: { area: AREA }, central: CENTRAL, voice: voice });
+  await h.ready;
+  await h.show('findparty');
+  const before = h.html('fp-results');
+  eq(/রাম স্টোর্স/.test(before) && /শ্যাম টেলার্স/.test(before), true, 'A297: both donors listed before the search');
+  eq(/id="mic-fp-search"/.test(h.html()), true, 'A297: a 🎤 is drawn beside the find-party search when voice is supported');
+  const mic = h.doc.getElementById('mic-fp-search');
+  eq(typeof mic.onclick, 'function', 'A297: …and it is wired');
+  mic.onclick();
+  eq(started, true, 'A297: tapping it starts voice recognition');
+  eq(h.doc.getElementById('fp-search').value, 'রাম', 'A297: the spoken text lands in the search box');
+  const after = h.html('fp-results');
+  eq(/রাম স্টোর্স/.test(after), true, 'A297: …and the list filters to the match, as typing would');
+  eq(/শ্যাম টেলার্স/.test(after), false, 'A297: …dropping the non-match');
+  // and when voice is NOT supported, no mic is drawn
+  const h2 = loadApp({ user: RATAN, lists: { area: AREA }, central: CENTRAL });
+  await h2.ready;
+  await h2.show('findparty');
+  eq(/mic-fp-search/.test(h2.html()), false, 'A297: no 🎤 is drawn on a device without voice');
+})());
+
 // A296 — the closing report's per-collector detail RENDERED, and the anonymous
 // donor's name proven absent from the screen (not just the data).
 pending.push((async function () {
