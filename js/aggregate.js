@@ -315,7 +315,13 @@
   // always, at the source, so it cannot leak downstream. It is dropped from the
   // returned structure entirely (anon:true, no name), not just hidden by the
   // renderer. Sponsor names stay: a sponsor is public by definition (A144).
-  function collectorDetail(data) {
+  // opts.anon (default TRUE): suppress গুপ্ত donor names. The closing report leaves
+  // it on — that document is published, so the name goes for everyone. The 🏆
+  // live drill passes {anon:false}: there the name is guarded by PERMISSION instead
+  // (visibleData has already removed গুপ্ত rows the viewer may not see, A288/A296),
+  // so a keyholder legitimately sees the name and a non-keyholder never had the row.
+  function collectorDetail(data, opts) {
+    const suppress = !opts || opts.anon !== false;
     const d = activeData(data);
     const partyType = {}, partyName = {};
     (d.parties || []).forEach(function (p) { if (p && p.id) { partyType[p.id] = p.type; partyName[p.id] = p.name; } });
@@ -326,7 +332,7 @@
       return groups[k];
     };
     (d.payments || []).forEach(function (r) {
-      const anon = String(partyType[r.partyId]) === 'gupt';
+      const anon = suppress && String(partyType[r.partyId]) === 'gupt';
       g(ck(r), r.collector).payments.push({
         name: anon ? '' : (r.partyName || partyName[r.partyId] || ''), anon: anon,
         amount: Number(r.amount) || 0, cash: Number(r.cashAmount) || 0, upi: Number(r.upiAmount) || 0,

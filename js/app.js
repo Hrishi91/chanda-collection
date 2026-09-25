@@ -6183,7 +6183,7 @@
   // A296: every collector's itemised ledger, one collapsible card each. A গুপ্ত
   // donor is already nameless in the data (aggregate suppresses it), so this only
   // has to print what it is given — it CANNOT reveal a name it never received.
-  function collectorDetailHTML(list) {
+  function collectorDetailHTML(list, title) {
     const dailyName = function (r) {
       return t('type_' + r.type) + (r.type === 'bus' && r.busName ? ' ' + r.busName : '');
     };
@@ -6217,7 +6217,7 @@
           ' · ' + esc(t('spent_col')) + ' ' + fmtMoney(tot.spent) +
           ' · ' + esc(t('inhand_col')) + ' ' + fmtMoney(tot.inHand) + '</div></details>';
     };
-    return '<div class="card"><div class="card-title">' + esc(t('cd_title')) + '</div>' +
+    return '<div class="card"><div class="card-title">' + esc(title || t('cd_title')) + '</div>' +
       ((list && list.length) ? list.map(card).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') +
       '</div>';
   }
@@ -6274,7 +6274,10 @@
     if (id === 'overview') return totalsHTML(d, t('report_overview'));
     if (id === 'dues') return reportDuesHTML(d);
     if (id === 'inhand') return reportInhandHTML(d);
-    if (id === 'collectors') return reportCollectorsHTML(d);
+    // A298: the standalone 🏆 report drills — each collector's rows on tap. It
+    // carries `detail` (attached in loadReport); inside the final report, the
+    // collectors section has no detail and stays the flat totals table.
+    if (id === 'collectors') return d.detail ? collectorDetailHTML(d.detail, t('report_collectors')) : reportCollectorsHTML(d);
     if (id === 'areas') return reportAreasHTML(d);
     if (id === 'expenses') return reportExpensesHTML(d);
     if (id === 'daily') return reportDailyHTML(d);
@@ -6949,6 +6952,10 @@
         // WHOLE book. Hrishi's call: separate everywhere, added up in one place,
         // never a second column smeared across every screen.
         if (id === 'overview') rep.bySector = Aggregate.sectorSplit(data);
+        // A298: the standalone 🏆 report gets the per-collector records to drill
+        // into. anon:false — গুপ্ত visibility is already decided by visibleData at
+        // viewData (a non-keyholder never received the row), so no extra masking.
+        if (id === 'collectors') rep.detail = Aggregate.collectorDetail(bookFor(id, data), { anon: false });
         body.innerHTML = reportHTML(id, rep) +
           '<button id="report-pdf" class="ghost big block">📄 ' + esc(t('report_pdf_btn')) + '</button>';
         document.getElementById('report-pdf').onclick = function () { printReport(id); };

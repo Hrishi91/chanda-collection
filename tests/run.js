@@ -9934,6 +9934,15 @@ pending.push((async function () {
   const fin = A.computeReport('final', book);
   eq(Array.isArray(fin.collectorDetail) && fin.collectorDetail.length >= 1, true,
      'A296: the final (closing) report carries the per-collector detail');
+
+  // A298: {anon:false} — the 🏆 live drill KEEPS the গুপ্ত name (permission, not
+  // suppression, guards it there: visibleData already removed rows a non-keyholder
+  // may not see). The closing report's default still suppresses (A296 above).
+  const live = A.collectorDetail(book, { anon: false });
+  const lram = live.filter(function (g) { return g.collector === 'ram'; })[0];
+  const lgupt = lram.payments.filter(function (p) { return p.amount === 5000; })[0];
+  eq(lgupt.anon, false, 'A298: with anon:false the গুপ্ত row is not marked anonymous');
+  eq(lgupt.name, 'গোপন লোক', 'A298: …and its name is kept — a keyholder reached this data through visibleData');
 }
 
 // A277 — js/app.js, BUILT and read, not grepped.
@@ -11695,6 +11704,38 @@ pending.push((async function () {
     eq(/ভুল অঙ্ক/.test(aud), true, 'A294: …and the audit lists the voided entry with its reason');
     eq(/report-pdf/.test(aud), true, 'A294: …and offers a PDF button');
   }
+})());
+
+// A298 — the 🏆 কে কত তুলল report drills into each collector's records.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন রোড', nameEn: 'Main Rd' }];
+  const CENTRAL = {
+    parties: [
+      { id: 'p1', year: 2026, type: 'shop', name: 'রাম স্টোর্স', pledged: 1000, side: 'main_malda', collector: 'রতন', collectorId: 'ratan', createdAt: '2026-09-01T10:00:00Z' },
+      { id: 'p2', year: 2026, type: 'shop', name: 'শ্যাম টেলার্স', pledged: 1000, side: 'main_malda', collector: 'পরী', collectorId: 'pori', createdAt: '2026-09-01T10:01:00Z' },
+    ],
+    payments: [
+      { id: 'y1', year: 2026, partyId: 'p1', partyName: 'রাম স্টোর্স', amount: 700, cashAmount: 700, upiAmount: 0, collector: 'রতন', collectorId: 'ratan', date: '2026-09-04' },
+      { id: 'y2', year: 2026, partyId: 'p2', partyName: 'শ্যাম টেলার্স', amount: 900, cashAmount: 900, upiAmount: 0, collector: 'পরী', collectorId: 'pori', date: '2026-09-04' },
+    ],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: CENTRAL });
+  await h.ready;
+  await h.show('report');
+  const chip = h.doc.querySelectorAll('#report-picker [data-rep]').filter(function (b) { return b.dataset.rep === 'collectors'; })[0];
+  eq(!!chip, true, 'A298: the 🏆 report is offered');
+  chip.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const html = h.html('report-body');
+  // both collectors listed, AND each carries the records collected through them
+  eq(/রতন/.test(html) && /পরী/.test(html), true, 'A298: both collectors are listed');
+  eq(/রাম স্টোর্স/.test(html), true, 'A298: রতন\'s collected record (রাম স্টোর্স) is shown in the drill');
+  eq(/শ্যাম টেলার্স/.test(html), true, 'A298: পরী\'s record too — the records collected THROUGH each collector');
+  eq(/৭০০|700/.test(html) && /৯০০|900/.test(html), true, 'A298: …with amounts');
 })());
 
 // A297 — voice on the search boxes: the 🎤 renders, and dictating filters the

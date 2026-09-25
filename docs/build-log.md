@@ -19779,3 +19779,27 @@ made `!!mic` pass vacuously — that both the value-set and the render are caugh
 name.
 
 Client-only. Tests 4,147 → 4,155.
+
+---
+
+## A298 — 🏆 কে কত তুলল drills into each collector's records — v4.130.0
+
+> Hrishi: *"কে কত তুলল ok, but not able to see the records which has been collected
+> through the collector … for গুপ্ত daan, if user not having permission he will not
+> have the data."*
+
+The 🏆 report showed per-collector TOTALS only. It now **drills**: each collector is
+a tap-to-expand card listing the records collected through them — every donation
+(donor · amount · 💵/📱 · date), daily round, expense and handover — reusing the
+A296 `collectorDetail` + `collectorDetailHTML` machinery. Attached in `loadReport`
+(like `overview.bySector`), so the standalone 🏆 drills while the collectors section
+*inside* the closing report stays the flat totals table.
+
+**গুপ্ত handled by permission, not suppression** — Hrishi's call. `collectorDetail`
+gained `opts.anon`: the closing report keeps the default (name dropped for everyone,
+it is published), but the live 🏆 drill passes `{anon:false}`, because `visibleData`
+has already removed গুপ্ত rows the viewer may not see (A288). So a keyholder
+legitimately sees the name and a non-keyholder never received the row — the same
+rule every other live screen follows.
+
+Client-only. Tests 4,155 → 4,162.
