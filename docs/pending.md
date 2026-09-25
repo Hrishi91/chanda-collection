@@ -27,8 +27,9 @@
       green). This was the last item nobody but Hrishi could verify: mic
       permission, bn-IN recognition and the WhatsApp share sheet are all
       OS-level and cannot be exercised from a desktop browser.
-- [ ] Clean up test data left in the Sheet (SYNC TEST দোকান + its payment,
-      Ramu→hrishikesh handover) — Hrishi to delete
+- [x] ~~Clean up test data left in the Sheet (SYNC TEST দোকান + its payment,
+      Ramu→hrishikesh handover)~~ — moot: 🚀 go-live (v4.34.0) wiped the training
+      book, and the live book was built fresh. Struck 2026-09-25 (A313 sweep).
 
 ## P0.5 — v2: users, roles, money handling (Hrishi, 2026-07-23)
 
@@ -341,12 +342,10 @@ give different numbers:
 - [x] ~~**R2** — uncapped typed-amount fallback removed; zero ceiling now shows
       an empty-state that names the in-transit money~~ (2026-07-26, client-only).
 
-- [ ] **Redeploy for A22** — Code.gs gained the `dupOk` payments column and
-      `ensureCols_` (push heals its own headers). Until then the duplicate
-      warning works fully on-device, but a collector's "yes, separate instalment"
-      answer does not reach the ADMIN's reconcile banner, so the admin keeps
-      seeing that pair flagged. Everything else about A22 is client-side and
-      already live.
+- [x] ~~**Redeploy for A22** — Code.gs gained the `dupOk` payments column and
+      `ensureCols_` (push heals its own headers).~~ DONE: the running server
+      (last deployed v4.128.0) carries `dupOk` and `ensureCols_`; every later
+      server deployment included them. Struck 2026-09-25 (A313 sweep).
 
 - [ ] **কমিটির পদ** — four seeded (সভাপতি / সম্পাদক / কোষাধ্যক্ষ / সদস্য, bn+en).
       Edit or extend from Admin → 🧾 → 🎖️ কমিটির পদ at any time, **no deploy**;
@@ -369,20 +368,13 @@ give different numbers:
 - [x] ~~**DECISION — money in the user LIST?**~~ **Yes (Hrishi, 2026-08-12),
       shipped as A100.** In-hand on every row, gated on the year so the two
       other `listUsers` callers stay cheap. See build-log "v4.29.0 — A100".
-- [ ] **⚠️ ONE REDEPLOY, v4.33.0 — supersedes every pending one below.** The
-      A109 (v4.30.0) and A114 (v4.32.0) redeploys were never done; **A115
-      (v4.33.0) contains both**, so deploy this once and all three land. New in
-      `Code.gs`: `saveMember` / `removeMember` (the committee register is a
-      server action now), `canAssignPosition_`, the `level` column on `Lists`,
-      and `committee` on every `pull` response.
-      Order, unchanged and non-negotiable on this account: paste
-      `apps-script/Code.gs` → **New deployment** (never "New version" — it has
-      never repointed here) → ask the new `/exec` what version it runs BEFORE
-      trusting it → rebake `js/config.js` → push.
-      **After deploying, before anything else:** open 🎖️ কমিটির পদ ও অনুমতি and
-      type a **level** into each post. Until you do, every post says
-      "⚠️ স্তর বসানো নেই" and only an admin can appoint anybody — safe, and
-      deliberately visible, but it is not the finished state.
+- [x] ~~**⚠️ ONE REDEPLOY, v4.33.0 — supersedes every pending one below.**~~ DONE:
+      the running server carries `saveMember` / `removeMember`, `canAssignPosition_`,
+      the `Lists` `level` column and `committee` on every `pull` — all deployed long
+      before the current v4.128.0 server. Struck 2026-09-25 (A313 sweep).
+      **Still a person-action if not yet done:** open 🎖️ কমিটির পদ ও অনুমতি and
+      type a **level** into each post, or every post shows "⚠️ স্তর বসানো নেই" and
+      only an admin can appoint anybody. (Verify on the live admin panel.)
 - [ ] **A115 — make a SECOND admin before go-live.** Nobody may add or edit
       their own committee record, admin included, and `register` is
       self-service so an admin cannot create an account for anyone. With one
@@ -410,9 +402,9 @@ give different numbers:
 - [ ] **Reports permission** — a DECISION, not a fix. Most collectors have an
       empty `reports` list and can open no central report at all, only their own
       summary. Intended, or grant some before the puja?
-- [ ] **Clear the test data** — the v4 pass left ~35 rows tagged `V430912` in the
-      training sheet (batch shops, a chain shop, a bus, handovers, chat). One
-      🧹 প্র্যাকটিসের ডেটা মুছে ফেলো clears them; Go Live would too.
+- [x] ~~**Clear the test data** — the v4 pass left ~35 rows tagged `V430912` in the
+      training sheet.~~ DONE: Go Live (🚀) cleared the training book. Struck
+      2026-09-25 (A313 sweep).
 - [ ] **Rotate the three session tokens** pasted in chat today. Fastest way:
       Admin → 👥 → each of those users → 🔓 **সেশন ছাড়ো**, then they log in
       again. (Re-logging in on the phone works too — a login overwrites the
@@ -447,12 +439,9 @@ survives it.
 - [ ] **Add the programme's expense subjects** (শিল্পী · সাউন্ড · অতিথি · মঞ্চ),
       choosing 🎭 অনুষ্ঠান as you add each. Existing subjects have no fund, which
       means BOTH — nothing to migrate.
-- [ ] **The 16 `demo-` rows** in the live training book (A138): **🚀 removes them
-      with everything else**, so no separate cleanup is needed if go-live is
-      next. Only if the trial continues: void them from ✏️ আমার লেখা entry, in
-      this order — handover (`demo-h1`) first, then payments/daily/expenses,
-      **parties (`demo-p1…p4`) LAST**. A party voided before its payments leaves
-      them orphaned and the 🩺 desk says so until the rest are cleared.
+- [x] ~~**The 16 `demo-` rows** in the live training book (A138): **🚀 removes them
+      with everything else.**~~ DONE: go-live ran, so 🚀 removed them. Struck
+      2026-09-25 (A313 sweep).
 - [ ] **Record each দায় BEFORE the booking is made.** Written afterwards, the
       gap it exists to show is already invisible.
 
