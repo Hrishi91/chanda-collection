@@ -1003,6 +1003,7 @@ const I18N = {
   cd_daily: { bn: '🛣️ দৈনিক', en: '🛣️ Daily' },
   cd_expenses: { bn: '🧾 খরচ', en: '🧾 Expenses' },
   cd_handovers: { bn: '🤝 হস্তান্তর', en: '🤝 Handovers' },
+  nophone_mark: { bn: '⚠️ ফোন নেই', en: '⚠️ no phone' },
   // A297: voice search
   voice_search: { bn: '🎤 বলে খোঁজো', en: '🎤 Search by voice' },
   report_audit: { bn: '🔎 আর্থিক নিরীক্ষা', en: '🔎 Financial audit' },

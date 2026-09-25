@@ -19854,3 +19854,21 @@ as long as the toggle would reveal paid phoneless donors, so the register list i
 always reachable.
 
 Client-only. Tests 4,174 → 4,182.
+
+---
+
+## A300 — the closing report carries each donor's phone — v4.133.0
+
+> Hrishi: *"reports also should be updated … the closing report we made that."*
+
+The 🧾 closing report's 👥 per-collector detail listed each donation (donor, amount,
+cash/UPI, date) but no phone. It now shows the donor's 📞 number on the line, or a
+muted **⚠️ ফোন নেই** where missing — so the closing statement doubles as the contact
+record. `collectorDetail` carries `phone` on each payment row; a গুপ্ত donor's phone
+is suppressed with their name (anonymous — no contact belongs on a published sheet),
+proved by a test with a গুপ্ত phone in the fixture. Screen and PDF both.
+
+Noted: a shared closing report now carries donor phone numbers — fine for the
+committee's internal accountability copy, worth knowing before it is published wide.
+
+Client-only. Tests 4,182 → 4,186.

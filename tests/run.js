@@ -9904,8 +9904,8 @@ pending.push((async function () {
   const book = {
     parties: [
       { id: 'p1', type: 'shop', name: 'পাল স্টোর্স', pledged: 5000, collector: 'ram', collectorId: 'ram', side: 'main_malda' },
-      { id: 'p2', type: 'sponsor', name: 'হরি টেক্সটাইল', pledged: 30000, collector: 'ram', collectorId: 'ram' },
-      { id: 'p3', type: 'gupt', name: 'গোপন লোক', pledged: 0, collector: 'ram', collectorId: 'ram' },
+      { id: 'p2', type: 'sponsor', name: 'হরি টেক্সটাইল', pledged: 30000, phone: '9800000002', collector: 'ram', collectorId: 'ram' },
+      { id: 'p3', type: 'gupt', name: 'গোপন লোক', pledged: 0, phone: '9800009999', collector: 'ram', collectorId: 'ram' },
     ],
     payments: [
       { id: 'y1', partyId: 'p1', partyName: 'পাল স্টোর্স', amount: 2000, cashAmount: 2000, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' },
@@ -9927,6 +9927,9 @@ pending.push((async function () {
   // sponsor name STAYS (public by definition)
   const spon = ram.payments.filter(function (p) { return p.name === 'হরি টেক্সটাইল'; })[0];
   eq(!!spon, true, 'A296: a sponsor keeps their name — sponsors are public');
+  // A300: the donor's phone rides the detail row; a গুপ্ত row carries none
+  eq(spon.phone, '9800000002', 'A300: a named donor carries their phone for the closing statement');
+  eq(gupt.phone, '', 'A300: …a গুপ্ত donor carries no phone (nameless, no contact on the sheet)');
   // the whole returned structure must not contain the anonymous name anywhere
   eq(JSON.stringify(det).indexOf('গোপন লোক') < 0, true,
      'A296: the anonymous donor\'s name appears NOWHERE in the detail — filed and published, it can never leak');
@@ -11881,10 +11884,13 @@ pending.push((async function () {
         collector: 'ram', collectorId: 'ram', createdAt: '2026-09-01T10:00:00Z' },
       { id: 'p3', year: 2026, type: 'gupt', name: 'গোপন ব্যক্তি', pledged: 0, side: 'main_malda',
         collector: 'ram', collectorId: 'ram', createdAt: '2026-09-01T10:06:00Z' },
+      { id: 'p4', year: 2026, type: 'shop', name: 'ফোনওয়ালা দোকান', pledged: 1000, side: 'main_malda',
+        phone: '9811122233', collector: 'ram', collectorId: 'ram', createdAt: '2026-09-01T10:07:00Z' },
     ],
     payments: [
       { id: 'y1', year: 2026, partyId: 'p1', partyName: 'পাল স্টোর্স', amount: 2000, cashAmount: 2000, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' },
       { id: 'y3', year: 2026, partyId: 'p3', partyName: 'গোপন ব্যক্তি', amount: 5000, cashAmount: 5000, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' },
+      { id: 'y4', year: 2026, partyId: 'p4', partyName: 'ফোনওয়ালা দোকান', amount: 800, cashAmount: 800, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' },
     ],
     daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [],
   };
@@ -11901,6 +11907,9 @@ pending.push((async function () {
   eq(/গোপন ব্যক্তি/.test(html), false,
      'A296: the গুপ্ত donor\'s name is ABSENT from the rendered closing report — the whole point');
   eq(/গুপ্ত দান/.test(html), true, 'A296: …shown as "গুপ্ত দান" with its amount instead');
+  // A300: the phone in the closing report's per-collector detail
+  eq(/9811122233/.test(html), true, 'A300: a named donor\'s phone shows in the closing detail');
+  eq(/ফোন নেই/.test(html), true, 'A300: …and a named donor with no phone is marked "ফোন নেই"');
   eq(/৫,০০০|5,000/.test(html), true, 'A296: …and the ₹5,000 is still counted');
 })());
 

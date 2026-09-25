@@ -6127,7 +6127,12 @@
       const dailyName = function (r) { return t('type_' + r.type) + (r.type === 'bus' && r.busName ? ' ' + r.busName : ''); };
       const detail = (d.collectorDetail || []).map(function (gr) {
         const rows = [];
-        gr.payments.forEach(function (r) { rows.push([t('cd_payments'), r.anon ? t('cd_anon') : (r.name || '?'), money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]); });
+        gr.payments.forEach(function (r) {
+          // A300: phone folded into the name cell (keeps the shared 6-column table)
+          const who = r.anon ? t('cd_anon')
+            : (r.name || '?') + (r.phone ? ' · 📞 ' + r.phone : ' · ' + t('nophone_mark'));
+          rows.push([t('cd_payments'), who, money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]);
+        });
         gr.daily.forEach(function (r) { rows.push([t('cd_daily'), dailyName(r), money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]); });
         gr.expenses.forEach(function (r) { rows.push([t('cd_expenses'), expenseTitle(r) + (expenseNote(r) ? ' · ' + expenseNote(r) : ''), money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]); });
         gr.handovers.forEach(function (h) { rows.push([t('cd_handovers'), (h.dir === 'out' ? '→ ' : '← ') + h.who, money(h.amount), '', '', fmtDate(h.date)]); });
@@ -6193,10 +6198,19 @@
         ' — ' + fmtMoney(r.amount) + cashUpiSub(r) +
         (r.date ? ' · ' + esc(fmtDate(r.date)) : '') + '</div>';
     };
+    // A300: a donor's phone on their donation line — the number if present, a muted
+    // "📞 নেই" if not, so the closing statement doubles as the contact record. Only
+    // for a named donor (গুপ্ত is nameless, so no contact).
+    const payLine = function (r) {
+      const ph = r.anon ? '' : (r.phone ? ' · 📞 ' + esc(r.phone) : ' · ' + esc(t('nophone_mark')));
+      return '<div class="row-sub" style="padding:2px 4px">' + esc(r.anon ? t('cd_anon') : (r.name || '?')) +
+        ' — ' + fmtMoney(r.amount) + cashUpiSub(r) + ph +
+        (r.date ? ' · ' + esc(fmtDate(r.date)) : '') + '</div>';
+    };
     const card = function (gr) {
       const body =
         (gr.payments.length ? '<div class="secttl">' + esc(t('cd_payments')) + '</div>' +
-          gr.payments.map(function (r) { return line(r.anon ? t('cd_anon') : (r.name || '?'), r); }).join('') : '') +
+          gr.payments.map(function (r) { return payLine(r); }).join('') : '') +
         (gr.daily.length ? '<div class="secttl">' + esc(t('cd_daily')) + '</div>' +
           gr.daily.map(function (r) { return line(dailyName(r), r); }).join('') : '') +
         (gr.expenses.length ? '<div class="secttl">' + esc(t('cd_expenses')) + '</div>' +

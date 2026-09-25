@@ -352,7 +352,8 @@
     const suppress = !opts || opts.anon !== false;
     const d = activeData(data);
     const partyType = {}, partyName = {};
-    (d.parties || []).forEach(function (p) { if (p && p.id) { partyType[p.id] = p.type; partyName[p.id] = p.name; } });
+    const partyPhone = {};
+    (d.parties || []).forEach(function (p) { if (p && p.id) { partyType[p.id] = p.type; partyName[p.id] = p.name; partyPhone[p.id] = p.phone; } });
     const groups = {};
     const g = function (k, nm) {
       if (!groups[k]) groups[k] = { collector: nm || k, payments: [], daily: [], expenses: [], handovers: [] };
@@ -363,6 +364,9 @@
       const anon = suppress && String(partyType[r.partyId]) === 'gupt';
       g(ck(r), r.collector).payments.push({
         name: anon ? '' : (r.partyName || partyName[r.partyId] || ''), anon: anon,
+        // A300: the donor's phone for the closing statement. Suppressed with the
+        // name for a গুপ্ত donor (anonymous — no contact belongs on the sheet).
+        phone: anon ? '' : String(partyPhone[r.partyId] || ''),
         amount: Number(r.amount) || 0, cash: Number(r.cashAmount) || 0, upi: Number(r.upiAmount) || 0,
         date: r.date || r.createdAt,
       });
