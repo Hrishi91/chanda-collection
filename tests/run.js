@@ -12119,6 +12119,26 @@ pending.push((async function () {
   eq(h.app.swReloadPending(), true, 'A310: …pending again');
 })());
 
+// A311 — a BACKGROUND refresh (focus / notification tick) must not rebuild the
+// screen while an input is focused. The pull path already skips this; onAppFocus
+// and applyNotifications did not, so a search box lost its text on any refresh.
+// Same class as A310: a refresh disrupting what the user is doing.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const USER = { username: 'ram', name: 'রাম', role: 'collector', cashier: 0, entries: 'shop,person,road' };
+  const h = loadApp({ user: USER, lists: { area: AREA } });
+  await h.ready;
+  await h.show('list'); // a REFRESHABLE data screen with a search box
+  const p0 = h.painted().length;
+  h.doc.activeElement = { tagName: 'INPUT' };
+  h.app.refreshOnFocus();
+  eq(h.painted().length, p0, 'A311: a focus refresh does NOT rebuild the screen while an input is focused');
+  h.doc.activeElement = null;
+  h.app.refreshOnFocus();
+  eq(h.painted().length > p0, true, 'A311: …but it does refresh once nothing is focused');
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

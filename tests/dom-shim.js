@@ -403,7 +403,7 @@ function loadApp(opts) {
                // same function the header calls — not a copy of its body.
                " toggleCurtain: toggleCurtain," +
                // A310: the deferred service-worker reload — the decision, not the reload
-               " requestSwReload: requestSwReload, midEntry: midEntry," +
+               " requestSwReload: requestSwReload, midEntry: midEntry, refreshOnFocus: refreshOnFocus," +
                " swReloadPending: function () { return pendingSwReload; }," +
                " bookFor: bookFor };\n";
   vm.runInContext(src.slice(0, cut) + hook + src.slice(cut), box);

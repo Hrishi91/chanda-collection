@@ -897,7 +897,7 @@
     // auto-refresh a data view (e.g. admin panel) when the count changes,
     // so a new registration/handover shows without a manual refresh
     if (changed && Auth.loggedIn() && !flowState && current.view !== 'home' &&
-        REFRESHABLE.includes(current.view)) render();
+        REFRESHABLE.includes(current.view) && !typing()) render(); // A311: not under a focused field
   }
   // once pull carries the feed, the standalone poll is redundant (halves calls)
   let notifViaPull = false;
@@ -919,7 +919,7 @@
     // backoff and force past the in-flight skip
     resetPullBackoff();
     pullCentral({ force: true }); // refresh the central snapshot (incl. notifications + me)
-    if (Auth.loggedIn() && !flowState && REFRESHABLE.includes(current.view)) render();
+    refreshOnFocus(); // A311: repaint the data view on return, but never under a focused field
   }
   function startNotifPolling() {
     if (!notifWired) {
@@ -9664,11 +9664,22 @@
   // they typed. Report of exactly that: "doing entry, the page refreshed and
   // threw me out." Guided/voice entries persist a draft per step and survive a
   // reload; forms and the live inputs do not — so both are protected here.
+  function typing() {
+    const el = document.activeElement;
+    return !!(el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'));
+  }
   function midEntry() {
     if (flowState) return true;                       // guided / voice entry in progress
-    const el = document.activeElement;
-    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return true; // typing
+    if (typing()) return true;                        // a field is focused right now
     return ['partyform', 'memberform', 'profile'].includes(current.view); // unsaved form
+  }
+  // A311: a background refresh (focus / notification tick) may repaint the current
+  // data screen — but NEVER while a field is focused, or it wipes what is being
+  // typed (a search box lost its text on every refresh). The pull path already
+  // obeyed this (its activeElement guard); this is the same rule for the other two
+  // refresh triggers, in one place both call.
+  function refreshOnFocus() {
+    if (Auth.loggedIn() && !flowState && REFRESHABLE.includes(current.view) && !typing()) render();
   }
   // Reload for a new service worker — but only when it will not throw the user
   // out of an entry. Mid-entry it is remembered and run later by

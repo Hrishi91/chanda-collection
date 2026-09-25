@@ -20121,3 +20121,27 @@ NOTE the update that DELIVERS this fix still reloads once — it runs the old
 entries are protected. Best to take it via ⚙️ → 🔄 while not mid-entry.
 
 Client-only. v4.141.0 → v4.142.0. Tests 4,216 → 4,224.
+
+---
+
+## A311 — a background refresh rebuilt the screen under a focused field (v4.143.0)
+
+Same class as A310, found while checking "all the navigations." `pullCentral`
+already skips its re-render when an INPUT/TEXTAREA is focused, but the other two
+refresh triggers — `onAppFocus` (return-to-app / pull-to-refresh) and
+`applyNotifications` (a notification tick) — called `render()` guarded only by
+`!flowState`. So typing in a search box (list, member) and then a refresh firing
+rebuilt the DOM and wiped the text mid-type.
+
+Fix: one `typing()` helper (also now used by `midEntry`), and a `refreshOnFocus()`
+seam that repaints the current data view only when logged in, not in a flow, on a
+REFRESHABLE screen, AND no field is focused. Both refresh sites now honour it
+(onAppFocus calls refreshOnFocus; the notification path adds `&& !typing()`, keeping
+its existing home-exclusion). The money entry itself was already safe — it runs as a
+guided flow — so this protects search boxes and any other live field.
+
+Proved by a DOM test on the list screen: a focus refresh with an input focused adds
+no repaint; with nothing focused it repaints. Mutation removing the typing guard
+fails by name A311.
+
+Client-only. v4.142.0 → v4.143.0. Tests 4,224 → 4,226.
