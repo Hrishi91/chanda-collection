@@ -372,6 +372,7 @@
         // name for a গুপ্ত donor (anonymous — no contact belongs on the sheet).
         phone: anon ? '' : String(partyPhone[r.partyId] || ''),
         amount: Number(r.amount) || 0, cash: Number(r.cashAmount) || 0, upi: Number(r.upiAmount) || 0,
+        pledged: Number(partyPledged[r.partyId]) || 0, // A303: this donor's pledge (কথা)
         due: dueOf(r.partyId), // A301: this donor's remaining due
         date: r.date || r.createdAt,
       });

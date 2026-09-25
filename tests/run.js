@@ -9936,6 +9936,8 @@ pending.push((async function () {
   const pal = ram.payments.filter(function (p) { return p.name === 'পাল স্টোর্স'; })[0];
   eq(pal.due, 3000, 'A301: …and each donation line carries that donor\'s remaining due');
   eq(spon.due, 0, 'A301: …a fully-paid donor shows no due');
+  // A303: the donor's PLEDGE on the line too, so কথা / দেওয়া / বাকি all read
+  eq(pal.pledged, 5000, 'A303: each donation line carries the donor\'s pledge (কথা)');
 
   // A302: the due is shown WITH its arithmetic — pledged − paid = due, over the
   // donors this collector registered, so the number is never a mystery.
@@ -11843,6 +11845,8 @@ pending.push((async function () {
   // A302: …and shows the arithmetic behind it — নথিভুক্ত দাতা: কথা 1000 − দেওয়া 700 = বাকি 300
   eq(/নথিভুক্ত দাতা/.test(html), true, 'A302: the due is labelled "registered donors", distinct from "collected"');
   eq(/১,০০০|1,000/.test(html) && /৭০০|700/.test(html), true, 'A302: …with pledged and paid shown, so বাকি is self-explaining');
+  // A303: the pledge shows on the donor's own line too (কথা)
+  eq(/কথা[\s\S]{0,12}?(১,০০০|1,000)/.test(html), true, 'A303: the donor\'s pledge (কথা 1000) shows on their donation line');
 })());
 
 // A297 — voice on the search boxes: the 🎤 renders, and dictating filters the

@@ -19913,3 +19913,17 @@ now carries `totals.pledged` and `totals.paidReg` alongside `due`; a test pins
 `pledged − paidReg === due`. Screen and PDF.
 
 Client-only. Tests 4,190 → 4,195.
+
+---
+
+## A303 — the donor's pledge on every donation line — v4.136.0
+
+> Hrishi: *"add the pledge amount also in the report."*
+
+A302 showed the pledge−paid=due arithmetic at the COLLECTOR level; per DONOR the
+detail line still showed only the instalment and the due. Now each donation line in
+the per-collector detail (🏆 and 🧾 closing) also shows the donor's **কথা (pledge)**,
+so কথা / দেওয়া / বাকি all read on the one line. `collectorDetail` payment rows carry
+`pledged`; screen and PDF.
+
+Client-only. Tests 4,195 → 4,197.

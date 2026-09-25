@@ -6130,8 +6130,10 @@
         gr.payments.forEach(function (r) {
           // A300: phone folded into the name cell (keeps the shared 6-column table)
           const who = r.anon ? t('cd_anon')
-            : (r.name || '?') + (r.phone ? ' · 📞 ' + r.phone : ' · ' + t('nophone_mark'))
-              + (Aggregate.moreThan(r.due, 0) ? ' · ' + t('due') + ' ' + money(r.due) : '');
+            : (r.name || '?')
+              + (Aggregate.moreThan(r.pledged, 0) ? ' · ' + t('pledged') + ' ' + money(r.pledged) : '')
+              + (Aggregate.moreThan(r.due, 0) ? ' · ' + t('due') + ' ' + money(r.due) : '')
+              + (r.phone ? ' · 📞 ' + r.phone : ' · ' + t('nophone_mark'));
           rows.push([t('cd_payments'), who, money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]);
         });
         gr.daily.forEach(function (r) { rows.push([t('cd_daily'), dailyName(r), money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]); });
@@ -6208,10 +6210,12 @@
     // for a named donor (গুপ্ত is nameless, so no contact).
     const payLine = function (r) {
       const ph = r.anon ? '' : (r.phone ? ' · 📞 ' + esc(r.phone) : ' · ' + esc(t('nophone_mark')));
+      // A303: the donor's pledge (কথা), so কথা / দেওয়া / বাকি all read on the line
+      const pl = Aggregate.moreThan(r.pledged, 0) ? ' · ' + esc(t('pledged')) + ' ' + fmtMoney(r.pledged) : '';
       // A301: this donor's remaining due on their donation line
       const due = Aggregate.moreThan(r.due, 0) ? ' · <b class="warn">' + esc(t('due')) + ' ' + fmtMoney(r.due) + '</b>' : '';
       return '<div class="row-sub" style="padding:2px 4px">' + esc(r.anon ? t('cd_anon') : (r.name || '?')) +
-        ' — ' + fmtMoney(r.amount) + cashUpiSub(r) + ph + due +
+        ' — ' + fmtMoney(r.amount) + cashUpiSub(r) + pl + due + ph +
         (r.date ? ' · ' + esc(fmtDate(r.date)) : '') + '</div>';
     };
     const card = function (gr) {
