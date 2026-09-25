@@ -19803,3 +19803,34 @@ legitimately sees the name and a non-keyholder never received the row — the sa
 rule every other live screen follows.
 
 Client-only. Tests 4,155 → 4,162.
+
+---
+
+## A299 — the 🩺 desk grouped collector-wise, and an "owes, no phone" chase-list — v4.131.0
+
+> Hrishi: *"entries are not having mobile no, why not showing in anomaly desk … make
+> sub menu under this collector wise … it should be under anomaly, and we can go to
+> the record also to edit."*
+
+Two things, one screen.
+
+**Collector-wise grouping.** The per-anomaly cards are now grouped into a collapsible
+section per collector (`anomColl` resolves each anomaly's owner — the donor's
+collector, or who wrote the row; book-wide ones like unbalanced / position_over_max
+fall under 🏛️ কমিটি-ব্যাপী, kept last). The cards are unchanged, so every button they
+carry (👁 view → edit, ✓ stamp) still wires. Grouping is display-only.
+
+**The "owes, no phone" chase-list — NOT a reconcile anomaly.** The first attempt
+added `no_phone_due` to `reconcile`, and the suite immediately caught why that is
+wrong: A168/A234/A259/A294's "a clean book raises nothing / the desk is silent"
+tests went red, because most fixtures (and most real street donors) owe and have no
+phone — exactly the "desk full of unactionable rows teaches people to ignore red"
+failure the `party_no_area` comment warns against, and it also broke the audit's
+balance verdict (which reads reconcile). So it is its own section instead:
+`Aggregate.chaseNoPhone(data)` returns owes-only, chased-kinds-only (shop/person/
+sponsor; members have contact on their account, গুপ্ত is anonymous), grouped by
+collector; the 🩺 desk renders it as a card where each donor is a tap into their
+record to add the number. Reconcile stays "the book disagrees with itself."
+
+Two brittle source-text assertions repointed (A112's empty-suppression guard, A276's
+includes-not-indexOf). Client-only. Tests 4,162 → 4,174.

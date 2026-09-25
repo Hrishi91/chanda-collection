@@ -257,6 +257,13 @@ const I18N = {
   anom_party_no_area: { bn: '📍 {who} — এলাকা বসানো নেই। এই দাতা 📍 এলাকা-ভিত্তিক রিপোর্টে "এলাকা ছাড়া"-য় পড়ে আছে, তাই কোন রাস্তায় কত উঠল সেই হিসাব অসম্পূর্ণ। 👁 দেখো → ✏️ তথ্য সংশোধন-এ এলাকা বেছে দাও; তালিকায় রাস্তাটা না থাকলে admin ⚙️ → 🧾 রসিদ ও তালিকা-য় যোগ করে নেবে।',
                        en: '📍 {who} — no area set. This donor sits under "No area" in the 📍 by-area report, so the road-wise totals are incomplete. 👁 View → ✏️ Edit and pick an area; if the road is missing, the admin adds it in ⚙️ → 🧾 receipts & lists.' },
   anom_party_no_area_t: { bn: 'দাতার এলাকা বসানো নেই', en: 'Donor has no area' },
+  // A299: a donor who owes but has no phone — needed to chase the due
+  // A299: the "owes but no phone" chase-list section on the 🩺 desk
+  chase_nophone_t: { bn: '📞 বাকি আছে, ফোন নেই', en: '📞 Owes, no phone' },
+  chase_nophone_sub: { bn: 'এদের বাকি আছে কিন্তু ফোন নম্বর নেই — তাগাদা দিতে হলে নম্বর দরকার। সারিতে চাপো → ✏️ তথ্য সংশোধন-এ নম্বর বসাও।',
+                       en: 'These donors still owe but have no phone number — a number is needed to chase them. Tap a row → ✏️ Edit and add one.' },
+  // A299: the anomaly desk grouped by collector
+  anom_committee: { bn: '🏛️ কমিটি-ব্যাপী', en: '🏛️ Committee-wide' },
   // The duplicate-payment anomaly draws its own card with its own heading, so
   // this one is a fallback. It exists anyway: if that special card is ever
   // dropped, the desk must not head the row with a raw key.

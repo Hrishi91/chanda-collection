@@ -315,6 +315,27 @@
   // always, at the source, so it cannot leak downstream. It is dropped from the
   // returned structure entirely (anon:true, no name), not just hidden by the
   // renderer. Sponsor names stay: a sponsor is public by definition (A144).
+  // A299: donors who still OWE but have no phone number — a chase-list, NOT a
+  // reconcile anomaly (see the note in reconcile). Only owes-only and only the
+  // chased donor kinds, so it stays actionable, not a flood. Returned already
+  // grouped by collector, since that is the one way the 🩺 desk asks for it.
+  function chaseNoPhone(data) {
+    const d = activeData(data);
+    const paid = {};
+    (d.payments || []).forEach(function (p) { paid[p.partyId] = (paid[p.partyId] || 0) + (Number(p.amount) || 0); });
+    const groups = {};
+    (d.parties || []).forEach(function (p) {
+      if (!['shop', 'person', 'sponsor'].includes(String(p.type))) return;
+      if (String(p.phone || '').replace(/\D/g, '')) return;
+      const due = (Number(p.pledged) || 0) - (paid[p.id] || 0);
+      if (!moreThan(due, 0)) return;
+      const c = String(p.collector || p.collectorId || '?');
+      (groups[c] = groups[c] || []).push({ id: p.id, name: p.name || p.id, type: p.type, due: due });
+    });
+    return Object.keys(groups).map(function (c) {
+      return { collector: c, rows: groups[c].sort(function (a, b) { return b.due - a.due; }) };
+    }).sort(function (a, b) { return b.rows.length - a.rows.length; });
+  }
   // opts.anon (default TRUE): suppress গুপ্ত donor names. The closing report leaves
   // it on — that document is published, so the name goes for everyone. The 🏆
   // live drill passes {anon:false}: there the name is guarded by PERMISSION instead
@@ -1708,6 +1729,12 @@
       if (p.type !== 'shop' || String(p.side || '')) return;
       anomalies.push({ type: 'party_no_area', id: p.id, partyId: p.id, party: p.name || p.id });
     });
+    // A299: "owes but no phone" is deliberately NOT a reconcile anomaly. reconcile
+    // means "the book disagrees with itself", and a phoneless donor is not a money
+    // fault — most street donors give no number. Making it an anomaly floods the
+    // desk and breaks the balance verdict (the audit reads reconcile). The 🩺 desk
+    // surfaces it as its own chase-list section instead (see chaseNoPhone / the
+    // renderer), computed there, not here.
     // same id appearing twice in a store (would double-count)
     ['parties', 'payments', 'daily', 'expenses', 'handovers'].forEach(function (store) {
       const seen = {};
@@ -2531,7 +2558,7 @@
   }
 
   const api = { isDue, moreThan, keyOfFund, canEditParty, canVoid, isMine, isOrdinaryMember, positionBlock, toggleKey, reportGroups, applyBulkReports, isCashierKey, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
-                inHandRows: inHandRows, collectorDetail: collectorDetail, personalSummary: personalSummary,
+                inHandRows: inHandRows, collectorDetail: collectorDetail, chaseNoPhone: chaseNoPhone, personalSummary: personalSummary,
                 myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,
                 roleOf: roleOf, rowRole: rowRole,

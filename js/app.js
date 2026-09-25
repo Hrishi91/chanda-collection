@@ -6651,6 +6651,18 @@
       };
       const canStamp = serverCanStoreAnswers();
       const stampNote = canStamp ? '' : '<div class="perm-note">' + esc(t('anom_needs_deploy')) + '</div>';
+      // A299: which collector an anomaly belongs to, so the desk can be read
+      // collector-wise. A party-based anomaly → the donor's own collector; a
+      // payment-based one → who wrote it; anything book-wide (unbalanced,
+      // position_over_max) has no single owner and sits under 🏛️ কমিটি-ব্যাপী.
+      const anomColl = function (a) {
+        if (a.collector) return a.collector;
+        const pr = partyById[a.partyId];
+        if (pr) return pr.collector || pr.collectorId || t('anom_committee');
+        const pay = byId[a.id];
+        if (pay) return pay.collector || pay.collectorId || t('anom_committee');
+        return t('anom_committee');
+      };
       const rows = r.anomalies.map(function (a) {
         if (a.type === 'possible_duplicate_payment') {
           const dup = byId[a.id], first = byId[a.firstId];
@@ -6805,10 +6817,47 @@
           return '<div class="row" style="cursor:default"><div><b>' + esc(h.id) + '</b></div>' +
             '<div class="row-right" style="color:var(--red)">' + esc(fmtMoney(h.inHand)) + '</div></div>';
         }).join('') + '</div>';
+      // A299: group the per-anomaly cards collector-wise. Each collector is a
+      // collapsible section (open, so nothing hides on arrival); the book-wide
+      // ones fall under 🏛️ কমিটি-ব্যাপী, kept last. The cards themselves are
+      // unchanged, so every button they already carry (👁 view → edit, ✓ stamp)
+      // still wires through the querySelectorAll passes below.
+      const byColl = {};
+      r.anomalies.forEach(function (a, i) {
+        const c = anomColl(a);
+        (byColl[c] = byColl[c] || []).push(rows[i]);
+      });
+      const COMMITTEE = t('anom_committee');
+      const collKeys = Object.keys(byColl).sort(function (a, b) {
+        if (a === COMMITTEE) return 1; if (b === COMMITTEE) return -1;
+        return byColl[b].length - byColl[a].length; // most anomalies first
+      });
+      const grouped = collKeys.map(function (c) {
+        return '<details class="perm-grp" open><summary><b>' + esc(c) + '</b> ' +
+          '<span class="badge warn">' + toBengaliDigits(String(byColl[c].length)) + '</span></summary>' +
+          byColl[c].join('') + '</details>';
+      }).join('');
+      // A299: the "owes but no phone" chase-list — its own section (NOT a reconcile
+      // anomaly), grouped by collector, each donor a tap into their record to add
+      // the number. Nameless donors it never reaches (গুপ্ত has no phone anyway).
+      const chase = Aggregate.chaseNoPhone(data);
+      const chaseCard = !chase.length ? '' :
+        '<div class="card"><div class="card-title">' + esc(t('chase_nophone_t')) + '</div>' +
+        '<div class="row-sub" style="margin:-4px 4px 8px">' + esc(t('chase_nophone_sub')) + '</div>' +
+        chase.map(function (g) {
+          return '<details class="perm-grp" open><summary><b>' + esc(g.collector) + '</b> ' +
+            '<span class="badge warn">' + toBengaliDigits(String(g.rows.length)) + '</span></summary>' +
+            g.rows.map(function (p) {
+              return '<button class="row" data-goparty="' + esc(p.id) + '" style="width:100%;text-align:left">' +
+                '<div style="flex:1"><b>' + esc(shownName(p.name, p.type)) + '</b>' +
+                '<div class="row-sub">' + esc(t('type_' + p.type)) + '</div></div>' +
+                '<div class="row-right"><span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(p.due) + '</span></div></button>';
+            }).join('') + '</details>';
+        }).join('') + '</div>';
       $view().innerHTML = backBar(anomBack) + '<div class="flow-title">🩺 ' + esc(t('anom_title')) + '</div>' +
         '<div class="hint" style="margin-bottom:10px">' + esc(t('anom_hint')) + guideDoor('anom') + '</div>' +
-        heavyCard + voidCard +
-        (rows.length ? rows.join('') : (heavyCard || voidCard ? '' : '<div class="empty">' + esc(t('anom_none')) + '</div>'));
+        heavyCard + voidCard + chaseCard +
+        (rows.length ? grouped : (heavyCard || voidCard || chaseCard ? '' : '<div class="empty">' + esc(t('anom_none')) + '</div>'));
       wireNav();
       wireGuideDoors();
       document.querySelectorAll('[data-goparty]').forEach(function (b) {

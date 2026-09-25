@@ -1812,7 +1812,9 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
     eq(/heavyCard \+ voidCard \+/.test(app112), true,
        'A112: both sit above the anomaly cards, not inside reconcile');
     // …and an empty desk must not claim to be empty when one of them is showing
-    eq(/\(heavyCard \|\| voidCard \? '' : '<div class="empty">'/.test(app112), true,
+    // A299 added chaseCard (owes-no-phone) to the same non-reconcile family; the
+    // empty message is still suppressed when ANY of them shows. Match the property.
+    eq(/\(heavyCard \|\| voidCard \|\| chaseCard \? '' : '<div class="empty">'/.test(app112), true,
        'A112: …so "no anomalies" is not printed under a card that says otherwise');
   }
   // A111: the pre-puja sweep. Thirteen screens in two languages and three
@@ -11704,6 +11706,61 @@ pending.push((async function () {
     eq(/ভুল অঙ্ক/.test(aud), true, 'A294: …and the audit lists the voided entry with its reason');
     eq(/report-pdf/.test(aud), true, 'A294: …and offers a PDF button');
   }
+})());
+
+// A299 — "owes but no phone" is a chase-list (collector-wise), NOT a reconcile
+// anomaly (that would flood the desk and break the balance verdict).
+{
+  const A = require('../js/aggregate.js');
+  const book = {
+    parties: [
+      // owes, no phone → LISTED
+      { id: 'p1', type: 'shop', name: 'ফোনহীন দোকান', pledged: 1000, collector: 'ram', collectorId: 'ram', side: 'main_malda' },
+      // owes, HAS phone → not listed
+      { id: 'p2', type: 'shop', name: 'নম্বরওয়ালা', pledged: 1000, phone: '9800000001', collector: 'ram', collectorId: 'ram', side: 'main_malda' },
+      // no phone but SETTLED → not listed
+      { id: 'p3', type: 'person', name: 'মিটিয়ে দিয়েছে', pledged: 500, collector: 'kali', collectorId: 'kali' },
+      // গুপ্ত, owes, no phone → not listed (anonymous, no phone expected)
+      { id: 'p4', type: 'gupt', name: 'গোপন', pledged: 500, collector: 'kali', collectorId: 'kali' },
+    ],
+    payments: [{ id: 'y3', partyId: 'p3', amount: 500, cashAmount: 500, upiAmount: 0, collector: 'kali', collectorId: 'kali', date: '2026-09-04' }],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [],
+  };
+  // it is NOT a reconcile anomaly — the desk's money verdict stays clean
+  const anomTypes = A.reconcile(book, {}).anomalies.map(function (a) { return a.type; });
+  eq(anomTypes.indexOf('no_phone_due') < 0, true,
+     'A299: owes-no-phone is NOT a reconcile anomaly — reconcile stays "the book disagrees with itself"');
+
+  const chase = A.chaseNoPhone(book);
+  const flat = []; chase.forEach(function (g) { g.rows.forEach(function (r) { flat.push(r.name); }); });
+  eq(flat.indexOf('ফোনহীন দোকান') >= 0, true, 'A299: a donor who owes with no phone is listed');
+  eq(flat.indexOf('নম্বরওয়ালা') < 0, true, 'A299: …one WITH a phone is not');
+  eq(flat.indexOf('মিটিয়ে দিয়েছে') < 0, true, 'A299: …a SETTLED donor is not (no due to chase)');
+  eq(flat.indexOf('গোপন') < 0, true, 'A299: …and a গুপ্ত donor is not (anonymous, no phone expected)');
+  eq(chase[0].collector, 'ram', 'A299: grouped by collector');
+  eq(chase[0].rows[0].due, 1000, 'A299: …with the amount still owed, to chase');
+}
+
+// A299 — the chase-list rendered on the 🩺 desk, collector-wise, tap → record.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন রোড', nameEn: 'Main Rd' }];
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const CENTRAL = {
+    parties: [
+      { id: 'p1', year: 2026, type: 'shop', name: 'ফোনহীন দোকান', pledged: 1000, side: 'main_malda', collector: 'রতন', collectorId: 'ratan', createdAt: '2026-09-01T10:00:00Z' },
+      { id: 'p2', year: 2026, type: 'shop', name: 'নম্বরওয়ালা', pledged: 1000, phone: '9800000001', side: 'main_malda', collector: 'রতন', collectorId: 'ratan', createdAt: '2026-09-01T10:01:00Z' },
+    ],
+    payments: [], daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: CENTRAL });
+  await h.ready;
+  const html = await h.show('anomalies');
+  eq(/বাকি আছে, ফোন নেই/.test(html), true, 'A299: the 🩺 desk shows the "owes, no phone" chase section');
+  eq(/রতন/.test(html), true, 'A299: …grouped under the collector');
+  eq(/ফোনহীন দোকান/.test(html), true, 'A299: …listing the phoneless owing donor');
+  eq(/নম্বরওয়ালা/.test(html), false, 'A299: …but not the one with a number');
+  eq(/data-goparty="p1"/.test(html), true, 'A299: …and tapping the row goes to the donor record (to add a number)');
 })());
 
 // A298 — the 🏆 কে কত তুলল report drills into each collector's records.
