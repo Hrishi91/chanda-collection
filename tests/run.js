@@ -9930,21 +9930,6 @@ pending.push((async function () {
   // A300: the donor's phone rides the detail row; a গুপ্ত row carries none
   eq(spon.phone, '9800000002', 'A300: a named donor carries their phone for the closing statement');
   eq(gupt.phone, '', 'A300: …a গুপ্ত donor carries no phone (nameless, no contact on the sheet)');
-
-  // A301: dues — per collector and per donor
-  eq(ram.totals.due, 3000, 'A301: the collector totals their donors\' outstanding (পাল owes 5000−2000)');
-  const pal = ram.payments.filter(function (p) { return p.name === 'পাল স্টোর্স'; })[0];
-  eq(pal.due, 3000, 'A301: …and each donation line carries that donor\'s remaining due');
-  eq(spon.due, 0, 'A301: …a fully-paid donor shows no due');
-  // A303: the donor's PLEDGE on the line too, so কথা / দেওয়া / বাকি all read
-  eq(pal.pledged, 5000, 'A303: each donation line carries the donor\'s pledge (কথা)');
-
-  // A302: the due is shown WITH its arithmetic — pledged − paid = due, over the
-  // donors this collector registered, so the number is never a mystery.
-  eq(ram.totals.pledged, 35000, 'A302: Σ pledged over ram\'s registered donors (5000 + 30000)');
-  eq(ram.totals.paidReg, 32000, 'A302: Σ paid by those donors (2000 + 30000)');
-  eq(ram.totals.pledged - ram.totals.paidReg, ram.totals.due,
-     'A302: …and pledged − paid EQUALS the due — the arithmetic the user can check');
   // the whole returned structure must not contain the anonymous name anywhere
   eq(JSON.stringify(det).indexOf('গোপন লোক') < 0, true,
      'A296: the anonymous donor\'s name appears NOWHERE in the detail — filed and published, it can never leak');
@@ -11840,13 +11825,6 @@ pending.push((async function () {
   eq(/রাম স্টোর্স/.test(html), true, 'A298: রতন\'s collected record (রাম স্টোর্স) is shown in the drill');
   eq(/শ্যাম টেলার্স/.test(html), true, 'A298: পরী\'s record too — the records collected THROUGH each collector');
   eq(/৭০০|700/.test(html) && /৯০০|900/.test(html), true, 'A298: …with amounts');
-  // A301: dues shown in the 🏆 drill — রাম স্টোর্স pledged 1000, paid 700 → owes 300
-  eq(/বাকি[\s\S]{0,12}?(৩০০|300)/.test(html), true, 'A301: the 🏆 drill shows the dues (রাম owes 300)');
-  // A302: …and shows the arithmetic behind it — নথিভুক্ত দাতা: কথা 1000 − দেওয়া 700 = বাকি 300
-  eq(/নথিভুক্ত দাতা/.test(html), true, 'A302: the due is labelled "registered donors", distinct from "collected"');
-  eq(/১,০০০|1,000/.test(html) && /৭০০|700/.test(html), true, 'A302: …with pledged and paid shown, so বাকি is self-explaining');
-  // A303: the pledge shows on the donor's own line too (কথা)
-  eq(/কথা[\s\S]{0,12}?(১,০০০|1,000)/.test(html), true, 'A303: the donor\'s pledge (কথা 1000) shows on their donation line');
 })());
 
 // A297 — voice on the search boxes: the 🎤 renders, and dictating filters the

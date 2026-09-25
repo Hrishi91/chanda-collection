@@ -351,13 +351,9 @@
   function collectorDetail(data, opts) {
     const suppress = !opts || opts.anon !== false;
     const d = activeData(data);
-    const partyType = {}, partyName = {}, partyPhone = {}, partyPledged = {};
-    (d.parties || []).forEach(function (p) { if (p && p.id) { partyType[p.id] = p.type; partyName[p.id] = p.name; partyPhone[p.id] = p.phone; partyPledged[p.id] = Number(p.pledged) || 0; } });
-    // A301: paid-per-party, so each donation line can show that donor's remaining
-    // due and each collector a running total of what their donors still owe.
-    const paidByParty = {};
-    (d.payments || []).forEach(function (p) { paidByParty[p.partyId] = (paidByParty[p.partyId] || 0) + (Number(p.amount) || 0); });
-    const dueOf = function (pid) { const x = (partyPledged[pid] || 0) - (paidByParty[pid] || 0); return moreThan(x, 0) ? x : 0; };
+    const partyType = {}, partyName = {};
+    const partyPhone = {};
+    (d.parties || []).forEach(function (p) { if (p && p.id) { partyType[p.id] = p.type; partyName[p.id] = p.name; partyPhone[p.id] = p.phone; } });
     const groups = {};
     const g = function (k, nm) {
       if (!groups[k]) groups[k] = { collector: nm || k, payments: [], daily: [], expenses: [], handovers: [] };
@@ -372,8 +368,6 @@
         // name for a গুপ্ত donor (anonymous — no contact belongs on the sheet).
         phone: anon ? '' : String(partyPhone[r.partyId] || ''),
         amount: Number(r.amount) || 0, cash: Number(r.cashAmount) || 0, upi: Number(r.upiAmount) || 0,
-        pledged: Number(partyPledged[r.partyId]) || 0, // A303: this donor's pledge (কথা)
-        due: dueOf(r.partyId), // A301: this donor's remaining due
         date: r.date || r.createdAt,
       });
     });
@@ -393,23 +387,6 @@
         g(toK, h.to).handovers.push({ dir: 'in', who: h.from || '?', amount: amt, date: h.date || h.createdAt });
       }
     });
-    // A301: each collector's total OUTSTANDING — summed over the donors THEY
-    // registered (by the party's own collector key), so a donor with a pledge and
-    // no payment still counts, and a collector who has only dues still gets a group.
-    // A302: show the SUM the due comes from, not just the answer — per collector,
-    // over the donors they registered: Σ pledged (কথা) and Σ paid (দেওয়া), whose
-    // difference IS the বাকি. Displaying all three makes the number self-explaining
-    // and, labelled "registered donors", keeps it distinct from "collected" (which
-    // is keyed by who took each payment, not who registered the donor).
-    const dueByColl = {}, pledgedByColl = {}, paidRegByColl = {};
-    (d.parties || []).forEach(function (p) {
-      if (!(Number(p.pledged) || 0)) return;
-      const k = ck(p);
-      pledgedByColl[k] = (pledgedByColl[k] || 0) + (Number(p.pledged) || 0);
-      paidRegByColl[k] = (paidRegByColl[k] || 0) + (paidByParty[p.id] || 0);
-      dueByColl[k] = (dueByColl[k] || 0) + dueOf(p.id);
-      g(k, p.collector); // ensure the group exists even if they collected nothing yet
-    });
     // net each collector the SAME way inHandRows does, so the detail's totals and
     // the audit's per-collector line are the identical numbers.
     const nets = {}; inHandRows(data).forEach(function (r) { nets[String(r.collector)] = r; });
@@ -417,9 +394,7 @@
       const gr = groups[k];
       const net = nets[gr.collector] || {};
       gr.totals = { collected: net.collected || 0, handedOver: net.handedOver || 0,
-                    spent: net.spent || 0, inHand: net.inHand || 0,
-                    // A302: the due and the two numbers it is computed from
-                    pledged: pledgedByColl[k] || 0, paidReg: paidRegByColl[k] || 0, due: dueByColl[k] || 0 };
+                    spent: net.spent || 0, inHand: net.inHand || 0 };
       return gr;
     }).sort(function (a, b) { return (b.totals.collected) - (a.totals.collected); });
   }

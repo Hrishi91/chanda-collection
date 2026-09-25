@@ -19927,3 +19927,28 @@ so কথা / দেওয়া / বাকি all read on the one line. `coll
 `pledged`; screen and PDF.
 
 Client-only. Tests 4,195 → 4,197.
+
+---
+
+## A304 — revert per-collector dues (A301–A303): a collector-identity bug showed people twice — v4.137.0
+
+Reported live: *"the record is not correct."* Found without any live access, by
+reproducing in the aggregate: when a donor row carries `collectorId` (+ name) but a
+payment on it carries only the collector NAME (a legacy / mixed row), `ck()` returns
+the id for one and the name for the other. A301's dues loop then created a SEPARATE
+group keyed by the party's id, so the same collector appeared **twice** — one row
+with their collections and no dues, another with dues and no collections. Exactly the
+"wrong record".
+
+Safe move first: reverted A301/A302/A303 (the per-collector dues, arithmetic line,
+and per-donor pledge) to the A300 state — client-only, reversible. Everything else
+stays: A294 reports, A295 closure, A296 detail, A297 voice, A298 drill, A299 chase,
+A300 phone. **Dues remain correct in 📋 বাকির তালিকা and 📊 মোট হিসাব.**
+
+The proper fix (deferred, its own task): normalise collector identity across rows —
+learn name↔collectorId from rows that carry both, resolve every row to one canonical
+key — and only then re-add per-collector dues, tested against this exact
+id-vs-name mismatch. It touches `inHandRows` too (same latent split), so it is done
+carefully off the live path, not in a hurry.
+
+Tests 4,197 → 4,186 (the A301–A303 tests came out with the feature).
