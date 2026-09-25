@@ -12139,6 +12139,46 @@ pending.push((async function () {
   eq(h.painted().length > p0, true, 'A311: …but it does refresh once nothing is focused');
 })());
 
+// A312 — the party screen must carry its OWN source into the payment flow and the
+// receipt, so backing out returns to where the donor was opened from (the anomaly
+// desk / programme), not always to the list. Found in the navigation audit.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const USER = { username: 'ram', name: 'রাম', role: 'collector', cashier: 0, entries: 'shop,person,road' };
+  const central = {
+    parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'পাল', pledged: 1000, side: 'main_malda',
+                collector: 'ram', collectorId: 'ram', createdAt: '2026-09-01T10:00:00Z' }],
+    payments: [{ id: 'y1', year: 2026, partyId: 'p1', partyName: 'পাল', amount: 400,
+                 cashAmount: 400, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' }],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: USER, lists: { area: AREA }, central: central });
+  await h.ready;
+
+  // a donor opened FROM the anomaly desk
+  await h.show('party', { id: 'p1', from: 'anomalies' });
+
+  // 💰 টাকা জমা → the payment flow carries 'anomalies' as its source, so backing
+  // out of the first question returns to the anomaly desk (via the donor page)
+  h.doc.__byId['pay-btn'].onclick();
+  eq(((h.app.flow().def.exitTo || {}).params || {}).from, 'anomalies',
+     'A312: paying from the anomaly desk carries that source into the flow, not "list"');
+
+  // 🧾 receipt → the receipt is opened carrying the donor's source
+  await h.show('party', { id: 'p1', from: 'anomalies' });
+  const rbtn = h.doc.querySelectorAll('[data-receipt]')[0];
+  eq(!!rbtn, true, 'A312: the donor page offers a receipt for the payment');
+  rbtn.onclick();
+  eq(h.app.current().view, 'receipt', 'A312: …tapping it opens the receipt');
+  eq(h.app.current().params.from, 'anomalies', 'A312: …carrying the donor’s source so back returns there');
+
+  // and the receipt's back target for a PARTY payment is that donor, WITH the source
+  const app = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/backParams = isBus \? undefined : \{ id: params\.partyId, from: params\.from \}/.test(app), true,
+     'A312: the party-payment receipt backs to the donor carrying from (source-preserved)');
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

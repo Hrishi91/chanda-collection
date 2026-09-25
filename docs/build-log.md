@@ -20145,3 +20145,32 @@ no repaint; with nothing focused it repaints. Mutation removing the typing guard
 fails by name A311.
 
 Client-only. v4.142.0 → v4.143.0. Tests 4,224 → 4,226.
+
+---
+
+## A312 — navigation audit: party screen now carries its source into pay + receipt (v4.144.0)
+
+Hrishi asked to check all the navigations. Audited against the field-lessons
+navigation checklist:
+
+- Back returns to SOURCE (from / returnTo / exitTo): threaded and honoured both
+  after-save (finishFlow) and on back-out (goBack) — A105/A122/A124/A124b. ✓
+- Guided-flow EDIT entry skips showIf-hidden steps like the forward/back paths — A119. ✓
+- Back-bar is position:sticky with a solid background (style.css) — ✓.
+- No dead-end screens: every non-nav screen renders a back-bar; nav screens have
+  the bottom nav. ✓
+- Data-loss on hardware Back / SW reload / OS kill: draftSave + resume, and popstate
+  persists before clearing flowState — A63. ✓ (and the SW-reload eject is A310.)
+
+One real source-loss found and fixed: the donor (party) screen hardcoded 'list' as
+the payment origin and dropped its own `from` when opening a receipt. So a donor
+opened FROM the anomaly desk (or programme), after a payment or a receipt view,
+backed out to the LIST instead of the desk it came from. Now the party screen
+threads its `from` into paymentFlow (origin) and into the receipt, and the
+party-payment receipt backs to the donor carrying that source.
+
+Proved by a DOM test: paying from the anomaly desk gives the flow exitTo.from =
+'anomalies'; the receipt opens carrying from = 'anomalies'; and the receipt's
+party back-target carries from. RED before the fix on all three.
+
+Client-only. v4.143.0 → v4.144.0. Tests 4,226 → 4,231.

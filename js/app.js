@@ -4122,7 +4122,9 @@
           (isVoid || !canVoid(x) ? '' : '<button class="chip void-btn" data-void="' + esc(x.id) + '">' + esc(t('void_btn')) + '</button>') + '</div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>');
     const payBtn = document.getElementById('pay-btn');
-    if (payBtn) payBtn.onclick = function () { startFlow(paymentFlow(p, 'list')); };
+    // A312: carry the donor's OWN source into the flow, so backing out returns to
+    // where the donor was opened from (anomaly desk / programme), not always list.
+    if (payBtn) payBtn.onclick = function () { startFlow(paymentFlow(p, from || 'list')); };
     const editParty = document.getElementById('edit-party-btn');
     if (editParty) editParty.onclick = function () { navigate('partyform', { id: p.id, from: from }); };
     const remindBtn = document.getElementById('remind-btn');
@@ -4138,7 +4140,7 @@
       b.onclick = function () { renderVoidReason('payments', b.dataset.void, function () { navigate('party', { id: p.id, from: from }); }); };
     });
     document.querySelectorAll('[data-receipt]').forEach(function (b) {
-      b.onclick = function () { navigate('receipt', { partyId: p.id, payId: b.dataset.receipt }); };
+      b.onclick = function () { navigate('receipt', { partyId: p.id, payId: b.dataset.receipt, from: from }); };
     });
   }
   // Integer rupees → Bengali words (Indian grouping), for "কথায়" on the receipt.
@@ -4769,7 +4771,9 @@
     const isBus = params.store === 'daily';
     // a bus receipt can be reached from two places (my entries, and the
     // ledger's bus tab) — go back where the user actually came from
-    const backView = isBus ? (params.back || 'entries') : 'party', backParams = isBus ? undefined : { id: params.partyId };
+    // A312: a party-payment receipt backs to the donor, carrying the donor's own
+    // source (from) so the trail out reaches the anomaly desk / programme, not list.
+    const backView = isBus ? (params.back || 'entries') : 'party', backParams = isBus ? undefined : { id: params.partyId, from: params.from };
     $view().innerHTML = backBar(backView, backParams) + '<div class="empty">' + esc(t('loading')) + '</div>';
     viewData().then(function (data) {
       let rc, phone = '', store, id, party = null;
