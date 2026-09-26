@@ -4730,7 +4730,9 @@
       date: pay.date || pay.createdAt, datetime: pay.createdAt || pay.date,
       amount: pay.amount, cashUpi: cashUpiNote(pay),
       collector: pay.collector || pay.collectorId || '',
-      paidTotal: paidTotal, pledged: p.pledged, due: due, receiptNo: pay.receiptNo || '' };
+      // A323: never a negative বাকি on a donor's receipt — an overpaid donor owes
+      // ₹0, consistent with every other due surface.
+      paidTotal: paidTotal, pledged: p.pledged, due: Math.max(0, Number(due) || 0), receiptNo: pay.receiptNo || '' };
   }
   // Receipt for a daily bus collection (name + number, one-off → no totals).
   function rcFromDailyBus(d) {

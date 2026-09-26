@@ -20414,3 +20414,32 @@ Aggregate test (dueP 600 while net stays −300), mirror stays green, mutation d
 the positive-clamp fails by name.
 
 Client-only. v4.153.0 → v4.154.0. Tests 4,281 → 4,283.
+
+---
+
+## A323 (cont.) — receipt due clamped; FULL due-surface audit done (v4.155.0)
+
+Checked EVERY report and document for the net-vs-positive due issue, screen AND
+print:
+
+| surface | due logic | status |
+|---|---|---|
+| overview (মোট বাকি) | donorDue positive | ✓ A314 |
+| dues report (screen+print) | positive (due>EPS) | ✓ |
+| 💰 in-hand | per-person in-hand (negative = over-drawn, correct) | ✓ |
+| 🏆 collectors + detail | positive per donor | ✓ A302/A305 |
+| 📍 areas (screen+print) | dueP positive | ✓ A323 |
+| expenses | no due | ✓ |
+| 🛣️ daily | collector named | ✓ A322 |
+| 🎭 programme | Math.max positive already | ✓ |
+| final (bundle) | composed of the above | ✓ |
+| 🔎 audit (screen+print) | totalDue positive | ✓ A307 |
+| party detail | clamped positive | ✓ A323 |
+| **donor receipt** | **clamped positive** | ✓ A323 (this change) |
+| admin বিদায়ী open-dues | server-filtered due>0 | ✓ |
+
+The one gap this change closes: `rcFromPayment` now clamps the receipt's due to
+`Math.max(0, due)`, so an overpaid donor never sees a negative বাকি on the receipt
+they keep. Every due surface across the app now shows positive dues only.
+
+Client-only. v4.154.0 → v4.155.0. Tests 4,283 → 4,284.

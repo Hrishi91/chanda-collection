@@ -1722,6 +1722,10 @@ eq(PERM_KEYS.indexOf('memberadmin') >= 0, true, 'A29: memberadmin is a real perm
      'A83: a payment receipt carries the collector');
   eq(/collector: d\.collector \|\| d\.collectorId/.test(from('function rcFromDailyBus', 'function receiptMessage')), true,
      'A83: …and so does a bus receipt, which is a receipt somebody keeps too');
+  // A323: the receipt's বাকি is clamped positive — an overpaid donor never sees a
+  // negative due on the document they keep.
+  eq(/due: Math\.max\(0, Number\(due\) \|\| 0\)/.test(from('function rcFromPayment', 'function rcFromDailyBus')), true,
+     'A323: the payment receipt clamps due to positive (no negative বাকি for an overpaid donor)');
   const msg = from('function receiptMessage', '// 📷 image receipt');
   eq(/rc\.collector \? 'সংগ্রাহক/.test(msg), true,
      'A83: …and the SMS body names them, because that route has no image to read it from');
