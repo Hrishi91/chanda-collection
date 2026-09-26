@@ -2905,6 +2905,13 @@ const byName = {}; dbc.forEach(function (r) { byName[r.collector] = r.amount; })
 eq(byName['রাম'], 400, 'A322: রাম’s road round is named');
 eq(byName['কালী'], 300, 'A322: …and কালী’s, separately');
 eq(dbc.every(function (r) { return r.type !== 'bus'; }), true, 'A322: bus is not a round — excluded, like the report');
+// A324: the per-collector breakdown rides INSIDE computeReport('daily'), so it
+// reaches every daily render (standalone report AND the final bundle).
+const dRep = computeReport('daily', dbcInput);
+eq(Array.isArray(dRep.byCollector) && dRep.byCollector.length === 2, true,
+   'A324: computeReport(daily).byCollector carries the per-collector rows');
+eq(computeReport('final', dbcInput).daily.byCollector.length, 2,
+   'A324: …and the final statement’s daily section carries it too');
 
 // A323: the এলাকা report carries dueP — the POSITIVE per-donor dues in that area —
 // so it never shows a negative "due" when someone overpaid (member pledge 0 etc.).
@@ -12501,6 +12508,16 @@ pending.push((async function () {
   const html = h.html('report-body');
   eq(/👤 রাম/.test(html), true, 'A322: the daily report names রাম on their round');
   eq(/👤 কালী/.test(html), true, 'A322: …and কালী on theirs');
+
+  // A324: the FINAL statement's daily section must name the collector too
+  await h.show('report');
+  const fchip = h.doc.querySelectorAll('#report-picker [data-rep]')
+    .filter(function (b) { return b.dataset.rep === 'final'; })[0];
+  fchip.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const fhtml = h.html('report-body');
+  eq(/👤 রাম/.test(fhtml) && /👤 কালী/.test(fhtml), true, 'A324: the final report’s daily section names the collectors');
 })());
 
 Promise.all(pending.map(function (p) {

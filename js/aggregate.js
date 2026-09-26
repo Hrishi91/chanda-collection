@@ -2671,7 +2671,12 @@
       }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
       const byType = { road: 0, toto: 0 };
       (d.daily || []).filter(isRound).forEach(function (r) { byType[r.type] += Number(r.amount) || 0; });
-      return { rows: rows, byType: byType };
+      // A324: the per-collector breakdown travels INSIDE the report, so EVERY daily
+      // render — the standalone 🛣️ report AND the final-statement bundle, screen and
+      // print — names who collected each round. Client-only extra field: the server
+      // returns only {rows, byType}, and the mirror's subsetEq ignores extra client
+      // fields, so no Code.gs change and no server night.
+      return { rows: rows, byType: byType, byCollector: dailyByCollector(d) };
     }
     // A294: the season's whole statement, on one page. It INVENTS no arithmetic —
     // every part is an existing report, bundled, so the final sheet and the live

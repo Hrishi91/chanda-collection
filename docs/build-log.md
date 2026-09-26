@@ -20443,3 +20443,27 @@ The one gap this change closes: `rcFromPayment` now clamps the receipt's due to
 they keep. Every due surface across the app now shows positive dues only.
 
 Client-only. v4.154.0 → v4.155.0. Tests 4,283 → 4,284.
+
+---
+
+## A324 — daily collector name in EVERY report that shows daily, not just the daily report (v4.156.0)
+
+Hrishi: "wherever the daily collection are there in reports, give the entry-user
+name." A322 had added the collector only to the standalone 🛣️ daily report; the
+final statement's daily section (screen) still showed no collector, because A322
+attached the breakdown in loadReport for id==='daily' only, not the final bundle.
+
+Fixed at the root: the per-collector breakdown now travels INSIDE
+computeReport('daily') as a `byCollector` field (client-only extra; the server
+returns only {rows, byType} and the mirror's subsetEq ignores extra client fields
+— no Code.gs change). So every daily render reads it: the standalone report, the
+final statement, screen and print. Removed the fragile loadReport attach and the
+print recompute; reportDailyHTML and printReportHTML('daily') both use
+d.byCollector.
+
+Tests: computeReport('daily').byCollector and computeReport('final').daily.byCollector
+carry the rows; DOM tests that both the daily report AND the final report's daily
+section name রাম and কালী. Mirror stays green; mutation dropping byCollector fails
+by name.
+
+Client-only. v4.155.0 → v4.156.0. Tests 4,284 → 4,287.
