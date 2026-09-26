@@ -955,11 +955,21 @@ The third is defensible. Recording it so the choice is made on purpose.
   `inHandRows` identity normalisation (split risk).
 
 - **Apply the same collector-identity normalisation to `inHandRows`** (A305
-  follow-up). `inHandRows` still keys by `collectorId || name`, so 💰 কার হাতে কত and
-  the audit's per-collector line can split one person the way the reports did before
-  A305. Lower-risk to leave for now (the reports Hrishi uses are fixed), but it is
-  the same bug in the shared helper — normalise there too, with a mismatch-fixture
-  test, ideally reusing one resolver. A301–A303 added dues/pledge to the 🏆 and 🧾 per-collector reports,
+  follow-up → **A315, scheduled for AFTER closure** — Hrishi's call 2026-09-26, live
+  data, backup taken; too risky the night before closure). **Reproduced 2026-09-26:**
+  a person whose payments carry id `ram` but whose handover carries only the name
+  `রাম` (empty `fromId`) splits into TWO rows on 💰 কার হাতে কত — `ram` at +800 and
+  `রাম` at −300 — instead of one row at +500 (collectorDetail already gets this right
+  via A305). Wrong DISPLAY/attribution for the cashier and the audit table; money
+  still reconciles, so closure is not blocked. **Fix plan:** extract A305's inline
+  resolver into a shared `collectorCanon(data)` and use it in BOTH collectorDetail
+  (repoint, A305/A309 tests guard the regression) and inHandRows (grouping keys).
+  `byCat` is `myAvailable(orig, k)` and `myAvailable` also matches by raw `ck`/from/to
+  — do NOT change `myAvailable` (it drives the collector's own home summary AND the
+  handover cap; changing it is live-money blast radius). Instead, in inHandRows,
+  build byCat by MERGING `myAvailable(orig, rawKey).byCat` over every raw key that
+  canon-maps to the canonical key (raw keys partition rows, so no double count). TDD
+  with the exact id-vs-name mismatch fixture; mutation-check the resolver. A301–A303 added dues/pledge to the 🏆 and 🧾 per-collector reports,
   then were reverted: when a donor row carries `collectorId` (+name) but a payment
   on it carries only the collector NAME, `ck()` keys them differently and the same
   collector renders TWICE (collections in one row, dues in another) — the "record
