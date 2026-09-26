@@ -830,6 +830,10 @@ them and what they'd pay for. No revenue promises; decision after the puja.
 
 ### Super-admin / three-tier model — clarified by Hrishi 2026-09-24 (DEFERRED, "do later, not now")
 
+> **Full plan now lives in [`docs/product-plan.md`](product-plan.md)** (2026-09-26):
+> model choice (Hybrid recommended), architecture, generalisation, pricing,
+> phases, open decisions. The notes below are the original stubs.
+
 Hrishi, from the live app: *"super admin is the application owner; I give the
 club/committee the admin access; [super admin] gives the access of modules,
 reports and all features; then the admin gives this to the users."* And: *"we
