@@ -2882,6 +2882,25 @@ const dailyRep = computeReport('daily', {
 });
 eq(dailyRep.byType, { road: 300, toto: 200 }, 'daily report: road/toto only, no bus bucket');
 eq(dailyRep.rows.length, 2, 'daily report: the bus row is not listed');
+
+// A322: dailyByCollector — a CLIENT-ONLY helper (not a SERVER_REPORT_IDS report,
+// so the client↔server mirror is untouched) that names who collected each round.
+const dbcInput = {
+  parties: [], payments: [], expenses: [], handovers: [], voids: [],
+  daily: [
+    { id: 'r1', type: 'road', date: '2026-09-14', amount: 400, collector: 'রাম', collectorId: 'ram' },
+    { id: 'r2', type: 'road', date: '2026-09-14', amount: 300, collector: 'কালী', collectorId: 'kali' },
+    { id: 'r3', type: 'bus', date: '2026-09-14', amount: 900, collector: 'রাম', collectorId: 'ram' },
+  ],
+};
+// the mirror-checked report stays date+type only (unchanged, so no server change)
+eq(computeReport('daily', dbcInput).rows.length, 1, 'A322: computeReport(daily) unchanged (one road row, mirror intact)');
+const dbc = inHandRows && require('../js/aggregate.js').dailyByCollector(dbcInput);
+eq(dbc.length, 2, 'A322: dailyByCollector splits the same day/type by collector (bus excluded)');
+const byName = {}; dbc.forEach(function (r) { byName[r.collector] = r.amount; });
+eq(byName['রাম'], 400, 'A322: রাম’s road round is named');
+eq(byName['কালী'], 300, 'A322: …and কালী’s, separately');
+eq(dbc.every(function (r) { return r.type !== 'bus'; }), true, 'A322: bus is not a round — excluded, like the report');
 eq(dailyRep.rows.every(function (r) { return r.type !== 'bus'; }), true, 'daily report: no bus row slipped through');
 // …but the money is NOT lost: it still counts everywhere money is counted
 eq(computeTotals({ parties: [], payments: [], expenses: [], handovers: [], voids: [],
@@ -12434,6 +12453,32 @@ pending.push((async function () {
   const html = h.html('report-body');
   eq(/kalyan da/.test(html), true, 'A321: the closing report lists the donor');
   eq(/D1: [₹]?200/.test(html), true, 'A321: …and shows another collector’s part (D1: 200) on the line');
+})());
+
+// A322 (DOM) — the daily report screen names who collected each road/toto round.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const central = {
+    parties: [], payments: [],
+    daily: [
+      { id: 'r1', year: 2026, type: 'road', date: '2026-09-14', amount: 400, cashAmount: 400, upiAmount: 0, collector: 'রাম', collectorId: 'ram' },
+      { id: 'r2', year: 2026, type: 'road', date: '2026-09-14', amount: 300, cashAmount: 300, upiAmount: 0, collector: 'কালী', collectorId: 'kali' },
+    ],
+    expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: central });
+  await h.ready;
+  await h.show('report');
+  const chip = h.doc.querySelectorAll('#report-picker [data-rep]')
+    .filter(function (b) { return b.dataset.rep === 'daily'; })[0];
+  chip.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const html = h.html('report-body');
+  eq(/👤 রাম/.test(html), true, 'A322: the daily report names রাম on their round');
+  eq(/👤 কালী/.test(html), true, 'A322: …and কালী on theirs');
 })());
 
 Promise.all(pending.map(function (p) {

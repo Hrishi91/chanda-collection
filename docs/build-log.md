@@ -20360,3 +20360,25 @@ A321 test asserts Σ others + my amount = the donor's total paid AND that
 totals.collected / totals.due are unchanged. Mutation dropping the field fails by name.
 
 Client-only, display-only. v4.151.0 → v4.152.0. Tests 4,265 → 4,274.
+
+---
+
+## A322 — daily road/toto report names the collector (v4.153.0)
+
+Hrishi: the daily road/toto report should display the collector's name; it showed
+only date • type • amount (aggregated across collectors).
+
+The daily report is server-mirrored (SERVER_REPORT_IDS), so changing its grouping
+would force a server-night deploy. Instead — client-only, following the A298 pattern
+(the 'collectors' report attaches its detail without changing the mirrored report):
+`computeReport('daily')` is left unchanged (mirror intact), and a new CLIENT-ONLY
+helper `dailyByCollector(data)` groups road/toto by date + type + collector
+(canonical identity A315, bus excluded like the report). loadReport attaches it as
+`rep.dailyByColl`; reportDailyHTML shows "date • type • 👤 collector • amount"; the
+printed report gets a Collector column, computed from raw data.
+
+No Code.gs change, no server night. Aggregate test (two collectors, same day/type →
+two named rows, bus excluded), DOM test (both names render), and the mirror test
+stays green (report unchanged). Mutation dropping the collector key fails by name.
+
+Client-only. v4.152.0 → v4.153.0. Tests 4,274 → 4,281.

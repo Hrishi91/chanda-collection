@@ -5981,14 +5981,17 @@
       open.map(row).join('') + done.map(row).join('');
   }
   function reportDailyHTML(d) {
-    const rows = d.rows || [], bt = d.byType || { road: 0, toto: 0 };
+    // A322: prefer the per-collector rows (names who collected each round); fall
+    // back to the plain date+type rows if the enrichment is not attached.
+    const rows = (d.dailyByColl && d.dailyByColl.length) ? d.dailyByColl : (d.rows || []);
+    const bt = d.byType || { road: 0, toto: 0 };
     return '<div class="card"><div class="card-title">' + esc(t('report_daily')) + '</div>' +
       '<div class="stat3"><div><span>' + esc(t('type_road')) + '</span><b>' + fmtMoney(bt.road) + '</b></div>' +
       '<div><span>' + esc(t('type_toto')) + '</span><b>' + fmtMoney(bt.toto) + '</b></div>' +
       '<div><span>' + esc(t('total')) + '</span><b>' + fmtMoney((bt.road || 0) + (bt.toto || 0)) + '</b></div></div>' +
       (rows.length ? rows.map(function (r) {
         return '<div class="row" style="cursor:default"><div>' + esc(fmtDate(r.date)) + ' • ' +
-          esc(t('type_' + r.type)) + '</div><b>' + fmtMoney(r.amount) + '</b></div>';
+          esc(t('type_' + r.type)) + (r.collector ? ' • 👤 ' + esc(r.collector) : '') + '</div><b>' + fmtMoney(r.amount) + '</b></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
   }
   function reportAreasHTML(d) {
@@ -6121,9 +6124,11 @@
           }));
     }
     if (id === 'daily') {
+      // A322: name who collected each round (client-only, from raw data)
+      const drows = data ? Aggregate.dailyByCollector(bookFor('daily', data)) : (d.rows || []);
       return '<h3>' + esc(t('report_daily')) + '</h3>' +
-        printTable([t('date_col'), t('type_col'), t('amount_col')],
-          (d.rows || []).map(function (r) { return [fmtDate(r.date), t('type_' + r.type), money(r.amount)]; }));
+        printTable([t('date_col'), t('type_col'), t('collector_col'), t('amount_col')],
+          drows.map(function (r) { return [fmtDate(r.date), t('type_' + r.type), r.collector || '', money(r.amount)]; }));
     }
     if (id === 'program') {
       // A287: the 🎭 report fell through to the phone version below — not by a
@@ -7156,6 +7161,8 @@
         // into. anon:false — গুপ্ত visibility is already decided by visibleData at
         // viewData (a non-keyholder never received the row), so no extra masking.
         if (id === 'collectors') rep.detail = Aggregate.collectorDetail(bookFor(id, data), { anon: false });
+        // A322: name who collected each road/toto round (client-only enrichment)
+        if (id === 'daily') rep.dailyByColl = Aggregate.dailyByCollector(bookFor(id, data));
         body.innerHTML = dataStatusHTML() + reportHTML(id, rep) +
           '<button id="report-pdf" class="ghost big block">📄 ' + esc(t('report_pdf_btn')) + '</button>';
         document.getElementById('report-pdf').onclick = function () { printReport(id); };

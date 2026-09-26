@@ -284,6 +284,26 @@
       return idOfName[key] || String(nm || '?');
     };
   }
+  // A322: road/toto rounds grouped by date + type + COLLECTOR, so the daily report
+  // can NAME who collected each round. CLIENT-ONLY display helper — deliberately NOT
+  // a SERVER_REPORT_IDS report, so it is outside the client↔server mirror and needs
+  // no Code.gs change. Canonical identity (A315) so one person is not split.
+  function dailyByCollector(data) {
+    const d = activeData(data);
+    const canon = collectorCanon(d);
+    const isRound = function (r) { return r.type === 'road' || r.type === 'toto'; };
+    const agg = {}, nameR = {};
+    (d.daily || []).filter(isRound).forEach(function (r) {
+      const c = canon(r.collectorId, r.collector);
+      const k = r.date + '|' + r.type + '|' + c;
+      agg[k] = (agg[k] || 0) + (Number(r.amount) || 0);
+      if (r.collector) nameR[c] = r.collector;
+    });
+    return Object.keys(agg).map(function (k) {
+      const p = k.split('|');
+      return { date: p[0], type: p[1], collector: nameR[p[2]] || (p[2] === '?' ? '' : p[2]), amount: agg[k] };
+    }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)) || String(a.collector).localeCompare(String(b.collector)); });
+  }
   // Per-person accountability. True cash in hand for X =
   //   collected(by X) + received(confirmed handovers TO X)
   //   − handedOver(confirmed handovers FROM X) − spent(expenses by X).
@@ -2714,7 +2734,7 @@
   }
 
   const api = { isDue, moreThan, keyOfFund, canEditParty, canVoid, isMine, isOrdinaryMember, positionBlock, toggleKey, reportGroups, applyBulkReports, isCashierKey, computeTotals: computeTotals, duesList: duesList, normPhone: normPhone,
-                inHandRows: inHandRows, collectorDetail: collectorDetail, chaseNoPhone: chaseNoPhone, personalSummary: personalSummary,
+                inHandRows: inHandRows, collectorDetail: collectorDetail, dailyByCollector: dailyByCollector, chaseNoPhone: chaseNoPhone, personalSummary: personalSummary,
                 myAvailable: myAvailable, reconcile: reconcile, computeReport: computeReport,
                 allowedReports: allowedReports, REPORT_IDS: REPORT_IDS,
                 roleOf: roleOf, rowRole: rowRole,
