@@ -20174,3 +20174,34 @@ Proved by a DOM test: paying from the anomaly desk gives the flow exitTo.from =
 party back-target carries from. RED before the fix on all three.
 
 Client-only. v4.143.0 → v4.144.0. Tests 4,226 → 4,231.
+
+---
+
+## A314 — overview মোট বাকি was a net that over-payments shrank; split into two clear figures (v4.145.0)
+
+Hrishi: "total due is confusing in overview report … I am admin, I am also seeing
+the wrong calculation." Reproduced in the harness (live sheet untouched): with one
+donor owing 700 and another over-paying 300, the overview showed **মোট বাকি = 400**
+— the net (700 − 300) — so an over-payment silently shrank the displayed due. That
+was the "wrong calculation" the admin saw. (A306 had made totalDue a net to fix the
+sponsor leak; correct for the sum, wrong as the *displayed* বাকি.)
+
+Two separate figures now, per Hrishi's spec (confirmed: figure 1 + figure 2-খ):
+
+- **মোট বাকি (দাতা)** = `donorDue` = Σ positive (pledged − paid), IDENTICAL to the
+  dues report — resolving the old net-vs-positive discrepancy noted under A306/A308.
+- **হাতে ঋণাত্মক** = `negInHand` = Σ of users whose in-hand is in minus (over-drawn),
+  via `collectorDetail` (canonical identity, so nobody is double-counted). The single
+  netted in-hand had hidden who is actually in minus.
+
+Both are computed on the same permission-filtered `data`, so each user's figures are
+correct for THEIR scope — which is what "handle it user-wise" means. Permission-based
+differences between users are by design (visibleData); this fix is about the
+calculation being right for everyone, admin included. The old `totalDue` (net) field
+is kept for back-compat but is no longer displayed.
+
+Proved by an aggregate test (donorDue 700 = dues report, negInHand −3700, net 400
+kept) and a DOM test that ties the label to its value so a stray ৭০০/700 elsewhere
+(e.g. inside −4,700) cannot pass it. Mutation showing the net instead fails by name.
+
+Client-only. v4.144.0 → v4.145.0. Tests 4,231 → 4,239.

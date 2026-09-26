@@ -396,6 +396,7 @@ const I18N = {
   in_hand: { bn: 'হাতে আছে', en: 'In hand' },
   total_pledged: { bn: 'মোট কথা হয়েছে', en: 'Total pledged' },
   total_due: { bn: 'মোট বাকি', en: 'Total due' },
+  neg_inhand: { bn: 'হাতে ঋণাত্মক', en: 'Over-drawn (in minus)' },
   my_today: { bn: 'আজ আমার তোলা', en: 'My collection today' },
   by_collector: { bn: 'কে কত তুলল', en: 'By collector' },
   // A70 (audit #2 U4): these three are what a collector is told when the

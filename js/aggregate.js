@@ -2437,8 +2437,26 @@
       const totalPaid = Object.keys(byType).reduce(function (a, k) { return a + byType[k].paid; }, 0);
       const totalColl = sum(money, function (r) { return r.amount; });
       const totalExp = sum(d.expenses, function (r) { return r.amount; });
+      // A314: the DONORS' bill — Σ positive (pledged − paid), the same figure the
+      // dues report shows. `totalDue` (pledged − paid, netted) let an over-payment
+      // silently shrink the displayed বাকি — the "wrong calculation" an admin saw;
+      // this is what the overview shows instead. Kept as its own field so both are
+      // available and the two never have to be confused again.
+      let donorDue = 0;
+      (d.parties || []).forEach(function (p) {
+        const due = (Number(p.pledged) || 0) - (paidBy[p.id] || 0);
+        if (due > EPS) donorDue += due;
+      });
+      // A314: users whose hand is in MINUS (disbursed more than they hold), summed
+      // — surfaced separately because the single netted in-hand hid who is
+      // over-drawn. Canonical collector identity (collectorDetail), so one person
+      // is never counted twice, and it honours the same permission-filtered `data`.
+      const negInHand = collectorDetail(data).reduce(function (a, g) {
+        return a + (g.totals.inHand < 0 ? g.totals.inHand : 0);
+      }, 0);
       return { totalCollection: totalColl, totalExpense: totalExp, inHand: totalColl - totalExp,
                totalPledged: totalPledged, totalDue: totalPledged - totalPaid,
+               donorDue: donorDue, negInHand: negInHand,
                totalCash: cash, totalUpi: upi, byType: byType, dailyByType: dailyByType,
                // A148: the same figures split by ভাঁড়ার. The two columns MUST add
                // up to the totals beside them — asserted in tests, because a

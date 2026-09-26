@@ -954,6 +954,33 @@ eq(sponsorDue.totalDue, 600, 'A306: only the shop 600 is due — sponsor/gupt pa
   eq(fin.overview.totalDue, 600, 'A308: final.overview বাকি credits sponsor/গুপ্ত payments');
 }
 
+// A314: the overview's "মোট বাকি" must be the donors' POSITIVE dues (like the dues
+// report), NOT a net that an over-payment silently shrinks — that was the "wrong
+// calculation" an admin saw. And a separate figure surfaces users whose hand is in
+// minus (over-drawn), which the netted single number hid entirely.
+{
+  const book = {
+    parties: [
+      { id: 'd1', type: 'shop', name: 'Full', pledged: 1000, collectorId: 'ram', side: 'main_malda' },
+      { id: 'd2', type: 'shop', name: 'Owes', pledged: 1000, collectorId: 'ram', side: 'main_malda' },
+      { id: 'd3', type: 'shop', name: 'Over', pledged: 500,  collectorId: 'kali', side: 'main_malda' },
+    ],
+    payments: [
+      { id: 'y1', partyId: 'd1', amount: 1000, collector: 'ram', collectorId: 'ram' },
+      { id: 'y2', partyId: 'd2', amount: 300,  collector: 'ram', collectorId: 'ram' }, // owes 700
+      { id: 'y3', partyId: 'd3', amount: 800,  collector: 'kali', collectorId: 'kali' }, // overpaid 300
+    ],
+    daily: [], expenses: [{ id: 'e1', subject: 'x', amount: 5000, collector: 'ram', collectorId: 'ram' }],
+    handovers: [], voids: [], corrections: [],
+  };
+  const ov = computeReport('overview', book);
+  eq(ov.donorDue, 700, 'A314: donorDue is the POSITIVE donor dues (only d2 owes 700), matching the dues report');
+  eq(ov.donorDue, computeReport('dues', book).totalDue, 'A314: …and it equals the dues report total exactly');
+  eq(ov.negInHand, -3700, 'A314: negInHand surfaces the over-drawn user (ram 1300−5000), summed');
+  // the old net field stays for back-compat, and this is exactly why it was confusing:
+  eq(ov.totalDue, 400, 'A314: the net totalDue (700−300 overpay) is kept but no longer the displayed বাকি');
+}
+
 // ---- cash/UPI split ----
 const splitData = {
   parties: [], expenses: [],
@@ -12177,6 +12204,51 @@ pending.push((async function () {
   const app = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
   eq(/backParams = isBus \? undefined : \{ id: params\.partyId, from: params\.from \}/.test(app), true,
      'A312: the party-payment receipt backs to the donor carrying from (source-preserved)');
+})());
+
+// A314 (DOM) — the overview report screen shows the donors' positive due and,
+// separately, the over-drawn (negative in-hand) total.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const central = {
+    parties: [
+      { id: 'd2', year: 2026, type: 'shop', name: 'বাকিওয়ালা', pledged: 1000,
+        side: 'main_malda', collector: 'ram', collectorId: 'ram', createdAt: '2026-09-01T10:00:00Z' },
+      // an OVERPAYER, so the net (400) differs from the true donor due (700) —
+      // this is what makes the display test actually prove donorDue is shown
+      { id: 'd3', year: 2026, type: 'shop', name: 'বেশিদাতা', pledged: 500,
+        side: 'main_malda', collector: 'kali', collectorId: 'kali', createdAt: '2026-09-01T10:01:00Z' },
+    ],
+    payments: [
+      { id: 'y2', year: 2026, partyId: 'd2', partyName: 'বাকিওয়ালা', amount: 300,
+        cashAmount: 300, upiAmount: 0, collector: 'ram', collectorId: 'ram', date: '2026-09-04' },
+      { id: 'y3', year: 2026, partyId: 'd3', partyName: 'বেশিদাতা', amount: 800,
+        cashAmount: 800, upiAmount: 0, collector: 'kali', collectorId: 'kali', date: '2026-09-04' },
+    ],
+    daily: [],
+    expenses: [{ id: 'e1', year: 2026, subject: 'x', amount: 5000, cashAmount: 5000, upiAmount: 0,
+                 collector: 'ram', collectorId: 'ram', date: '2026-09-05' }],
+    handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: central });
+  await h.ready;
+  await h.show('report');
+  const chip = h.doc.querySelectorAll('#report-picker [data-rep]')
+    .filter(function (b) { return b.dataset.rep === 'overview'; })[0];
+  eq(!!chip, true, 'A314: the overview report is offered');
+  chip.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const html = h.html('report-body');
+  eq(/হাতে ঋণাত্মক/.test(html), true, 'A314: the overview shows the over-drawn (negative in-hand) line');
+  // tie the LABEL to its VALUE so the assertion can't pass on a stray ৭০০ elsewhere
+  // (e.g. inside a −4,700). The মোট বাকি cell must show 700 (donor due), not 400 (net).
+  eq(/মোট বাকি<\/span><b>[^<]*700<\/b>/.test(html), true,
+     'A314: the মোট বাকি cell shows the donors’ positive due 700, not the net 400');
+  eq(/মোট বাকি<\/span><b>[^<]*400<\/b>/.test(html), false,
+     'A314: …and never the netted 400 that an over-payment produced');
 })());
 
 Promise.all(pending.map(function (p) {
