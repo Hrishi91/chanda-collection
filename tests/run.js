@@ -12293,6 +12293,9 @@ pending.push((async function () {
   eq(/✅|⏳/.test(html), true, 'A316: …with this device’s sync status');
   // A318: the actual cash-in-hand (positive holdings) figure is shown
   eq(/হাতে নগদ/.test(html), true, 'A318: the overview shows হাতে নগদ (actual cash, positive holdings)');
+  // A319: the permission-scope note that explains why people's totals can differ
+  eq(/অনুমতি অনুযায়ী/.test(html), true, 'A319: the report carries the permission-wise note');
+  eq(/উপরের পদের সদস্য/.test(html), true, 'A319: …and points a confused user to a senior member');
 })());
 
 // A317 — 📒 খাতা "আমার / সবার" view. Default আমার (donors I registered OR took a

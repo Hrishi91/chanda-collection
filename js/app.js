@@ -7125,7 +7125,10 @@
         esc(t('data_match_hint')) + '">' +
       '<span>🔖 ' + esc(t('data_ver')) + ': <b>' + esc(ver) + '</b></span>' +
       (last ? '<span>🕐 ' + esc(t('data_updated')) + ' ' + esc(agoText(Number(last))) + '</span>' : '') +
-      '<span>' + sync + '</span></div>';
+      '<span>' + sync + '</span></div>' +
+      // A319: say WHY two people's totals can differ — the view is permission-scoped
+      // — and where to go if it confuses. On every central report, under the strip.
+      '<div class="hint" style="margin:0 2px 10px">' + esc(t('perm_calc_note')) + '</div>';
   }
   function loadReport(id) {
     viewData().then(function (data) {

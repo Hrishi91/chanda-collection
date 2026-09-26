@@ -20305,3 +20305,19 @@ that হাতে নগদ renders on the overview. Mutation folding negatives 
 name.
 
 Client-only. v4.148.0 → v4.149.0. Tests 4,256 → 4,259.
+
+---
+
+## A319 — permission-scope note on every central report (v4.150.0)
+
+Hrishi: tell users that figures are shown permission-wise (so two people's numbers
+can legitimately differ), and to check with a senior member if confused. Added a
+one-line hint under the A316 data-version strip on every central report:
+"🔒 হিসাব তোমার অনুমতি অনুযায়ী দেখানো হচ্ছে — তাই একেক জনের সংখ্যা আলাদা হতে পারে।
+বিভ্রান্তি হলে উপরের পদের সদস্যের সঙ্গে কথা বলো।" This is the plain-language answer
+to "different users see different totals" — the permission scope is by design.
+
+Display-only, client-only. DOM test asserts the note and the "senior member"
+pointer render; mutation removing it fails by name.
+
+v4.149.0 → v4.150.0. Tests 4,259 → 4,261.

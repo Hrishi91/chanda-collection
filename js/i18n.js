@@ -405,6 +405,7 @@ const I18N = {
   data_ver: { bn: 'ডেটা সংস্করণ', en: 'Data version' },
   data_updated: { bn: 'আপডেট', en: 'Updated' },
   data_match_hint: { bn: 'দুজনের সংস্করণ ও ✅ মিললে সবাই এক ডেটা দেখছে', en: 'Same version + ✅ on two phones means everyone sees the same data' },
+  perm_calc_note: { bn: '🔒 হিসাব তোমার অনুমতি অনুযায়ী দেখানো হচ্ছে — তাই একেক জনের সংখ্যা আলাদা হতে পারে। বিভ্রান্তি হলে উপরের পদের সদস্যের সঙ্গে কথা বলো।', en: 'Figures are shown per your permission, so numbers can differ between people. If anything looks off, check with a senior committee member.' },
   my_today: { bn: 'আজ আমার তোলা', en: 'My collection today' },
   by_collector: { bn: 'কে কত তুলল', en: 'By collector' },
   // A70 (audit #2 U4): these three are what a collector is told when the
