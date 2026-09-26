@@ -398,6 +398,7 @@ const I18N = {
   total_due: { bn: 'মোট বাকি', en: 'Total due' },
   neg_inhand: { bn: 'হাতে ঋণাত্মক (মেটাতে হবে)', en: 'Over-drawn — to settle' },
   held_positive: { bn: 'হাতে নগদ (আসল)', en: 'Cash in hand (actual)' },
+  area_none: { bn: '📍 এলাকাহীন দোকান', en: '📍 Shops without area' },
   filter_mine: { bn: '👤 আমার', en: '👤 Mine' },
   filter_all_entries: { bn: '🌐 সবার', en: '🌐 Everyone' },
   registered_by: { bn: 'নথিভুক্ত', en: 'By' },

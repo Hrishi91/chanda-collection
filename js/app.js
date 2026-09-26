@@ -3256,7 +3256,8 @@
         });
         if (listMine && !busRows) rows = rows.filter(function (p) { return mineParty[p.id]; }); // A317: আমার view
         if (listFilter !== 'all' && !busRows) rows = rows.filter(function (p) { return p.type === listFilter; });
-        if (listArea && !busRows) rows = rows.filter(function (p) { return p.side === listArea; });
+        if (listArea === '__noarea' && !busRows) rows = rows.filter(function (p) { return p.type === 'shop' && !p.side; }); // A320
+        else if (listArea && !busRows) rows = rows.filter(function (p) { return p.side === listArea; });
         if (listDueOnly) rows = rows.filter(function (p) { return Aggregate.isDue((Number(p.pledged) || 0) - (paidBy[p.id] || 0)); });
         if (listQuery) rows = rows.filter(function (p) { return matchParty(p, listQuery); });
         if (busRows) return drawBusList(data);
@@ -3300,7 +3301,10 @@
           Lists.get('area').map(function (a) {
             return '<option value="' + esc(a.id) + '"' + (listArea === a.id ? ' selected' : '') + '>📍 ' +
               esc(Lists.labelOf('area', a.id)) + '</option>';
-          }).join('') + '</select>';
+          }).join('') +
+          // A320: shops with no area set — so they can be found and given one.
+          '<option value="__noarea"' + (listArea === '__noarea' ? ' selected' : '') + '>' + esc(t('area_none')) + '</option>' +
+          '</select>';
       // A317: আমার / সবার — default আমার (this collector's own donors). Prominent,
       // above the search, because it decides what the whole screen shows.
       const mineToggle = '<div class="chips" style="margin:0 2px 8px">' +

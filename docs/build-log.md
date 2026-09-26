@@ -20321,3 +20321,20 @@ Display-only, client-only. DOM test asserts the note and the "senior member"
 pointer render; mutation removing it fails by name.
 
 v4.149.0 → v4.150.0. Tests 4,259 → 4,261.
+
+---
+
+## A320 — 📒 খাতা: "এলাকাহীন দোকান" filter (v4.151.0)
+
+Hrishi confirmed the domain: area (`side`) is a SHOP-only attribute — newPartyFlow
+asks it only when `type === 'shop'`; person/member/sponsor/গুপ্ত never carry one.
+
+Added an "📍 এলাকাহীন দোকান" option to the ledger's area dropdown (beside "সব এলাকা"):
+it filters to shops with an empty `side`, so shops missing their area can be found
+and given one. A person is never swept in (the filter requires `type === 'shop'`).
+
+Client-only, display filter. DOM test: the option is offered; selecting it shows the
+area-less shop, hides a shop that has an area, and excludes a person. Mutation
+removing the filter fails by name.
+
+v4.150.0 → v4.151.0. Tests 4,261 → 4,265.

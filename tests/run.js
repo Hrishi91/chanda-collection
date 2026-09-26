@@ -12347,6 +12347,39 @@ pending.push((async function () {
   eq(/👤 কালী/.test(dHtml), true, 'A317: the donor detail names the registrar (whose donor it is)');
 })());
 
+// A320 — 📒 খাতা area filter gains "এলাকাহীন দোকান": shops with no area assigned,
+// so they can be found and fixed. Area is a shop-only attribute (newPartyFlow asks
+// `side` only for shops), so this filter is shops with an empty side.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const RAM = { username: 'ram', name: 'রাম', role: 'collector', cashier: 0, entries: 'shop,person,otherdonor' };
+  const central = {
+    parties: [
+      { id: 's1', year: 2026, type: 'shop', name: 'মেনের দোকান', pledged: 1000, side: 'main_malda', collector: 'রাম', collectorId: 'ram', createdAt: '2026-09-01T10:00:00Z' },
+      { id: 's2', year: 2026, type: 'shop', name: 'কোণার দোকান', pledged: 1000, side: '', collector: 'রাম', collectorId: 'ram', createdAt: '2026-09-01T10:01:00Z' },
+      { id: 'pp', year: 2026, type: 'person', name: 'এক ব্যক্তি', pledged: 500, collector: 'রাম', collectorId: 'ram', createdAt: '2026-09-01T10:02:00Z' },
+    ],
+    payments: [], daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: RAM, lists: { area: AREA }, central: central });
+  await h.ready;
+  let html = await h.show('list');
+  eq(/এলাকাহীন দোকান/.test(html), true, 'A320: the area filter offers an "এলাকাহীন দোকান" option');
+
+  // select it → only the area-less SHOP (কোণার দোকান), not the shop with an area,
+  // and not the person (a person never has an area)
+  const af = h.doc.getElementById('area-f');
+  af.value = '__noarea';
+  af.onchange();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  html = h.html();
+  eq(/কোণার দোকান/.test(html), true, 'A320: …the area-less shop shows');
+  eq(/মেনের দোকান/.test(html), false, 'A320: …a shop that HAS an area is hidden');
+  eq(/এক ব্যক্তি/.test(html), false, 'A320: …and a person (never has an area) is not swept in');
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;
