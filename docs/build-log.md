@@ -20518,3 +20518,22 @@ the per-category columns; my earlier "gap" was a truncated read. No change neede
 
 DOM tests: overview note, per-collector formula render. Client-only.
 v4.158.0 → v4.159.0. Tests 4,290 → 4,292.
+
+---
+
+## A328 — daily report lists each entry, matching the per-collector detail (v4.160.0)
+
+Hrishi compared the standalone daily report with the per-collector detail's daily
+section and saw entry differences. Cause: the standalone report collapsed same-day,
+same-type, same-collector rounds into one row (Nitai's 2026-09-13 toto = ₹2,975 =
+2,625+300+50), while the per-collector detail lists each round separately — same
+money, different entry count.
+
+Fixed `dailyByCollector` to return ONE row per round entry (no date aggregation),
+each carrying its own entry-user (r.collector) — so the daily report and the
+per-collector detail now show exactly the same daily entries. The server-mirrored
+computeReport('daily').rows (date+type totals) is unchanged, byCollector is
+client-only, so the mirror stays green.
+
+Test: three same-day toto rounds → three rows totalling 2,975 (not one collapsed
+row). A322/A324 still green. Client-only. v4.159.0 → v4.160.0. Tests 4,292 → 4,294.

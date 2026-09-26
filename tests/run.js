@@ -2913,6 +2913,19 @@ eq(Array.isArray(dRep.byCollector) && dRep.byCollector.length === 2, true,
 eq(computeReport('final', dbcInput).daily.byCollector.length, 2,
    'A324: …and the final statement’s daily section carries it too');
 
+// A328: the daily report lists EACH round entry (like the per-collector detail),
+// not same-day entries collapsed — so the two daily views show the same entries.
+const perEntry = require('../js/aggregate.js').dailyByCollector({
+  parties: [], payments: [], expenses: [], handovers: [], voids: [],
+  daily: [
+    { id: 't1', type: 'toto', date: '2026-09-13', amount: 2625, collector: 'Nitai' },
+    { id: 't2', type: 'toto', date: '2026-09-13', amount: 300, collector: 'Nitai' },
+    { id: 't3', type: 'toto', date: '2026-09-13', amount: 50, collector: 'Nitai' },
+  ],
+});
+eq(perEntry.length, 3, 'A328: three same-day toto rounds show as THREE rows, not one collapsed ₹2,975');
+eq(perEntry.reduce(function (a, r) { return a + r.amount; }, 0), 2975, 'A328: …and still total 2,975');
+
 // A323: the এলাকা report carries dueP — the POSITIVE per-donor dues in that area —
 // so it never shows a negative "due" when someone overpaid (member pledge 0 etc.).
 // The net `due` stays too (unchanged), so the client↔server mirror is untouched.

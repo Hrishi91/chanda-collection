@@ -290,18 +290,13 @@
   // no Code.gs change. Canonical identity (A315) so one person is not split.
   function dailyByCollector(data) {
     const d = activeData(data);
-    const canon = collectorCanon(d);
     const isRound = function (r) { return r.type === 'road' || r.type === 'toto'; };
-    const agg = {}, nameR = {};
-    (d.daily || []).filter(isRound).forEach(function (r) {
-      const c = canon(r.collectorId, r.collector);
-      const k = r.date + '|' + r.type + '|' + c;
-      agg[k] = (agg[k] || 0) + (Number(r.amount) || 0);
-      if (r.collector) nameR[c] = r.collector;
-    });
-    return Object.keys(agg).map(function (k) {
-      const p = k.split('|');
-      return { date: p[0], type: p[1], collector: nameR[p[2]] || (p[2] === '?' ? '' : p[2]), amount: agg[k] };
+    // A328: ONE row per round entry (not collapsed by date), each carrying its OWN
+    // entry-user — so this list shows exactly the same entries as the per-collector
+    // detail's daily section (which also lists each entry). No aggregation.
+    return (d.daily || []).filter(isRound).map(function (r) {
+      return { date: r.date || r.createdAt, type: r.type,
+               collector: r.collector || String(r.collectorId || ''), amount: Number(r.amount) || 0 };
     }).sort(function (a, b) { return String(b.date).localeCompare(String(a.date)) || String(a.collector).localeCompare(String(b.collector)); });
   }
   // Per-person accountability. True cash in hand for X =
