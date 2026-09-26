@@ -981,6 +981,30 @@ The third is defensible. Recording it so the choice is made on purpose.
   per collector) with a test using the exact id-vs-name mismatch fixture. Dues stay
   correct meanwhile in 📋 বাকির তালিকা and 📊 মোট হিসাব.
 
+- **📒 খাতা — "আমার / সবার" view, default আমার** (Hrishi, 2026-09-27, from the
+  live app: "in ledger, default should be user's entry view … user can't segregate
+  his own entries"). Design DECIDED, scheduled for AFTER closure (closure is today;
+  the ledger is a daily-use screen for every collector, so its default view is not
+  changed on closure day). Client-only.
+  - A **"আমার / সবার" toggle** at the top of 📒 খাতা. **Default = আমার.**
+  - **"আমার" = donors this user REGISTERED *or* took a payment on** (Hrishi's choice
+    খ): `isMine(party, meId)` OR any payment on that party has `isMine(pay, meId)`.
+    Build a `mineParty[id]` set once per paint (the drawList paint already computes
+    `mineToday`/`lastAct` in one pass — extend that, don't re-scan per keystroke).
+  - **👤 collector shown per row ONLY in the "সবার" view** (Hrishi's choice): in
+    আমার everything is the reader's own, so it stays clean; in সবার each row carries
+    `👤 <registrar collector>` so another person's donor is identifiable. Respect the
+    curtain/permission the same way the name is shown elsewhere.
+  - **Detail:** when paying someone else's donor, show the donor's owning collector
+    clearly at the top ("দাতা: <collector>"); the per-collector payment breakdown
+    drawParty already builds stays, so cross-collector instalments remain transparent.
+  - The toggle combines with the existing type/area/বাকি filters and search; it is a
+    filter on the same row set, so totals (e.g. the 🚌 tab total) must be over the
+    filtered rows, same rule as A42.
+  - Verify on Hrishi's own phone before others refresh; a wrong "আমার" filter that
+    hides a donor the collector needs is a closing-day disruption, which is exactly
+    why it waits until after closure.
+
 - **🚀 should keep member rows too — DECIDED, deferred** (Hrishi, 2026-09-14,
   reported from the LIVE app). `goLive` clears the whole Parties sheet
   ([Code.gs](../apps-script/Code.gs) `goLive`), so committee **member rows are
