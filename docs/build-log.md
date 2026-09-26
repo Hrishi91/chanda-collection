@@ -20480,3 +20480,17 @@ canonical collector, i.e. who collected the round.
 
 DOM test: the 🏆 detail's daily line carries 👤 রাম. Client-only.
 v4.156.0 → v4.157.0. Tests 4,287 → 4,289.
+
+---
+
+## A326 — daily line shows the round's OWN entry-user, not the group name (v4.158.0)
+
+Hrishi: A325 named the daily collector with the group's collector (gr.collector),
+which is the group's FIRST-noted name — if the same person's payment recorded "Ram"
+and their daily recorded "Ramu", the daily line wrongly read "Ram". Fix: each daily
+row now carries its OWN `collector` (r.collector || collectorId) in collectorDetail,
+and both renderers (screen + print) show `r.collector || gr.collector` — so a round
+is named by whoever actually entered THAT round.
+
+Aggregate test: a person whose payment says "Ram" and daily says "Ramu" → the daily
+line reads "Ramu". Client-only. v4.157.0 → v4.158.0. Tests 4,289 → 4,290.

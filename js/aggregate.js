@@ -479,6 +479,9 @@
       const gr = g(k, r.collector);
       gr._collected += Number(r.amount) || 0;
       gr.daily.push({ type: r.type, busName: r.busName,
+        // A326: the round's OWN entry-user, so the line names who actually entered
+        // THAT round — not the group's first-noted name (which may spell it differently).
+        collector: r.collector || String(r.collectorId || ''),
         amount: Number(r.amount) || 0, cash: Number(r.cashAmount) || 0, upi: Number(r.upiAmount) || 0, date: r.date || r.createdAt });
     });
     (d.expenses || []).forEach(function (r) {

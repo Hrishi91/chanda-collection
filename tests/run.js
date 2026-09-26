@@ -10166,6 +10166,20 @@ pending.push((async function () {
     eq(d0.totals.due, 150, 'A321: D0 registered-donor due (500−350) unchanged');
   }
 
+  // A326: a daily line must carry its OWN entry-user, not the group's first-noted
+  // name. If the same person's payment says "Ram" and their daily says "Ramu", the
+  // daily line must read "Ramu" — who actually entered THAT round.
+  {
+    const mixName = {
+      parties: [{ id: 'q', type: 'shop', name: 'S', pledged: 100, collectorId: 'x', collector: 'Ram' }],
+      payments: [{ id: 'yy', partyId: 'q', amount: 100, collector: 'Ram', collectorId: 'x' }],
+      daily: [{ id: 'dd', type: 'road', amount: 500, collector: 'Ramu', collectorId: 'x' }],
+      expenses: [], handovers: [], voids: [], corrections: [],
+    };
+    const gx = A.collectorDetail(mixName, { anon: false })[0];
+    eq(gx.daily[0].collector, 'Ramu', 'A326: the daily line carries its OWN entry-user (Ramu), not the group first-noted name (Ram)');
+  }
+
   // and it rides the final report
   const fin = A.computeReport('final', book);
   eq(Array.isArray(fin.collectorDetail) && fin.collectorDetail.length >= 1, true,
