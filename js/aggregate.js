@@ -2577,8 +2577,13 @@
         // leaderboard of one negotiation.
         if (isRestrictedType(p.type)) return;
         const k = p.side || '—'; // shops carry an area; person/member fall in "no area"
-        if (!agg[k]) agg[k] = { area: k, count: 0, pledged: 0, paid: 0 };
+        if (!agg[k]) agg[k] = { area: k, count: 0, pledged: 0, paid: 0, dueP: 0 };
         agg[k].count++; agg[k].pledged += Number(p.pledged) || 0; agg[k].paid += paid[p.id] || 0;
+        // A323: POSITIVE per-donor dues only — so an overpayer (e.g. a member with
+        // pledge 0) never nets the area's "due" negative. `due` (net) is kept for
+        // the client↔server mirror; `dueP` is what the reports display.
+        const donorDue = (Number(p.pledged) || 0) - (paid[p.id] || 0);
+        if (donorDue > EPS) agg[k].dueP += donorDue;
       });
       const rows = Object.keys(agg).map(function (k) { const a = agg[k]; a.due = a.pledged - a.paid; return a; })
         .sort(function (a, b) { return b.paid - a.paid; }); // leaderboard: most collected on top

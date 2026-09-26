@@ -4118,8 +4118,10 @@
       (Number(p.pledged) || 0 ? '<div class="stat3">' +
         '<div><span>' + esc(t('pledged')) + '</span><b>' + fmtMoney(p.pledged) + '</b></div>' +
         '<div><span>' + esc(t('paid')) + '</span><b>' + fmtMoney(paid) + '</b></div>' +
+        // A323: positive due only — an overpaid donor (paid > pledged) shows ₹0,
+        // not a negative "বাকি", consistent with every other due surface.
         '<div class="' + (Aggregate.isDue(due) ? 'red' : 'green') + '"><span>' + esc(t('due')) + '</span><b>' +
-          fmtMoney(due) + '</b></div>' +
+          fmtMoney(Aggregate.isDue(due) ? due : 0) + '</b></div>' +
       '</div>'
       : '<div class="stat3"><div><span>' + esc(t('paid')) + '</span><b>' + fmtMoney(paid) + '</b></div></div>') +
       '<button id="pay-btn" class="primary big block">💰 ' + esc(t('add_payment')) + '</button>' +
@@ -6004,7 +6006,8 @@
         return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 60%"><b>' +
           (medal[i] || '') + ' ' + esc(label) + '</b>' +
           '<div class="row-sub">' + r.count + ' ' + esc(t('parties_n')) +
-          (Aggregate.isDue(r.due) ? ' • ' + esc(t('due')) + ' ' + fmtMoney(r.due) : ' • ✅') + '</div></div>' +
+          // A323: positive dues only (dueP) — a negative net never shows here
+          (Aggregate.isDue(r.dueP != null ? r.dueP : r.due) ? ' • ' + esc(t('due')) + ' ' + fmtMoney(r.dueP != null ? r.dueP : r.due) : ' • ✅') + '</div></div>' +
           '<div class="row-right"><b>' + fmtMoney(r.paid) + '</b>' +
           '<div class="row-sub">/ ' + fmtMoney(r.pledged) + '</div></div></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
@@ -6120,7 +6123,8 @@
       return '<h3>' + esc(t('report_areas')) + ' — ' + esc(t('paid')) + ': ' + money(d.totalPaid) + '</h3>' +
         printTable([t('party_f_side'), t('count_col'), t('pledged'), t('paid'), t('due')],
           (d.rows || []).map(function (r) {
-            return [Lists.labelOf('area', r.area), r.count, money(r.pledged), money(r.paid), money(r.due)];
+            // A323: positive dues (dueP); '—' label matches the screen's "no area"
+            return [r.area === '—' ? t('no_area') : Lists.labelOf('area', r.area), r.count, money(r.pledged), money(r.paid), money(r.dueP != null ? r.dueP : r.due)];
           }));
     }
     if (id === 'daily') {

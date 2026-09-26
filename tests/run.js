@@ -2901,6 +2901,24 @@ const byName = {}; dbc.forEach(function (r) { byName[r.collector] = r.amount; })
 eq(byName['রাম'], 400, 'A322: রাম’s road round is named');
 eq(byName['কালী'], 300, 'A322: …and কালী’s, separately');
 eq(dbc.every(function (r) { return r.type !== 'bus'; }), true, 'A322: bus is not a round — excluded, like the report');
+
+// A323: the এলাকা report carries dueP — the POSITIVE per-donor dues in that area —
+// so it never shows a negative "due" when someone overpaid (member pledge 0 etc.).
+// The net `due` stays too (unchanged), so the client↔server mirror is untouched.
+const areasBook = {
+  parties: [
+    { id: 'sh', type: 'shop', name: 'Sh', pledged: 1000, side: 'A1' },   // owes 600
+    { id: 'mm', type: 'member', name: 'Mm', pledged: 0, side: 'A1' },     // pledge 0, "overpays"
+  ],
+  payments: [
+    { id: 'pa', partyId: 'sh', amount: 400 },
+    { id: 'pb', partyId: 'mm', amount: 900 },
+  ],
+  daily: [], expenses: [], handovers: [], voids: [], corrections: [],
+};
+const a1 = computeReport('areas', areasBook).rows.find(function (r) { return r.area === 'A1'; });
+eq(a1.due, 1000 - 1300, 'A323: net due kept unchanged (−300) so the mirror stays green');
+eq(a1.dueP, 600, 'A323: dueP = Σ positive per-donor dues (only the shop owes 600, member overpay not netted)');
 eq(dailyRep.rows.every(function (r) { return r.type !== 'bus'; }), true, 'daily report: no bus row slipped through');
 // …but the money is NOT lost: it still counts everywhere money is counted
 eq(computeTotals({ parties: [], payments: [], expenses: [], handovers: [], voids: [],

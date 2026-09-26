@@ -20382,3 +20382,35 @@ two named rows, bus excluded), DOM test (both names render), and the mirror test
 stays green (report unchanged). Mutation dropping the collector key fails by name.
 
 Client-only. v4.152.0 → v4.153.0. Tests 4,274 → 4,281.
+
+---
+
+## A323 — make EVERY due surface consistent (positive dues), screen AND print (v4.154.0)
+
+Hrishi's report/PDF showed a negative "Total due −₹39,866" (overview) and "By area
+— −₹9,352". Two findings:
+
+1. The overview PDF's −₹39,866 was the OLD net — printed from a stale cached app
+   before A314/A318. The current code (screen and print, both via totalsHTML) shows
+   মোট বাকি ₹4,486 (donorDue) + হাতে নগদ; proven in the harness. A fresh ⚙️→🔄 then
+   re-print fixes it.
+2. The real gap I had left: due was computed as POSITIVE in overview (A314), dues,
+   per-collector and audit — but the এলাকা (areas) report and the party detail still
+   showed NET, which goes negative when someone overpays (a member with pledge 0, an
+   over-paid shop). And screen vs print disagreed (screen hid it as ✅, print showed
+   −9,352).
+
+Consistency pass (client-only):
+- `computeReport('areas')` gains `dueP` = Σ POSITIVE per-donor dues per area. `due`
+  (net) is kept, so the client↔server mirror is untouched (subsetEq iterates server
+  fields; a client-extra field is ignored — no Code.gs change, no server night).
+- reportAreasHTML (screen) and printReportHTML('areas') both show `dueP`; the print
+  also uses the "no area" label for '—', matching the screen.
+- drawParty (party detail) clamps its due to positive — an overpaid donor shows ₹0,
+  not a negative বাকি.
+
+Now positive-due everywhere: overview · dues · per-collector · audit · areas · party.
+Aggregate test (dueP 600 while net stays −300), mirror stays green, mutation dropping
+the positive-clamp fails by name.
+
+Client-only. v4.153.0 → v4.154.0. Tests 4,281 → 4,283.
