@@ -10090,6 +10090,34 @@ pending.push((async function () {
     eq(JSON.stringify(odS.dues).indexOf('গোপন বাকি') < 0, true, 'A309: …the গুপ্ত name never appears in the owing list');
   }
 
+  // A321: each donation line carries the OTHER collectors' contributions to the
+  // SAME donor — so a line reads the whole donor's story (my part, others' parts,
+  // pledge, due). Display-only enrichment; the totals must be UNCHANGED.
+  {
+    const kbook = {
+      parties: [{ id: 'k1', type: 'shop', name: 'kalyan da', pledged: 500, collectorId: 'D0', collector: 'D0' }],
+      payments: [
+        { id: 'a', partyId: 'k1', amount: 100, collector: 'D0', collectorId: 'D0' },
+        { id: 'b', partyId: 'k1', amount: 200, collector: 'D1', collectorId: 'D1' },
+        { id: 'c', partyId: 'k1', amount: 50, collector: 'D2', collectorId: 'D2' },
+      ],
+      daily: [], expenses: [], handovers: [], voids: [], corrections: [],
+    };
+    const det = A.collectorDetail(kbook, { anon: false });
+    const d0 = det.find(function (g) { return g.collector === 'D0'; });
+    const line = d0.payments.find(function (p) { return p.name === 'kalyan da'; });
+    eq(line.amount, 100, 'A321: the line keeps my own collected amount');
+    const oth = {}; (line.others || []).forEach(function (o) { oth[o.collector] = o.amount; });
+    eq(oth.D1, 200, 'A321: the line shows D1 collected 200 on the same donor');
+    eq(oth.D2, 50, 'A321: …and D2 collected 50');
+    eq((line.others || []).length, 2, 'A321: only OTHER collectors listed, never the line’s own');
+    eq((line.others || []).reduce(function (a, o) { return a + o.amount; }, 0) + line.amount, 350,
+       'A321: Σ others + my amount = the donor’s total paid');
+    // calc UNCHANGED: the two-key totals are exactly what they were
+    eq(d0.totals.collected, 100, 'A321: D0 collected (taker) unchanged');
+    eq(d0.totals.due, 150, 'A321: D0 registered-donor due (500−350) unchanged');
+  }
+
   // and it rides the final report
   const fin = A.computeReport('final', book);
   eq(Array.isArray(fin.collectorDetail) && fin.collectorDetail.length >= 1, true,
@@ -12378,6 +12406,34 @@ pending.push((async function () {
   eq(/কোণার দোকান/.test(html), true, 'A320: …the area-less shop shows');
   eq(/মেনের দোকান/.test(html), false, 'A320: …a shop that HAS an area is hidden');
   eq(/এক ব্যক্তি/.test(html), false, 'A320: …and a person (never has an area) is not swept in');
+})());
+
+// A321 (DOM) — the final report's per-collector lines show OTHER collectors' parts
+// on the same donor.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const central = {
+    parties: [{ id: 'k1', year: 2026, type: 'shop', name: 'kalyan da', pledged: 500, side: 'main_malda', collector: 'D0', collectorId: 'D0', createdAt: '2026-09-01T10:00:00Z' }],
+    payments: [
+      { id: 'a', year: 2026, partyId: 'k1', amount: 100, cashAmount: 100, upiAmount: 0, collector: 'D0', collectorId: 'D0', date: '2026-09-04' },
+      { id: 'b', year: 2026, partyId: 'k1', amount: 200, cashAmount: 200, upiAmount: 0, collector: 'D1', collectorId: 'D1', date: '2026-09-05' },
+      { id: 'c', year: 2026, partyId: 'k1', amount: 50, cashAmount: 50, upiAmount: 0, collector: 'D2', collectorId: 'D2', date: '2026-09-06' },
+    ],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: central });
+  await h.ready;
+  await h.show('report');
+  const chip = h.doc.querySelectorAll('#report-picker [data-rep]')
+    .filter(function (b) { return b.dataset.rep === 'final'; })[0];
+  chip.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const html = h.html('report-body');
+  eq(/kalyan da/.test(html), true, 'A321: the closing report lists the donor');
+  eq(/D1: [₹]?200/.test(html), true, 'A321: …and shows another collector’s part (D1: 200) on the line');
 })());
 
 Promise.all(pending.map(function (p) {

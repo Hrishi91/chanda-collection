@@ -20338,3 +20338,25 @@ area-less shop, hides a shop that has an area, and excludes a person. Mutation
 removing the filter fails by name.
 
 v4.150.0 → v4.151.0. Tests 4,261 → 4,265.
+
+---
+
+## A321 — each donation line shows OTHER collectors' parts on the same donor (v4.152.0)
+
+Hrishi: wherever several people collect on one donor (or the entry-user differs from
+the collector), each donation line should tell the whole story — my part, the other
+collectors' parts, the pledge and the due — so nobody is confused. Explicitly: the
+CALCULATION must not change, only the report line gains detail.
+
+collectorDetail now attaches an `others` array to every payment line — the other
+collectors' totals on that same donor (canonical identity A315), e.g. kalyan da line
+under D0 carries `[{D1,200},{D2,50}]`. It is a NEW field, read-only over payments; no
+existing field's type or value changes, and no total is touched. Rendered on the
+screen detail (payLine) and the printed closing report (who cell) as
+"name — myAmount (D1: 200, D2: 50) · কথা · বাকি · 📞 · date".
+
+Proof that the calc is untouched: every existing money-total test stayed green; the
+A321 test asserts Σ others + my amount = the donor's total paid AND that
+totals.collected / totals.due are unchanged. Mutation dropping the field fails by name.
+
+Client-only, display-only. v4.151.0 → v4.152.0. Tests 4,265 → 4,274.

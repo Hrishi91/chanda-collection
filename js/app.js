@@ -6182,6 +6182,8 @@
           // the shared 6-column table)
           const who = r.anon ? t('cd_anon')
             : (r.name || '?')
+              // A321: other collectors' parts on the same donor
+              + (r.others && r.others.length ? ' (' + r.others.map(function (o) { return o.collector + ': ' + money(o.amount); }).join(', ') + ')' : '')
               + (Aggregate.moreThan(r.pledged, 0) ? ' · ' + t('pledged') + ' ' + money(r.pledged) : '')
               + (Aggregate.moreThan(r.due, 0) ? ' · ' + t('due') + ' ' + money(r.due) : '')
               + (r.phone ? ' · 📞 ' + r.phone : ' · ' + t('nophone_mark'));
@@ -6274,8 +6276,13 @@
       // A303: the donor's pledge (কথা) and A301: their remaining বাকি, on the line
       const pl = Aggregate.moreThan(r.pledged, 0) ? ' · ' + esc(t('pledged')) + ' ' + fmtMoney(r.pledged) : '';
       const due = Aggregate.moreThan(r.due, 0) ? ' · <b class="warn">' + esc(t('due')) + ' ' + fmtMoney(r.due) + '</b>' : '';
+      // A321: what OTHER collectors took on this same donor — so the line tells the
+      // whole donor's story even when several people collected on it.
+      const others = (r.others && r.others.length)
+        ? ' <span style="opacity:.7">(' + r.others.map(function (o) { return esc(o.collector) + ': ' + fmtMoney(o.amount); }).join(', ') + ')</span>'
+        : '';
       return '<div class="row-sub" style="padding:2px 4px">' + esc(r.anon ? t('cd_anon') : (r.name || '?')) +
-        ' — ' + fmtMoney(r.amount) + cashUpiSub(r) + pl + due + ph +
+        ' — ' + fmtMoney(r.amount) + others + cashUpiSub(r) + pl + due + ph +
         (r.date ? ' · ' + esc(fmtDate(r.date)) : '') + '</div>';
     };
     // A309: one owing donor — কথা − দেওয়া = বাকি, with phone. Listed even when the

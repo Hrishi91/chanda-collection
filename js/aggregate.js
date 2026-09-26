@@ -425,16 +425,32 @@
       if (nm) groups[k].collector = nm;
       return groups[k];
     };
+    // A321: per-donor breakdown by collector, so each donation line can name what
+    // OTHER collectors took on the SAME donor. Read-only over payments (does not
+    // touch any amount or total), canonical identity (A315). Purely for display.
+    const partyColl = {}; // partyId -> { canonKey: { collector, amount } }
+    (d.payments || []).forEach(function (r) {
+      const kk = canon(r.collectorId, r.collector);
+      const m = partyColl[r.partyId] || (partyColl[r.partyId] = {});
+      const e = m[kk] || (m[kk] = { collector: r.collector || kk, amount: 0 });
+      if (r.collector) e.collector = r.collector;
+      e.amount += Number(r.amount) || 0;
+    });
     (d.payments || []).forEach(function (r) {
       const k = canon(r.collectorId, r.collector); noteName(k, r.collector);
       const anon = suppress && String(partyType[r.partyId]) === 'gupt';
       const gr = g(k, r.collector);
       gr._collected += Number(r.amount) || 0;
+      // the OTHER collectors on this donor (every canon key except this line's own)
+      const m = partyColl[r.partyId] || {};
+      const others = Object.keys(m).filter(function (kk) { return kk !== k; })
+        .map(function (kk) { return { collector: m[kk].collector, amount: m[kk].amount }; });
       gr.payments.push({
         name: anon ? '' : (r.partyName || partyName[r.partyId] || ''), anon: anon,
         phone: anon ? '' : String(partyPhone[r.partyId] || ''),
         amount: Number(r.amount) || 0, cash: Number(r.cashAmount) || 0, upi: Number(r.upiAmount) || 0,
         pledged: Number(partyPledged[r.partyId]) || 0, due: dueOf(r.partyId),
+        others: others,
         date: r.date || r.createdAt,
       });
     });
