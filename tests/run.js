@@ -12276,6 +12276,9 @@ pending.push((async function () {
      'A314: the মোট বাকি cell shows the donors’ positive due 700, not the net 400');
   eq(/মোট বাকি<\/span><b>[^<]*400<\/b>/.test(html), false,
      'A314: …and never the netted 400 that an over-payment produced');
+  // A316: the data-version + sync strip rides every central report
+  eq(/ডেটা সংস্করণ/.test(html), true, 'A316: the report carries the data-version + sync strip');
+  eq(/✅|⏳/.test(html), true, 'A316: …with this device’s sync status');
 })());
 
 Promise.all(pending.map(function (p) {

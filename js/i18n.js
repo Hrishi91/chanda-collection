@@ -397,6 +397,9 @@ const I18N = {
   total_pledged: { bn: 'মোট কথা হয়েছে', en: 'Total pledged' },
   total_due: { bn: 'মোট বাকি', en: 'Total due' },
   neg_inhand: { bn: 'হাতে ঋণাত্মক', en: 'Over-drawn (in minus)' },
+  data_ver: { bn: 'ডেটা সংস্করণ', en: 'Data version' },
+  data_updated: { bn: 'আপডেট', en: 'Updated' },
+  data_match_hint: { bn: 'দুজনের সংস্করণ ও ✅ মিললে সবাই এক ডেটা দেখছে', en: 'Same version + ✅ on two phones means everyone sees the same data' },
   my_today: { bn: 'আজ আমার তোলা', en: 'My collection today' },
   by_collector: { bn: 'কে কত তুলল', en: 'By collector' },
   // A70 (audit #2 U4): these three are what a collector is told when the

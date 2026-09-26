@@ -7081,6 +7081,23 @@
     if (id === 'program') return data; // computeReport('program') filters itself
     return Aggregate.ofSector(data, 'puja');
   }
+  // A316: a per-user "is my data current, and are we all on the same data?" strip
+  // at the top of every central report. The cursor (server watermark, arrives on
+  // every pull) is the version: two phones showing the SAME version and ✅ are
+  // reading the SAME authoritative data — which is the parameter Hrishi asked for
+  // to settle "different users see different totals" (the rest is permission
+  // scope, by design). Client-only: cursor, last-pull time and this device's
+  // unsynced count are all already on hand — no server change.
+  function dataStatusHTML() {
+    let last = ''; try { last = localStorage.getItem('ck_last_pull') || ''; } catch (e) {}
+    const ver = centralCursor ? String(centralCursor) : '—';
+    const sync = unsyncedN > 0 ? '⏳ ' + esc(toBengaliDigits(String(unsyncedN))) : '✅';
+    return '<div class="hint" style="margin:0 2px 8px;display:flex;gap:12px;flex-wrap:wrap;align-items:center" title="' +
+        esc(t('data_match_hint')) + '">' +
+      '<span>🔖 ' + esc(t('data_ver')) + ': <b>' + esc(ver) + '</b></span>' +
+      (last ? '<span>🕐 ' + esc(t('data_updated')) + ' ' + esc(agoText(Number(last))) + '</span>' : '') +
+      '<span>' + sync + '</span></div>';
+  }
   function loadReport(id) {
     viewData().then(function (data) {
       const body = document.getElementById('report-body');
@@ -7096,7 +7113,7 @@
         // into. anon:false — গুপ্ত visibility is already decided by visibleData at
         // viewData (a non-keyholder never received the row), so no extra masking.
         if (id === 'collectors') rep.detail = Aggregate.collectorDetail(bookFor(id, data), { anon: false });
-        body.innerHTML = reportHTML(id, rep) +
+        body.innerHTML = dataStatusHTML() + reportHTML(id, rep) +
           '<button id="report-pdf" class="ghost big block">📄 ' + esc(t('report_pdf_btn')) + '</button>';
         document.getElementById('report-pdf').onclick = function () { printReport(id); };
         // A150: the transfer button only exists on the programme report, and

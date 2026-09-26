@@ -20235,3 +20235,24 @@ into the logged-in id) — deferred, noted; it needs the handover-cap blast radi
 weighed, and in practice a properly-logged-in collector stamps a consistent id.
 
 Client-only. v4.145.0 → v4.146.0. Tests 4,239 → 4,244.
+
+---
+
+## A316 — data-version + sync strip on every central report (v4.147.0)
+
+Hrishi's item 3 ("a parameter to decide the data is correct for all users"),
+client-only version. Every central report now opens with a small strip:
+🔖 ডেটা সংস্করণ (the server cursor/watermark, which arrives on every pull) ·
+🕐 আপডেট <relative time> · ✅ / ⏳ N (this device's unsynced count).
+
+Two phones showing the SAME version and ✅ are reading the SAME authoritative data,
+which settles "different users see different totals" (the remainder is permission
+scope, by design — Hrishi accepted that). No server change: the cursor, last-pull
+time and unsynced count are all already on the device, so it was safe to ship on
+closure day. The stronger server-computed checksum (verify against the whole book)
+stays deferred to a SERVER night after closure.
+
+DOM test: the strip and a sync glyph render on the overview report; mutation
+removing the injection fails by name.
+
+Client-only. v4.146.0 → v4.147.0. Tests 4,244 → 4,246.
