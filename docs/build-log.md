@@ -20281,3 +20281,27 @@ tests: আমার hides another collector's untouched donor and shows one I pa
 filter fails by name.
 
 Client-only. v4.147.0 → v4.148.0. Tests 4,246 → 4,256.
+
+---
+
+## A318 — overview: হাতে নগদ (actual cash, positive holdings) as its own figure (v4.149.0)
+
+Hrishi: the overview "in hand" (collected − খরচ, net) subtracts the over-drawn
+amount, which has NOT settled — so it understates the real cash. An over-drawn
+person holds 0, not a negative. Add another figure for the actual cash.
+
+Added `heldPositive` to computeReport('overview') = Σ of the POSITIVE per-collector
+in-hands (canonical identity via collectorDetail, same permission-filtered data).
+Shown as **হাতে নগদ (আসল)**, with the over-draw named beside it as **হাতে ঋণাত্মক
+(মেটাতে হবে)**. The relationship holds: heldPositive + negInHand = the net
+(collected − খরচ), which the audit balance/reconcile keeps using — untouched.
+
+So the overview now reads: হাতে (net) · হাতে নগদ (real cash) · হাতে ঋণাত্মক (to
+settle) · মোট বাকি (donor dues). Display-only; balance math unchanged. Names are a
+first cut — easy to rename.
+
+Aggregate test (heldPositive 800, and heldPositive + negInHand = net) + a DOM test
+that হাতে নগদ renders on the overview. Mutation folding negatives back in fails by
+name.
+
+Client-only. v4.148.0 → v4.149.0. Tests 4,256 → 4,259.

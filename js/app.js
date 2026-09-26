@@ -5483,15 +5483,22 @@
         '<div class="strip act">' + esc(t('spoken_for')) + ': ' + fmtMoney(tt.spokenFor.total) +
           ' · ' + esc(t('really_free')) + ': <b>' + fmtMoney(tt.inHand - tt.spokenFor.total) + '</b>' +
           '<span class="sub">' + esc(t('spoken_for_note')) + '</span></div>' : '') +
+      // A318: the ACTUAL cash in hands — Σ positive holdings. An over-drawn person
+      // holds 0, not a negative, and that over-draw is UNSETTLED, so it must not
+      // shrink the real-cash figure. The over-draw is named beside it; হাতে (net,
+      // above) still nets both, and the audit balance keeps using that net.
+      (tt.heldPositive != null ?
+        '<div class="stat3">' +
+        '<div class="green"><span>' + esc(t('held_positive')) + '</span><b>' + fmtMoney(tt.heldPositive) + '</b></div>' +
+        ((tt.negInHand || 0) < 0
+          ? '<div class="red"><span>' + esc(t('neg_inhand')) + '</span><b>' + fmtMoney(tt.negInHand) + '</b></div>'
+          : '<div></div>') +
+        '<div></div></div>' : '') +
       // A314: বাকি = donors' POSITIVE dues (matches the dues report); a net that an
-      // over-payment shrank was the "wrong calculation". A separate line surfaces
-      // users whose hand is in minus, which the single netted number hid.
+      // over-payment shrank was the "wrong calculation".
       '<div class="stat3"><div><span>' + esc(t('total_pledged')) + '</span><b>' + fmtMoney(tt.totalPledged) + '</b></div>' +
       '<div class="red"><span>' + esc(t('total_due')) + '</span><b>' + fmtMoney(tt.donorDue != null ? tt.donorDue : tt.totalDue) + '</b></div>' +
-      ((tt.negInHand || 0) < 0
-        ? '<div class="red"><span>' + esc(t('neg_inhand')) + '</span><b>' + fmtMoney(tt.negInHand) + '</b></div>'
-        : '<div></div>') +
-      '</div>' +
+      '<div></div></div>' +
       '<div class="stat3"><div><span>' + esc(t('total_cash')) + '</span><b>' + fmtMoney(tt.totalCash) + '</b></div>' +
       '<div><span>' + esc(t('total_upi')) + '</span><b>' + fmtMoney(tt.totalUpi) + '</b></div><div></div></div>' +
       // A147: every key the computation produced, not a hand-written list of

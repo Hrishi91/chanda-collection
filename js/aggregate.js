@@ -2476,16 +2476,22 @@
         const due = (Number(p.pledged) || 0) - (paidBy[p.id] || 0);
         if (due > EPS) donorDue += due;
       });
-      // A314: users whose hand is in MINUS (disbursed more than they hold), summed
-      // — surfaced separately because the single netted in-hand hid who is
-      // over-drawn. Canonical collector identity (collectorDetail), so one person
-      // is never counted twice, and it honours the same permission-filtered `data`.
-      const negInHand = collectorDetail(data).reduce(function (a, g) {
-        return a + (g.totals.inHand < 0 ? g.totals.inHand : 0);
-      }, 0);
+      // A314/A318: split the per-person in-hand into what is actually HELD and what
+      // is over-drawn. `heldPositive` = Σ of positive in-hands = the real cash in
+      // people's hands right now (an over-drawn person holds 0, not a negative, and
+      // that over-draw is UNSETTLED — it must not shrink the real-cash figure).
+      // `negInHand` = Σ of the negatives = the amount still to settle. The two add
+      // back to the accounting net (`inHand` = collected − spent), which the audit
+      // balance keeps using. Canonical identity (collectorDetail), same
+      // permission-filtered `data`, so nobody is counted twice.
+      let negInHand = 0, heldPositive = 0;
+      collectorDetail(data).forEach(function (g) {
+        const ih = g.totals.inHand;
+        if (ih < 0) negInHand += ih; else heldPositive += ih;
+      });
       return { totalCollection: totalColl, totalExpense: totalExp, inHand: totalColl - totalExp,
                totalPledged: totalPledged, totalDue: totalPledged - totalPaid,
-               donorDue: donorDue, negInHand: negInHand,
+               donorDue: donorDue, negInHand: negInHand, heldPositive: heldPositive,
                totalCash: cash, totalUpi: upi, byType: byType, dailyByType: dailyByType,
                // A148: the same figures split by ভাঁড়ার. The two columns MUST add
                // up to the totals beside them — asserted in tests, because a

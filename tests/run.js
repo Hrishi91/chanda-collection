@@ -979,6 +979,12 @@ eq(sponsorDue.totalDue, 600, 'A306: only the shop 600 is due — sponsor/gupt pa
   eq(ov.negInHand, -3700, 'A314: negInHand surfaces the over-drawn user (ram 1300−5000), summed');
   // the old net field stays for back-compat, and this is exactly why it was confusing:
   eq(ov.totalDue, 400, 'A314: the net totalDue (700−300 overpay) is kept but no longer the displayed বাকি');
+
+  // A318: the ACTUAL cash in hands — Σ POSITIVE holdings only, because an over-drawn
+  // person holds 0, not a negative. The over-draw is unsettled and must not shrink
+  // the real cash figure (Hrishi). heldPositive + negInHand = the net (collected−spent).
+  eq(ov.heldPositive, 800, 'A318: heldPositive = Σ of positive in-hands (kali holds 800); over-draw NOT subtracted');
+  eq(ov.heldPositive + ov.negInHand, ov.inHand, 'A318: হাতে নগদ + ঋণাত্মক = নিট (collected − খরচ) — the three reconcile');
 }
 
 // ---- cash/UPI split ----
@@ -12285,6 +12291,8 @@ pending.push((async function () {
   // A316: the data-version + sync strip rides every central report
   eq(/ডেটা সংস্করণ/.test(html), true, 'A316: the report carries the data-version + sync strip');
   eq(/✅|⏳/.test(html), true, 'A316: …with this device’s sync status');
+  // A318: the actual cash-in-hand (positive holdings) figure is shown
+  eq(/হাতে নগদ/.test(html), true, 'A318: the overview shows হাতে নগদ (actual cash, positive holdings)');
 })());
 
 // A317 — 📒 খাতা "আমার / সবার" view. Default আমার (donors I registered OR took a
