@@ -20537,3 +20537,22 @@ client-only, so the mirror stays green.
 
 Test: three same-day toto rounds → three rows totalling 2,975 (not one collapsed
 row). A322/A324 still green. Client-only. v4.159.0 → v4.160.0. Tests 4,292 → 4,294.
+
+---
+
+## A329 — the 🏆 by-collector report's PDF drills into the detail (with the formula) (v4.161.0)
+
+Hrishi: the by-collector report should carry the in-hand calculation string, like the
+final settlement's per-collector detail. On screen the 🏆 report already used
+collectorDetailHTML (which has the A327 formula), but its PDF fell to the flat
+donor-count table — because printReport never attached `detail` and the print
+'collectors' branch built its own table.
+
+Fixed: printReport now attaches `detail` for 'collectors' (mirroring loadReport), and
+the print 'collectors' branch short-circuits to collectorDetailHTML when detail is
+present — so the printed by-collector report shows each collector's itemised ledger
+with the তুলেছে − খরচ = হাতে formula, matching the screen and the final statement.
+
+DOM test: the printed by-collector report carries "= হাতে". Repointed the brittle
+A77/A154 source-regex to the new (same-book) printReport shape. Client-only.
+v4.160.0 → v4.161.0. Tests 4,294 → 4,295.

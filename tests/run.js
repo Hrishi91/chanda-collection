@@ -7353,7 +7353,7 @@ try {
   // A154: the printed copy must be the SAME SLICE as the screen, or paper and
   // phone disagree about the same report — which is the worst kind of
   // disagreement, because the paper is what gets filed and quoted.
-  eq(/printReportHTML\(id, Aggregate\.computeReport\(id, bookFor\(id, data\)\), data\)/.test(app), true,
+  eq(/Aggregate\.computeReport\(id, bookFor\(id, data\)\)/.test(app) && /printReportHTML\(id, rep, data\)/.test(app), true,
      'A77/A154: …and printReport uses it, on the same book the screen used');
   // built from the SNAPSHOT, never by widening computeReport — that function is
   // mirrored byte-for-byte in Code.gs, so changing it would mean a redeploy for
@@ -12574,6 +12574,14 @@ pending.push((async function () {
   eq(/রোড[^<]*👤 রাম/.test(html), true, 'A325: …with the primary collector named on the daily line');
   // A327: the per-collector footer spells out the in-hand arithmetic
   eq(/তুলেছে[^<]*=[^<]*হাতে/.test(html), true, 'A327: the per-collector footer shows the in-hand formula');
+  // A329: the PRINTED by-collector report drills into the detail (with the formula)
+  const det329 = h.app.printReportHTML('collectors',
+    { detail: require('../js/aggregate.js').collectorDetail({
+        parties: [{ id: 'p1', type: 'shop', name: 'দোকান', pledged: 500, collectorId: 'ram', collector: 'রাম' }],
+        payments: [{ id: 'y1', partyId: 'p1', amount: 500, collector: 'রাম', collectorId: 'ram' }],
+        daily: [], expenses: [], handovers: [], voids: [], corrections: [],
+      }, { anon: false }) }, {});
+  eq(/= হাতে/.test(det329), true, 'A329: the printed by-collector report carries the in-hand formula');
 })());
 
 Promise.all(pending.map(function (p) {

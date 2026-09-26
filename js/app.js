@@ -6109,6 +6109,10 @@
           }));
     }
     if (id === 'collectors') {
+      // A329: the 🏆 by-collector report drills into the per-collector detail (with
+      // the in-hand formula) when it is attached — same as the screen. Without
+      // detail it stays the flat donor-count table below.
+      if (d.detail) return collectorDetailHTML(d.detail, t('report_collectors'));
       // how many donors each person actually called on — the row said totals
       // only, which cannot separate "one big donor" from "forty small ones"
       const v = Aggregate.voidedIds(data);
@@ -7212,7 +7216,14 @@
         '<div class="p-meta">' + esc(t('printed_on')) + ': ' + esc(now) +
           ' · ' + esc(Settings.get('collectorName') || (Auth.current() || {}).username || '') +
           (isLive() ? '' : ' · ' + esc(t('training_mode'))) + '</div></div>' +
-        printReportHTML(id, Aggregate.computeReport(id, bookFor(id, data)), data);
+        (function () {
+          const rep = Aggregate.computeReport(id, bookFor(id, data));
+          // A329: the printed 🏆 by-collector report drills into the per-collector
+          // detail (with the in-hand formula), exactly like the screen does — the
+          // screen attaches `detail` in loadReport, so the print must too.
+          if (id === 'collectors') rep.detail = Aggregate.collectorDetail(bookFor(id, data), { anon: false });
+          return printReportHTML(id, rep, data);
+        })();
       window.print();
     });
   }
