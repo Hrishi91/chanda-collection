@@ -12383,6 +12383,8 @@ pending.push((async function () {
   eq(/✅|⏳/.test(html), true, 'A316: …with this device’s sync status');
   // A318: the actual cash-in-hand (positive holdings) figure is shown
   eq(/হাতে নগদ/.test(html), true, 'A318: the overview shows হাতে নগদ (actual cash, positive holdings)');
+  // A327: the overview explains how each figure is reached
+  eq(/হাতে = আদায়/.test(html), true, 'A327: the overview carries the calculation note');
   // A319: the permission-scope note that explains why people's totals can differ
   eq(/অনুমতি অনুযায়ী/.test(html), true, 'A319: the report carries the permission-wise note');
   eq(/উপরের পদের সদস্য/.test(html), true, 'A319: …and points a confused user to a senior member');
@@ -12557,6 +12559,8 @@ pending.push((async function () {
   const html = h.html('report-body');
   eq(/রোড/.test(html), true, 'A325: the per-collector detail shows the daily round');
   eq(/রোড[^<]*👤 রাম/.test(html), true, 'A325: …with the primary collector named on the daily line');
+  // A327: the per-collector footer spells out the in-hand arithmetic
+  eq(/তুলেছে[^<]*=[^<]*হাতে/.test(html), true, 'A327: the per-collector footer shows the in-hand formula');
 })());
 
 Promise.all(pending.map(function (p) {

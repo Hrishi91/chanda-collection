@@ -5509,6 +5509,8 @@
       '<div></div></div>' +
       '<div class="stat3"><div><span>' + esc(t('total_cash')) + '</span><b>' + fmtMoney(tt.totalCash) + '</b></div>' +
       '<div><span>' + esc(t('total_upi')) + '</span><b>' + fmtMoney(tt.totalUpi) + '</b></div><div></div></div>' +
+      // A327: spell out how each figure is reached, so nobody has to guess
+      '<div class="hint" style="margin:2px 4px 8px">' + esc(t('overview_calc_note')) + '</div>' +
       // A147: every key the computation produced, not a hand-written list of
       // three. computeReport's byType learned about স্পনসর and গুপ্ত দান; this
       // renderer did not, so the admin's overview printed মোট আদায় ₹74,100 over
@@ -5557,6 +5559,7 @@
     const rows = d.rows || [];
     return '<div class="card"><div class="card-title">' + esc(t('report_dues')) +
       ' — ' + esc(t('total_due')) + ': ' + fmtMoney(d.totalDue) + '</div>' +
+      '<div class="hint" style="margin:-2px 4px 8px">' + esc(t('dues_calc_note')) + '</div>' + // A327
       (rows.length ? rows.map(function (r) {
         return '<div class="row" style="cursor:default"><div><b>' + esc(shownName(r.name, r.type)) + '</b><div class="row-sub">' +
           esc(t('type_' + r.type)) + (r.side ? ' • ' + esc(Lists.labelOf('area', r.side)) : '') +
@@ -6003,6 +6006,7 @@
     const medal = ['🥇', '🥈', '🥉'];
     return '<div class="card"><div class="card-title">' + esc(t('report_areas')) +
       ' — ' + esc(t('paid')) + ': ' + fmtMoney(d.totalPaid) + '</div>' +
+      '<div class="hint" style="margin:-2px 4px 8px">' + esc(t('areas_calc_note')) + '</div>' + // A327
       (rows.length ? rows.map(function (r, i) {
         const label = r.area === '—' ? t('no_area') : Lists.labelOf('area', r.area);
         return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 60%"><b>' +
@@ -6050,7 +6054,7 @@
         if (!last[p.partyId] || day > last[p.partyId]) { last[p.partyId] = day; who[p.partyId] = p.collector || ''; }
       });
       const byName = {}; liveParties(data).forEach(function (p) { byName[p.name] = p; });
-      return '<h3>' + esc(t('report_dues')) + ' — ' + esc(t('total_due')) + ': ' + money(d.totalDue) + '</h3>' +
+      return '<h3>' + esc(t('report_dues')) + ' — ' + esc(t('total_due')) + ': ' + money(d.totalDue) + '</h3>' + '<div class="p-note">' + esc(t('dues_calc_note')) + '</div>' +
         printTable([t('party_f_person'), t('type_shop'), t('party_f_side'), t('party_f_owner'),
                     t('party_f_phone'), t('pledged'), t('paid'), t('due'), t('last_paid_col'), t('collector_col')],
           (d.rows || []).map(function (r) {
@@ -6122,7 +6126,7 @@
           }));
     }
     if (id === 'areas') {
-      return '<h3>' + esc(t('report_areas')) + ' — ' + esc(t('paid')) + ': ' + money(d.totalPaid) + '</h3>' +
+      return '<h3>' + esc(t('report_areas')) + ' — ' + esc(t('paid')) + ': ' + money(d.totalPaid) + '</h3>' + '<div class="p-note">' + esc(t('areas_calc_note')) + '</div>' +
         printTable([t('party_f_side'), t('count_col'), t('pledged'), t('paid'), t('due')],
           (d.rows || []).map(function (r) {
             // A323: positive dues (dueP); '—' label matches the screen's "no area"
@@ -6206,8 +6210,10 @@
         const tot = gr.totals || {};
         return '<h3>👥 ' + esc(gr.collector) + ' — ' + esc(t('inhand_col')) + ': ' + money(tot.inHand) + '</h3>' +
           (rows.length ? printTable(['', '', t('amount_col'), '💵', '📱', t('date_col')], rows) : '') +
-          printTable([t('collected_col'), t('handed_col'), t('spent_col'), t('inhand_col')],
-            [[money(tot.collected), money(tot.handedOver), money(tot.spent), money(tot.inHand)]]) +
+          printTable([t('collected_col'), t('received_col'), t('handed_col'), t('spent_col'), t('inhand_col')],
+            [[money(tot.collected), money(tot.received || 0), money(tot.handedOver), money(tot.spent), money(tot.inHand)]]) +
+          // A327: the same arithmetic spelled out on the printed sheet
+          '<div class="p-note">' + esc(inHandFormula(tot)) + '</div>' +
           // A309: the owing donors that make up the বাকি — every registered donor
           // still owing, including those with no payment line above.
           ((gr.dues && gr.dues.length)
@@ -6270,6 +6276,16 @@
   // A296: every collector's itemised ledger, one collapsible card each. A গুপ্ত
   // donor is already nameless in the data (aggregate suppresses it), so this only
   // has to print what it is given — it CANNOT reveal a name it never received.
+  // A327: the in-hand arithmetic spelled out — তোলা [+ প্রাপ্ত] − জমা − খরচ = হাতে —
+  // so a reader is never left guessing how the number was reached. Zero components
+  // are dropped to keep it short. Plain string; caller escapes. money === fmtMoney.
+  function inHandFormula(tot) {
+    let s = t('collected_col') + ' ' + fmtMoney(tot.collected || 0);
+    if (Aggregate.moreThan(tot.received, 0)) s += ' + ' + t('received_col') + ' ' + fmtMoney(tot.received);
+    if (Aggregate.moreThan(tot.handedOver, 0)) s += ' − ' + t('handed_col') + ' ' + fmtMoney(tot.handedOver);
+    if (Aggregate.moreThan(tot.spent, 0)) s += ' − ' + t('spent_col') + ' ' + fmtMoney(tot.spent);
+    return s + ' = ' + t('inhand_col') + ' ' + fmtMoney(tot.inHand || 0);
+  }
   function collectorDetailHTML(list, title) {
     const dailyName = function (r) {
       return t('type_' + r.type) + (r.type === 'bus' && r.busName ? ' ' + r.busName : '');
@@ -6335,11 +6351,7 @@
         ' <span class="row-sub">' + esc(t('collected_col')) + ' ' + fmtMoney(tot.collected) +
         ' · ' + esc(t('inhand_col')) + ' ' + fmtMoney(tot.inHand) + dueBit + '</span></summary>' +
         body +
-        '<div class="row-sub" style="padding:4px;font-weight:700">' +
-          esc(t('collected_col')) + ' ' + fmtMoney(tot.collected) +
-          ' · ' + esc(t('handed_col')) + ' ' + fmtMoney(tot.handedOver) +
-          ' · ' + esc(t('spent_col')) + ' ' + fmtMoney(tot.spent) +
-          ' · ' + esc(t('inhand_col')) + ' ' + fmtMoney(tot.inHand) + '</div>' +
+        '<div class="row-sub" style="padding:4px;font-weight:700">' + esc(inHandFormula(tot)) + '</div>' +
         // A309: the donors who make up the বাকি, so the due below is explained
         ((gr.dues && gr.dues.length) ? '<div class="secttl">📌 ' + esc(t('cd_owes_title')) +
           ' (' + gr.dues.length + ')</div>' + gr.dues.map(owesLine).join('') : '') +

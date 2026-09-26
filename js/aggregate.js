@@ -528,7 +528,7 @@
     return Object.keys(groups).map(function (k) {
       const gr = groups[k];
       gr.collector = nameSeen[k] || gr.collector;
-      gr.totals = { collected: gr._collected, handedOver: gr._handed, spent: gr._spent,
+      gr.totals = { collected: gr._collected, received: gr._received, handedOver: gr._handed, spent: gr._spent,
                     inHand: gr._collected + gr._received - gr._handed - gr._spent,
                     pledged: gr._pledged || 0, paidReg: gr._paidReg || 0, due: gr._due || 0 };
       // A309: owing donors, biggest বাকি first — so the due total is auditable row by row.

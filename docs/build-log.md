@@ -20494,3 +20494,27 @@ is named by whoever actually entered THAT round.
 
 Aggregate test: a person whose payment says "Ram" and daily says "Ramu" → the daily
 line reads "Ramu". Client-only. v4.157.0 → v4.158.0. Tests 4,289 → 4,290.
+
+---
+
+## A327 — calculations spelled out across reports (screen + PDF); byCat parity confirmed (v4.159.0)
+
+Hrishi: "make the report more described on calculations, users will be confused
+otherwise," and "sync all reports with the pdf" — applied to all reports, both
+surfaces.
+
+- **Per-collector footer** now shows the in-hand arithmetic: তুলেছে C [+ জমা নিয়েছে R]
+  − জমা দিয়েছে H − খরচ S = হাতে V (zero components dropped). One helper
+  `inHandFormula(tot)` used by screen (collectorDetailHTML) and print (final detail).
+  `received` added to collectorDetail totals to feed it; print detail also gains a
+  received column.
+- **Overview** carries a calculation note: হাতে = আদায় − খরচ · হাতে নগদ = Σ positive
+  holdings · মোট বাকি = কথা − দেওয়া (still-owed). Via totalsHTML → screen and print.
+- **Dues** and **areas** reports carry "বাকি = কথা − দেওয়া" notes, screen and print.
+- New `.p-note` print style for these captions.
+
+#3 (byCat in the PDF in-hand): re-checked — the print in-hand report ALREADY appends
+the per-category columns; my earlier "gap" was a truncated read. No change needed.
+
+DOM tests: overview note, per-collector formula render. Client-only.
+v4.158.0 → v4.159.0. Tests 4,290 → 4,292.

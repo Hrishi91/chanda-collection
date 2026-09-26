@@ -435,6 +435,7 @@ button.adm-stick {
   #print-area .p-puja { font-size: 20px; font-weight: 700; }
   #print-area .p-sub { font-size: 14px; margin-top: 3px; }
   #print-area .p-meta { font-size: 11px; color: #444; margin-top: 3px; }
+  #print-area .p-note { font-size: 11px; color: #555; margin: 2px 0 6px; } /* A327: calculation caption */
   #print-area .card { border: 1px solid #bbb; border-radius: 6px; padding: 10px; margin-bottom: 10px; box-shadow: none; background: #fff; }
   #print-area .row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted #ccc; }
   #print-area .stat3 { display: flex; gap: 6px; }
