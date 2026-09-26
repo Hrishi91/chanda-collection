@@ -6200,7 +6200,7 @@
               + (r.phone ? ' · 📞 ' + r.phone : ' · ' + t('nophone_mark'));
           rows.push([t('cd_payments'), who, money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]);
         });
-        gr.daily.forEach(function (r) { rows.push([t('cd_daily'), dailyName(r), money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]); });
+        gr.daily.forEach(function (r) { rows.push([t('cd_daily'), dailyName(r) + ' · 👤 ' + gr.collector, money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]); }); // A325: primary collector on daily lines
         gr.expenses.forEach(function (r) { rows.push([t('cd_expenses'), expenseTitle(r) + (expenseNote(r) ? ' · ' + expenseNote(r) : ''), money(r.amount), money(r.cash), money(r.upi), fmtDate(r.date)]); });
         gr.handovers.forEach(function (h) { rows.push([t('cd_handovers'), (h.dir === 'out' ? '→ ' : '← ') + h.who, money(h.amount), '', '', fmtDate(h.date)]); });
         const tot = gr.totals || {};
@@ -6309,7 +6309,9 @@
         (gr.payments.length ? '<div class="secttl">' + esc(t('cd_payments')) + '</div>' +
           gr.payments.map(function (r) { return payLine(r); }).join('') : '') +
         (gr.daily.length ? '<div class="secttl">' + esc(t('cd_daily')) + '</div>' +
-          gr.daily.map(function (r) { return line(dailyName(r), r); }).join('') : '') +
+          // A325: name the PRIMARY collector on each daily line too (it may have been
+          // handed to a cashier, but this is who collected the round)
+          gr.daily.map(function (r) { return line(dailyName(r) + ' · 👤 ' + gr.collector, r); }).join('') : '') +
         (gr.expenses.length ? '<div class="secttl">' + esc(t('cd_expenses')) + '</div>' +
           gr.expenses.map(function (r) { return line(expenseTitle(r) + (expenseNote(r) ? ' · ' + expenseNote(r) : ''), r); }).join('') : '') +
         (gr.handovers.length ? '<div class="secttl">' + esc(t('cd_handovers')) + '</div>' +

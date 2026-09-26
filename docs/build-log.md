@@ -20467,3 +20467,16 @@ section name রাম and কালী. Mirror stays green; mutation dropping b
 by name.
 
 Client-only. v4.155.0 → v4.156.0. Tests 4,284 → 4,287.
+
+---
+
+## A325 — primary collector named on daily lines in the per-collector detail (v4.157.0)
+
+Hrishi: in 👥 Each collector, in detail, the daily rounds had no collector name —
+a round may be handed to a cashier, but the report should name the PRIMARY collector
+who collected it. Added "· 👤 <collector>" to each daily line in the per-collector
+detail, screen (collectorDetailHTML) and print (final). The name is the group's
+canonical collector, i.e. who collected the round.
+
+DOM test: the 🏆 detail's daily line carries 👤 রাম. Client-only.
+v4.156.0 → v4.157.0. Tests 4,287 → 4,289.

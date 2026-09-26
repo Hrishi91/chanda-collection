@@ -12520,6 +12520,31 @@ pending.push((async function () {
   eq(/👤 রাম/.test(fhtml) && /👤 কালী/.test(fhtml), true, 'A324: the final report’s daily section names the collectors');
 })());
 
+// A325 (DOM) — the per-collector DETAIL (🏆 / final) names the primary collector on
+// each daily line too, not only the standalone daily report.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const central = {
+    parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'দোকান', pledged: 500, side: 'main_malda', collector: 'রাম', collectorId: 'ram', createdAt: '2026-09-01T10:00:00Z' }],
+    payments: [{ id: 'y1', year: 2026, partyId: 'p1', amount: 500, cashAmount: 500, upiAmount: 0, collector: 'রাম', collectorId: 'ram', date: '2026-09-04' }],
+    daily: [{ id: 'r1', year: 2026, type: 'road', date: '2026-09-14', amount: 700, cashAmount: 700, upiAmount: 0, collector: 'রাম', collectorId: 'ram' }],
+    expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: central });
+  await h.ready;
+  await h.show('report');
+  const chip = h.doc.querySelectorAll('#report-picker [data-rep]')
+    .filter(function (b) { return b.dataset.rep === 'collectors'; })[0];
+  chip.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const html = h.html('report-body');
+  eq(/রোড/.test(html), true, 'A325: the per-collector detail shows the daily round');
+  eq(/রোড[^<]*👤 রাম/.test(html), true, 'A325: …with the primary collector named on the daily line');
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;
