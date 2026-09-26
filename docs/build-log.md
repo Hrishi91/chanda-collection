@@ -20205,3 +20205,33 @@ kept) and a DOM test that ties the label to its value so a stray ৭০০/700 e
 (e.g. inside −4,700) cannot pass it. Mutation showing the net instead fails by name.
 
 Client-only. v4.144.0 → v4.145.0. Tests 4,231 → 4,239.
+
+---
+
+## A315 — inHandRows now resolves one canonical identity (💰 কার হাতে কত + audit) (v4.146.0)
+
+Hrishi: "what about the other users." The cashier/admin view 💰 কার হাতে কত and the
+closing audit per-collector table are built from `inHandRows`, which still keyed each
+row by the raw `collectorId || name` — so a person whose payments carry id `ram` but
+whose handover carries only the name `রাম` (empty `fromId`) split into TWO rows,
++800 and −300, instead of one row netting to 500. collectorDetail (the 🏆/closing
+reports) already got this right via A305; inHandRows was the last place with the split.
+
+Fix: extracted A305's resolver into a shared `collectorCanon(data)` and used it in
+BOTH collectorDetail (repointed — A305/A309 tests unchanged and green) and inHandRows
+(grouping keys). `myAvailable` is deliberately NOT changed (it also drives the
+collector's own home summary AND the handover cap — live-money blast radius); instead
+inHandRows builds `byCat` by MERGING `myAvailable(orig, rawKey).byCat` over every raw
+key that canon-maps to the person. Raw keys partition the rows, so no double count,
+and the byCat-sums-to-inHand invariant holds for the merged row.
+
+The old test that asserted the split ("3 rows") is updated to the merged truth
+(2 rows; Ratan gathers the id-keyed 1000 + the name-only 40, nets 440). New A315 test
+reproduces the exact live shape (ram/রাম → one row, inHand 500, byCat sums to 500).
+Mutation disabling the canon fails by name.
+
+personalSummary/myAvailable keep the name-only edge case (a name-only row isn't merged
+into the logged-in id) — deferred, noted; it needs the handover-cap blast radius
+weighed, and in practice a properly-logged-in collector stamps a consistent id.
+
+Client-only. v4.145.0 → v4.146.0. Tests 4,239 → 4,244.

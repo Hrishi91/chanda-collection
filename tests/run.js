@@ -1283,12 +1283,13 @@ eq(personalSummary(idData, 'rahul2').handedOver, 200, 'identity: personalSummary
 // legacy name-only rows still work (fallback)
 eq(inHandRows({ payments: [{ id: 'x', collector: 'Old', amount: 50 }], daily: [], expenses: [], handovers: [], voids: [] })[0].inHand, 50, 'identity: legacy name-only row still keyed');
 
-// ---- identity: a name-keyed row must NOT swallow the same person's id-keyed rows ----
+// ---- A315: one person's two identities MERGE into a single in-hand row ----
 // One person, two identities in the same dataset: rows pushed after login carry
 // collectorId 'ratan', an older row (entered before login) has none and so keys
-// under the display name. Each identity is its own line in the in-hand report,
-// and its byCat must sum to exactly its own inHand — the name-keyed line used to
-// re-count every 'ratan' row on top of its own.
+// under the display name. A315 (matching collectorDetail's A305) learns
+// name→id from the row that carries BOTH and resolves the name-only row into the
+// same person — so they are ONE line, not two. byCat (merged over the raw keys)
+// must still sum to exactly that one line's inHand.
 const dualId = {
   parties: [], expenses: [], voids: [], daily: [],
   payments: [
@@ -1301,14 +1302,40 @@ const sumCat = function (bc) {
   return Object.keys(bc || {}).reduce(function (a, k) { return a + bc[k].cash + bc[k].upi; }, 0);
 };
 const dualRows = inHandRows(dualId);
-eq(dualRows.length, 3, 'dual-identity: id-keyed, name-keyed and receiver are 3 rows');
+eq(dualRows.length, 2, 'A315: the two identities MERGE — one Ratan row + the receiver, not three');
+const ratanRow = dualRows.find(function (r) { return r.collected === 1040; });
+eq(!!ratanRow, true, 'A315: Ratan’s row gathers BOTH the id-keyed 1000 and the name-only 40');
+eq(ratanRow.inHand, 1040 - 600, 'A315: …and nets the id-keyed handover — 1040 − 600 handed = 440');
 dualRows.forEach(function (r) {
-  eq(sumCat(r.byCat), r.inHand, 'dual-identity: byCat sums to inHand for ' + r.collector + ' (' + r.inHand + ')');
+  eq(sumCat(r.byCat), r.inHand, 'A315: byCat (merged over raw keys) sums to inHand for ' + r.collector + ' (' + r.inHand + ')');
 });
-eq(myAvailable(dualId, 'Ratan Das').byCat.payment, { cash: 40, upi: 0 }, 'dual-identity: name key sees only its own 40');
-eq(myAvailable(dualId, 'ratan').byCat.payment, { cash: 400, upi: 0 }, 'dual-identity: id key sees 1000 − 600 handed');
-eq(personalSummary(dualId, 'Ratan Das').collected, 40, 'dual-identity: personalSummary by name is not inflated');
-eq(personalSummary(dualId, 'Ratan Das').handedOver, 0, 'dual-identity: the id-keyed handover is not attributed to the name key');
+// myAvailable itself is deliberately UNCHANGED (it drives the home summary and the
+// handover cap), so a bare name/id key still sees only its own rows:
+eq(myAvailable(dualId, 'Ratan Das').byCat.payment, { cash: 40, upi: 0 }, 'A315: myAvailable(name) unchanged — sees only its own 40');
+eq(myAvailable(dualId, 'ratan').byCat.payment, { cash: 400, upi: 0 }, 'A315: myAvailable(id) unchanged — 1000 − 600 handed');
+eq(personalSummary(dualId, 'Ratan Das').collected, 40, 'A315: personalSummary by name unchanged (edge case left for a later pass)');
+eq(personalSummary(dualId, 'Ratan Das').handedOver, 0, 'A315: the id-keyed handover is not attributed to the name key');
+
+// A315: the exact live shape — payments/expense carry id `ram`, but the handover
+// carries only the NAME `রাম` (empty fromId). Before the fix this split রাম into
+// +800 and −300; now it is ONE row netting to 500, and byCat merges to match.
+{
+  const book = {
+    parties: [{ id: 'p1', type: 'shop', name: 'X', pledged: 1000, collectorId: 'ram', side: 'main_malda' }],
+    payments: [{ id: 'y1', partyId: 'p1', amount: 1000, cashAmount: 1000, upiAmount: 0, collector: 'রাম', collectorId: 'ram' }],
+    daily: [],
+    expenses: [{ id: 'e1', subject: 'x', amount: 200, cashAmount: 200, upiAmount: 0, collector: 'রাম', collectorId: 'ram' }],
+    handovers: [{ id: 'h1', amount: 300, cashAmount: 300, upiAmount: 0, from: 'রাম', to: 'kali', toId: 'kali',
+                  status: 'confirmed', confirmedBy: 'kali', breakdown: JSON.stringify({ shop: { cash: 300, upi: 0 } }) }],
+    voids: [], corrections: [],
+  };
+  const rows = inHandRows(book);
+  eq(rows.length, 2, 'A315: ram (mixed id/name) + kali — not three, no phantom split row');
+  const ram = rows.find(function (r) { return r.collected === 1000; });
+  eq(ram.inHand, 500, 'A315: ram nets to 500 (1000 − 200 spent − 300 handed), not split into 800 and −300');
+  eq(ram.handedOver, 300, 'A315: …the name-only handover is attributed to ram');
+  eq(sumCat(ram.byCat), 500, 'A315: byCat merged over the id and name raw keys sums to the netted 500');
+}
 
 // ---- cross-collector installments: two collectors pay the same party ----
 // Kamal pledged 1000; Salil collected 400, Ram collected 600 (via find-party).

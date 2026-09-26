@@ -954,8 +954,8 @@ The third is defensible. Recording it so the choice is made on purpose.
   a book fault. Season-total only; per-collector dues in the audit waits on the
   `inHandRows` identity normalisation (split risk).
 
-- **Apply the same collector-identity normalisation to `inHandRows`** (A305
-  follow-up → **A315, scheduled for AFTER closure** — Hrishi's call 2026-09-26, live
+- [x] ~~**Apply the same collector-identity normalisation to `inHandRows`**~~ DONE A315 (2026-09-27). (was A305
+  follow-up → — Hrishi's call 2026-09-26, live
   data, backup taken; too risky the night before closure). **Reproduced 2026-09-26:**
   a person whose payments carry id `ram` but whose handover carries only the name
   `রাম` (empty `fromId`) splits into TWO rows on 💰 কার হাতে কত — `ram` at +800 and

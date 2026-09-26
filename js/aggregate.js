@@ -261,6 +261,29 @@
   // "in transit": sent, not yet answered. The sender still answers for it.
   function hoPending(h) { return !hoConfirmed(h) && !hoRejected(h); }
 
+  // A315: ONE canonical collector identity, learned from every row that carries
+  // BOTH an id and a name, so a person whose rows disagree on which handle they use
+  // (payments by id, a handover by name only) is never split into two. Extracted
+  // from collectorDetail's A305 resolver so inHandRows — and therefore 💰 কার হাতে কত
+  // and the audit — resolve identity the SAME way the closing reports already do.
+  function collectorCanon(data) {
+    const idOfName = {};
+    const learn = function (id, nm) {
+      id = String(id || ''); nm = String(nm || '').trim().toLowerCase();
+      if (id && nm && !idOfName[nm]) idOfName[nm] = id;
+    };
+    (data.parties || []).forEach(function (p) { learn(p.collectorId, p.collector); });
+    ['payments', 'daily', 'expenses'].forEach(function (s) {
+      (data[s] || []).forEach(function (r) { learn(r.collectorId, r.collector); });
+    });
+    (data.handovers || []).forEach(function (h) { learn(h.fromId, h.from); learn(h.toId, h.to); });
+    return function (id, nm) {
+      id = String(id || '');
+      if (id) return id;
+      const key = String(nm || '').trim().toLowerCase();
+      return idOfName[key] || String(nm || '?');
+    };
+  }
   // Per-person accountability. True cash in hand for X =
   //   collected(by X) + received(confirmed handovers TO X)
   //   − handedOver(confirmed handovers FROM X) − spent(expenses by X).
@@ -269,16 +292,24 @@
   function inHandRows(data) {
     const orig = data;          // myAvailable does its own activeData()
     data = activeData(data);
+    // A315: one canonical identity per person, so a name-only handover and an
+    // id-stamped payment for the SAME collector land on one row (matches A305).
+    const canon = collectorCanon(data);
     const collected = {}, received = {}, handed = {}, pending = {}, spent = {}, nameBy = {};
+    // myAvailable keys byCat by the RAW ck/from/to; remember which raw keys map to
+    // each canonical key so byCat can be merged over them (see mergedByCat below).
+    const rawKeys = {};
     const note = function (k, nm) { if (nm) nameBy[k] = nm; };
+    const addRaw = function (k, rk) { (rawKeys[k] || (rawKeys[k] = {}))[rk] = 1; };
     (data.payments || []).concat(data.daily || []).forEach(function (r) {
-      const k = ck(r); note(k, r.collector);
+      const rk = ck(r), k = canon(r.collectorId, r.collector); note(k, r.collector); addRaw(k, rk);
       collected[k] = (collected[k] || 0) + (Number(r.amount) || 0);
     });
     (data.handovers || []).forEach(function (h) {
       const amt = Number(h.amount) || 0;
-      const fromK = String(h.fromId || h.from || '?'), toK = String(h.toId || h.to || '?');
-      note(fromK, h.from); note(toK, h.to);
+      const fromRaw = String(h.fromId || h.from || '?'), toRaw = String(h.toId || h.to || '?');
+      const fromK = canon(h.fromId, h.from), toK = canon(h.toId, h.to);
+      note(fromK, h.from); note(toK, h.to); addRaw(fromK, fromRaw); addRaw(toK, toRaw);
       if (hoConfirmed(h)) {
         handed[fromK] = (handed[fromK] || 0) + amt;
         received[toK] = (received[toK] || 0) + amt;
@@ -290,13 +321,27 @@
       }
     });
     (data.expenses || []).forEach(function (e) {
-      const k = ck(e); note(k, e.collector);
+      const rk = ck(e), k = canon(e.collectorId, e.collector); note(k, e.collector); addRaw(k, rk);
       spent[k] = (spent[k] || 0) + (Number(e.amount) || 0);
     });
     const keys = {};
     [collected, received, handed, pending, spent].forEach(function (m) {
       Object.keys(m).forEach(function (k) { keys[k] = 1; });
     });
+    // A315: byCat merged over every raw key that canon-maps to this person. Raw
+    // keys partition the rows, so no double count; myAvailable stays untouched
+    // (it also drives the home summary and the handover cap — do not change it).
+    const mergedByCat = function (k) {
+      const out = {};
+      Object.keys(rawKeys[k] || {}).forEach(function (rk) {
+        const bc = myAvailable(orig, rk).byCat || {};
+        Object.keys(bc).forEach(function (cat) {
+          const e = out[cat] || (out[cat] = { cash: 0, upi: 0 });
+          e.cash += bc[cat].cash || 0; e.upi += bc[cat].upi || 0;
+        });
+      });
+      return out;
+    };
     return Object.keys(keys).map(function (k) {
       return { collector: nameBy[k] || k, collected: collected[k] || 0, received: received[k] || 0,
                handedOver: handed[k] || 0, pending: pending[k] || 0, spent: spent[k] || 0,
@@ -304,7 +349,7 @@
                // same source-category × cash/UPI split each person sees in
                // their own summary — so the central report and every personal
                // report read the identical numbers
-               byCat: myAvailable(orig, k).byCat };
+               byCat: mergedByCat(k) };
     }).sort(function (a, b) { return b.inHand - a.inHand; });
   }
 
@@ -361,30 +406,14 @@
     (d.payments || []).forEach(function (p) { paidByParty[p.partyId] = (paidByParty[p.partyId] || 0) + (Number(p.amount) || 0); });
     const dueOf = function (pid) { const x = (partyPledged[pid] || 0) - (paidByParty[pid] || 0); return moreThan(x, 0) ? x : 0; };
 
-    // A305: ONE canonical identity per collector. A person's rows disagree on
+    // A305/A315: ONE canonical identity per collector. A person's rows disagree on
     // which handle they carry — a party may hold collectorId, a payment on it only
     // the name — and keying on `collectorId || name` then splits the same person
-    // into two groups (the A304 bug: collections in one, dues in the other). So
-    // learn name→id from every row that carries BOTH, and resolve every handle
-    // through it, so all of one person's rows land in a single group.
-    const idOfName = {};
-    const learn = function (id, nm) {
-      id = String(id || ''); nm = String(nm || '').trim().toLowerCase();
-      if (id && nm && !idOfName[nm]) idOfName[nm] = id;
-    };
-    (d.parties || []).forEach(function (p) { learn(p.collectorId, p.collector); });
-    ['payments', 'daily', 'expenses'].forEach(function (s) {
-      (d[s] || []).forEach(function (r) { learn(r.collectorId, r.collector); });
-    });
-    (d.handovers || []).forEach(function (h) { learn(h.fromId, h.from); learn(h.toId, h.to); });
-    // canonical key from an (id, name) pair: the id if present, else the id we
-    // learned for that name, else the name itself.
-    const canon = function (id, nm) {
-      id = String(id || '');
-      if (id) return id;
-      const key = String(nm || '').trim().toLowerCase();
-      return idOfName[key] || String(nm || '?');
-    };
+    // into two groups (the A304 bug: collections in one, dues in the other). The
+    // resolver is now shared with inHandRows (collectorCanon) so both read identity
+    // the same way; it learns name→id from every row carrying BOTH and resolves
+    // every handle through it, so all of one person's rows land in a single group.
+    const canon = collectorCanon(d);
     const nameSeen = {}; // canonical key → a human name to show
     const noteName = function (k, nm) { if (nm && !nameSeen[k]) nameSeen[k] = nm; };
 
