@@ -20256,3 +20256,28 @@ DOM test: the strip and a sync glyph render on the overview report; mutation
 removing the injection fails by name.
 
 Client-only. v4.146.0 → v4.147.0. Tests 4,244 → 4,246.
+
+---
+
+## A317 — 📒 খাতা "আমার / সবার" view, default আমার (v4.148.0)
+
+Hrishi: the ledger should default to the user's own entries and let them segregate
+own vs others; today it showed the whole book mixed. Added an "👤 আমার / 🌐 সবার"
+toggle at the top of 📒 খাতা, **default আমার**.
+
+- **আমার** = donors this collector REGISTERED *or* took a payment on (Hrishi's
+  choice খ): `mineParty[id]` built in the same one pass that already computes
+  ordering (`isMine` on the party and on any payment).
+- **👤 registrar on each row ONLY in the সবার view** (Hrishi's choice) — in আমার
+  it is all the reader's own, so it stays clean.
+- **Detail:** the donor card now names the registrar (👤 <collector>), so paying
+  someone else's donor shows whose it is; the per-collector payment breakdown
+  drawParty already builds stays below it.
+
+The toggle combines with the existing type/area/বাকি filters and search. A277's
+full-book rendering test now reads the সবার view (default is আমার). New A317 DOM
+tests: আমার hides another collector's untouched donor and shows one I paid on;
+সবার shows all with 👤; the detail names the registrar. Mutation removing the mine
+filter fails by name.
+
+Client-only. v4.147.0 → v4.148.0. Tests 4,246 → 4,256.

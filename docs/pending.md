@@ -981,7 +981,7 @@ The third is defensible. Recording it so the choice is made on purpose.
   per collector) with a test using the exact id-vs-name mismatch fixture. Dues stay
   correct meanwhile in 📋 বাকির তালিকা and 📊 মোট হিসাব.
 
-- **📒 খাতা — "আমার / সবার" view, default আমার** (Hrishi, 2026-09-27, from the
+- [x] ~~**📒 খাতা — "আমার / সবার" view, default আমার**~~ DONE A317 (2026-09-27). (Hrishi, from the
   live app: "in ledger, default should be user's entry view … user can't segregate
   his own entries"). Design DECIDED, scheduled for AFTER closure (closure is today;
   the ledger is a daily-use screen for every collector, so its default view is not

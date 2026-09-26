@@ -10146,7 +10146,13 @@ pending.push((async function () {
       [P({ id: 'p1', name: 'রাম স্টোর্স' }), P({ id: 'p2', type: 'person', name: 'শ্যাম', pledged: 500, collectorId: 'pori' })],
       [Y({ id: 'y1', partyId: 'p1', amount: 400 })]));
     await h.ready;
-    const html = await h.show('list');
+    await h.show('list');
+    // A317: this block tests full-book RENDERING (two collectors' donors), so read
+    // the "সবার" view — the default is now "আমার" (this collector's own only).
+    h.doc.querySelector('[data-listmine="0"]').onclick();
+    await new Promise(function (r) { setImmediate(r); });
+    await new Promise(function (r) { setImmediate(r); });
+    const html = h.html();
     eq(/রাম স্টোর্স/.test(html), true, 'A277: the ledger lists a donor by name');
     eq(/রাম স্টোর্স[\s\S]{0,200}?₹400\/₹1,000/.test(html), true,
        'A277: …with paid over pledged, in that order');
@@ -12279,6 +12285,55 @@ pending.push((async function () {
   // A316: the data-version + sync strip rides every central report
   eq(/ডেটা সংস্করণ/.test(html), true, 'A316: the report carries the data-version + sync strip');
   eq(/✅|⏳/.test(html), true, 'A316: …with this device’s sync status');
+})());
+
+// A317 — 📒 খাতা "আমার / সবার" view. Default আমার (donors I registered OR took a
+// payment on); সবার shows the whole book with the registrar 👤 on each row.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const RAM = { username: 'ram', name: 'রাম', role: 'collector', cashier: 0, entries: 'shop,person,otherdonor' };
+  const central = {
+    parties: [
+      { id: 'd1', year: 2026, type: 'shop', name: 'রামের দোকান', pledged: 1000, side: 'main_malda', collector: 'রাম', collectorId: 'ram', createdAt: '2026-09-01T10:00:00Z' },
+      { id: 'd2', year: 2026, type: 'shop', name: 'কালীর দোকান', pledged: 1000, side: 'main_malda', collector: 'কালী', collectorId: 'kali', createdAt: '2026-09-01T10:01:00Z' },
+      { id: 'd3', year: 2026, type: 'shop', name: 'যৌথ দোকান', pledged: 1000, side: 'main_malda', collector: 'কালী', collectorId: 'kali', createdAt: '2026-09-01T10:02:00Z' },
+    ],
+    payments: [
+      { id: 'y1', year: 2026, partyId: 'd1', amount: 100, cashAmount: 100, upiAmount: 0, collector: 'রাম', collectorId: 'ram', date: '2026-09-04' },
+      { id: 'y3', year: 2026, partyId: 'd3', amount: 100, cashAmount: 100, upiAmount: 0, collector: 'রাম', collectorId: 'ram', date: '2026-09-04' }, // ram paid on kali's donor
+    ],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: RAM, lists: { area: AREA }, central: central });
+  await h.ready;
+  let html = await h.show('list');
+  // default = আমার: d1 (registered) + d3 (paid) show; d2 (kali's, untouched) hidden
+  eq(/রামের দোকান/.test(html), true, 'A317 আমার: my registered donor shows');
+  eq(/যৌথ দোকান/.test(html), true, 'A317 আমার: a donor I took a payment on shows (খ definition)');
+  eq(/কালীর দোকান/.test(html), false, 'A317 আমার: another collector’s untouched donor is hidden by default');
+  eq(/👤 কালী/.test(html), false, 'A317 আমার: no registrar tag on rows in my own view (it is all mine)');
+
+  const allBtn = h.doc.querySelector('[data-listmine="0"]');
+  eq(!!allBtn, true, 'A317: a "সবার" toggle exists');
+  allBtn.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  html = h.html();
+  eq(/কালীর দোকান/.test(html), true, 'A317 সবার: everyone’s donors show');
+  eq(/👤 কালী/.test(html), true, 'A317 সবার: rows carry the registrar collector');
+
+  const mineBtn = h.doc.querySelector('[data-listmine="1"]');
+  eq(!!mineBtn, true, 'A317: an "আমার" toggle exists');
+  mineBtn.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  html = h.html();
+  eq(/কালীর দোকান/.test(html), false, 'A317 আমার again: back to my entries only');
+
+  // A317 detail: opening someone else's donor shows whose it is
+  const dHtml = await h.show('party', { id: 'd2' });
+  eq(/👤 কালী/.test(dHtml), true, 'A317: the donor detail names the registrar (whose donor it is)');
 })());
 
 Promise.all(pending.map(function (p) {

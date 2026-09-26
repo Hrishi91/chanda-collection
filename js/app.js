@@ -2974,7 +2974,7 @@
     });
   }
 
-  let listFilter = 'all', listQuery = '';
+  let listFilter = 'all', listQuery = '', listMine = true;
   let findParties = [], findQuery = '';
   // A153: the অনুষ্ঠান tab — everything about the programme in one place, and
   // nothing about it anywhere else.
@@ -3224,15 +3224,19 @@
       // this inside buildBody would redo it on every keystroke.
       const meId = Settings.get('collectorUsername') || Settings.get('collectorName');
       const today = todayISO();
-      const lastAct = {}, mineToday = {};
+      const lastAct = {}, mineToday = {}, mineParty = {};
+      // A317: a donor is "mine" if I REGISTERED it or took ANY payment on it — the
+      // same one pass that computes ordering also flags ownership for the আমার view.
       liveParties(data).forEach(function (p) {
         lastAct[p.id] = Aggregate.dayOf(p.createdAt);
+        if (Aggregate.isMine(p, meId)) mineParty[p.id] = 1;
         if (lastAct[p.id] === today && Aggregate.isMine(p, meId)) mineToday[p.id] = 1;
       });
       (data.payments || []).forEach(function (r) {
         if (!r.partyId) return;
         const d = Aggregate.dayOf(r.date) || Aggregate.dayOf(r.createdAt);
         if (d > (lastAct[r.partyId] || '')) lastAct[r.partyId] = d;
+        if (Aggregate.isMine(r, meId)) mineParty[r.partyId] = 1;
         if (d === today && Aggregate.isMine(r, meId)) mineToday[r.partyId] = 1;
       });
       // A42: the search box lives OUTSIDE the part that gets redrawn.
@@ -3250,6 +3254,7 @@
                  String(lastAct[b.id] || '').localeCompare(String(lastAct[a.id] || '')) ||
                  (a.name || '').localeCompare(b.name || '');
         });
+        if (listMine && !busRows) rows = rows.filter(function (p) { return mineParty[p.id]; }); // A317: আমার view
         if (listFilter !== 'all' && !busRows) rows = rows.filter(function (p) { return p.type === listFilter; });
         if (listArea && !busRows) rows = rows.filter(function (p) { return p.side === listArea; });
         if (listDueOnly) rows = rows.filter(function (p) { return Aggregate.isDue((Number(p.pledged) || 0) - (paidBy[p.id] || 0)); });
@@ -3277,7 +3282,11 @@
             (p.location ? ' • ' + esc(Lists.labelOf('location', p.location)) : '') +
             // A289: the OWNER is a person's name too — covering the shop and
             // leaving "• রমেশ সাহা" beside it covers nothing.
-            (p.owner && !curtained(p.type) ? ' • ' + esc(p.owner) : '') + '</div></div>' +
+            (p.owner && !curtained(p.type) ? ' • ' + esc(p.owner) : '') +
+            // A317: in the "সবার" view, name whose donor this is (the registrar);
+            // in "আমার" everything is the reader's own, so it stays off.
+            (!listMine && (p.collector || p.collectorId)
+              ? ' • 👤 ' + esc(p.collector || p.collectorId) : '') + '</div></div>' +
             '<div class="row-right">' + fmtMoney(paid) + '/' + fmtMoney(p.pledged) +
             (Aggregate.isDue(due) ? '<span class="due-chip">' + esc(t('due')) + ' ' + fmtMoney(due) + '</span>'
                      : '<span class="ok-chip">✅</span>') + '</div></div>';
@@ -3292,7 +3301,13 @@
             return '<option value="' + esc(a.id) + '"' + (listArea === a.id ? ' selected' : '') + '>📍 ' +
               esc(Lists.labelOf('area', a.id)) + '</option>';
           }).join('') + '</select>';
+      // A317: আমার / সবার — default আমার (this collector's own donors). Prominent,
+      // above the search, because it decides what the whole screen shows.
+      const mineToggle = '<div class="chips" style="margin:0 2px 8px">' +
+        '<button class="chip' + (listMine ? ' on' : '') + '" data-listmine="1">' + esc(t('filter_mine')) + '</button>' +
+        '<button class="chip' + (!listMine ? ' on' : '') + '" data-listmine="0">' + esc(t('filter_all_entries')) + '</button></div>';
       $view().innerHTML =
+        mineToggle +
         (canEntry('otherdonor') ? '<button id="find-party" class="ghost big block">🔍 ' + esc(t('find_party_btn')) + '</button>' : '') +
         searchRow('<input id="search" class="search" enterkeyhint="search" placeholder="' +
           esc(t(busRows ? 'search_bus_ph' : 'search_party_ph')) + '" value="' + esc(listQuery) + '">', 'search') +
@@ -3342,6 +3357,9 @@
       });
       const dueBtn = document.querySelector('[data-duetoggle]');
       if (dueBtn) dueBtn.onclick = function () { listDueOnly = !listDueOnly; renderList(); };
+      document.querySelectorAll('[data-listmine]').forEach(function (b) {
+        b.onclick = function () { listMine = b.dataset.listmine === '1'; renderList(); };
+      });
   }
   // Find ANY party (created by any collector) and add a payment against its
   // balance — so a collector who receives a later installment can record it
@@ -4082,7 +4100,11 @@
       // 📞 number is not covered — a number identifies a person in a village
       // faster than a spelling does.
       (p.owner && !curtained(p.type) ? ' • ' + esc(p.owner) : '') +
-      (p.phone && !curtained(p.type) ? ' • 📞 ' + esc(p.phone) : '') + '</div>' +
+      (p.phone && !curtained(p.type) ? ' • 📞 ' + esc(p.phone) : '') +
+      // A317: whose donor this is — so a collector taking a payment on someone
+      // else's donor sees whose it is (the per-collector payment breakdown below
+      // then shows who has taken which instalment).
+      (p.collector || p.collectorId ? ' • 👤 ' + esc(p.collector || p.collectorId) : '') + '</div>' +
       // A145: a donor who promised NOTHING gets no কথা/বাকি pair. গুপ্ত দান is
       // asked no pledge by design, and committee members never were either — so
       // this card read "কথা ₹0 · বাকি −₹2,000" over somebody who owes nobody
