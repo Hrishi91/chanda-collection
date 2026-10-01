@@ -5505,7 +5505,8 @@
       '<div class="stat3">' +
       '<div><span>' + esc(t('total_collection')) + '</span><b>' + fmtMoney(tt.totalCollection) + '</b></div>' +
       '<div><span>' + esc(t('total_expense')) + '</span><b>' + fmtMoney(tt.totalExpense) + '</b></div>' +
-      '<div class="green"><span>' + esc(t('in_hand')) + '</span><b>' + fmtMoney(tt.inHand) + '</b></div>' +
+      // A332: red when the net is in deficit (spent > collected), not a misleading green
+      '<div class="' + (Aggregate.moreThan(0, tt.inHand) ? 'red' : 'green') + '"><span>' + esc(t('in_hand')) + '</span><b>' + fmtMoney(tt.inHand) + '</b></div>' +
       '</div>' +
       // A151: the line the in-hand figure has always been missing. NOT subtracted
       // — the committee really does hold that cash — but named, so nobody plans

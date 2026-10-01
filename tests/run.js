@@ -12403,6 +12403,9 @@ pending.push((async function () {
   eq(/হাতে নগদ/.test(html), true, 'A318: the overview shows হাতে নগদ (actual cash, positive holdings)');
   // A327: the overview explains how each figure is reached
   eq(/হাতে = আদায়/.test(html), true, 'A327: the overview carries the calculation note');
+  // A332: this fixture spends 5,000 against 1,100 collected → net in hand is a
+  // DEFICIT, so হাতে আছে is RED (not a misleading green). Positive case below.
+  eq(/class="red"><span>হাতে আছে<\/span>/.test(html), true, 'A332: a net-in-hand deficit shows red');
   // A319: the permission-scope note that explains why people's totals can differ
   eq(/অনুমতি অনুযায়ী/.test(html), true, 'A319: the report carries the permission-wise note');
   eq(/উপরের পদের সদস্য/.test(html), true, 'A319: …and points a confused user to a senior member');
@@ -12621,6 +12624,32 @@ pending.push((async function () {
   html = h.html();
   eq(/₹400/.test(html), true, 'A331: filtering to রাম shows their daily');
   eq(/₹300/.test(html), false, 'A331: …and hides কালী’s');
+})());
+
+// A332 — a net in-hand DEFICIT (spent > collected) shows red, not a misleading green.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const central = {
+    parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'দোকান', pledged: 1000, side: 'main_malda', collector: 'রাম', collectorId: 'ram', createdAt: '2026-09-01T10:00:00Z' }],
+    payments: [{ id: 'y1', year: 2026, partyId: 'p1', amount: 1000, cashAmount: 1000, upiAmount: 0, collector: 'রাম', collectorId: 'ram', date: '2026-09-04' }],
+    daily: [],
+    expenses: [],
+    handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: central });
+  await h.ready;
+  await h.show('report');
+  const chip = h.doc.querySelectorAll('#report-picker [data-rep]')
+    .filter(function (b) { return b.dataset.rep === 'overview'; })[0];
+  chip.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const html = h.html('report-body');
+  // collected 1000, no expense → net in hand POSITIVE → green
+  eq(/class="green"><span>হাতে আছে<\/span>/.test(html), true, 'A332: a positive net in-hand shows green');
+  eq(/class="red"><span>হাতে আছে<\/span>/.test(html), false, 'A332: …and NOT red when positive');
 })());
 
 Promise.all(pending.map(function (p) {

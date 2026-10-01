@@ -20588,3 +20588,18 @@ via isMine(row, key). Switching the mine/all tab resets the filter.
 
 DOM test: the everyone view shows both collectors' daily; the dropdown filters to
 one and hides the other. Client-only. v4.162.0 → v4.163.0. Tests 4,296 → 4,300.
+
+---
+
+## A332 — overview "In hand" (net) turns red on a deficit, not a misleading green (v4.164.0)
+
+Hrishi noticed the overview's হাতে আছে (net in hand) was GREEN while showing
+−₹29,628 — a deficit (expenses exceeded collection) painted as if healthy. The line
+was hardcoded class="green". Now it is red when the net is below zero
+(moreThan(0, inHand)) and green otherwise — matching the app's colour language (red =
+shortfall). Covers screen and print (totalsHTML). হাতে নগদ stays green (always ≥0);
+হাতে ঋণাত্মক stays red.
+
+DOM tests: a deficit fixture (1,100 collected − 5,000 spent) → red; a positive
+fixture (1,000, no expense) → green. Client-only. v4.163.0 → v4.164.0.
+Tests 4,300 → 4,303.
