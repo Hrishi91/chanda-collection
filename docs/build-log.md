@@ -20715,3 +20715,29 @@ DOM test A335: tapping void on an own payment opens the screen showing ₹500 an
 donor কল্যাণ. A47 (the void race-guard pins) repointed — the summary preamble widened
 its source-slice window. Client-only. v4.166.0 → v4.167.0. Tests 4,325 → 4,329.
 **CLIENT night** — ⚙️ → 🔄, no redeploy.
+
+---
+
+## A336 — navigation rule, and the reimburse flow's back-to-source (v4.168.0)
+
+**Hrishi's correction (2026-10-01):** "you are making the screens and all but not
+keeping in mind the navigation, then I need to do again full navigation." Right — the
+A333 reimburse flow opened from the cashier desk but set no `exitTo`/`returnTo`, so ←
+mid-flow and the after-save exit fell through to `home` instead of back to the desk,
+leaving Hrishi to redo the navigation.
+
+**Rule (now in CLAUDE.md ALL-SURFACES + a feedback memory):** navigation is part of
+building a screen, never a second pass. Every new screen/flow wires its way BACK to
+its opener IN the same change — a screen via `backBar(sourceView, params)` (+ a `from`
+param for multi-door screens); a flow via BOTH `exitTo` (← mid-flow) AND `returnTo`
+(after save) set to the launching screen. Then verify from the real entry point that
+← lands on the SOURCE, and pin it with a test.
+
+**Fix:** `startReimburse` sets `def.exitTo = { view: 'cashier' }` and `def.returnTo =
+'cashier'`; the reimburse flow's "done" button returns to the cashier desk too.
+
+**Test (mutation-verified):** A333-nav drives it — open the reimburse flow from the
+cashier desk, tap the flow's ← , and the cashier desk returns (its reimburse door is
+present again, which home has not). Removing the nav wiring sends it to home and the
+test fails. Client-only. v4.167.0 → v4.168.0. Tests 4,329 → 4,331.
+**CLIENT night** — ⚙️ → 🔄, no redeploy.

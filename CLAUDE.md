@@ -23,7 +23,18 @@ one ever disagrees with these files, these files win.
 - One subject per commit, docs updated IN the same commit
   (pre-commit hook: `scripts/pre-commit-docs.sh`).
 - Verify claims live before reporting done; walk the ALL-SURFACES
-  checklist (logic, storage, UI, notification, tests, docs, handoff).
+  checklist (logic, storage, UI, **navigation**, notification, tests, docs, handoff).
+- **Navigation is part of building a screen, never a second pass.** Every new
+  screen or flow MUST wire its way BACK to the screen it was opened from, in the
+  SAME change that adds it — not left for Hrishi to discover and redo:
+  - a screen → `backBar(sourceView, params)` returning to its opener (thread a
+    `from` param through any screen reachable by more than one door);
+  - a flow → set BOTH `exitTo` (where ← mid-flow lands) AND `returnTo` (where it
+    goes after save) to the launching screen; a flow with neither falls through
+    to `home`, which is the bug. Honour both directions (back-out AND after-save).
+  - Then VERIFY from the real entry point: open it the way a user does and press
+    ← — it must land on the SOURCE, not home. Add a test pinning the flow's
+    exitTo/returnTo so a later edit cannot silently drop it.
 - Never expose secrets (Apps Script URL secret) in chat, logs, or repo.
 - **Before any release, run `sh scripts/release-check.sh`** and put its answer
   in the handoff. It says whether this is a CLIENT night (nothing to do in the

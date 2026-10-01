@@ -2228,7 +2228,9 @@
             reimburse
               ? { label: t('one_more') + ' ' + t('reimburse_title'), action: function () { startReimburse(); } }
               : { label: t('one_more') + ' ' + t('handover_title'), action: function () { startHandover(); } },
-            { label: t('done_for_now'), action: function () { navigate('home'); } },
+            // A333/nav: a reimbursement was opened from the cashier desk, so "done"
+            // returns there; an ordinary handover came from home.
+            { label: t('done_for_now'), action: function () { navigate(reimburse ? 'cashier' : 'home'); } },
           ] } };
         });
       },
@@ -2346,7 +2348,13 @@
         return { fund: sec, byCat: a.byCat, cash: a.cash, upi: a.upi };
       }).filter(function (fa) { return Aggregate.moreThan(fa.cash + fa.upi, 0); });
       if (!Aggregate.moreThan(whole.total, 0)) { toast(t('ho_nothing')); return; }
-      startFlow(handoverFlow(recipients, whole, Aggregate.cashierView(data, ident), { reimburse: true }));
+      const def = handoverFlow(recipients, whole, Aggregate.cashierView(data, ident), { reimburse: true });
+      // Opened from the cashier desk, so ← mid-flow and the after-save exit both
+      // return THERE, not to home. A flow with neither falls through to home —
+      // the exact navigation miss this is here to not repeat.
+      def.exitTo = { view: 'cashier' };
+      def.returnTo = 'cashier';
+      startFlow(def);
     });
   }
   function dailyFlow(type, sector) {

@@ -12762,6 +12762,18 @@ pending.push((async function () {
   // same words, so it passes even if the click does nothing.)
   eq(!h.doc.querySelector('[data-go="reimburse"]') && /সংগ্রাহককে টাকা দেওয়া/.test(h.html()), true,
      'A333: …and tapping it opens the reimburse flow');
+  // NAVIGATION: opened from the cashier desk, so ← mid-flow must return THERE,
+  // not home. The flow's back-bar triggers goBack → exitTo. (Hrishi's rule:
+  // wire + verify back-to-source with the screen, never leave it to redo.)
+  const back = h.doc.getElementById('back-btn');
+  eq(!!back, true, 'A333-nav: the reimburse flow has a back button');
+  back.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  // back on the cashier desk: its reimburse door is present again, and the home
+  // screen (which has no such door) is NOT what we landed on.
+  eq(!!h.doc.querySelector('[data-go="reimburse"]'), true,
+     'A333-nav: ← from the reimburse flow returns to the cashier desk, not home');
 })());
 
 // A334 — ✏️ "আমার" (my entries) reads the MERGED book (viewData), not just this
