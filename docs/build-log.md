@@ -20694,3 +20694,24 @@ Was RED on DB.allData(), GREEN on viewData().
 so NO redeploy (schema stays 5; the lock reads schema, not the release number — a
 client ahead of the server only shows the admin a dismissable "redeploy pending"
 hint). Everyone ⚙️ → 🔄. v4.165.0 → v4.166.0. Tests 4,323 → 4,325.
+
+---
+
+## A335 — the void confirmation screen shows WHICH entry is being voided (v4.167.0)
+
+Hrishi asked whether ✖️ void shows a warning. It did — a dedicated screen (not a
+popup) with a mandatory reason and explicit confirm/cancel — but it was generic
+("এই জমা বাতিল?") and showed nothing about the row, so a mistaken tap on the wrong
+entry (an easy slip on the closing-day desk, where void removes money) had no catch.
+
+`renderVoidReason` now reads the merged book (viewData — the same source the void's
+own race-guard re-checks) and renders the target's summary above the reason field:
+`entrySummary` (💰 donor — ₹amount / 🛣️ type — ₹amount / 🧾 subject — ₹amount), the
+date, and the 💵cash · 📱UPI split. If the row can't be read the screen falls back to
+the way cancel would, never a half-drawn trap. Covers BOTH void entry points (✏️
+my-entries and the party screen) since both go through this one function.
+
+DOM test A335: tapping void on an own payment opens the screen showing ₹500 and the
+donor কল্যাণ. A47 (the void race-guard pins) repointed — the summary preamble widened
+its source-slice window. Client-only. v4.166.0 → v4.167.0. Tests 4,325 → 4,329.
+**CLIENT night** — ⚙️ → 🔄, no redeploy.

@@ -5239,9 +5239,23 @@
     };
   }
   function renderVoidReason(targetStore, targetId, backFn) {
-    $view().innerHTML = '<button class="ghost back-bar" id="void-back">← ' + esc(t('back')) + '</button>' +
+    // A335: show WHICH entry is being voided — its summary, amount, cash/UPI split
+    // and date — before the reason is typed. The screen used to say only "এই জমা
+    // বাতিল?" with nothing to check against, so a mistaken ✖️ on the wrong row (an
+    // easy slip on the closing-day desk, where void removes money) had no catch.
+    // Read from the merged book the row actually lives in (viewData), the same
+    // source the void itself re-checks against below.
+    viewData().then(function (data) {
+      const row = (data[targetStore] || []).filter(function (r) { return r && r.id === targetId; })[0];
+      const ptype = partyTypes(data);
+      const target = row
+        ? '<div class="void-target"><b>' + esc(entrySummary(targetStore, row, ptype[row.partyId])) + '</b>' +
+            '<div class="row-sub">' + esc(fmtDate(row.date || row.createdAt)) + cashUpiSub(row) + '</div></div>'
+        : '';
+      $view().innerHTML = '<button class="ghost back-bar" id="void-back">← ' + esc(t('back')) + '</button>' +
       '<div class="card center onboard"><div class="big-emoji">✖️</div>' +
       '<h2>' + esc(t('void_title')) + '</h2>' +
+      target +
       '<div class="hint">' + esc(t('void_hint')) + '</div>' +
       '<div class="field"><label>' + esc(t('q_void_reason')) + '</label><input id="void-reason" autocomplete="off"></div>' +
       '<button id="void-ok" class="primary big block">' + esc(t('void_confirm')) + '</button>' +
@@ -5274,6 +5288,11 @@
           .then(function () { toast(t('voided_done')); updateBadge(); autoSync(); backFn(); });
       }).catch(function (e) { btn.disabled = false; toast(errMsg(e)); });
     };
+    }).catch(function () {
+      // the screen needs the book to show the target; if that read fails, do not
+      // trap the user on a half-drawn screen — leave the way cancel would.
+      backFn();
+    });
   }
   // Correcting your own flagged entry. The old row is voided and a new one
   // written (see finishFlow) — so it reads as an edit, but the book stays

@@ -5410,8 +5410,10 @@ try {
   // The maths was never at risk: voidedIds is a SET on targetId, so a second
   // cancellation subtracts nothing twice. What was wrong is the BOOK — two rows
   // for one act, reading as if two people acted.
+  // A335 added the target-summary preamble (and an outer viewData wrap) to the
+  // top of renderVoidReason, so the window widened to still reach the race guard.
   const vf = app.slice(app.indexOf('function renderVoidReason'),
-                       app.indexOf('function renderVoidReason') + 2600);
+                       app.indexOf('function renderVoidReason') + 3400);
   eq(/v\.targetStore === targetStore && v\.targetId === targetId/.test(vf), true,
      'A47: cancelling checks whether it is already cancelled…');
   eq(/void_already/.test(vf) && /void_already:/.test(i18n), true,
@@ -12788,6 +12790,34 @@ pending.push((async function () {
   const html = h.html();
   eq(/₹500/.test(html), true, 'A334: "আমার" shows my own payment from the central snapshot, not only this device\'s queue');
   eq(/₹300/.test(html), true, 'A334: …and my own daily round too');
+})());
+
+// A335 — the void confirmation screen SHOWS which entry is being voided (summary
+// + amount + split + date), so you cannot ✖️ the wrong row by accident. The screen
+// had a generic "এই জমা বাতিল?" with no way to check the target before confirming.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const ME = { username: 'ram', name: 'রাম', role: 'admin', cashier: 0, entries: '' }; // admin → void offered, not flag
+  const central = {
+    parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'কল্যাণ', pledged: 1000, side: 'main_malda', collector: 'রাম', collectorId: 'ram', createdAt: '2026-09-01T10:00:00Z' }],
+    payments: [{ id: 'y1', year: 2026, partyId: 'p1', partyName: 'কল্যাণ', amount: 500, cashAmount: 300, upiAmount: 200, collector: 'রাম', collectorId: 'ram', date: '2026-09-04', createdAt: '2026-09-04T10:00:00Z' }],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: ME, lists: { area: AREA }, central: central });
+  await h.ready;
+  await h.show('entries');
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const vb = h.doc.querySelector('[data-vd]');
+  eq(!!vb, true, 'A335: an own entry offers a void button');
+  vb.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const html = h.html();
+  eq(/এই জমা বাতিল\?/.test(html), true, 'A335: the void confirmation screen opens');
+  eq(/₹500/.test(html), true, 'A335: …and it shows WHICH entry — the amount — so you void the right row');
+  eq(/কল্যাণ/.test(html), true, 'A335: …and the donor, so a mistaken tap is caught before the reason is typed');
 })());
 
 Promise.all(pending.map(function (p) {
