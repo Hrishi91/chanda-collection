@@ -2683,18 +2683,25 @@
     // manufacture false বাকি. Client-only (not in SERVER_REPORT_IDS) — built from
     // the parties + payments the phone already holds, so no server change.
     if (id === 'members') {
-      const paidBy = {}, cntBy = {}, lastBy = {};
+      const paidBy = {}, cntBy = {}, lastBy = {}, notesBy = {};
       (d.payments || []).forEach(function (p) {
         if (!p.partyId) return;
         paidBy[p.partyId] = (paidBy[p.partyId] || 0) + (Number(p.amount) || 0);
         cntBy[p.partyId] = (cntBy[p.partyId] || 0) + 1;
         const dt = String(p.date || p.createdAt || '');
         if (dt > (lastBy[p.partyId] || '')) lastBy[p.partyId] = dt;
+        // A340: the mandatory member-chanda comment ("what it is for") — kept per
+        // member, in date order, so the final statement can show WHY each gave.
+        const nt = String(p.note || '').trim();
+        if (nt) (notesBy[p.partyId] || (notesBy[p.partyId] = [])).push({ date: dt, note: nt });
       });
       const members = (d.parties || []).filter(function (p) { return p.type === 'member'; });
       const all = members.map(function (m) {
         return { id: m.id, name: m.name, phone: m.phone || '', collector: m.collector || '',
-                 total: paidBy[m.id] || 0, count: cntBy[m.id] || 0, last: lastBy[m.id] || '' };
+                 total: paidBy[m.id] || 0, count: cntBy[m.id] || 0, last: lastBy[m.id] || '',
+                 notes: (notesBy[m.id] || []).slice()
+                   .sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); })
+                   .map(function (x) { return x.note; }) };
       });
       const gave = all.filter(function (r) { return moreThan(r.total, 0); })
         .sort(function (a, b) { return b.total - a.total || String(a.name).localeCompare(String(b.name)); });

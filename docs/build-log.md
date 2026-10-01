@@ -20819,3 +20819,20 @@ Tests A339 (mutation-verified): the final bundle carries `members` with the gave
 not-given split; a driven DOM test opens the final chip and sees the সদস্য চাঁদা
 section incl বিমল (not-given). Removing the section fails the suite. Client-only.
 v4.170.0 → v4.171.0. Tests 4,344 → 4,349. **CLIENT night** — ⚙️ → 🔄, no redeploy.
+
+---
+
+## A340 — member-chanda comments shown in the (member &) final report (v4.172.0)
+
+Hrishi: "in member chanda comments should be shown in final report." A member
+contribution carries a mandatory "what it is for" note (`q_note_member`, stored on
+the payment's `note`), but the member report dropped it. computeReport('members')
+now collects each member's non-empty notes in date order (`row.notes`), and both the
+screen card (💬 line) and the PDF (a new comment column) show them — so they appear in
+the standalone 🎖️ report AND, because the final statement composes the same renderers,
+in 🧾 চূড়ান্ত হিসাব. A member who gave more than once shows each note.
+
+Tests A340 (mutation-verified): computeReport keeps both notes in date order; a driven
+DOM test opens the final chip and sees the comment "পুজোর চাঁদা". Removing the render
+fails the suite. Client-only. v4.171.0 → v4.172.0. Tests 4,349 → 4,352.
+**CLIENT night** — ⚙️ → 🔄, no redeploy.

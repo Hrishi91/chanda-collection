@@ -12904,6 +12904,47 @@ pending.push((async function () {
   eq(/বিমল/.test(html), true, 'A338: …and names বিমল in the not-given list');
 })());
 
+// A340 — member chanda COMMENTS (the mandatory "what it is for" note) travel into
+// the member report, and therefore into the final statement. A member may give more
+// than once; each note is kept, in date order.
+(function () {
+  const r = computeReport('members', {
+    parties: [{ id: 'm1', year: 2026, type: 'member', name: 'কমল', collector: 'বস' }],
+    payments: [
+      { id: 'p1', year: 2026, partyId: 'm1', amount: 200, date: '2026-09-01', note: 'পুজোর চাঁদা' },
+      { id: 'p2', year: 2026, partyId: 'm1', amount: 300, date: '2026-09-10', note: 'লাইট বাবদ' },
+    ],
+    daily: [], expenses: [], handovers: [], voids: [],
+  });
+  const kamal = (r.rows || [])[0] || {};
+  const notes = kamal.notes || [];
+  eq(Array.isArray(kamal.notes) && notes.length === 2, true, 'A340: every member-chanda note is kept');
+  eq(notes[0] === 'পুজোর চাঁদা' && notes[1] === 'লাইট বাবদ', true, 'A340: …in date order');
+})();
+
+// A340 (driven): the comment shows in the final statement's member section.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const central = {
+    parties: [{ id: 'm1', year: 2026, type: 'member', name: 'কমল', phone: '9000000001', collector: 'বস', createdAt: '2026-09-01T10:00:00Z' }],
+    payments: [{ id: 'p1', year: 2026, partyId: 'm1', amount: 500, cashAmount: 500, upiAmount: 0, collector: 'বস', date: '2026-09-04', createdAt: '2026-09-04T10:00:00Z', note: 'পুজোর চাঁদা' }],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: central });
+  await h.ready;
+  await h.show('report');
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const chip = h.doc.querySelectorAll('#report-picker [data-rep]')
+    .filter(function (b) { return b.dataset.rep === 'final'; })[0];
+  chip.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  eq(/পুজোর চাঁদা/.test(h.html('report-body')), true, 'A340: the member-chanda comment shows in the final statement');
+})());
+
 // A339 — the final statement (🧾 চূড়ান্ত হিসাব) includes the member-contributions
 // section, so the closing document is complete (members never appear in dues/areas).
 (function () {

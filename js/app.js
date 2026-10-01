@@ -6145,7 +6145,10 @@
           esc(r.name) + '</b><div class="row-sub">' +
           toBengaliDigits(String(r.count)) + ' ' + esc(t('member_times')) +
           (r.last ? ' • ' + esc(t('last_paid_col')) + ' ' + esc(fmtDate(r.last)) : '') +
-          (r.collector ? ' • 👤 ' + esc(r.collector) : '') + '</div></div>' +
+          (r.collector ? ' • 👤 ' + esc(r.collector) : '') +
+          // A340: the mandatory "what it is for" comment(s)
+          (r.notes && r.notes.length ? '</div><div class="row-sub">💬 ' + esc(r.notes.join(' · ')) : '') +
+          '</div></div>' +
           '<b class="row-right">' + fmtMoney(r.total) + '</b></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>' +
       // who has not given — the half a member report exists for
@@ -6410,9 +6413,11 @@
       return '<h3>' + esc(t('report_members')) + ' — ' + money(d.total) +
           ' (' + (d.gaveCount || 0) + '/' + (d.memberCount || 0) + ')</h3>' +
         '<div class="p-note">' + esc(t('members_calc_note')) + '</div>' +
-        printTable([t('party_f_person'), t('party_f_phone'), t('amount_col'), t('count_col'), t('last_paid_col'), t('collector_col')],
+        printTable([t('party_f_person'), t('party_f_phone'), t('amount_col'), t('count_col'), t('last_paid_col'), t('comment_col'), t('collector_col')],
           (d.rows || []).map(function (r) {
-            return [r.name, r.phone || '', money(r.total), r.count, r.last ? fmtDate(r.last) : '', r.collector || ''];
+            // A340: the member-chanda comment(s) on the filed sheet
+            return [r.name, r.phone || '', money(r.total), r.count, r.last ? fmtDate(r.last) : '',
+                    (r.notes || []).join(' · '), r.collector || ''];
           })) +
         ((d.notGiven || []).length ? '<h3>⚠️ ' + esc(t('members_not_given')) + ' (' + d.notGiven.length + ')</h3>' +
           printTable([t('party_f_person'), t('party_f_phone'), t('collector_col')],
