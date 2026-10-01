@@ -20656,3 +20656,10 @@ capped at what they hold. The recipient confirms from the home notification chip
 
 v4.164.0 → v4.165.0. Tests 4,303 → 4,323. **SERVER night** — deploy Code.gs by
 **New deployment**, then everyone ⚙️ → 🔄.
+
+**Deploy (2026-10-01):** Hrishi created the New deployment and ran setup. Probed the
+new /exec with a read-only GET → `version: chanda-v4.165.0`, so v4.165.0 is live on
+the server. Rebaked `js/config.js` with the new /exec URL (New deployment mints a new
+URL — "New version" has never repointed on this account), so phones hit the new
+backend. config.js is served network-first (no-store), not cache-first, so it is not
+a SHELL file and needs no sw.js bump; phones pick up the new URL on next load.
