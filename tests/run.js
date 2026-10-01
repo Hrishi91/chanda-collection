@@ -8619,9 +8619,14 @@ try {
   // the order is the whole point: BEFORE the early return that skips idle polls
   eq(/if \(Auth\.loggedIn\(\)\) paintNav\(\);\s*\n\s*if \(!changed \|\| flowState\) return;/.test(app), true,
      'A157: …and from the pull BEFORE the return that leaves screens alone');
-  // and the screen-rebuild rule is untouched — that was never the bug
-  eq(/if \(\['list', 'party', 'report'\]\.includes\(current\.view\)\) render\(\);/.test(app), true,
-     'A157: …while a background poll still refuses to rebuild the screen under a finger');
+  // A330: a changed pull now refreshes EVERY data screen (REFRESHABLE except home),
+  // matching the notification path — so ✏️ my entries / 💰 / 🩺 no longer sit stale
+  // while rows sync in. The typing guard just above still protects a half-typed field.
+  eq(/if \(current\.view !== 'home' && REFRESHABLE\.includes\(current\.view\)\) render\(\);/.test(app), true,
+     'A330: a background poll refreshes every data screen (except home), not only list/party/report');
+  // the typing guard that protects a field under a finger is still there, just above it
+  eq(/if \(el && \(el\.tagName === 'INPUT' \|\| el\.tagName === 'TEXTAREA'\)\) return;\s*\n[\s\S]{0,400}?REFRESHABLE\.includes\(current\.view\)\) render\(\);/.test(app), true,
+     'A330: …and it still refuses to rebuild the field a finger is typing in');
 }
 
 // ---- A158: every new donor was broken, for three deployments ---------------

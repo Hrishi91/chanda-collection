@@ -20556,3 +20556,22 @@ with the তুলেছে − খরচ = হাতে formula, matching the s
 DOM test: the printed by-collector report carries "= হাতে". Repointed the brittle
 A77/A154 source-regex to the new (same-book) printReport shape. Client-only.
 v4.160.0 → v4.161.0. Tests 4,294 → 4,295.
+
+---
+
+## A330 — a changed pull refreshes EVERY data screen, not just list/party/report (v4.162.0)
+
+Hrishi: couldn't see all data in ✏️ my entries "everyone's daily/expenses" — "not
+refreshing." Cause: a changed background pull re-rendered only list/party/report
+(A157). So ✏️ my entries ('entries'), 💰 কার হাতে কত ('cashier'), 🩺 ('anomalies'),
+🤝 ('hbook'), member screens — all sat stale while new rows synced in; they only
+updated on focus or a notification tick. The notification path already re-renders
+all REFRESHABLE screens; the pull path didn't — an inconsistency.
+
+Fix: the changed-pull path now re-renders `REFRESHABLE` except home (home keeps its
+lighter syncDots path), matching the notification path. The guards above are intact:
+idle (unchanged) polls still re-render nothing (A95), a flow is never interrupted,
+and the activeElement guard still protects a half-typed field (A330 asserts both the
+new line and the typing guard above it).
+
+Updated A157 → A330. Client-only. v4.161.0 → v4.162.0. Tests 4,295 → 4,296.

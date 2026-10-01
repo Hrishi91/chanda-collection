@@ -604,7 +604,11 @@
       // background re-render while the user is typing so we don't steal focus.
       const el = document.activeElement;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
-      if (['list', 'party', 'report'].includes(current.view)) render();
+      // A330: refresh EVERY data screen on a changed pull, not just list/party/report
+      // — otherwise ✏️ my entries (and 💰, 🩺, 🤝) sat stale while new rows synced in.
+      // Matches the notification path (applyNotifications), and the typing guard above
+      // already protects a half-typed field. Home has its own lighter path (syncDots).
+      if (current.view !== 'home' && REFRESHABLE.includes(current.view)) render();
     }).catch(function () {
       // A69: a failed pull earns a growing skip. Doubling, capped at 8 polls
       // (~8 minutes) — long enough to stop hammering a dead tower, short enough
