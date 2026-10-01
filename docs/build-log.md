@@ -20741,3 +20741,31 @@ cashier desk, tap the flow's ← , and the cashier desk returns (its reimburse d
 present again, which home has not). Removing the nav wiring sends it to home and the
 test fails. Client-only. v4.167.0 → v4.168.0. Tests 4,329 → 4,331.
 **CLIENT night** — ⚙️ → 🔄, no redeploy.
+
+---
+
+## A337 — whole-app navigation sweep + startFlowFrom helper (v4.169.0)
+
+Hrishi: "have you checked the whole application?" — no, I had only fixed reimburse.
+Audited every `startFlow(` call site against its launching screen. All the puja-side
+flows were fine (home-launched → home is right; paymentFlow sets its own exitTo to the
+donor page). The gap was every **programme-fund flow**: daily / party / duty / transfer
+opened from the 🎭 programme tab (`wireProgEntry`, `wireProgReport`) and from the
+programme **report** body (`transfer-btn`/`duty-btn`) set no exitTo/returnTo, so ← fell
+through to home instead of the programme screen / report. (Programme ভাঁড়ার is currently
+OFF, so no live collector hit it — a latent bug, found by the sweep.)
+
+Fix: one `startFlowFrom(view, def, params)` helper sets exitTo+returnTo to the launcher
+(without overriding a def that set its own, e.g. paymentFlow), so the exitTo lives in
+ONE place instead of six remembered-or-forgotten lines. All 8 programme/report launch
+sites now route through it (6 → 'program', 2 → 'report').
+
+A337 (mutation-verified): the helper sets both directions; the programme/report flows
+all go through it; and NO transfer/duty flow is launched bare. Reverting one site to a
+bare startFlow fails the suite. The reverse-handover case stays driven end-to-end in
+A333-nav. Client-only. v4.168.0 → v4.169.0. Tests 4,331 → 4,335.
+**CLIENT night** — ⚙️ → 🔄, no redeploy.
+
+Skill updated (Hrishi91/claude-skills, offline-first-pwa-field-lessons): navigation is
+wired with the screen in the same change and audited per CALL SITE; and "the local
+snapshot" means the MERGED book, not the device's IndexedDB queue (the A334 lesson).

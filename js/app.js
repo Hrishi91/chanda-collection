@@ -1097,6 +1097,20 @@
   }
   // ---------- flow engine ----------
   // step: {key, qKey, kind:text|amount|choice, options:[{v,labelKey}], optional, showIf(answers)}
+  // A337: a flow opened from a NON-home screen must return THERE on back-out —
+  // not fall through to home, which is where a flow with neither exitTo nor
+  // returnTo lands. The flow def cannot know who opened it, so the launcher says,
+  // in ONE place, instead of an exitTo line remembered-or-forgotten at every call
+  // site (the forgetting is the bug — reverse handover and every programme-fund
+  // flow all shipped returning home). Does not override a flow that already set
+  // its own exitTo (e.g. paymentFlow → the donor page).
+  function startFlowFrom(view, def, params) {
+    if (def) {
+      if (!def.exitTo) def.exitTo = { view: view, params: params };
+      if (!def.returnTo) def.returnTo = view;
+    }
+    startFlow(def);
+  }
   function startFlow(def) {
     // A116i (pre-go-live review): canEntry's comment claimed "there is no
     // screen left where a button appears that the server will hold" — and there
@@ -3104,11 +3118,11 @@
         const g = b.dataset.pgo;
         // every one of these carries 'program' as its FUND — from the tab, never
         // from a question
-        if (Aggregate.DAILY_KINDS.includes(g)) startFlow(dailyFlow(g, 'program'));
-        else if (Aggregate.PARTY_KINDS.includes(g)) freshThen(function () { startFlow(newPartyFlow(g, {}, 'program')); });
+        if (Aggregate.DAILY_KINDS.includes(g)) startFlowFrom('program', dailyFlow(g, 'program'));
+        else if (Aggregate.PARTY_KINDS.includes(g)) freshThen(function () { startFlowFrom('program', newPartyFlow(g, {}, 'program')); });
         else if (g === 'expense') startExpense(null, 'program');
-        else if (g === 'duty') startFlow(dutyFlow('program'));
-        else if (g === 'transfer') startFlow(transferFlow());
+        else if (g === 'duty') startFlowFrom('program', dutyFlow('program'));
+        else if (g === 'transfer') startFlowFrom('program', transferFlow());
       };
     });
   }
@@ -3174,9 +3188,9 @@
   }
   function wireProgReport() {
     const tb = document.getElementById('transfer-btn');
-    if (tb) tb.onclick = function () { startFlow(transferFlow()); };
+    if (tb) tb.onclick = function () { startFlowFrom('program', transferFlow()); };
     const db2 = document.getElementById('duty-btn');
-    if (db2) db2.onclick = function () { startFlow(dutyFlow('program')); };
+    if (db2) db2.onclick = function () { startFlowFrom('program', dutyFlow('program')); };
   }
   function renderList() {
     // LOOKING is not DOING. Somebody who has been granted nothing can still
@@ -7299,9 +7313,9 @@
         // only for a cashier — wired here, where the report body is painted, so
         // a drawn-but-dead button (this project has shipped two) is impossible.
         const tb = document.getElementById('transfer-btn');
-        if (tb) tb.onclick = function () { startFlow(transferFlow()); };
+        if (tb) tb.onclick = function () { startFlowFrom('report', transferFlow()); };
         const db2 = document.getElementById('duty-btn');
-        if (db2) db2.onclick = function () { startFlow(dutyFlow()); };
+        if (db2) db2.onclick = function () { startFlowFrom('report', dutyFlow()); };
       }
       catch (e) { body.innerHTML = '<div class="empty">' + esc(errMsg(e)) + '</div>'; }
     });

@@ -12832,6 +12832,23 @@ pending.push((async function () {
   eq(/কল্যাণ/.test(html), true, 'A335: …and the donor, so a mistaken tap is caught before the reason is typed');
 })());
 
+// A337 — whole-app navigation sweep: every flow opened from a NON-home screen
+// returns to that screen, via startFlowFrom(view, def). A bare startFlow() with a
+// def that sets no exitTo/returnTo falls through to home — invisible until the flow
+// is opened from a desk/tab/report. (The reverse-handover behaviour is driven
+// end-to-end in A333-nav; the programme-fund flows are gated OFF, so pinned here.)
+(function () {
+  const app = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/function startFlowFrom\(view, def, params\) \{[\s\S]{0,320}?def\.exitTo = \{ view: view, params: params \};[\s\S]{0,160}?def\.returnTo = view;/.test(app), true,
+     'A337: startFlowFrom sets exitTo AND returnTo to the launching view');
+  eq((app.match(/startFlowFrom\('program',/g) || []).length >= 6, true,
+     'A337: programme-tab & programme-report flows route through startFlowFrom(program)');
+  eq((app.match(/startFlowFrom\('report',/g) || []).length >= 2, true,
+     'A337: the programme report body\'s transfer/duty buttons return to the report');
+  eq(/startFlow\((transferFlow|dutyFlow)\(/.test(app), false,
+     'A337: no transfer/duty flow is launched bare — a bare startFlow falls through to home');
+})();
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;
