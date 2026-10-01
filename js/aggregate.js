@@ -2676,6 +2676,34 @@
       // fields, so no Code.gs change and no server night.
       return { rows: rows, byType: byType, byCollector: dailyByCollector(d) };
     }
+    // A338: member contributions — a report-ONLY view. Members pledge nothing, so
+    // they never appear in dues/areas; this is the one place "how much did each
+    // member give, and who has NOT given?" is answered. No pledge and no due on
+    // purpose (Hrishi's call): members give when they choose, so a target would
+    // manufacture false বাকি. Client-only (not in SERVER_REPORT_IDS) — built from
+    // the parties + payments the phone already holds, so no server change.
+    if (id === 'members') {
+      const paidBy = {}, cntBy = {}, lastBy = {};
+      (d.payments || []).forEach(function (p) {
+        if (!p.partyId) return;
+        paidBy[p.partyId] = (paidBy[p.partyId] || 0) + (Number(p.amount) || 0);
+        cntBy[p.partyId] = (cntBy[p.partyId] || 0) + 1;
+        const dt = String(p.date || p.createdAt || '');
+        if (dt > (lastBy[p.partyId] || '')) lastBy[p.partyId] = dt;
+      });
+      const members = (d.parties || []).filter(function (p) { return p.type === 'member'; });
+      const all = members.map(function (m) {
+        return { id: m.id, name: m.name, phone: m.phone || '', collector: m.collector || '',
+                 total: paidBy[m.id] || 0, count: cntBy[m.id] || 0, last: lastBy[m.id] || '' };
+      });
+      const gave = all.filter(function (r) { return moreThan(r.total, 0); })
+        .sort(function (a, b) { return b.total - a.total || String(a.name).localeCompare(String(b.name)); });
+      const notGiven = all.filter(function (r) { return !moreThan(r.total, 0); })
+        .sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
+      return { rows: gave, notGiven: notGiven,
+               total: gave.reduce(function (s, r) { return s + r.total; }, 0),
+               memberCount: members.length, gaveCount: gave.length };
+    }
     // A294: the season's whole statement, on one page. It INVENTS no arithmetic —
     // every part is an existing report, bundled, so the final sheet and the live
     // screens can never disagree. Bank balance is not here yet (deferred to the

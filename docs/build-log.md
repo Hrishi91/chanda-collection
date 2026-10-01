@@ -20769,3 +20769,29 @@ A333-nav. Client-only. v4.168.0 → v4.169.0. Tests 4,331 → 4,335.
 Skill updated (Hrishi91/claude-skills, offline-first-pwa-field-lessons): navigation is
 wired with the screen in the same change and audited per CALL SITE; and "the local
 snapshot" means the MERGED book, not the device's IndexedDB queue (the A334 lesson).
+
+---
+
+## A338 — 🎖️ member contributions report (report-only) (v4.170.0)
+
+The last closure item: members pledge nothing, so they never appear in dues/areas —
+there was no way to see who gave how much, or who has NOT given. Built a report-only
+view (Hrishi's call: NO pledge/target, which would manufacture false বাকি — the exact
+confusion A321–A332 removed). Per member: total given, number of times, last date, who
+registered them; plus a separate "যারা এখনো দেয়নি" list with phone numbers to chase.
+
+`computeReport('members')` (aggregate.js) sums payments by member partyId, splits gave
+vs not-given, sorts gave by amount. Screen `memberReportHTML` + a dedicated PDF branch
+(phones + last date in a table), both carrying the calc-note (A327 style). A chip
+`🎖️ সদস্য চাঁদা` is offered on the reports screen to cashier/admin.
+
+**Client-only, no server night.** 'members' is deliberately NOT added to REPORT_IDS /
+SERVER_REPORT_IDS — loadReport builds every report from the local snapshot via
+computeReport, so a new client-only id needs no Code.gs change, no permission grant,
+and the mirror (subsetEq over SERVER_REPORT_IDS) ignores it. The chip is injected in
+showReportButtons for cashier/admin rather than driven by a grant.
+
+Tests A338 (mutation-verified): computeReport counts members only (shop payment
+excluded), per-member total+count+last, and the not-given list; a driven DOM test
+opens the chip and sees ₹500 + বিমল. A276 (membership via .includes) honoured.
+Client-only. v4.169.0 → v4.170.0. Tests 4,335 → 4,344. **CLIENT night** — ⚙️ → 🔄.

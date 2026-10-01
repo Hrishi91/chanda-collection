@@ -1017,14 +1017,12 @@ The third is defensible. Recording it so the choice is made on purpose.
     reimbursement/advance to record, OR a data-entry error to correct. Only after
     every in-hand is ≥ 0 (or an acknowledged, recorded reason) can the book close.
 
-- [ ] **Member collection report** — NEXT after reverse handover (Hrishi, 2026-10-01).
-  Members pledge 0 and so never appear in 📋 বাকির তালিকা / areas / dues. Build a
-  member-contribution report: per member — total given, number of payments, last
-  date, and WHO HAS NOT given. **Report only — do NOT add an expected/monthly member
-  pledge** (members give when they choose; a forced target would manufacture false
-  "বাকি", the exact confusion A321–A332 just removed). Client-only (reads member
-  parties + their payments); mirror-safe. Recommended: a chip on the reports screen
-  + its PDF, carrying the calculation string like the other reports (A327/A329).
+- [x] ~~**Member collection report**~~ DONE A338 (2026-10-01, v4.170.0). 🎖️ সদস্য চাঁদা
+  chip on the reports screen (cashier/admin) + PDF: per member total given, count,
+  last date, registrar; and a "যারা এখনো দেয়নি" list with phones. Report-only (no
+  pledge/target, per Hrishi). Client-only — not in REPORT_IDS/SERVER_REPORT_IDS, built
+  from the local snapshot via computeReport('members'); no server night. See
+  build-log A338.
 
 - [ ] **Server-enforce reimburse initiation (needs a `kind` field)** — deferred from
   A333. Today "only a cashier/admin may give money to a collector" is a CLIENT gate

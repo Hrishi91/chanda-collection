@@ -12849,6 +12849,61 @@ pending.push((async function () {
      'A337: no transfer/duty flow is launched bare — a bare startFlow falls through to home');
 })();
 
+// A338 — member contributions report (report-only): per-member total/count/last,
+// and WHO has not given. Members pledge nothing, so this is the one report that
+// names them. Client-only (not in SERVER_REPORT_IDS).
+(function () {
+  const r = computeReport('members', {
+    parties: [
+      { id: 'm1', year: 2026, type: 'member', name: 'কমল', phone: '9000000001', collector: 'বস' },
+      { id: 'm2', year: 2026, type: 'member', name: 'বিমল', phone: '9000000002', collector: 'বস' },
+      { id: 's1', year: 2026, type: 'shop', name: 'দোকান', pledged: 1000, collector: 'বস' },
+    ],
+    payments: [
+      { id: 'p1', year: 2026, partyId: 'm1', amount: 200, date: '2026-09-01' },
+      { id: 'p2', year: 2026, partyId: 'm1', amount: 300, date: '2026-09-10' },
+      { id: 'p3', year: 2026, partyId: 's1', amount: 500, date: '2026-09-05' },
+    ],
+    daily: [], expenses: [], handovers: [], voids: [],
+  });
+  eq(r.memberCount, 2, 'A338: counts members only, not shops');
+  eq(r.gaveCount, 1, 'A338: one member has given');
+  eq(r.rows.length === 1 && r.rows[0].name === 'কমল' && r.rows[0].total === 500 && r.rows[0].count === 2, true,
+     'A338: per-member total (200+300) and count');
+  eq(r.rows[0].last, '2026-09-10', 'A338: last contribution date is the latest');
+  eq(r.total, 500, 'A338: total counts member chanda only — the shop payment is excluded');
+  eq(r.notGiven.length === 1 && r.notGiven[0].name === 'বিমল', true, 'A338: the member who has not given is listed');
+})();
+
+// A338 (driven): a cashier/admin sees the 🎖️ সদস্য চাঁদা chip and it renders.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const central = {
+    parties: [
+      { id: 'm1', year: 2026, type: 'member', name: 'কমল', phone: '9000000001', collector: 'বস', createdAt: '2026-09-01T10:00:00Z' },
+      { id: 'm2', year: 2026, type: 'member', name: 'বিমল', phone: '9000000002', collector: 'বস', createdAt: '2026-09-01T10:00:00Z' },
+    ],
+    payments: [{ id: 'p1', year: 2026, partyId: 'm1', amount: 500, cashAmount: 500, upiAmount: 0, collector: 'বস', date: '2026-09-04', createdAt: '2026-09-04T10:00:00Z' }],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: central });
+  await h.ready;
+  await h.show('report');
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const chip = h.doc.querySelectorAll('#report-picker [data-rep]')
+    .filter(function (b) { return b.dataset.rep === 'members'; })[0];
+  eq(!!chip, true, 'A338: the member report chip is offered to an admin/cashier');
+  chip.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const html = h.html('report-body');
+  eq(/₹500/.test(html), true, 'A338: …and shows the member who gave (₹500)');
+  eq(/বিমল/.test(html), true, 'A338: …and names বিমল in the not-given list');
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

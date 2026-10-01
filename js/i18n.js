@@ -1012,6 +1012,11 @@ const I18N = {
   parties_n: { bn: 'টি দাতা', en: 'parties' },
   report_expenses: { bn: '🧾 খরচের হিসাব', en: '🧾 Expenses' },
   report_daily: { bn: '🛣️ দিনের রোড/টোটো', en: '🛣️ Daily road/toto' },
+  // A338: member contributions — report-only (who gave how much, and who has not)
+  report_members: { bn: '🎖️ সদস্য চাঁদা', en: '🎖️ Member chanda' },
+  members_calc_note: { bn: 'প্রতি সদস্যের মোট = তার সব চাঁদার যোগফল (পরিমাণ নির্দিষ্ট নয়)। যারা এখনো কিছু দেয়নি, আলাদা তালিকায়।', en: 'Each member’s total = sum of their contributions (no fixed amount). Members who have not yet given are listed separately.' },
+  members_not_given: { bn: 'যারা এখনো দেয়নি', en: 'Not yet given' },
+  member_times: { bn: 'বার দিয়েছে', en: '× given' },
   // A294: the two consolidated reports — the whole season on one page, and the
   // financial audit that proves the books balance.
   report_final: { bn: '🧾 চূড়ান্ত হিসাব', en: '🧾 Final statement' },

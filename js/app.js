@@ -6132,6 +6132,31 @@
           '<div class="row-sub">/ ' + fmtMoney(r.pledged) + '</div></div></div>';
       }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>';
   }
+  // A338: 🎖️ সদস্য চাঁদা — a report-only view: who gave how much, how often, when
+  // last; and a separate list of who has NOT given. No pledge/due column by design.
+  function memberReportHTML(d) {
+    const rows = d.rows || [], notg = d.notGiven || [];
+    return '<div class="card"><div class="card-title">' + esc(t('report_members')) +
+      ' — ' + esc(t('paid')) + ': ' + fmtMoney(d.total) +
+      ' (' + toBengaliDigits(String(d.gaveCount || 0)) + '/' + toBengaliDigits(String(d.memberCount || 0)) + ')</div>' +
+      '<div class="hint" style="margin:-2px 4px 8px">' + esc(t('members_calc_note')) + '</div>' + // A327-style calc note
+      (rows.length ? rows.map(function (r) {
+        return '<div class="row" style="flex-wrap:wrap;cursor:default"><div style="flex:1 1 60%"><b>' +
+          esc(r.name) + '</b><div class="row-sub">' +
+          toBengaliDigits(String(r.count)) + ' ' + esc(t('member_times')) +
+          (r.last ? ' • ' + esc(t('last_paid_col')) + ' ' + esc(fmtDate(r.last)) : '') +
+          (r.collector ? ' • 👤 ' + esc(r.collector) : '') + '</div></div>' +
+          '<b class="row-right">' + fmtMoney(r.total) + '</b></div>';
+      }).join('') : '<div class="empty">' + esc(t('no_entries')) + '</div>') + '</div>' +
+      // who has not given — the half a member report exists for
+      (notg.length ? '<div class="card"><div class="card-title">⚠️ ' + esc(t('members_not_given')) +
+        ' (' + toBengaliDigits(String(notg.length)) + ')</div>' +
+        notg.map(function (r) {
+          return '<div class="row" style="flex-wrap:wrap;cursor:default"><div><b>' + esc(r.name) + '</b>' +
+            (r.phone ? '<div class="row-sub">📞 ' + esc(r.phone) + '</div>' : '') +
+            (r.collector ? '<div class="row-sub">👤 ' + esc(r.collector) + '</div>' : '') + '</div></div>';
+        }).join('') + '</div>' : '');
+  }
   // A77: the PRINTED report, which is a different document from the screen one.
   //
   // The screen is a phone held one-handed — compact on purpose. The printed
@@ -6378,6 +6403,20 @@
           printTable([t('date_col'), t('collector_col'), t('comment_col')],
             d.voids.map(function (v) { return [fmtDate(v.createdAt || v.date), v.collector || '', v.reason || '']; })) : '');
     }
+    if (id === 'members') {
+      // A338: the filed sheet carries more than the phone — phone numbers to ring
+      // the members who have not given, and the per-member count + last date.
+      return '<h3>' + esc(t('report_members')) + ' — ' + money(d.total) +
+          ' (' + (d.gaveCount || 0) + '/' + (d.memberCount || 0) + ')</h3>' +
+        '<div class="p-note">' + esc(t('members_calc_note')) + '</div>' +
+        printTable([t('party_f_person'), t('party_f_phone'), t('amount_col'), t('count_col'), t('last_paid_col'), t('collector_col')],
+          (d.rows || []).map(function (r) {
+            return [r.name, r.phone || '', money(r.total), r.count, r.last ? fmtDate(r.last) : '', r.collector || ''];
+          })) +
+        ((d.notGiven || []).length ? '<h3>⚠️ ' + esc(t('members_not_given')) + ' (' + d.notGiven.length + ')</h3>' +
+          printTable([t('party_f_person'), t('party_f_phone'), t('collector_col')],
+            d.notGiven.map(function (r) { return [r.name, r.phone || '', r.collector || '']; })) : '');
+    }
     return reportHTML(id, d); // overview is already a full statement
   }
   // A294: the season's whole statement — every existing section, one screen. It
@@ -6543,6 +6582,7 @@
     if (id === 'expenses') return reportExpensesHTML(d);
     if (id === 'daily') return reportDailyHTML(d);
     if (id === 'program') return reportProgramHTML(d);
+    if (id === 'members') return memberReportHTML(d); // A338
     return '';
   }
 
@@ -7238,6 +7278,10 @@
   function showReportButtons(ids) {
     const picker = document.getElementById('report-picker');
     if (!picker) return;
+    // A338: 🎖️ সদস্য চাঁদা is a client-only report (not a grantable REPORT_IDS id,
+    // so no server/permission change). Offer it to cashier/admin — the people who
+    // run the member chase — appended to whatever reports they already see.
+    if (Auth.isCashier() && !ids.includes('members')) ids = ids.concat(['members']);
     if (!ids.length) {
       picker.innerHTML = '<div class="empty">' + esc(t('no_reports_msg')) + '</div>';
       return;
