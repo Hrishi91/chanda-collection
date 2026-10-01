@@ -5300,6 +5300,7 @@
   // "My entries" — the device's own entries, each voidable (if permitted) or
   // flaggable (if it's your own and you can't self-void).
   let entriesScope = 'mine'; // 'mine' = this device's own | 'all' = everyone's daily/expense (from the snapshot)
+  let entriesUser = ''; // A331: in the 'all' view, filter to one collector ('' = everyone)
   let chaseAllPhone = false; // A299: 🩺 desk — false = owes-only (urgent), true = every phoneless donor (register)
   function renderMyEntries() {
     const all = entriesScope === 'all';
@@ -5313,9 +5314,18 @@
       const mine = function (r) { return Aggregate.isMine(r, meId); };
       const ptype = partyTypes(data); // A289: the curtain needs each payment's KIND
       const stores = all ? ['daily', 'expenses'] : ['payments', 'daily', 'expenses', 'handovers'];
+      // A331: in the 'all' view, offer a per-collector filter. Options built from
+      // every collector present (before filtering), so the dropdown always lists all.
+      const userOpts = {};
+      if (all) stores.forEach(function (store) {
+        (data[store] || []).forEach(function (r) { const k = r.collectorId || r.collector; if (k) userOpts[k] = r.collector || k; });
+      });
       const list = [];
       stores.forEach(function (store) {
-        (data[store] || []).forEach(function (r) { if (all || mine(r)) list.push({ store: store, r: r }); });
+        (data[store] || []).forEach(function (r) {
+          const show = all ? (!entriesUser || Aggregate.isMine(r, entriesUser)) : mine(r);
+          if (show) list.push({ store: store, r: r });
+        });
       });
       list.sort(function (a, b) { return String(b.r.createdAt || '').localeCompare(String(a.r.createdAt || '')); });
       const rowsHTML = list.length ? list.map(function (it) {
@@ -5359,14 +5369,23 @@
       const tabs = '<div class="chips tabs" style="margin-bottom:10px">' +
         '<button class="chip' + (all ? '' : ' on') + '" data-escope="mine">' + esc(t('entries_mine')) + '</button>' +
         '<button class="chip' + (all ? ' on' : '') + '" data-escope="all">' + esc(t('entries_all')) + '</button></div>';
-      $view().innerHTML = backBar('home') + '<div class="flow-title">✏️ ' + esc(t('my_entries_title')) + '</div>' + tabs +
+      // A331: collector filter, only in the 'all' view
+      const userSel = (all && Object.keys(userOpts).length) ?
+        '<select id="entries-user" class="chip" style="margin-bottom:10px">' +
+          '<option value="">' + esc(t('entries_all_users')) + '</option>' +
+          Object.keys(userOpts).sort(function (a, b) { return String(userOpts[a]).localeCompare(String(userOpts[b])); })
+            .map(function (k) { return '<option value="' + esc(k) + '"' + (entriesUser === k ? ' selected' : '') + '>🧑 ' + esc(userOpts[k]) + '</option>'; }).join('') +
+        '</select>' : '';
+      $view().innerHTML = backBar('home') + '<div class="flow-title">✏️ ' + esc(t('my_entries_title')) + '</div>' + tabs + userSel +
         '<div class="hint" style="margin-bottom:10px">' + esc(t(all ? 'entries_all_hint' : 'my_entries_hint')) +
         // A121b/A122: the one-line hint cannot hold the whole process — the
         // door lands on the guide's fix-section and ← returns here.
         guideDoor('fix') + '</div>' + rowsHTML;
       document.querySelectorAll('[data-escope]').forEach(function (b) {
-        b.onclick = function () { entriesScope = b.dataset.escope; renderMyEntries(); };
+        b.onclick = function () { entriesScope = b.dataset.escope; entriesUser = ''; renderMyEntries(); }; // A331: reset user filter on scope switch
       });
+      const euSel = document.getElementById('entries-user');
+      if (euSel) euSel.onchange = function () { entriesUser = euSel.value; renderMyEntries(); };
       wireGuideDoors();
       document.querySelectorAll('[data-vd]').forEach(function (b) {
         b.onclick = function () { const p = b.dataset.vd.split('|'); renderVoidReason(p[0], p[1], function () { navigate('entries'); }); };

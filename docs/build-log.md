@@ -20575,3 +20575,16 @@ and the activeElement guard still protects a half-typed field (A330 asserts both
 new line and the typing guard above it).
 
 Updated A157 → A330. Client-only. v4.161.0 → v4.162.0. Tests 4,295 → 4,296.
+
+---
+
+## A331 — per-collector filter in ✏️ my entries "everyone" view (v4.163.0)
+
+Hrishi: make the "everyone's daily/expenses" view user-friendly with a user-level
+filter. Added a "🧑 সব সংগ্রাহক / <collector>" dropdown shown only in the 'all'
+scope. Options are built from every collector present in the daily/expenses rows
+(before filtering, so the list is always complete); selecting one filters the list
+via isMine(row, key). Switching the mine/all tab resets the filter.
+
+DOM test: the everyone view shows both collectors' daily; the dropdown filters to
+one and hides the other. Client-only. v4.162.0 → v4.163.0. Tests 4,296 → 4,300.

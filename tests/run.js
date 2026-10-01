@@ -5363,7 +5363,7 @@ try {
   eq(/if \(!\$view\(\)\.querySelectorAll\('\.card'\)\.length\)/.test(fn), true,
      'A44: clearing the last one says "nothing left" instead of leaving a blank screen');
   // the OTHER two screens keep their full repaint on purpose
-  eq(/entriesScope = b\.dataset\.escope; renderMyEntries\(\);/.test(app), true,
+  eq(/entriesScope = b\.dataset\.escope; entriesUser = ''; renderMyEntries\(\);/.test(app), true,
      'A44: ✏️ still repaints on a filter change — you asked for a different list, so the top is right');
   eq(/hbFilter = b\.dataset\.hbf; renderHandoverBook\(\);/.test(app), true,
      'A44: …and 📗 likewise');
@@ -12587,6 +12587,40 @@ pending.push((async function () {
         daily: [], expenses: [], handovers: [], voids: [], corrections: [],
       }, { anon: false }) }, {});
   eq(/= হাতে/.test(det329), true, 'A329: the printed by-collector report carries the in-hand formula');
+})());
+
+// A331 — ✏️ my entries "everyone" view gains a per-collector filter.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const central = {
+    parties: [], payments: [],
+    daily: [
+      { id: 'r1', year: 2026, type: 'road', date: '2026-09-14', amount: 400, cashAmount: 400, upiAmount: 0, collector: 'রাম', collectorId: 'ram' },
+      { id: 'r2', year: 2026, type: 'road', date: '2026-09-14', amount: 300, cashAmount: 300, upiAmount: 0, collector: 'কালী', collectorId: 'kali' },
+    ],
+    expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: central });
+  await h.ready;
+  await h.show('entries');
+  // switch to the "everyone" view
+  h.doc.querySelector('[data-escope="all"]').onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  let html = h.html();
+  eq(/₹400/.test(html) && /₹300/.test(html), true, 'A331: the "everyone" view shows all collectors’ daily');
+  const sel = h.doc.getElementById('entries-user');
+  eq(!!sel, true, 'A331: a per-collector filter dropdown is offered');
+  // filter to ram
+  sel.value = 'ram';
+  sel.onchange();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  html = h.html();
+  eq(/₹400/.test(html), true, 'A331: filtering to রাম shows their daily');
+  eq(/₹300/.test(html), false, 'A331: …and hides কালী’s');
 })());
 
 Promise.all(pending.map(function (p) {
