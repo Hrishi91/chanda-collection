@@ -260,6 +260,9 @@ function loadApp(opts) {
   // A295: the central CONFIG the phone holds (centralConfig ← ck_config), for
   // screens that read config flags like closed_<year> / program_on.
   if (o.config) store.ck_config = JSON.stringify(o.config);
+  // A333: the committee roster the phone caches (committee ← ck_committee) — the
+  // reimburse picker and the handover flow read it to list recipients.
+  if (o.committee) store.ck_committee = JSON.stringify(o.committee);
   const doc = makeDocument();
   const calls = [];
   const box = {

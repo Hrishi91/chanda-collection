@@ -2049,8 +2049,14 @@
   // one-tap "use all" on the matching amount step, so a handover matches
   // reality instead of a typed/misremembered figure. Typing still works —
   // a partial handover (keeping some back) is common and legitimate.
-  function handoverFlow(cashierOpts, available, cashView) {
+  function handoverFlow(cashierOpts, available, cashView, extra) {
     const avail = available || { cash: 0, upi: 0 };
+    // A333: the same flow runs the reverse direction — a cashier/admin GIVING
+    // money to a collector (a reimbursement or an advance to spend). The money
+    // mechanics are identical (cash/UPI out of what the giver holds, written as
+    // one handover row); only two things change — the picker lists collectors
+    // (not cashiers of a fund), and the labels say "give" instead of "hand in".
+    const reimburse = !!(extra && extra.reimburse);
     // cashierOpts: [{username, name}] (new server) or [name] (older server) or
     // null/[] → free-text. Normalise both shapes.
     const opts = (cashierOpts || []).map(function (c) {
@@ -2075,12 +2081,18 @@
     // the sheet they just filled in (the same reason the party flow reads its
     // area list that way).
     const toStep = opts.length
-      ? { key: 'to', qKey: 'q_handover_to', kind: 'choice',
-          emptyKey: 'ho_nobody_may_take',
+      ? { key: 'to', qKey: reimburse ? 'q_reimburse_to' : 'q_handover_to', kind: 'choice',
+          emptyKey: reimburse ? 'rb_nobody' : 'ho_nobody_may_take',
+          // A333: a reimbursement lists the collectors directly. recipientsFor
+          // runs cashiersForFund, which drops every non-cashier — exactly the
+          // people a reimbursement is FOR — so the reverse direction must not go
+          // through it. The money carries no category (a cashier types one cash
+          // and one UPI figure), so there is no confidential pot to route and
+          // nothing cashiersForFund was protecting.
           optionsFn: function (a) {
-            return recipientsFor(opts, a).map(function (c) { return { v: c.username, label: c.name }; });
+            return (reimburse ? opts : recipientsFor(opts, a)).map(function (c) { return { v: c.username, label: c.name }; });
           } }
-      : { key: 'to', qKey: 'q_handover_to', kind: 'text' };
+      : { key: 'to', qKey: reimburse ? 'q_reimburse_to' : 'q_handover_to', kind: 'text' };
     // Source categories the collector/cashier actually holds money in —
     // চাঁদা / রোড / টোটো / বাস / অন্যের-জমা. Only categories with money
     // appear (which also makes the list permission-shaped: you can't hold
@@ -2149,7 +2161,7 @@
                   pendingOut: avail.pendingOut || { total: 0 },
                   debt: avail.debt || { cash: 0, upi: 0, total: 0 } } }];
     return {
-      title: t('handover_title') + (Aggregate.moreThan(avail.cash + avail.upi, 0)
+      title: (reimburse ? t('reimburse_title') : t('handover_title')) + (Aggregate.moreThan(avail.cash + avail.upi, 0)
         ? ' — ' + t('you_have') + ': 💵' + fmtMoney(avail.cash) + ' · 📱' + fmtMoney(avail.upi) : ''),
       // A146: money first, THEN the name. See toStep for why the order is the fix.
       steps: moneySteps_.concat([toStep], [
@@ -2213,7 +2225,9 @@
         });
         return DB.put('handovers', row).then(function () {
           return { undo: [{ store: 'handovers', id: row.id }], after: { buttons: [
-            { label: t('one_more') + ' ' + t('handover_title'), action: function () { startHandover(); } },
+            reimburse
+              ? { label: t('one_more') + ' ' + t('reimburse_title'), action: function () { startReimburse(); } }
+              : { label: t('one_more') + ' ' + t('handover_title'), action: function () { startHandover(); } },
             { label: t('done_for_now'), action: function () { navigate('home'); } },
           ] } };
         });
@@ -2306,6 +2320,34 @@
     } else {
       availP.then(function (a) { begin(null, a); });
     }
+  }
+  // A333: the reverse of startHandover — a cashier/admin GIVES money to a
+  // collector (reimbursing what they spent from their pocket, or advancing cash
+  // to spend). It settles an over-drawn collector's false-negative in hand and
+  // lets the closing audit balance. Same money mechanics as a handover (out of
+  // what the giver holds, written as one handover row, confirmed by the
+  // recipient) — only the picker and the labels differ. See handoverFlow's
+  // `reimburse` branch and Code.gs A333 for the matching server guards.
+  function startReimburse() {
+    if (!Auth.isCashier()) { toast(t('not_cashier')); return; }
+    const ident = Settings.get('collectorUsername') || Settings.get('collectorName');
+    // every approved committee member except yourself — a reimbursement can go to
+    // a plain collector (the whole point) or to another cashier. The server
+    // refuses a parcel to anyone exiting/blocked, and 'approved' already excludes
+    // them here, so the two sides agree.
+    const recipients = (committee || []).filter(function (u) {
+      return u && u.status === 'approved' && String(u.username) !== String(ident);
+    }).map(function (u) { return { username: u.username, name: u.name }; });
+    if (!recipients.length) { toast(t('rb_nobody')); return; }
+    viewData().then(function (data) {
+      const whole = Aggregate.handoverable(data, ident);
+      whole.byFund = Aggregate.SECTORS.map(function (sec) {
+        const a = Aggregate.handoverable(data, ident, sec);
+        return { fund: sec, byCat: a.byCat, cash: a.cash, upi: a.upi };
+      }).filter(function (fa) { return Aggregate.moreThan(fa.cash + fa.upi, 0); });
+      if (!Aggregate.moreThan(whole.total, 0)) { toast(t('ho_nothing')); return; }
+      startFlow(handoverFlow(recipients, whole, Aggregate.cashierView(data, ident), { reimburse: true }));
+    });
   }
   function dailyFlow(type, sector) {
     return {
@@ -2967,6 +3009,7 @@
         else if (g === 'road' || g === 'toto' || g === 'bus' || g === 'ticket') startFlow(dailyFlow(g));
         else if (g === 'expense') startExpense();
         else if (g === 'handover') startHandover();
+        else if (g === 'reimburse') startReimburse();
         // A226: carry WHERE the tap came from. Hrishi's rule is that ← returns
         // to its source, and 🩺 proved a screen can have two doors — the home
         // tile and the red banner on 📊 — while its back bar named only one of
@@ -6646,6 +6689,13 @@
               '<span class="cat-split">💵' + fmtMoney(x.cash) + ' · 📱' + fmtMoney(x.upi) + '</span>' +
               '<b class="cat-tot">' + fmtMoney(x.total) + '</b></div>';
           }).join('') : '<div class="empty">' + esc(t('none_here')) + '</div>') +
+          // A333: give money to a collector (reimburse / advance). Hidden while
+          // frozen — a new handover would be HELD at the push gate, so a drawn
+          // button that silently does nothing is the drawn-but-dead control this
+          // project has shipped before.
+          (frozen() ? '' :
+            '<div class="grid one" style="margin-top:10px"><button class="tile wide" data-go="reimburse">💸 ' +
+              esc(t('reimburse_title')) + '</button></div>') +
           '<div class="grid one" style="margin-top:10px"><button class="tile wide" data-go="hbook">📗 ' +
             esc(t('hb_title')) + '</button></div>';
         wireNav();

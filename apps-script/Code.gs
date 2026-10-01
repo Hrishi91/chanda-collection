@@ -902,17 +902,23 @@ function notifData_(u, d) {
                             date: h.date, reason: h.rejectReason || '' });
   });
   out.rejections = items.rejections.length;
+  // A333: an incoming parcel notifies whoever it was SENT TO, cashier or not.
+  // A reimbursement / advance is addressed to a plain collector, and the only
+  // way they learn there is a "✅ পেয়েছি" to tap is this bell — so the loop lives
+  // OUTSIDE the isCashier gate below (which still guards the cashier-only desks,
+  // corrections and approvals). isRecipient_ already scopes it to their own
+  // parcels, so a collector is never told about anyone else's money.
+  (d.handovers || []).forEach(function (h) {
+    if (isRecipient_(h, u) && h.status !== 'confirmed' && h.status !== 'rejected') {
+      // breakdown rides along so the receiver's notification shows the same
+      // per-category / cash-UPI detail the giver picked
+      items.handovers.push({ id: h.id, from: h.from, amount: Number(h.amount) || 0,
+                             date: h.date, breakdown: h.breakdown || '' });
+    }
+  });
+  out.handovers = items.handovers.length;
   var isCashier = isCashier_(u.row);
   if (isCashier) {
-    (d.handovers || []).forEach(function (h) {
-      if (isRecipient_(h, u) && h.status !== 'confirmed' && h.status !== 'rejected') {
-        // breakdown rides along so the receiver's notification shows the same
-        // per-category / cash-UPI detail the giver picked
-        items.handovers.push({ id: h.id, from: h.from, amount: Number(h.amount) || 0,
-                               date: h.date, breakdown: h.breakdown || '' });
-      }
-    });
-    out.handovers = items.handovers.length;
     // correction flags only reach whoever actually mans the desk
     if (canReview_(u)) {
       // A290: the desk hides a flag whose target is already voided (the row is
@@ -1406,7 +1412,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.164.0';
+var CODE_VERSION = 'chanda-v4.165.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1697,6 +1703,16 @@ var ACTIONS = {
         if (r.store === 'handovers') {
           var to = accessIndex_()[String(r.row.toId || r.row.to || '')];
           if (to && (to.access === 'exiting' || to.status === 'blocked')) { rejectedIds.push(r.row.id); return; }
+          // A333: a reimbursement (cashier → collector) is created only from the
+          // cashier's own desk (startReimburse is gated to cashier/admin on the
+          // client). No push-gate guard is added for it on purpose: a handover's
+          // sender is always stamped = self here, so nobody can craft an INCOMING
+          // parcel to themselves, and a sender can only ever move their OWN hand
+          // down — money is conserved and the recipient still has to confirm. A
+          // server-enforced "only a cashier may send to a collector" rule would
+          // need a stored `kind` to tell a reimbursement from an ordinary
+          // collector→collector row the book has always let people create (see
+          // backend 2.5); that is deferred to pending.md, not smuggled in here.
         }
         // general puja expenses are cashier/admin only; a COLLECTION expense is
         // spent out of a round the person is running, so permForRow_ hands back
@@ -2651,11 +2667,12 @@ var ACTIONS = {
   confirmHandover: function (b) {
     var u = requireUser_(b.token);
     requireUnfrozen_(u);
-    // A258: cashier of ANY book to get this far; cashier of THIS parcel's book
-    // to settle it. The precise check is below, where the row has been read
-    // under the lock and its ভাঁড়ার is known — asking here would mean trusting
-    // the caller to say which book their own parcel is in.
-    if (!isAnyCashier_(u.row)) throw new Error('not-cashier');
+    // A333: authorization is settled INSIDE the loop, once the row — and so its
+    // recipient and its ভাঁড়ার — is known. This used to fast-fail any non-cashier
+    // here (A258), but a reimbursement / advance is addressed to a plain
+    // collector, and THEY must be able to tap "✅ পেয়েছি" — being the named
+    // recipient IS the authority. The কোষাধ্যক্ষ-of-this-book rule still holds for
+    // an admin settling on someone ELSE's behalf, which is the only !mine path.
     var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.handovers);
     var cols = SHEETS.handovers;
     if (sh.getLastRow() < 2) throw new Error('not-found');
@@ -2694,7 +2711,16 @@ var ACTIONS = {
         // now, so being the committee's is no longer an answer to "may I settle
         // the programme's money". Read from the row under the lock, never from
         // anything the caller sent.
-        if (!isCashierOf_(u.row, sectorOf_(rowObj))) throw new Error('not-cashier-of-fund');
+        // A333: the fund rule binds a CASHIER — it decides which book's money a
+        // cashier may settle, so a puja cashier still cannot settle programme
+        // money even when it is addressed to them. A reimbursement's recipient is
+        // a PLAIN collector, কোষাধ্যক্ষ of no book, and a rule about which book a
+        // cashier owns cannot bind someone who owns none — being the named
+        // recipient is their whole authority. So the fund check is skipped only
+        // for a recipient who is not any kind of cashier; a cashier recipient and
+        // an admin acting on another's behalf are gated exactly as A258 left them.
+        var recipientIsPlainCollector = mine && !isAnyCashier_(u.row);
+        if (!recipientIsPlainCollector && !isCashierOf_(u.row, sectorOf_(rowObj))) throw new Error('not-cashier-of-fund');
         // Already settled: re-confirming would restamp confirmedBy/confirmedAt
         // and hide who really acknowledged it.
         //
@@ -2752,7 +2778,9 @@ var ACTIONS = {
   rejectHandover: function (b) {
     var u = requireUser_(b.token);
     requireUnfrozen_(u);
-    if (!isAnyCashier_(u.row)) throw new Error('not-cashier');
+    // A333: no early isAnyCashier_ fast-fail — the mirror of confirmHandover. A
+    // reimbursement's recipient is a plain collector, and "পাইনি" is theirs to
+    // say too. Authorization is the recipient check inside the loop.
     var reason = String(b.reason || '').trim().slice(0, 200);
     if (!reason) throw new Error('reason-required');
     var sh = SpreadsheetApp.getActive().getSheetByName(SHEET_TITLES.handovers);
@@ -2782,7 +2810,13 @@ var ACTIONS = {
       // as confirming does, so the same কোষাধ্যক্ষ-of-this-book rule applies —
       // a membrane guarded on one side only is the bug this file has found
       // four times.
-      if (!isCashierOf_(u.row, sectorOf_(rowObj))) throw new Error('not-cashier-of-fund');
+      // A333: and relaxed the SAME way as confirmHandover — a plain-collector
+      // recipient may refuse their own reimbursement; the fund rule still binds
+      // any cashier (wrong-book refused) and the admin on-behalf path. Guarding
+      // one of the pair and not the other is exactly the asymmetry this comment
+      // warns about.
+      var recipientIsPlainCollector = mine && !isAnyCashier_(u.row);
+      if (!recipientIsPlainCollector && !isCashierOf_(u.row, sectorOf_(rowObj))) throw new Error('not-cashier-of-fund');
       if (String(rowObj.status) === 'confirmed') throw new Error('already-confirmed');
       if (String(rowObj.status) === 'rejected') throw new Error('already-rejected');
       var nowIso = new Date().toISOString();

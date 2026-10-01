@@ -7725,7 +7725,10 @@ try {
      'A146: the handover asks for the money BEFORE the name');
   // …and the list is read when that step is REACHED, or it would still be built
   // before the sheet exists and the reorder would buy nothing
-  eq(/key: 'to', qKey: 'q_handover_to', kind: 'choice',[\s\S]{0,300}?optionsFn: function \(a\) \{[\s\S]{0,200}?recipientsFor\(opts, a\)/.test(app), true,
+  // A333: qKey/emptyKey became ternaries (the reimburse branch), so the anchors
+  // tolerate that — the property pinned is unchanged: the normal parcel's list is
+  // still recipientsFor(opts, a), read when the step is shown.
+  eq(/key: 'to', qKey: [^\n]*'q_handover_to',? kind: 'choice',[\s\S]{0,700}?optionsFn: function \(a\) \{[\s\S]{0,260}?recipientsFor\(opts, a\)/.test(app), true,
      'A146: …and the recipient list is built from the answers, at the moment it is shown');
   // the base rule must NOT have moved: approved + admin-or-cashier, as before
   eq(/u\.status === 'approved' &&/.test(app) && /u\.role === 'admin' \|\| Number\(u\.cashier\) === 1/.test(app), true,
@@ -7775,7 +7778,7 @@ try {
   // the honest dead end: named, with the fix, never a bare empty row
   eq(/if \(!chips\.length && s\.emptyKey\) \{/.test(app), true,
      'A146: an empty choice step says WHY it is empty…');
-  eq(/emptyKey: 'ho_nobody_may_take'/.test(app), true,
+  eq(/emptyKey: [^\n]*'ho_nobody_may_take'/.test(app), true,
      'A146: …and the handover names the person who can fix it (grant the cashier the view)');
   eq(/  ho_nobody_may_take: \{/.test(fs.readFileSync(__dirname + '/../js/i18n.js', 'utf8')), true,
      'A146: …in both languages');
@@ -12650,6 +12653,113 @@ pending.push((async function () {
   // collected 1000, no expense → net in hand POSITIVE → green
   eq(/class="green"><span>হাতে আছে<\/span>/.test(html), true, 'A332: a positive net in-hand shows green');
   eq(/class="red"><span>হাতে আছে<\/span>/.test(html), false, 'A332: …and NOT red when positive');
+})());
+
+// A333 — reverse handover (cashier → collector): reimbursement / advance.
+// The need: a collector who spent committee money from their own pocket (or was
+// given cash to spend) shows a FALSE negative in hand, because there was no way
+// to record money flowing TO them. A cashier→collector handover, confirmed by
+// the collector, records it as `received` and settles them — so the closing
+// audit can balance. The in-hand math is already direction-blind; these tests
+// pin the money OUTCOME and the authorization guards that make it reachable.
+
+// (1) money outcome — a confirmed reimbursement lifts an over-drawn collector.
+(function () {
+  const base = { payments: [{ id: 'p', collector: 'Sita', collectorId: 'sita', amount: 200 }],
+    daily: [], expenses: [{ id: 'e', collector: 'Sita', collectorId: 'sita', amount: 1000 }], voids: [] };
+  const before = inHandRows(Object.assign({ handovers: [] }, base))
+    .filter(function (r) { return String(r.collector) === 'Sita'; })[0];
+  eq(before.inHand, 200 - 1000, 'A333: before reimbursement Sita is over-drawn by 800');
+  const after = inHandRows(Object.assign({ handovers: [
+    { id: 'rh', fromId: 'boss', from: 'বস', toId: 'sita', to: 'Sita',
+      amount: 800, cashAmount: 800, upiAmount: 0, status: 'confirmed' }] }, base))
+    .filter(function (r) { return String(r.collector) === 'Sita'; })[0];
+  eq(after.inHand, 0, 'A333: a confirmed cashier→collector reimbursement settles Sita to 0');
+  eq(after.received, 800, 'A333: …counted as received (money given to her), not as collected');
+  // and the giver's own hand drops by the same amount — money is conserved
+  const giver = inHandRows(Object.assign({ handovers: [
+    { id: 'rh', fromId: 'boss', from: 'বস', toId: 'sita', to: 'Sita',
+      amount: 800, cashAmount: 800, upiAmount: 0, status: 'confirmed' }] }, base))
+    .filter(function (r) { return String(r.collector) === 'বস' || String(r.collector) === 'boss'; })[0];
+  eq(giver.handedOver, 800, 'A333: …and the cashier who gave it has 800 handed over (conserved)');
+})();
+
+// (2) server: a PLAIN-COLLECTOR recipient settles their OWN parcel without being
+// a cashier of any book — otherwise a reimbursement addressed to a collector is
+// unconfirmable. The fund rule still binds a cashier (wrong-book refused, A258)
+// and the admin on-behalf path, so the skip is scoped to a non-cashier recipient.
+// (The backend harness in tests/backend.js drives the real confirm/reject paths
+// — A258/A259 there prove the wrong-book cashier is still refused.)
+(function () {
+  const gs = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  // the skip is scoped by recipientIsPlainCollector in BOTH confirm and reject
+  const marks = (gs.match(/var recipientIsPlainCollector = mine && !isAnyCashier_\(u\.row\);/g) || []);
+  eq(marks.length >= 2, true, 'A333: confirm AND reject scope the fund-skip to a plain-collector recipient');
+  const guarded = (gs.match(/if \(!recipientIsPlainCollector && !isCashierOf_\(u\.row, sectorOf_\(rowObj\)\)\) throw new Error\('not-cashier-of-fund'\);/g) || []);
+  eq(guarded.length >= 2, true, 'A333: …and the wrong-book cashier (A258) is still refused in both');
+  // the blanket early fast-fail that blocked a non-cashier recipient is gone
+  eq(/if \(!isAnyCashier_\(u\.row\)\) throw new Error\('not-cashier'\);/.test(gs), false,
+     'A333: the pre-loop isAnyCashier_ fast-fail is removed (it blocked collector recipients)');
+  eq(/A333/.test(gs), true, 'A333: the change is marked in Code.gs for the next reader');
+})();
+
+// (3) server: a non-cashier recipient is NOTIFIED of money sent to them, or the
+// collector never learns there is a "✅ পেয়েছি" to tap.
+(function () {
+  const gs = require('fs').readFileSync(__dirname + '/../apps-script/Code.gs', 'utf8');
+  const start = gs.indexOf('function notifData_');
+  const nd = gs.slice(start, gs.indexOf('\nfunction ', start + 10));
+  // the incoming-parcel loop pushes for every recipient (isRecipient_), outside
+  // the `if (isCashier)` block that still gates corrections/approvals
+  const recIdx = nd.indexOf('isRecipient_(h, u)');
+  const cashIdx = nd.indexOf('var isCashier = isCashier_(u.row);');
+  eq(recIdx > -1 && cashIdx > -1 && recIdx < cashIdx, true,
+     'A333: incoming-parcel notif is built before/outside the isCashier gate');
+})();
+
+// (4) client: a cashier/admin has a "give money" (reimburse) door, and its
+// recipient list is COLLECTORS — not run through cashiersForFund, which would
+// drop every non-cashier and leave nobody to reimburse.
+(function () {
+  const app = require('fs').readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/function startReimburse\(/.test(app), true, 'A333: a startReimburse flow exists');
+  eq(/data-go="reimburse"/.test(app), true, 'A333: …reachable by a door');
+  eq(/g === 'reimburse'/.test(app), true, 'A333: …wired in nav');
+  // the reimburse branch of handoverFlow bypasses cashiersForFund for its picker
+  eq(/reimburse \? opts :/.test(app), true, 'A333: reimburse lists collectors directly, not cashiersForFund');
+})();
+
+// (5) client, driven: the door is WIRED — tapping it on the cashier desk really
+// opens the reimburse flow. A drawn-but-unwired chip has shipped twice here, so
+// the regex above is not enough; this clicks the real button.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const central = {
+    parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'দোকান', pledged: 1000, side: 'main_malda', collector: 'বস', collectorId: 'boss', createdAt: '2026-09-01T10:00:00Z' }],
+    payments: [{ id: 'y1', year: 2026, partyId: 'p1', amount: 500, cashAmount: 500, upiAmount: 0, collector: 'বস', collectorId: 'boss', date: '2026-09-04' }],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const committee = [
+    { username: 'boss', name: 'বস', role: 'admin', cashier: 0, status: 'approved', funds: '' },
+    { username: 'ram', name: 'রাম', role: 'user', cashier: 0, status: 'approved', funds: '' },
+  ];
+  const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: central, committee: committee });
+  await h.ready;
+  await h.show('cashier');
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const door = h.doc.querySelector('[data-go="reimburse"]');
+  eq(!!door, true, 'A333: the cashier desk shows a "give money" (reimburse) door');
+  door.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  // the flow REPLACED the desk — the door is gone and the reimburse title shows.
+  // (Asserting only the title would be vacuous: the door's own label carries the
+  // same words, so it passes even if the click does nothing.)
+  eq(!h.doc.querySelector('[data-go="reimburse"]') && /সংগ্রাহককে টাকা দেওয়া/.test(h.html()), true,
+     'A333: …and tapping it opens the reimburse flow');
 })());
 
 Promise.all(pending.map(function (p) {

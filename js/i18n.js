@@ -981,6 +981,10 @@ const I18N = {
   handover_title: { bn: 'ক্যাশিয়ারকে জমা', en: 'Hand over to cashier' },
   you_have: { bn: 'তোমার হাতে', en: 'You have' },
   q_handover_to: { bn: 'কোন ক্যাশিয়ারকে দিলে?', en: 'Which cashier?' },
+  // A333: the reverse direction — a cashier/admin gives money to a collector
+  reimburse_title: { bn: 'সংগ্রাহককে টাকা দেওয়া', en: 'Give money to a collector' },
+  q_reimburse_to: { bn: 'কাকে টাকা দিচ্ছ?', en: 'Give to whom?' },
+  rb_nobody: { bn: 'টাকা দেওয়ার মতো কোনো সদস্য তালিকায় নেই', en: 'No member to give money to' },
   confirm_handover: { bn: '✅ জমা নেওয়া confirm', en: '✅ Confirm receipts' },
   pending_handovers: { bn: 'Confirm-এর অপেক্ষায়', en: 'Awaiting confirmation' },
   confirmed_handovers: { bn: 'Confirm হয়ে গেছে', en: 'Confirmed' },

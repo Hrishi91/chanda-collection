@@ -1005,6 +1005,36 @@ The third is defensible. Recording it so the choice is made on purpose.
     hides a donor the collector needs is a closing-day disruption, which is exactly
     why it waits until after closure.
 
+- [x] ~~**Managing over-drawn collectors (negative in hand)**~~ DONE A333
+  (2026-10-01, v4.165.0). Closure was blocked by collectors whose in-hand showed a
+  false negative — they spent committee money (or were given cash to spend) with no
+  way to record money flowing TO them. Built the reverse handover: a cashier/admin
+  reimburses / advances money to a collector (💸 সংগ্রাহককে টাকা দেওয়া on the cashier
+  desk), the collector confirms "✅ পেয়েছি", and it lands as `received`, settling
+  them so the audit balances. SERVER night — see build-log A333.
+  - **Still a person's job (not code):** verify whether each over-draw
+    (hrishikesh −35,608, Avhijit −43,646, and any others) is a genuine
+    reimbursement/advance to record, OR a data-entry error to correct. Only after
+    every in-hand is ≥ 0 (or an acknowledged, recorded reason) can the book close.
+
+- [ ] **Member collection report** — NEXT after reverse handover (Hrishi, 2026-10-01).
+  Members pledge 0 and so never appear in 📋 বাকির তালিকা / areas / dues. Build a
+  member-contribution report: per member — total given, number of payments, last
+  date, and WHO HAS NOT given. **Report only — do NOT add an expected/monthly member
+  pledge** (members give when they choose; a forced target would manufacture false
+  "বাকি", the exact confusion A321–A332 just removed). Client-only (reads member
+  parties + their payments); mirror-safe. Recommended: a chip on the reports screen
+  + its PDF, carrying the calculation string like the other reports (A327/A329).
+
+- [ ] **Server-enforce reimburse initiation (needs a `kind` field)** — deferred from
+  A333. Today "only a cashier/admin may give money to a collector" is a CLIENT gate
+  (`startReimburse`); the server does not forbid an ordinary collector→collector
+  handover, because the book has always allowed creating one (backend 2.5) and it is
+  money-conserving (sender is stamped = self; the recipient still confirms). To make
+  the rule server-authoritative, add a stored `kind` ('reimburse') on the handover
+  row so the push gate can tell a reimbursement from a plain collector→collector row
+  and require the sender be cashier/admin for the former. SERVER night + schema bump.
+
 - **🚀 should keep member rows too — DECIDED, deferred** (Hrishi, 2026-09-14,
   reported from the LIVE app). `goLive` clears the whole Parties sheet
   ([Code.gs](../apps-script/Code.gs) `goLive`), so committee **member rows are

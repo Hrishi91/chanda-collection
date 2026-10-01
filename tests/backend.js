@@ -5004,6 +5004,34 @@ module.exports = function runBackendTests(eq) {
     eq(settle('pori259', 'h-prog', 'confirmHandover'), 'ok', 'backend A259: each settles their own book');
     eq(settle('kali259', 'h-puja', 'confirmHandover'), 'ok', 'backend A259: …both of them');
 
+    // A333: the reverse direction — a cashier reimburses / advances money to a
+    // PLAIN collector, and that collector (কোষাধ্যক্ষ of no book) settles it. This
+    // is what the relaxed recipient rule is FOR; it must work on the real server,
+    // and the A259 refusals just above prove the relaxation did not reopen the
+    // wrong-book hole. ratan259 is a puja collector, not a cashier of anything.
+    parcel('kali259', 'h-reimb', 'puja', 'shop', 100, 'ratan259');
+    parcel('kali259', 'h-reimb2', 'puja', 'shop', 50, 'ratan259');
+    // a collector who is NOT the recipient still cannot touch it — the mirror
+    eq(settle('subrata259', 'h-reimb', 'confirmHandover'), 'not-recipient',
+       'backend A333: another collector cannot confirm a reimbursement not addressed to them');
+    eq(settle('ratan259', 'h-reimb', 'confirmHandover'), 'ok',
+       'backend A333: a plain-collector recipient confirms their own reimbursement');
+    eq(settle('ratan259', 'h-reimb2', 'rejectHandover'), 'ok',
+       'backend A333: …and may refuse one too (both halves of the pair)');
+    // and the money really landed: ratan259's received rises by the confirmed 100
+    const dR333 = (b259.call('pull', { token: adm, year: 2026, since: 0 }) || {}).data || {};
+    const ratanIn = A259.inHandRows(dR333).filter(function (r) {
+      return String(r.collector) === 'ratan259' || String(r.collector) === 'Ratan259'; })[0] || { received: 0 };
+    eq(ratanIn.received >= 100, true, 'backend A333: the confirmed reimbursement is counted as money received by the collector');
+    // the collector is TOLD there is a parcel to answer, cashier or not — a
+    // third parcel left PENDING must surface in ratan259's own notification feed,
+    // or they never learn there is a "✅ পেয়েছি" to tap. Mutation-sensitive: put
+    // the handover loop back inside the isCashier gate and this drops to 0.
+    parcel('kali259', 'h-reimb3', 'puja', 'shop', 70, 'ratan259');
+    const notifR = (b259.call('pull', { token: tk.ratan259, year: 2026, since: 0 }) || {}).notif || {};
+    const hoItems = ((notifR.items || {}).handovers || []).filter(function (h) { return h.id === 'h-reimb3'; }).length;
+    eq(hoItems, 1, 'backend A333: a plain collector is notified of a pending parcel addressed to them');
+
     // the picker would not have offered the wrong one in the first place
     const cl = b259.call('cashiers', { token: tk.subrata259 });
     const list = cl.cashiers || cl.names || [];

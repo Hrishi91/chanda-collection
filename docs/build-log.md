@@ -20603,3 +20603,56 @@ shortfall). Covers screen and print (totalsHTML). হাতে নগদ stays g
 DOM tests: a deficit fixture (1,100 collected − 5,000 spent) → red; a positive
 fixture (1,000, no expense) → green. Client-only. v4.163.0 → v4.164.0.
 Tests 4,300 → 4,303.
+
+---
+
+## A333 — reverse handover: reimburse / advance money to a collector (v4.165.0)
+
+**The need.** Closure was blocked by over-drawn collectors (e.g. hrishikesh
+−35,608, Avhijit −43,646): people who spent committee money from their pocket, or
+were handed cash to spend, showed a FALSE negative in hand because there was no way
+to record money flowing TO a collector. Handovers only went collector → cashier.
+
+**The fix.** A handover may now go the other way — a cashier/admin GIVES money to a
+collector (reimbursement, or an advance to spend), the collector taps "✅ পেয়েছি",
+and it is recorded as `received`, lifting their in-hand toward zero so the audit can
+balance. The in-hand math was already direction-blind (A315), so no aggregate change.
+
+**Why it was a SERVER night.** Three server guards assumed a parcel's recipient is
+always a cashier, so a plain collector could neither be told about an incoming
+parcel nor confirm it. Relaxed, carefully, in Code.gs (A333):
+- `confirmHandover` / `rejectHandover`: the cashier-of-fund check now skips ONLY a
+  recipient who is not any kind of cashier (`recipientIsPlainCollector = mine &&
+  !isAnyCashier_`). A cashier recipient of the WRONG book is still refused (A258/
+  A259 unchanged) and the admin on-behalf path is unchanged. Both halves of the
+  pair changed together. The pre-loop `isAnyCashier_` fast-fail (which blocked a
+  collector recipient outright) was removed; authorization is settled inside the
+  loop once the row's recipient is known.
+- `notifData_`: the incoming-parcel notification moved OUT of the `if (isCashier)`
+  gate (scoped by `isRecipient_`), so a plain collector learns there is a parcel to
+  answer. Cashier-only desks (corrections, approvals) stay gated.
+- No push-gate sender guard was added: a handover's sender is always stamped = self,
+  so nobody can craft an INCOMING parcel to themselves, and a sender only moves
+  their OWN hand down — money is conserved and the recipient still confirms. A
+  server-enforced "only a cashier may send to a collector" rule would need a stored
+  `kind` to tell a reimbursement from an ordinary collector→collector row the book
+  has always allowed (backend 2.5); deferred to pending.md. Initiation is gated on
+  the client — `startReimburse` is cashier/admin only.
+
+**Client.** `startReimburse` (cashier desk → "💸 সংগ্রাহককে টাকা দেওয়া", hidden while
+frozen) reuses `handoverFlow` with a `reimburse` branch: the picker lists committee
+collectors directly (NOT via `cashiersForFund`, which drops every non-cashier — the
+very people a reimbursement is for), and the cashier types one cash + one UPI figure
+capped at what they hold. The recipient confirms from the home notification chip.
+
+**Tests.** Mutation-verified on the real server harness (tests/backend.js):
+- aggregate: a confirmed cashier→collector reimbursement settles an over-drawn
+  collector to 0, counted as `received`; the giver's hand drops (money conserved).
+- backend A333: a plain-collector recipient confirms AND rejects their own parcel;
+  another collector gets `not-recipient`; the money lands; the collector is notified.
+- mutations proven to fail: fund-skip too broad → A258/A259 fail; too narrow →
+  reimburse unreachable; notif gated to cashiers → collector not notified; door
+  unwired → the driven DOM test fails.
+
+v4.164.0 → v4.165.0. Tests 4,303 → 4,323. **SERVER night** — deploy Code.gs by
+**New deployment**, then everyone ⚙️ → 🔄.
