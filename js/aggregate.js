@@ -2714,6 +2714,7 @@
         areas: computeReport('areas', data),
         collectors: computeReport('collectors', data),
         collectorDetail: collectorDetail(data), // A296: every collector, itemised
+        members: computeReport('members', data), // A339: member contributions, incl who has not given
         expenses: computeReport('expenses', data),
         daily: computeReport('daily', data),
       };

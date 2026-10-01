@@ -6375,6 +6375,7 @@
         printReportHTML('areas', d.areas, data) +
         printReportHTML('collectors', d.collectors, data) +
         '<h2>' + esc(t('cd_title')) + '</h2>' + detail +
+        (d.members ? printReportHTML('members', d.members, data) : '') + // A339
         printReportHTML('expenses', d.expenses, data) +
         printReportHTML('daily', d.daily, data);
     }
@@ -6427,6 +6428,7 @@
       reportAreasHTML(d.areas) +
       reportCollectorsHTML(d.collectors) +
       collectorDetailHTML(d.collectorDetail) +
+      (d.members ? memberReportHTML(d.members) : '') + // A339: members in the closing statement
       reportExpensesHTML(d.expenses) +
       reportDailyHTML(d.daily);
   }

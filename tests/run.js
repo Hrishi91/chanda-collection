@@ -12904,6 +12904,51 @@ pending.push((async function () {
   eq(/বিমল/.test(html), true, 'A338: …and names বিমল in the not-given list');
 })());
 
+// A339 — the final statement (🧾 চূড়ান্ত হিসাব) includes the member-contributions
+// section, so the closing document is complete (members never appear in dues/areas).
+(function () {
+  const fin = computeReport('final', {
+    parties: [
+      { id: 'm1', year: 2026, type: 'member', name: 'কমল', collector: 'বস' },
+      { id: 'm2', year: 2026, type: 'member', name: 'বিমল', collector: 'বস' },
+    ],
+    payments: [{ id: 'p1', year: 2026, partyId: 'm1', amount: 500, date: '2026-09-04' }],
+    daily: [], expenses: [], handovers: [], voids: [],
+  });
+  eq(!!fin.members, true, 'A339: the final statement bundles the member report');
+  eq(!!fin.members && fin.members.gaveCount === 1 && fin.members.notGiven.length === 1, true,
+     'A339: …with the gave (1) and not-given (1) split');
+})();
+
+// A339 (driven): the final report screen actually renders the member section.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const central = {
+    parties: [
+      { id: 'm1', year: 2026, type: 'member', name: 'কমল', phone: '9000000001', collector: 'বস', createdAt: '2026-09-01T10:00:00Z' },
+      { id: 'm2', year: 2026, type: 'member', name: 'বিমল', phone: '9000000002', collector: 'বস', createdAt: '2026-09-01T10:00:00Z' },
+    ],
+    payments: [{ id: 'p1', year: 2026, partyId: 'm1', amount: 500, cashAmount: 500, upiAmount: 0, collector: 'বস', date: '2026-09-04', createdAt: '2026-09-04T10:00:00Z' }],
+    daily: [], expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: ADMIN, lists: { area: AREA }, central: central });
+  await h.ready;
+  await h.show('report');
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const chip = h.doc.querySelectorAll('#report-picker [data-rep]')
+    .filter(function (b) { return b.dataset.rep === 'final'; })[0];
+  eq(!!chip, true, 'A339: the final report chip exists');
+  chip.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const html = h.html('report-body');
+  eq(/সদস্য চাঁদা/.test(html), true, 'A339: the final statement shows the member section');
+  eq(/বিমল/.test(html), true, 'A339: …including who has not given');
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

@@ -20795,3 +20795,27 @@ Tests A338 (mutation-verified): computeReport counts members only (shop payment
 excluded), per-member total+count+last, and the not-given list; a driven DOM test
 opens the chip and sees ₹500 + বিমল. A276 (membership via .includes) honoured.
 Client-only. v4.169.0 → v4.170.0. Tests 4,335 → 4,344. **CLIENT night** — ⚙️ → 🔄.
+
+---
+
+## A339 — the final statement now includes the member section (v4.171.0)
+
+Hrishi: "what about the final reports?" The 🧾 চূড়ান্ত হিসাব bundled overview / areas /
+collectors / collector-detail / expenses / daily — but NOT the member report just
+built (A338), so members showed only as a single line inside the overview's byType.
+The closing document was missing the per-member breakdown and who-has-not-given.
+
+Added `members: computeReport('members', data)` to the final bundle, and rendered it
+in both reportFinalHTML (screen) and the printReportHTML('final') branch (PDF), placed
+after the collector detail and before expenses — same section in both, same order.
+
+Reverse-handover (reimburse, A333) needed NO change here: the final report's in-hand
+and per-collector sections read inHandRows / collectorDetail, which are
+direction-blind, so a confirmed cashier→collector reimbursement already lifts the
+recipient's `received` and settles their in-hand in the closing statement and the
+🔎 audit. Verified by re-reading, not changed.
+
+Tests A339 (mutation-verified): the final bundle carries `members` with the gave/
+not-given split; a driven DOM test opens the final chip and sees the সদস্য চাঁদা
+section incl বিমল (not-given). Removing the section fails the suite. Client-only.
+v4.170.0 → v4.171.0. Tests 4,344 → 4,349. **CLIENT night** — ⚙️ → 🔄, no redeploy.
