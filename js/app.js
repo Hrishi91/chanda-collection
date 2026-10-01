@@ -5347,10 +5347,16 @@
   let chaseAllPhone = false; // A299: 🩺 desk — false = owes-only (urgent), true = every phoneless donor (register)
   function renderMyEntries() {
     const all = entriesScope === 'all';
-    // "all" spans every collector, so it must read the central snapshot, not
-    // just this device. Payments stay out of "all" — party detail already shows
-    // every collector's payments, and all payments together would be a wall.
-    (all ? viewData() : DB.allData()).then(function (data) {
+    // A334: BOTH views read the merged book (viewData = central snapshot + this
+    // device's unsynced rows), never DB.allData() alone. The pull writes the
+    // snapshot to ck_central and never into IndexedDB, so "আমার" off DB.allData()
+    // showed nothing on any device whose IndexedDB did not itself hold the rows —
+    // a fresh install, a reset, an epoch-wipe, or entries made on another phone —
+    // while "সবার" (already on viewData) showed them. viewData still merges local
+    // unsynced rows (local wins until synced), so an offline entry not yet on the
+    // server still appears here. "all" drops payments — party detail already shows
+    // every collector's, and all payments together would be a wall.
+    viewData().then(function (data) {
       const voided = {}; (data.voids || []).forEach(function (v) { voided[v.targetId] = 1; });
       const flagged = {}; (data.corrections || []).forEach(function (c) { if (c.status !== 'rejected') flagged[c.targetId] = 1; });
       const meId = Settings.get('collectorUsername') || Settings.get('collectorName');

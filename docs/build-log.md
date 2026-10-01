@@ -20663,3 +20663,34 @@ the server. Rebaked `js/config.js` with the new /exec URL (New deployment mints 
 URL — "New version" has never repointed on this account), so phones hit the new
 backend. config.js is served network-first (no-store), not cache-first, so it is not
 a SHELL file and needs no sw.js bump; phones pick up the new URL on next load.
+
+---
+
+## A334 — ✏️ "আমার" my-entries reads the merged book, not just this device (v4.166.0)
+
+**Live report (2026-10-01).** After the redeploy + 🔄, Hrishi's ✏️ my-entries "আমার"
+view was EMPTY while "সবার" showed everything. Diagnosed by one on-screen tap (সবার
+showed rows → data present, so not a pull failure, not identity).
+
+**Root cause.** "আমার" read `DB.allData()` — this device's IndexedDB ONLY — while
+"সবার" read `viewData()` (the central snapshot merged with local). The pull writes
+the snapshot to `localStorage.ck_central` and NEVER into IndexedDB. So on any device
+whose IndexedDB does not itself hold the rows — a fresh install, a reset, an
+epoch-wipe that cleared IndexedDB (clearAll on a data_epoch change), or entries made
+on another phone — "আমার" showed nothing even though the person's entries were right
+there in the pulled snapshot. "আমার" = "entries physically queued on THIS device"
+was the wrong definition; it should mean "entries I made," wherever they live.
+
+**Fix.** `renderMyEntries` now reads `viewData()` for BOTH views and filters the
+'mine' one by `isMine(r, meId)`. viewData merges local unsynced rows (local wins
+until synced), so an offline entry not yet on the server still appears — no loss
+versus the old DB.allData() path, and the person's whole history now shows.
+
+**Test.** A334 (DOM): a collector whose payment + daily live ONLY in the central
+snapshot (no local IndexedDB rows — the empty-device state) now sees them in "আমার".
+Was RED on DB.allData(), GREEN on viewData().
+
+**CLIENT night** — app.js logic only; Code.gs changed by the version string alone,
+so NO redeploy (schema stays 5; the lock reads schema, not the release number — a
+client ahead of the server only shows the admin a dismissable "redeploy pending"
+hint). Everyone ⚙️ → 🔄. v4.165.0 → v4.166.0. Tests 4,323 → 4,325.

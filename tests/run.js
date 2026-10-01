@@ -12762,6 +12762,34 @@ pending.push((async function () {
      'A333: …and tapping it opens the reimburse flow');
 })());
 
+// A334 — ✏️ "আমার" (my entries) reads the MERGED book (viewData), not just this
+// device's IndexedDB. The pull writes the central snapshot to ck_central, never
+// into IndexedDB, so a collector whose own entries live only in the snapshot —
+// a fresh install, a reset device, an epoch-wipe that cleared IndexedDB, or
+// entries made on another phone — saw an EMPTY "আমার" while "সবার" (which already
+// reads viewData) showed everything. Live, 2026-10-01: Hrishi after a redeploy.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const AREA = [{ id: 'main_malda', nameBn: 'মেন', nameEn: 'Main' }];
+  const ME = { username: 'ram', name: 'রাম', role: 'user', cashier: 0, entries: '' };
+  // the entries live ONLY in the pulled snapshot (ck_central) — NO local
+  // IndexedDB rows — exactly the empty-device state behind the bug.
+  const central = {
+    parties: [{ id: 'p1', year: 2026, type: 'shop', name: 'দোকান', pledged: 1000, side: 'main_malda', collector: 'রাম', collectorId: 'ram', createdAt: '2026-09-01T10:00:00Z' }],
+    payments: [{ id: 'y1', year: 2026, partyId: 'p1', amount: 500, cashAmount: 500, upiAmount: 0, collector: 'রাম', collectorId: 'ram', date: '2026-09-04', createdAt: '2026-09-04T10:00:00Z' }],
+    daily: [{ id: 'r1', year: 2026, type: 'road', date: '2026-09-05', amount: 300, cashAmount: 300, upiAmount: 0, collector: 'রাম', collectorId: 'ram', createdAt: '2026-09-05T10:00:00Z' }],
+    expenses: [], handovers: [], voids: [], corrections: [], messages: [],
+  };
+  const h = loadApp({ user: ME, lists: { area: AREA }, central: central });
+  await h.ready;
+  await h.show('entries');
+  await new Promise(function (r) { setImmediate(r); });
+  await new Promise(function (r) { setImmediate(r); });
+  const html = h.html();
+  eq(/₹500/.test(html), true, 'A334: "আমার" shows my own payment from the central snapshot, not only this device\'s queue');
+  eq(/₹300/.test(html), true, 'A334: …and my own daily round too');
+})());
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;
