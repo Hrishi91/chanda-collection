@@ -12990,6 +12990,19 @@ pending.push((async function () {
   eq(/বিমল/.test(html), true, 'A339: …including who has not given');
 })());
 
+// A341 — warm "pandal at night" dark mode exists, and the page OWNS dark (no
+// longer pinned to light to block Android auto-dark, the A285 state). Contrast of
+// the dark tokens is verified live in the browser (≥4.5:1, same as light) — a text
+// test cannot measure it; this pins that the feature and its warm signature are
+// present so a later edit cannot silently drop them.
+(function () {
+  const css = require('fs').readFileSync(__dirname + '/../css/style.css', 'utf8');
+  eq(/color-scheme:\s*light dark/.test(css), true, 'A341: the page declares BOTH schemes, so it owns dark (not pinned light)');
+  eq(/@media \(prefers-color-scheme: dark\)/.test(css), true, 'A341: a dark block follows the phone OS setting');
+  eq(/--bg:\s*#171210/.test(css), true, 'A341: the dark ground is a WARM near-black (the signature), not cold charcoal');
+  eq(/--ink:\s*#f4ebdd/.test(css), true, 'A341: dark ink is a warm off-white');
+})();
+
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {
     fail++;

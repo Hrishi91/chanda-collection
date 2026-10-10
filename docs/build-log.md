@@ -20836,3 +20836,32 @@ Tests A340 (mutation-verified): computeReport keeps both notes in date order; a 
 DOM test opens the final chip and sees the comment "পুজোর চাঁদা". Removing the render
 fails the suite. Client-only. v4.171.0 → v4.172.0. Tests 4,349 → 4,352.
 **CLIENT night** — ⚙️ → 🔄, no redeploy.
+
+---
+
+## A341 — warm "পান্ডেল অ্যাট নাইট" dark mode (v4.173.0)
+
+Hrishi asked for a whole-app visual pass "so the user has the best experience." The
+app already has a strong, WCAG-tuned, user-tested saffron/gold puja identity, so the
+right move was NOT a reskin (that breaks twelve collectors' muscle memory mid-closure
+and risks the contrast work) but to ship the one deferred gap the code itself named —
+A285: "there is no dark palette yet… a roadmap item," with `color-scheme: light`
+pinned only to stop Android Chrome's auto-dark from inverting money colours.
+
+Signature: a WARM near-black (`--bg: #171210`), not a cold charcoal — the saffron
+header glows like a pandal lamp at night and money stays warm. Follows the phone's OS
+setting via one additive `@media (prefers-color-scheme: dark)` block that redefines
+the ~13 core tokens and overrides the ~20 hard-coded light literals (hero, zones,
+net-bar, bubbles, notif, auth-err, strips, the blue "your-move" accent, msg, final).
+`color-scheme: light` → `light dark` so the page owns dark; a manual ⚙️ toggle can
+later hang off `:root[data-theme]` without a rewrite.
+
+Light theme is byte-for-byte unchanged (only the `color-scheme` line moved) — zero
+regression risk to what collectors already know. Print is unaffected (the @media
+print block forces white paper and its `#print-area` selectors outrank these).
+
+Verified live in the browser pane, light AND dark, with injected real-component
+markup; dark contrast measured ≥4.5:1 throughout (ink 15.7 · sub 9.0 · green 8.4 ·
+green-ink 9.6 · red 6.7 · gold-ink 9.6 on the dark grounds), the same WCAG discipline
+as light. A341 pins the feature + warm signature in tests. Client-only.
+v4.172.0 → v4.173.0. Tests 4,352 → 4,356. **CLIENT night** — ⚙️ → 🔄, no redeploy.

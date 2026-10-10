@@ -779,8 +779,13 @@ block an entry; all were left deliberately on go-live day.
   🚫বন্ধ করো, 🚪বিদায়ী করুন, ✏️নাম বদলাও, 🔑পাসওয়ার্ড রিসেট are all the same grey
   ghost pill. (Whether each has a confirm dialog was not tested — testing it
   would have changed live data.)
-- [ ] **No dark palette.** `color-scheme: light` is declared now (A285), so the
-  phone cannot invert it on its own; a real dark palette is still a project.
+- [x] ~~**No dark palette.**~~ DONE A341 (2026-10-10, v4.173.0). A warm "পান্ডেল
+  অ্যাট নাইট" dark mode now follows the phone's OS setting — `color-scheme: light
+  dark`, an additive `@media (prefers-color-scheme: dark)` block that redefines the
+  core tokens and the ~20 hard-coded light literals. Light theme byte-unchanged.
+  Dark contrast verified live ≥4.5:1 (ink 15.7 · sub 9.0 · green 8.4 · red 6.7 ·
+  gold 9.6). A future manual ⚙️ toggle can hang off `:root[data-theme]` without a
+  rewrite. See build-log A341.
 - [ ] **`css/style.css` is 616 lines, 516 `px`, zero `rem`**, and 29 of its 103
   font-sizes are ≤12.5px — slightly WORSE than when A177 measured it. The px→rem
   pass is not a puja-week job, but the number is moving the wrong way.
@@ -882,13 +887,13 @@ Two quality items, one fixed:
   `--saffron-ontext: #cf4a17` (4.52:1) now serves the three
   "white label on a filled pill" rules. The brand saffron is untouched —
   headers are large text and clear at 3:1 — so nothing looks different.
-- **STILL OPEN — there is no dark mode at all.** `prefers-color-scheme:
-  dark` changes nothing; the body stays cream. On a phone at night in an
-  unlit pandal that is a white torch in somebody's face. This is a whole
-  palette, not a patch: every colour is a literal in `css/style.css`
-  rather than a token pair, so the honest first step is tokenising, which
-  is the "px→rem, dark mode" pass already scheduled above. **Not a
-  trial-week change.**
+- **DONE A341 (2026-10-10) — warm "পান্ডেল অ্যাট নাইট" dark mode.** Was: no dark at
+  all, `prefers-color-scheme: dark` did nothing, a white torch in a face at an unlit
+  pandal. Now the body follows the phone's OS dark setting. The feared "whole palette,
+  every colour a literal" turned out tractable: the core is token-driven (redefine
+  ~13 tokens), and only ~20 hard-coded literals (hero/zones/net-bar/bubbles/strips/
+  blue-accent) needed a dark counterpart — all in one additive `@media` block, light
+  untouched. The px→rem pass is still open (cosmetic); dark did not need it.
 
 ### Check once: is any live account named all / admin / cashiers?
 
