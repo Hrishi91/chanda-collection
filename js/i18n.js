@@ -426,6 +426,11 @@ const I18N = {
   sync_not_configured: { bn: 'এই ফোন এখনো কেন্দ্রীয় খাতার সঙ্গে জোড়া হয়নি — admin-কে বলো। যা লিখবে ফোনেই থাকবে।', en: 'This phone is not connected to the central book yet — tell the admin. Anything you record stays safely on the phone.' },
   collector_name: { bn: 'তোমার নাম (সংগ্রাহক)', en: 'Your name (collector)' },
   language: { bn: 'ভাষা / Language', en: 'Language / ভাষা' },
+  // A342: ☀️/🌙/📱 theme toggle in ⚙️
+  theme: { bn: 'থিম', en: 'Theme' },
+  theme_light: { bn: 'আলো', en: 'Light' },
+  theme_dark: { bn: 'অন্ধকার', en: 'Dark' },
+  theme_auto: { bn: 'ফোন অনুযায়ী', en: 'Auto' },
   script_url: { bn: 'সিঙ্ক URL (Apps Script)', en: 'Sync URL (Apps Script)' },
   secret: { bn: 'সিঙ্ক গোপন-কোড', en: 'Sync secret' },
   year: { bn: 'বছর', en: 'Year' },

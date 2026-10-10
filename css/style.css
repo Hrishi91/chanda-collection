@@ -701,53 +701,51 @@ button.kid.open-pot:active { background: #fff6ec; }
 }
 
 /* ============================================================================
-   A341 — "পান্ডেল অ্যাট নাইট" dark mode (the A285 roadmap item, now shipped).
+   A341/A342 — "পান্ডেল অ্যাট নাইট" dark mode, driven by a ⚙️ toggle.
 
    Signature: a WARM near-black, not a cold charcoal — so the saffron header
-   glows like a pandal lamp at night and money still reads warm. Follows the
-   phone's own OS setting (prefers-color-scheme); a manual ⚙️ toggle can be added
-   later via :root[data-theme] without touching this. PRINT is unaffected — the
-   @media print block forces white paper and its #print-area selectors outrank
-   these. Contrast kept to the same WCAG discipline as light (A64/A177/A285):
-   the dark greens/reds/golds are brightened so SMALL money text still clears.
+   glows like a pandal lamp at night and money still reads warm.
 
-   Nothing above this line changed except `color-scheme`; everything here is
-   additive, so the light theme twelve collectors learned is byte-identical.
+   Mechanism: js/app.js writes data-theme="light" | "dark" on <html>, from the
+   ⚙️ choice (☀️ / 🌙 / 📱 Auto); on Auto it resolves the phone's OS via matchMedia
+   and keeps it in sync. The app renders ENTIRELY in JS, so there is no pre-JS
+   flash to guard — a pure-CSS @media fallback would only ever paint a blank page.
+   Light is the bare :root (byte-for-byte unchanged). PRINT stays white: the
+   @media print block forces white paper and its #print-area selectors outrank
+   these. Dark contrast holds the same WCAG discipline as light (A64/A177/A285) —
+   greens/reds/golds brightened so SMALL money text clears ≥4.5:1 (verified live).
    ========================================================================== */
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* warm grounds + warm off-white ink */
-    --bg: #171210; --card: #221a14; --ink: #f4ebdd; --sub: #c3b39a; --line: #3a2e22;
-    /* money colours, brightened for small bold text on the dark ground */
-    --green: #4cc47a; --green-ink: #62cf8c; --red: #f0776c;
-    /* gold-as-text must go LIGHT on dark (the light value #8a5a00 vanishes here) */
-    --gold-ink: #e6b24b;
-    /* saffron/gold brand fills kept — they glow on the warm black */
-  }
-  /* ---- the ~20 hard-coded light literals, given a dark counterpart ---- */
-  .hero { background: linear-gradient(135deg, #2a1f16, #231a12); }
-  .hero-hold { background: rgba(255,255,255,.06); }
-  #net-bar { background: #241a12; color: var(--sub); border-bottom-color: var(--line); }
-  .zone.mine { background: #241c14; border-color: #3a2e22; }
-  .zone.all  { background: #16191f; border-color: #2a3340; border-left-color: #6f93c0; }
-  .zone.mine .zone-hd { border-bottom-color: #3a2e22; }
-  .zone.all  .zone-hd { border-bottom-color: #2a3340; }
-  button.notif-item { background: #2a1f12; border-color: #4a3a1e; }
-  .bubble.a { background: #16271c; }                 /* text is var(--green), now bright */
-  .auth-err { background: #2e1715; border-color: #5a2b27; }
-  .msg.mine { background: #2a2014; border-color: #4a3a22; }
-  .msg-fail, .nav-dot.me { background: none; }        /* reset any stray light bg */
-  .nav-dot.me { background: var(--red); }
-  .strip { background: #2a2412; }                     /* border stays var(--gold) */
-  .strip.act { background: #132030; border-color: #2f4a6b; }
-  /* "blue = your move" accent, lifted for the dark ground */
-  .strip .cta, .nobox > .head .amt, .nobox .kid .v,
-  .actbox > .head .amt, .actbox .kid .v { color: #7fb0e8; }
-  .sw-blue { background: #5b86b8; }
-  .final { background: #152218; }
-  .tillnow .term { background: var(--card); }
-  button.kid.open-pot:active { background: #2a2016; }
-  .sw { border-color: rgba(255,255,255,.14); }
-  /* lift card/tile shadows a touch so edges still read on the dark ground */
-  .tile, .card, .sum-hero { box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  /* warm grounds + warm off-white ink */
+  --bg: #171210; --card: #221a14; --ink: #f4ebdd; --sub: #c3b39a; --line: #3a2e22;
+  /* money colours brightened for small bold text on the dark ground; gold-as-text
+     must go LIGHT here (the light value #8a5a00 vanishes). saffron/gold fills kept. */
+  --green: #4cc47a; --green-ink: #62cf8c; --red: #f0776c; --gold-ink: #e6b24b;
 }
+/* ---- the ~20 hard-coded light literals, given a dark counterpart ---- */
+:root[data-theme="dark"] .hero { background: linear-gradient(135deg, #2a1f16, #231a12); }
+:root[data-theme="dark"] .hero-hold { background: rgba(255,255,255,.06); }
+:root[data-theme="dark"] #net-bar { background: #241a12; color: var(--sub); border-bottom-color: var(--line); }
+:root[data-theme="dark"] .zone.mine { background: #241c14; border-color: #3a2e22; }
+:root[data-theme="dark"] .zone.all  { background: #16191f; border-color: #2a3340; border-left-color: #6f93c0; }
+:root[data-theme="dark"] .zone.mine .zone-hd { border-bottom-color: #3a2e22; }
+:root[data-theme="dark"] .zone.all  .zone-hd { border-bottom-color: #2a3340; }
+:root[data-theme="dark"] button.notif-item { background: #2a1f12; border-color: #4a3a1e; }
+:root[data-theme="dark"] .bubble.a { background: #16271c; }   /* text is var(--green), bright */
+:root[data-theme="dark"] .auth-err { background: #2e1715; border-color: #5a2b27; }
+:root[data-theme="dark"] .msg.mine { background: #2a2014; border-color: #4a3a22; }
+:root[data-theme="dark"] .nav-dot.me { background: var(--red); }
+:root[data-theme="dark"] .strip { background: #2a2412; }      /* border stays var(--gold) */
+:root[data-theme="dark"] .strip.act { background: #132030; border-color: #2f4a6b; }
+/* "blue = your move" accent, lifted for the dark ground */
+:root[data-theme="dark"] .strip .cta,
+:root[data-theme="dark"] .nobox > .head .amt, :root[data-theme="dark"] .nobox .kid .v,
+:root[data-theme="dark"] .actbox > .head .amt, :root[data-theme="dark"] .actbox .kid .v { color: #7fb0e8; }
+:root[data-theme="dark"] .sw-blue { background: #5b86b8; }
+:root[data-theme="dark"] .final { background: #152218; }
+:root[data-theme="dark"] .tillnow .term { background: var(--card); }
+:root[data-theme="dark"] button.kid.open-pot:active { background: #2a2016; }
+:root[data-theme="dark"] .sw { border-color: rgba(255,255,255,.14); }
+/* lift card/tile shadows a touch so edges still read on the dark ground */
+:root[data-theme="dark"] .tile, :root[data-theme="dark"] .card, :root[data-theme="dark"] .sum-hero { box-shadow: 0 1px 3px rgba(0,0,0,.4); }

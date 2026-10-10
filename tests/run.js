@@ -12996,12 +12996,39 @@ pending.push((async function () {
 // test cannot measure it; this pins that the feature and its warm signature are
 // present so a later edit cannot silently drop them.
 (function () {
-  const css = require('fs').readFileSync(__dirname + '/../css/style.css', 'utf8');
+  const fs = require('fs');
+  const css = fs.readFileSync(__dirname + '/../css/style.css', 'utf8');
   eq(/color-scheme:\s*light dark/.test(css), true, 'A341: the page declares BOTH schemes, so it owns dark (not pinned light)');
-  eq(/@media \(prefers-color-scheme: dark\)/.test(css), true, 'A341: a dark block follows the phone OS setting');
+  eq(/:root\[data-theme="dark"\]\s*\{/.test(css), true, 'A342: the dark theme is driven by data-theme (so a ⚙️ toggle can set it)');
   eq(/--bg:\s*#171210/.test(css), true, 'A341: the dark ground is a WARM near-black (the signature), not cold charcoal');
   eq(/--ink:\s*#f4ebdd/.test(css), true, 'A341: dark ink is a warm off-white');
+  // A342: the toggle is wired — ⚙️ writes the choice and the app applies it to <html>
+  const app = fs.readFileSync(__dirname + '/../js/app.js', 'utf8');
+  eq(/function applyTheme\(\)/.test(app) && /document\.documentElement\.setAttribute\('data-theme'/.test(app), true,
+     'A342: applyTheme writes data-theme on <html>');
+  eq(/Settings\.set\('theme', b\.dataset\.th\); applyTheme\(\);/.test(app), true, 'A342: the ⚙️ chips store the choice and apply it live');
+  eq(/initTheme\(\);/.test(app), true, 'A342: the theme is applied on boot');
 })();
+
+// A342 (driven): the ⚙️ theme toggle works — tapping 🌙 selects dark and persists.
+pending.push((async function () {
+  const { loadApp } = require('./dom-shim.js');
+  const ADMIN = { username: 'boss', name: 'বস', role: 'admin', cashier: 0, entries: '' };
+  const h = loadApp({ user: ADMIN });
+  await h.ready;
+  await h.show('settings');
+  await new Promise(function (r) { setImmediate(r); });
+  const dark = h.doc.querySelectorAll('[data-th]').filter(function (b) { return b.dataset.th === 'dark'; })[0];
+  eq(!!dark, true, 'A342: the ⚙️ settings screen offers a 🌙 dark chip');
+  const before = (dark.className || '').indexOf('on') >= 0;
+  eq(before, false, 'A342: dark is not selected by default (auto)');
+  dark.onclick();
+  await new Promise(function (r) { setImmediate(r); });
+  const dark2 = h.doc.querySelectorAll('[data-th]').filter(function (b) { return b.dataset.th === 'dark'; })[0];
+  eq((dark2.className || '').indexOf('on') >= 0, true, 'A342: tapping 🌙 selects dark (stored + re-rendered)');
+  const auto2 = h.doc.querySelectorAll('[data-th]').filter(function (b) { return b.dataset.th === 'auto'; })[0];
+  eq((auto2.className || '').indexOf('on') >= 0, false, 'A342: …and auto is no longer selected');
+})());
 
 Promise.all(pending.map(function (p) {
   return p.catch(function (e) {

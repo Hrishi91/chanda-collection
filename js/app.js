@@ -7536,6 +7536,14 @@
       '<div class="field"><label>' + esc(t('language')) + '</label>' +
       '<div class="chips"><button class="chip' + (Settings.get('lang') === 'bn' ? ' on' : '') + '" data-l="bn">বাংলা</button>' +
       '<button class="chip' + (Settings.get('lang') === 'en' ? ' on' : '') + '" data-l="en">English</button></div></div>' +
+      // A342: ☀️ / 🌙 / 📱 theme toggle
+      (function () {
+        const th = Settings.get('theme') || 'auto';
+        const b = function (v, lbl) { return '<button class="chip' + (th === v ? ' on' : '') + '" data-th="' + v + '">' + lbl + '</button>'; };
+        return '<div class="field"><label>' + esc(t('theme')) + '</label><div class="chips">' +
+          b('light', '☀️ ' + esc(t('theme_light'))) + b('dark', '🌙 ' + esc(t('theme_dark'))) +
+          b('auto', '📱 ' + esc(t('theme_auto'))) + '</div></div>';
+      })() +
       fields.map(function (f) {
         return '<div class="field"><label>' + esc(t(f[1])) + '</label>' +
           '<input type="' + f[2] + '" data-k="' + f[0] + '" value="' + esc(Settings.get(f[0])) + '">' +
@@ -7628,6 +7636,9 @@
     };
     document.querySelectorAll('[data-l]').forEach(function (b) {
       b.onclick = function () { Settings.set('lang', b.dataset.l); render(); };
+    });
+    document.querySelectorAll('[data-th]').forEach(function (b) {
+      b.onclick = function () { Settings.set('theme', b.dataset.th); applyTheme(); render(); }; // A342
     });
     document.querySelectorAll('[data-k]').forEach(function (i) {
       i.onchange = function () { Settings.set(i.dataset.k, i.value.trim()); };
@@ -9923,6 +9934,31 @@
     }
   }
 
+  // ---------- theme (A341/A342): ☀️ / 🌙 / 📱 Auto ----------
+  // The app renders entirely in JS, so the theme is applied the same way — by
+  // writing data-theme on <html>. ⚙️ stores 'light' | 'dark' | 'auto' (default
+  // auto). Auto resolves the phone's OS via matchMedia and keeps in sync while it
+  // stays on auto. CSS does the rest (the dark-theme selector); light is bare.
+  function themePref() { try { return Settings.get('theme') || 'auto'; } catch (e) { return 'auto'; } }
+  function applyTheme() {
+    let p = themePref();
+    if (p !== 'light' && p !== 'dark') {
+      p = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    }
+    try { document.documentElement.setAttribute('data-theme', p); } catch (e) {}
+  }
+  function initTheme() {
+    applyTheme();
+    if (window.matchMedia) {
+      try {
+        const mq = window.matchMedia('(prefers-color-scheme: dark)');
+        const onChange = function () { if (themePref() === 'auto') applyTheme(); };
+        if (mq.addEventListener) mq.addEventListener('change', onChange);
+        else if (mq.addListener) mq.addListener(onChange); // older WebView
+      } catch (e) {}
+    }
+  }
+
   // ---------- router ----------
   let current = { view: 'home', params: {} };
   function navigate(view, params) {
@@ -10123,6 +10159,7 @@
     if (unsyncedN > 0) { e.preventDefault(); e.returnValue = ''; }
   });
   document.addEventListener('DOMContentLoaded', function () {
+    initTheme(); // A342: set ☀️/🌙 before the first paint (app is JS-rendered, no flash)
     document.querySelectorAll('#bottomnav button').forEach(function (b) {
       b.onclick = function () { Voice.stop(); flowState = null; navigate(b.dataset.nav); };
     });

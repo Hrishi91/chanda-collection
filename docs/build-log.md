@@ -20865,3 +20865,27 @@ markup; dark contrast measured ≥4.5:1 throughout (ink 15.7 · sub 9.0 · green
 green-ink 9.6 · red 6.7 · gold-ink 9.6 on the dark grounds), the same WCAG discipline
 as light. A341 pins the feature + warm signature in tests. Client-only.
 v4.172.0 → v4.173.0. Tests 4,352 → 4,356. **CLIENT night** — ⚙️ → 🔄, no redeploy.
+
+---
+
+## A342 — manual ☀️ / 🌙 / 📱 theme toggle in ⚙️ Settings (v4.174.0)
+
+Hrishi: "add the manual light/dark toggle in settings." Added a three-way chip row
+(☀️ আলো / 🌙 অন্ধকার / 📱 ফোন অনুযায়ী) under ⚙️, beside the language toggle.
+
+Mechanism change (from A341's @media): the app renders ENTIRELY in JS, so the theme
+is now driven by `data-theme` on <html>, written by `applyTheme()` — `:root[data-theme
+="dark"]` replaces the `@media (prefers-color-scheme: dark)` block. ⚙️ stores the
+choice in `Settings` ('light' | 'dark' | 'auto', default auto). On **auto** the app
+resolves the phone's OS via `matchMedia` and keeps it in sync live (a `change`
+listener re-applies only while the choice is auto). `initTheme()` runs on boot before
+the first paint, so there is no flash. This single-block approach has no duplication
+and the light theme stays byte-for-byte unchanged.
+
+Verified live in the browser pane: `data-theme="dark"` paints the warm dark
+(body #171210); emulating an OS switch while on auto flipped the app light→dark on its
+own; the ⚙️ chips select and persist. A342 pins the data-theme selector, applyTheme
+writing <html>, the wired chips, and boot init; a driven DOM test taps 🌙 and asserts
+it becomes selected. A48 (every rendered data-* has a reader) kept green after a
+comment reword. Client-only. v4.173.0 → v4.174.0. Tests 4,356 → 4,363.
+**CLIENT night** — ⚙️ → 🔄, no redeploy.
