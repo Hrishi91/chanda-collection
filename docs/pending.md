@@ -1029,14 +1029,15 @@ The third is defensible. Recording it so the choice is made on purpose.
   from the local snapshot via computeReport('members'); no server night. See
   build-log A338.
 
-- [ ] **Server-enforce reimburse initiation (needs a `kind` field)** — deferred from
-  A333. Today "only a cashier/admin may give money to a collector" is a CLIENT gate
-  (`startReimburse`); the server does not forbid an ordinary collector→collector
-  handover, because the book has always allowed creating one (backend 2.5) and it is
-  money-conserving (sender is stamped = self; the recipient still confirms). To make
-  the rule server-authoritative, add a stored `kind` ('reimburse') on the handover
-  row so the push gate can tell a reimbursement from a plain collector→collector row
-  and require the sender be cashier/admin for the former. SERVER night + schema bump.
+- [x] ~~**Server-enforce reimburse initiation (needs a `kind` field)**~~ DONE A343
+  (2026-10-13, v4.175.0, branch feat/remaining-implementation). The handovers sheet
+  gained a `kind` column; the reimburse row carries kind='reimburse'; the push gate
+  now refuses money addressed to a plain collector unless kind='reimburse' AND the
+  sender is a cashier/admin (isAnyCashier_ — a fund cashier counts). Ordinary
+  hand-ins to a cashier are untouched, and backend 2.5's collector→collector row
+  became a valid cashier reimbursement. **No schema bump** — `kind` is appended
+  backward-compatibly (an old client sends none and never addresses a collector), so
+  APP_SCHEMA stays 5. SERVER night (redeploy Code.gs). See build-log A343.
 
 - **🚀 should keep member rows too — DECIDED, deferred** (Hrishi, 2026-09-14,
   reported from the LIVE app). `goLive` clears the whole Parties sheet

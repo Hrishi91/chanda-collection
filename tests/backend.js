@@ -226,15 +226,45 @@ module.exports = function runBackendTests(eq) {
        'backend A71: …and a settled parcel is settled, whichever way it went');
   }
   {
-    // and the recipient rule holds: being A cashier is not enough
+    // and the recipient rule holds: being A cashier is not enough. The parcel is
+    // a valid cashier→collector reimbursement (A343 requires kind='reimburse' from
+    // a cashier to address a collector); bimal is a cashier but NOT its recipient.
     const { b, tok } = book();
-    b.call('push', { token: tok.ratan, epoch: '', records: [
+    b.call('push', { token: tok.admin, epoch: '', records: [
       rec('handovers', { id: 'h1', year: 2026, to: 'KALI', toId: 'kali', amount: 500,
-                         cashAmount: 500, upiAmount: 0, date: '2026-08-01' }),
+                         cashAmount: 500, upiAmount: 0, date: '2026-08-01', kind: 'reimburse' }),
     ] });
     let threw = '';
     try { b.call('confirmHandover', { token: tok.bimal, id: 'h1' }); } catch (e) { threw = String(e.message || e); }
     eq(threw, 'not-recipient', 'backend 2.5: a cashier cannot confirm a parcel addressed to somebody else');
+  }
+  {
+    // A343: money addressed to a COLLECTOR is server-gated to a cashier/admin
+    // reimbursement (kind='reimburse'). This is the SEND half; A333 proved the
+    // CONFIRM half (a plain-collector recipient may settle it).
+    const { b, tok } = book();
+    // (1) a cashier reimburses a plain collector → accepted, and the collector confirms
+    const r1 = b.call('push', { token: tok.bimal, epoch: '', records: [
+      rec('handovers', { id: 'rb1', year: 2026, to: 'KALI', toId: 'kali', amount: 300,
+                         cashAmount: 300, upiAmount: 0, date: '2026-09-01', kind: 'reimburse' }) ] });
+    eq((r1.savedIds || []).indexOf('rb1') >= 0, true, 'backend A343: a cashier may reimburse a plain collector');
+    let ok1 = ''; try { b.call('confirmHandover', { token: tok.kali, id: 'rb1' }); ok1 = 'ok'; } catch (e) { ok1 = String(e.message || e); }
+    eq(ok1, 'ok', 'backend A343: …and the plain-collector recipient confirms it');
+    // (2) a plain collector cannot FORGE a reimbursement to a collector
+    const r2 = b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('handovers', { id: 'rb2', year: 2026, to: 'KALI', toId: 'kali', amount: 100,
+                         cashAmount: 100, upiAmount: 0, date: '2026-09-01', kind: 'reimburse' }) ] });
+    eq((r2.rejectedIds || []).indexOf('rb2') >= 0, true, 'backend A343: a plain collector cannot forge a reimbursement');
+    // (3) …nor address a collector at all without being a cashier (no kind either)
+    const r3 = b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('handovers', { id: 'rb3', year: 2026, to: 'KALI', toId: 'kali', amount: 100,
+                         cashAmount: 100, upiAmount: 0, date: '2026-09-01' }) ] });
+    eq((r3.rejectedIds || []).indexOf('rb3') >= 0, true, 'backend A343: …nor an ordinary collector→collector hand-off');
+    // (4) the ordinary collector→CASHIER hand-in is untouched
+    const r4 = b.call('push', { token: tok.ratan, epoch: '', records: [
+      rec('handovers', { id: 'rb4', year: 2026, to: 'BIMAL', toId: 'bimal', amount: 200,
+                         cashAmount: 200, upiAmount: 0, date: '2026-09-01' }) ] });
+    eq((r4.savedIds || []).indexOf('rb4') >= 0, true, 'backend A343: an ordinary hand-in to a cashier is unaffected');
   }
 
   // ---- 2.1 / A60: who may change a donor row, and what may be removed -----
@@ -2523,8 +2553,10 @@ module.exports = function runBackendTests(eq) {
        'backend A174: a payment against a donor already in the book still lands');
     d = (E.be.call('pull', { token: E.te.hrishi, since: 0 }) || {}).data || {};
     eq(orphans(d), 0, 'backend A174: …and still no orphan');
+    // A343: a hand-in goes to a CASHIER — hrishi (admin) is the only one here, which
+    // is who an exiting collector would actually hand their cash to anyway.
     const h = E.be.call('push', { token: E.te.dipak, records: [rec('handovers', { id: 'ex-h1', year: 2026,
-      amount: 700, cashAmount: 700, upiAmount: 0, toId: 'kali', date: '2026-09-05', status: 'pending' })] });
+      amount: 700, cashAmount: 700, upiAmount: 0, toId: 'hrishi', date: '2026-09-05', status: 'pending' })] });
     eq((h.savedIds || []).join(','), 'ex-h1', 'backend A174: …and handing in what they hold is still open');
     const v = E.be.call('push', { token: E.te.dipak, records: [rec('voids', { id: 'ex-v1', year: 2026,
       targetStore: 'payments', targetId: 'ex-y2', reason: 'x', date: '2026-09-05' })] });
@@ -4981,9 +5013,10 @@ module.exports = function runBackendTests(eq) {
        tot(A259.handoverable(dS, 'subrata259')), 'backend A259: …with the two halves summing to the whole');
 
     // handovers, addressed to the WRONG cashier so the fund gate is the one reached
-    const parcel = function (who, id, sector, cat, amt, to) {
+    const parcel = function (who, id, sector, cat, amt, to, kind) {
       return push(who, 'handovers', { id: id, year: 2026, toId: to, to: to, amount: amt,
         cashAmount: amt, upiAmount: 0, date: '2026-09-07', status: 'pending', sector: sector,
+        kind: kind || '', // A343: collector-addressed parcels must say 'reimburse'
         breakdown: JSON.stringify((function () { const o = {}; o[cat] = { cash: amt, upi: 0 }; return o; })()) });
     };
     const settle = function (who, id, action) {
@@ -5009,8 +5042,8 @@ module.exports = function runBackendTests(eq) {
     // is what the relaxed recipient rule is FOR; it must work on the real server,
     // and the A259 refusals just above prove the relaxation did not reopen the
     // wrong-book hole. ratan259 is a puja collector, not a cashier of anything.
-    parcel('kali259', 'h-reimb', 'puja', 'shop', 100, 'ratan259');
-    parcel('kali259', 'h-reimb2', 'puja', 'shop', 50, 'ratan259');
+    parcel('kali259', 'h-reimb', 'puja', 'shop', 100, 'ratan259', 'reimburse');
+    parcel('kali259', 'h-reimb2', 'puja', 'shop', 50, 'ratan259', 'reimburse');
     // a collector who is NOT the recipient still cannot touch it — the mirror
     eq(settle('subrata259', 'h-reimb', 'confirmHandover'), 'not-recipient',
        'backend A333: another collector cannot confirm a reimbursement not addressed to them');
@@ -5027,7 +5060,7 @@ module.exports = function runBackendTests(eq) {
     // third parcel left PENDING must surface in ratan259's own notification feed,
     // or they never learn there is a "✅ পেয়েছি" to tap. Mutation-sensitive: put
     // the handover loop back inside the isCashier gate and this drops to 0.
-    parcel('kali259', 'h-reimb3', 'puja', 'shop', 70, 'ratan259');
+    parcel('kali259', 'h-reimb3', 'puja', 'shop', 70, 'ratan259', 'reimburse');
     const notifR = (b259.call('pull', { token: tk.ratan259, year: 2026, since: 0 }) || {}).notif || {};
     const hoItems = ((notifR.items || {}).handovers || []).filter(function (h) { return h.id === 'h-reimb3'; }).length;
     eq(hoItems, 1, 'backend A333: a plain collector is notified of a pending parcel addressed to them');

@@ -2236,6 +2236,9 @@
           // every row without a `sector` has always had.
           sector: sheetSector,
           breakdown: breakdown ? JSON.stringify(breakdown) : '',
+          // A343: mark a reimbursement so the server accepts money addressed to a
+          // collector only from a cashier/admin. Empty for an ordinary hand-in.
+          kind: reimburse ? 'reimburse' : '',
         });
         return DB.put('handovers', row).then(function () {
           return { undo: [{ store: 'handovers', id: row.id }], after: { buttons: [

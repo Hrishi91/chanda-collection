@@ -96,7 +96,13 @@ var SHEETS = {
               // migrates headers by adding missing names at the end, and every
               // write here is position-based, so inserting mid-list would shift
               // every column after it in existing sheets.
-              'rejectReason'],
+              'rejectReason',
+              // A343: 'reimburse' marks a cashier→collector handover (💸), so the
+              // push gate can require a cashier/admin sender for money addressed to
+              // a collector. APPENDED LAST (same rule as above). NO schema bump: an
+              // old client never sends it and never addresses a collector, so the
+              // contract is unchanged — only new reimbursement rows carry it.
+              'kind'],
   // audit-preserving corrections: a void points at another record's id
   // A224: `collectorRole` is stamped onto EVERY pushed row (push does it
   // unconditionally, from the token), and these two stores were the only ones
@@ -1412,7 +1418,7 @@ function doPost(e) {
 //   curl -sL "$EXEC"  →  {"ok":true,"service":"chanda-khata","version":"..."}
 // CODE_VERSION is asserted against sw.js's VERSION in tests/run.js, so the two
 // cannot drift apart by someone forgetting to bump one of them.
-var CODE_VERSION = 'chanda-v4.174.0';
+var CODE_VERSION = 'chanda-v4.175.0';
 // A43: the RELEASE string above is for people to read. CODE_SCHEMA is the
 // CONTRACT — columns, handlers, meanings — and it is the only number the app's
 // version lock and warnings consult. It moves only in a commit that actually
@@ -1703,16 +1709,21 @@ var ACTIONS = {
         if (r.store === 'handovers') {
           var to = accessIndex_()[String(r.row.toId || r.row.to || '')];
           if (to && (to.access === 'exiting' || to.status === 'blocked')) { rejectedIds.push(r.row.id); return; }
-          // A333: a reimbursement (cashier → collector) is created only from the
-          // cashier's own desk (startReimburse is gated to cashier/admin on the
-          // client). No push-gate guard is added for it on purpose: a handover's
-          // sender is always stamped = self here, so nobody can craft an INCOMING
-          // parcel to themselves, and a sender can only ever move their OWN hand
-          // down — money is conserved and the recipient still has to confirm. A
-          // server-enforced "only a cashier may send to a collector" rule would
-          // need a stored `kind` to tell a reimbursement from an ordinary
-          // collector→collector row the book has always let people create (see
-          // backend 2.5); that is deferred to pending.md, not smuggled in here.
+          // A343: money addressed to a plain COLLECTOR may only be a cashier/admin
+          // reimbursement (💸). This is now server-authoritative, the mirror of the
+          // confirm side (A333 let a plain collector CONFIRM money sent to them; this
+          // guards who may SEND it). A handover to a cashier is the ordinary
+          // collector→cashier hand-in and is untouched. A free-text recipient with no
+          // account is left alone ("we cannot tell" is never "no") — they have no
+          // account to confirm with anyway. `kind` is appended backward-compatibly:
+          // an old client sends none and never addresses a collector, so nothing it
+          // does is refused; only a new reimbursement row carries kind='reimburse'.
+          // "cashier" here means cashier of ANY book (a programme fund-cashier is
+          // one too), so an ordinary hand-in to either কোষাধ্যক্ষ is never caught.
+          var toRow = findUser_('username', String(r.row.toId || ''));
+          if (toRow && !isAnyCashier_(toRow.row)) {
+            if (String(r.row.kind) !== 'reimburse' || !isAnyCashier_(user.row)) { rejectedIds.push(r.row.id); return; }
+          }
         }
         // general puja expenses are cashier/admin only; a COLLECTION expense is
         // spent out of a round the person is running, so permForRow_ hands back

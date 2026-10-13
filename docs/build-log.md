@@ -20889,3 +20889,30 @@ writing <html>, the wired chips, and boot init; a driven DOM test taps 🌙 and 
 it becomes selected. A48 (every rendered data-* has a reader) kept green after a
 comment reword. Client-only. v4.173.0 → v4.174.0. Tests 4,356 → 4,363.
 **CLIENT night** — ⚙️ → 🔄, no redeploy.
+
+---
+
+## A343 — server-enforce reimburse initiation via a `kind` field (v4.175.0)
+
+Branch `feat/remaining-implementation`, phase 1. Closes the hole A333 deferred: who
+may GIVE money to a collector was only a CLIENT gate (startReimburse). Now it is
+server-authoritative.
+
+`SHEETS.handovers` gained a `kind` column (appended last, ensureCols_ migrates). The
+reimburse row carries `kind: 'reimburse'`; the push gate refuses a handover addressed
+to a plain collector unless `kind === 'reimburse'` AND the sender is a cashier/admin
+(`isAnyCashier_` — a programme fund-cashier counts, so ordinary hand-ins to either
+কোষাধ্যক্ষ are never caught). A free-text recipient with no account is left alone.
+
+**No schema bump.** `kind` is backward-compatible: an old client sends none and never
+addresses a collector, so nothing it does is refused; only a new reimbursement row
+carries it. APP_SCHEMA stays 5 (the collection is not over — pending.md rule).
+
+Tests (mutation-verified on the real server shim, tests/backend.js): a cashier may
+reimburse a collector and the collector confirms; a plain collector cannot forge a
+reimbursement nor address a collector at all; an ordinary hand-in to a cashier is
+unaffected. backend 2.5 (a cashier cannot confirm someone else's parcel) was reworked
+to a valid cashier→collector reimbursement; A174's exiting-collector hand-in now goes
+to the admin (a cashier), which is who it would go to anyway. Dropping the gate fails
+the suite. **SERVER night** — redeploy Code.gs; no schema bump. v4.174.0 → v4.175.0.
+Tests 4,363 → 4,370.

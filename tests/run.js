@@ -3107,8 +3107,11 @@ eq(myAvailable({ parties: [], payments: [], expenses: [], handovers: [], voids: 
   const hoStart = src.indexOf('  handovers: [');
   const hoCols = src.slice(hoStart, src.indexOf('],', hoStart))
     .replace(/\/\/[^\n]*/g, '').match(/'([a-zA-Z]+)'/g).map(function (q) { return q.slice(1, -1); });
-  eq(hoCols[hoCols.length - 1], 'rejectReason', 'reject: rejectReason is the LAST handovers column (migration rule)');
-  eq(hoCols.indexOf('breakdown'), hoCols.length - 2, 'reject: …appended after breakdown, not inserted before it');
+  // A343 appended 'kind' as the newest last column (same append-only rule) —
+  // rejectReason and breakdown keep their order, just no longer at the very end.
+  eq(hoCols[hoCols.length - 1], 'kind', 'reject: the newest handovers column (kind) is appended LAST (migration rule)');
+  eq(hoCols[hoCols.length - 2], 'rejectReason', 'reject: rejectReason stayed put, just before kind');
+  eq(hoCols.indexOf('breakdown'), hoCols.length - 3, 'reject: …breakdown not shifted, two before the end');
   // the two server mirrors of "not confirmed means pending" must both know better
   eq(src.indexOf("h.status !== 'confirmed' && h.status !== 'rejected'") >= 0, true,
      'reject: the server stops filing a refused parcel as pending');
@@ -12729,6 +12732,9 @@ pending.push((async function () {
   eq(/g === 'reimburse'/.test(app), true, 'A333: …wired in nav');
   // the reimburse branch of handoverFlow bypasses cashiersForFund for its picker
   eq(/reimburse \? opts :/.test(app), true, 'A333: reimburse lists collectors directly, not cashiersForFund');
+  // A343: the reimburse row carries kind='reimburse' so the server can accept
+  // money addressed to a collector only from a cashier/admin (backend A343).
+  eq(/kind: reimburse \? 'reimburse' : ''/.test(app), true, 'A343: the reimburse row is marked kind=reimburse');
 })();
 
 // (5) client, driven: the door is WIRED — tapping it on the cashier desk really
